@@ -609,6 +609,13 @@
                 <td class="s-lbl">Discount :</td>
                 <td class="s-val">@Model.DiscountAmount.ToString("N2")</td>
             </tr>
+            @if (Model.MembershipDiscountAmount > 0)
+            {
+                <tr>
+                    <td class="s-lbl">Membership Discount@(string.IsNullOrEmpty(Model.MembershipCardNo) ? "" : " (" + Model.MembershipCardNo + ")") :</td>
+                    <td class="s-val">-@Model.MembershipDiscountAmount.ToString("N2")</td>
+                </tr>
+            }
             @if (Model.MiscGstAmount > 0)
             {
                 <tr>

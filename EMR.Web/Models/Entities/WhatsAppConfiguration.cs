@@ -23,6 +23,9 @@ public class WhatsAppConfiguration
     public string VideoDoctorMessageTemplate { get; set; } = "Dear Dr. {DoctorName}, you have a Video Consultation scheduled with {PatientName} on {Date} at {Time}. Start using: {Link}";
     public bool LabReportApprovedNotificationEnabled { get; set; } = true;
     public string LabReportApprovedMessageTemplate { get; set; } = "Dear {PatientName}, your report for Bill {BillNo} at {HospitalName} has been approved. Please find your report attached. Thank you for choosing us!";
+    // membership points earned on a bill (SQLScripts/2243)
+    public bool MembershipPointsNotificationEnabled { get; set; } = true;
+    public string MembershipPointsMessageTemplate { get; set; } = "Dear {CardHolderName}, {PointsEarned} points (worth Rs. {PointsValue}) have been added to your {HospitalName} membership card {CardNo} for Bill {BillNo}. Your balance is now {PointsBalance} points (Rs. {BalanceValue}). These points are valid till {ExpiryDate}. Thank you!";
     public bool IsDefault { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public DateTime? LastTestedDate { get; set; }

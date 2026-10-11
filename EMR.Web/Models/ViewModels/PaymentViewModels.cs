@@ -49,6 +49,9 @@ public class PaymentSummaryViewModel
     public decimal TotalPaid { get; set; }
     /// <summary>What the bill's receipts add up to (PaymentDetail) - the figure a payment is checked against.</summary>
     public decimal PaidFromReceipts { get; set; }
+    // membership benefit already on the bill (SQLScripts/2241); a benefit on tests blocks a manual discount
+    public decimal MembershipDiscountAmount { get; set; }
+    public decimal MembershipTestDiscount { get; set; }
     public decimal BalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
     public string? ReceiptNos { get; set; }
@@ -166,6 +169,9 @@ public class PaymentLineItemRow
     /// <summary>A LAB misc charge line (SQLScripts/2240): set by the server, never taken from the page.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public int? LabOrderMiscChargeId { get; set; }
+    /// <summary>Membership benefit on the line (SQLScripts/2241): set by the server, part of LineDiscountAmount.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public decimal MembershipDiscountAmount { get; set; }
 }
 
 // ── Bill Payment Summary (for PrintBill view) ───────────────────────────────

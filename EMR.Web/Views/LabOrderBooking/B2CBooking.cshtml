@@ -1992,6 +1992,7 @@
                     patientName: fullName,
                     patientCode: pCode,
                     patientPhone: phone,
+                    patientId: parseInt($('#PatientId').val()) || 0,   // a member's plan benefits (SQLScripts/2241)
                     subTotal: totalAmount + (window.LabMisc ? window.LabMisc.subTotal() : 0),   // + misc charges (GST is added by the payment screen)
                     items: lineItems.map(function (x) {
                         return {

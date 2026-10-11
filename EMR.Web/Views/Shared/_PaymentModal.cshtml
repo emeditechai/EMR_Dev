@@ -246,6 +246,7 @@
                             <div class="pm-card pm-totals">
                                 <div class="row-t"><span>Sub total</span><span class="amt" id="pmTotSub">₹0.00</span></div>
                                 <div class="row-t d-none" id="pmTotDiscRow"><span>Discount</span><span class="amt text-danger" id="pmTotDisc">−₹0.00</span></div>
+                                <div class="row-t d-none" id="pmMemDiscRow"><span id="pmMemDiscLabel">Membership discount</span><span class="amt text-danger" id="pmMemDisc">−₹0.00</span></div>
                                 <div class="row-t d-none" id="pmTaxRow"><span>GST</span><span class="amt" id="pmTotalTax">₹0.00</span></div>
                                 <div class="row-t d-none" id="pmRoundOffRow"><span>Round off</span><span class="amt" id="pmRoundOffAmt">₹0.00</span></div>
                                 <div class="row-t row-net"><span class="fw-bold text-dark">Net payable</span><span class="pm-net amt" id="pmNetAmount">₹0.00</span></div>
@@ -594,7 +595,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 originalAmount: li.originalAmount,
                 lineDiscountType: discType,
                 lineDiscountValue: 0,
-                lineDiscountAmount: li.lineDiscountAmount || 0,
+                lineDiscountAmount: Math.max(0, (li.lineDiscountAmount || 0) - (li.membershipDiscount || 0)),   // the membership part is worked out by the server
                 netLineAmount: li.netLineAmount || li.originalAmount,
                 isDiscountAllowed: li.isDiscountAllowed !== false,
                 isGstRequired: li.isGstRequired || false,
@@ -699,6 +700,7 @@ document.addEventListener('DOMContentLoaded', function () {
         loadDeptHeads();
         // B2C LAB: the patient's membership card and points
         loadMembership();
+        loadMemberBenefits();
 
         // Trigger calculation to include GST initially
         recalcDiscount();
@@ -718,11 +720,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // the controls are locked and the earlier discount is shown. The server refuses a second discount as well.
     function existingBillDiscount() {
         if (!_summary?.hasExistingPayment) return 0;
-        return Math.max(parseFloat(_summary.existingHeaderDiscountAmount) || 0, parseFloat(_summary.existingLineDiscountTotal) || 0);
+        // the membership benefit (SQLScripts/2241) is not a manual discount
+        return Math.max(parseFloat(_summary.existingHeaderDiscountAmount) || 0,
+                        (parseFloat(_summary.existingLineDiscountTotal) || 0) - (parseFloat(_summary.membershipDiscountAmount) || 0));
     }
     function applyDiscountLock() {
         const given = existingBillDiscount();
-        const locked = given > 0;
+        const memLock = memBlocksManual();
+        const locked = given > 0 || memLock;
         ['pmDiscTypeP', 'pmDiscTypeF', 'pmDiscValue'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.disabled = locked || !_canDiscount;
@@ -732,6 +737,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const box = document.getElementById('pmDiscLocked');
         if (!box) return;
         if (!locked) { box.classList.add('d-none'); box.innerHTML = ''; return; }
+        if (memLock && !(given > 0)) {
+            const card = _memBen?.cardNo ? ` (card <span class="font-monospace">${esc(_memBen.cardNo)}</span>${_memBen.planName ? ', ' + esc(_memBen.planName) : ''})` : '';
+            box.innerHTML = `<i class="bi bi-award-fill me-1"></i>Membership benefit applied${card}. A manual discount cannot be added to this bill.`;
+            box.classList.remove('d-none');
+            return;
+        }
         const who = _summary.existingDiscountReason
             ? ` &middot; ${esc(_summary.existingDiscountReason)}${_summary.existingDiscountApprovedByName ? ', approved by ' + esc(_summary.existingDiscountApprovedByName) : ''}`
             : '';
@@ -754,7 +765,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ─── Membership points (B2C LAB) ─────────────────────────────────────────
     // The server (usp_Membership_RedeemOnBill) checks every plan rule again; the screen only previews them.
     async function loadMembership() {
-        _mem = null; _memRedeem = null;
+        _mem = null; _memRedeem = null; _memBen = null;
         const panel = document.getElementById('pmMemPanel');
         panel?.classList.add('d-none');
         if (_moduleCode !== 'LAB') return;
@@ -813,6 +824,10 @@ document.addEventListener('DOMContentLoaded', function () {
             + (_mem.PrimaryName ? `<div class="text-muted">Card holder: ${esc(_mem.PrimaryName)}${_mem.PrimaryPhoneMasked ? ' (' + esc(_mem.PrimaryPhoneMasked) + ')' : ''}</div>` : '');
         document.getElementById('pmMemBal').textContent = `${Math.floor(memNum(_mem.PointsBalance)).toLocaleString('en-IN')} pts`;
         document.getElementById('pmMemBalRs').textContent = `worth ₹${fmtIN(memNum(_mem.PointsValue))}`;
+        // points expire on their own date (Points Expire After, set on the plan); the next lot is shown
+        const nx = _mem.NextExpiryDate ? new Date(_mem.NextExpiryDate) : null;
+        if (nx && !isNaN(nx) && memNum(_mem.NextExpiryPoints) > 0)
+            document.getElementById('pmMemBalRs').textContent += ` · ${Math.floor(memNum(_mem.NextExpiryPoints)).toLocaleString('en-IN')} expire ${nx.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
         panel.classList.remove('d-none');
         renderMemHint();
     }
@@ -899,8 +914,50 @@ document.addEventListener('DOMContentLoaded', function () {
                  otpCode: (document.getElementById('pmMemOtp')?.value || '').trim() };
     }
 
+    // ─── Membership benefits (B2C LAB, SQLScripts/2241) ─────────────────────────
+    // A member's new bill: the plan's benefit rules on tests and Free Home Collection on Home Collection charges. The
+    // server works them out again when the bill is saved; a benefit on tests means no manual discount on this bill.
+    var _memBen = null;   // { cardNo, planName, testDiscount, miscDiscount, total }
+    function memBlocksManual() {
+        if (_summary?.hasExistingPayment) return (parseFloat(_summary.membershipTestDiscount) || 0) > 0;
+        return !!(_memBen && _memBen.testDiscount > 0);
+    }
+    async function loadMemberBenefits() {
+        _memBen = null;
+        (_summary?.items || []).forEach(it => { it.membershipDiscount = 0; it.membershipRule = null; });
+        if (!_isPreSave || _moduleCode !== 'LAB' || !_isB2CHint || !((_summary?.patientId || 0) > 0)) return;
+        const items = (_summary.items || []).map((it, i) => ({
+            key: 'L' + i,
+            kind: it.serviceType === 'Misc' ? 'M' : (it.isPackage ? 'P' : 'T'),
+            itemId: parseInt(it.lineRefId) || 0,
+            price: parseFloat(it.originalAmount) || 0
+        }));
+        try {
+            const r = await fetch('/LabOrderBooking/MembershipBenefitPreview', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ patientId: _summary.patientId, items })
+            });
+            const d = r.ok ? await r.json() : null;
+            const b = d && d.data;
+            if (!b || !(b.total > 0)) { _memBen = b ? { cardNo: b.cardNo, planName: b.planName, testDiscount: 0, miscDiscount: 0, total: 0 } : null; }
+            else {
+                _memBen = { cardNo: b.cardNo, planName: b.planName, testDiscount: b.testDiscount, miscDiscount: b.miscDiscount, total: b.total };
+                const byKey = Object.fromEntries((b.lines || []).map(l => [l.key, l]));
+                (_summary.items || []).forEach((it, i) => {
+                    const l = byKey['L' + i];
+                    it.membershipDiscount = l ? Math.min(parseFloat(l.discount) || 0, parseFloat(it.originalAmount) || 0) : 0;
+                    it.membershipRule = l ? l.rule : null;
+                });
+            }
+        } catch (e) { _memBen = null; }
+        if (memBlocksManual()) { document.getElementById('pmDiscValue').value = ''; _deptDisc = null; }
+        applyDiscountLock();
+        refreshDeptUi();
+        recalcDiscount();
+    }
+
     function deptAvailable() {
-        return _moduleCode === 'LAB' && _canDiscount && existingBillDiscount() === 0 && !!_deptHeads && !_deptHeads.isB2B
+        return _moduleCode === 'LAB' && _canDiscount && existingBillDiscount() === 0 && !memBlocksManual() && !!_deptHeads && !_deptHeads.isB2B
             && (_deptHeads.heads || []).some(h => h.eligibleAmount > 0);
     }
 
@@ -960,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setOverallDiscountEnabled(on) {
-        const allow = on && _canDiscount && existingBillDiscount() === 0;
+        const allow = on && _canDiscount && existingBillDiscount() === 0 && !memBlocksManual();
         ['pmDiscTypeP', 'pmDiscTypeF', 'pmDiscValue'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = !allow; });
         document.getElementById('pmDiscQuick')?.classList.toggle('d-none', !allow);
     }
@@ -1080,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (_summary.items && _summary.items.length > 0) {
             _summary.items.forEach(it => {
                 let amt = parseFloat(it.originalAmount) || 0;
-                let isAllowed = it.isDiscountAllowed !== false;
+                let isAllowed = it.isDiscountAllowed !== false && !(it.membershipDiscount > 0);   // a line with a membership benefit takes no manual share
                 if (!isAllowed) hasRestrictions = true;
                 if (isAllowed) discountableBase += amt;
                 else nonDiscountableBase += amt;
@@ -1140,7 +1197,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (!_summary.hasExistingPayment && _summary.items) {
             // Allocate discount among eligible items
-            let eligibleItems = _deptDisc ? [] : _summary.items.filter(it => it.isDiscountAllowed !== false);
+            let eligibleItems = _deptDisc ? [] : _summary.items.filter(it => it.isDiscountAllowed !== false && !(it.membershipDiscount > 0));
             if (_deptDisc) {
                 _summary.items.forEach((item, i) => {
                     item.lineDiscountAmount = deptLineDiscount(item, i);
@@ -1159,9 +1216,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 item.netLineAmount = Math.max(0, item.originalAmount - item.lineDiscountAmount);
             });
 
-            _summary.items.filter(it => !_deptDisc && it.isDiscountAllowed === false).forEach(item => {
+            _summary.items.filter(it => !_deptDisc && (it.isDiscountAllowed === false || it.membershipDiscount > 0)).forEach(item => {
                 item.lineDiscountAmount = 0;
                 item.netLineAmount = item.originalAmount;
+            });
+            // membership benefit on its lines (before GST)
+            _summary.items.filter(it => it.membershipDiscount > 0).forEach(item => {
+                item.lineDiscountAmount = Math.min(item.originalAmount, (item.lineDiscountAmount || 0) + item.membershipDiscount);
+                item.netLineAmount = Math.max(0, item.originalAmount - item.lineDiscountAmount);
             });
 
             _summary.items.forEach(item => {
@@ -1191,7 +1253,16 @@ document.addEventListener('DOMContentLoaded', function () {
         if (elTax) elTax.textContent = '₹' + fmtIN(totalTax);
         document.getElementById('pmTaxRow').classList.toggle('d-none', !(totalTax > 0));
 
-        let unroundedNet = Math.max(0, base - discAmt + totalTax);
+        // membership benefit (new bill): its own row; a saved bill's balance already has it
+        const memTotal = _summary.hasExistingPayment ? 0 : (_summary.items || []).reduce((t, it) => t + (it.membershipDiscount || 0), 0);
+        const memRow = document.getElementById('pmMemDiscRow');
+        if (memRow) {
+            memRow.classList.toggle('d-none', !(memTotal > 0));
+            document.getElementById('pmMemDisc').textContent = '−₹' + fmtIN(memTotal);
+            document.getElementById('pmMemDiscLabel').textContent = 'Membership discount' + (_memBen?.cardNo ? ` (${_memBen.cardNo})` : '')
+                + (_memBen && _memBen.miscDiscount > 0 ? ' · free home collection' : '');
+        }
+        let unroundedNet = Math.max(0, base - discAmt - memTotal + totalTax);
         let roundedNet = Math.round(unroundedNet);
         let roundOff = parseFloat((roundedNet - unroundedNet).toFixed(2));
 
@@ -1225,7 +1296,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const lineDisc = item.lineDiscountAmount || 0;
             return `<tr>
                 <td><div class="fw-semibold text-dark">${esc(item.itemName)}</div>
-                    <div class="text-muted" style="font-size:.7rem">${esc(item.serviceType ?? '')}${nd && hasRestrictions ? ' <span class="pm-badge-nd ms-1"><i class="bi bi-slash-circle me-1"></i>No discount</span>' : ''}</div></td>
+                    <div class="text-muted" style="font-size:.7rem">${esc(item.serviceType ?? '')}${nd && hasRestrictions ? ' <span class="pm-badge-nd ms-1"><i class="bi bi-slash-circle me-1"></i>No discount</span>' : ''}${item.membershipRule ? ` <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1"><i class="bi bi-award me-1"></i>${esc(item.membershipRule)}</span>` : ''}</div></td>
                 <td class="text-end amt">₹${fmtIN(item.originalAmount)}</td>` +
                 (showNet ? `<td class="text-end amt ${lineDisc > 0 ? 'text-danger' : 'text-muted'}">${lineDisc > 0 ? '−₹' + fmtIN(lineDisc) : '—'}</td>` : '') +
                 (hasGst ? `<td class="text-end amt text-muted">${(item.cgstAmount || 0) > 0 ? '₹' + fmtIN(item.cgstAmount) : '—'}</td>
@@ -1533,7 +1604,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 originalAmount: li.originalAmount,
                 lineDiscountType: discType,
                 lineDiscountValue: 0,
-                lineDiscountAmount: li.lineDiscountAmount || 0,
+                lineDiscountAmount: Math.max(0, (li.lineDiscountAmount || 0) - (li.membershipDiscount || 0)),   // the membership part is worked out by the server
                 netLineAmount: li.netLineAmount || li.originalAmount,
                 isDiscountAllowed: li.isDiscountAllowed !== false,
                 isGstRequired: li.isGstRequired || false,
@@ -1721,7 +1792,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('pmDiscApprovalInfo')?.classList.add('d-none');
         _discAmt = 0; _roundedNetAmount = 0; _roundOffAmount = 0; _isSubmitting = false;
         _deptDisc = null; _deptHeads = null; _deptDraft = null;
-        _mem = null; _memRedeem = null;
+        _mem = null; _memRedeem = null; _memBen = null;
         document.getElementById('pmMemPanel')?.classList.add('d-none');
         document.getElementById('pmDeptPopup')?.classList.add('d-none');
         document.getElementById('pmDeptDiscWrap')?.classList.add('d-none');
@@ -1756,6 +1827,7 @@ document.addEventListener('DOMContentLoaded', function () {
             patientName: config.patientName,
             patientCode: config.patientCode,
             patientPhone: config.patientPhone,
+            patientId: parseInt(config.patientId) || 0,
             opdBillNo: '—',
             tokenNo: '—',
             subTotal: config.subTotal,
