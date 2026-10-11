@@ -1,0 +1,174 @@
+@model EMR.Web.Models.ViewModels.AccClosingPageViewModel
+@{
+    ViewData["Title"] = "Petty Cash Closing";
+    ViewData["AccIcon"] = "bi-calendar-check";
+    ViewData["AccSubtitle"] = "Count the cash at the end of the day. A difference is posted as shortage or excess; a closed day takes no more entries.";
+    const string Page = "UTILITY.ACCOUNTS.CLOSING";
+    int[] notes = [500, 200, 100, 50, 20, 10, 5, 2, 1];
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+
+    <div class="row g-3">
+        <div class="col-lg-5" asp-permission="@(Page + ":CREATE")">
+            <form asp-action="SaveClosing" method="post" class="card border-0 shadow-sm" id="closingForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="DenominationJson" id="clDenoms" />
+                <div class="card-header bg-white py-3"><h6 class="fw-bold mb-0"><i class="bi bi-cash-coin me-2 text-primary"></i>Close a Day</h6></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-7">
+                            <label class="form-label fw-semibold required-field">Counter</label>
+                            <select name="CounterId" id="clCounter" class="form-select" required>
+                                @if (Model.Counters.Count != 1) { <option value="">-- Select --</option> }
+                                @foreach (var c in Model.Counters)
+                                {
+                                    <option value="@c.CounterId" data-last="@c.LastClosingDate?.ToString("yyyy-MM-dd")">@c.CounterName (@c.BranchName)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold required-field">Closing Date</label>
+                            <input name="ClosingDate" id="clDate" type="date" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" required />
+                        </div>
+                    </div>
+
+                    <div class="border rounded p-2 my-3 bg-light d-flex justify-content-between align-items-center">
+                        <span class="small text-muted">Book balance at end of day</span><strong class="font-monospace fs-5" id="clBook">-</strong>
+                    </div>
+
+                    <label class="form-label fw-semibold">Cash Count</label>
+                    <table class="table table-sm align-middle mb-2">
+                        <tbody>
+                            @foreach (var n in notes)
+                            {
+                                <tr>
+                                    <td class="text-end font-monospace" style="width:70px;">₹@n</td>
+                                    <td class="text-center text-muted" style="width:30px;">×</td>
+                                    <td style="width:110px;"><input type="number" min="0" step="1" class="form-control form-control-sm text-end cl-qty" data-note="@n" /></td>
+                                    <td class="text-end font-monospace text-muted cl-line">-</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold required-field">Counted Cash</label>
+                            <div class="input-group"><span class="input-group-text">₹</span><input name="CountedCash" id="clCounted" type="number" step="0.01" min="0" class="form-control fw-bold" required /></div>
+                            <div class="form-text">Filled from the count, or type the total.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="border rounded p-2 text-center" id="clDiffBox"><div class="small text-muted">Difference</div><strong class="font-monospace" id="clDiff">-</strong></div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" id="clRemarksLabel">Remarks</label>
+                            <input name="Remarks" id="clRemarks" class="form-control" maxlength="300" placeholder="Required when the cash does not tally" />
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white text-end">
+                    <button type="submit" class="btn btn-primary px-4" onclick="return confirm('Close this counter for the day? No more entries can be made for that date.');"><i class="bi bi-lock me-1"></i>Close Day</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-lg">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Closings</h6>
+                    <form method="get" asp-action="Closing">
+                        <select name="counterId" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">All counters</option>
+                            @foreach (var c in Model.Counters)
+                            {
+                                <option value="@c.CounterId" selected="@(Model.CounterId == c.CounterId)">@c.CounterName (@c.BranchName)</option>
+                            }
+                        </select>
+                    </form>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light border-bottom">
+                            <tr><th class="ps-3">Date</th><th>Counter</th><th class="text-end">Book</th><th class="text-end">Counted</th><th class="text-end">Difference</th><th>Voucher</th><th>Closed By</th></tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Closings.Count == 0)
+                            {
+                                <tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>No day has been closed yet.</td></tr>
+                            }
+                            @foreach (var x in Model.Closings)
+                            {
+                                <tr>
+                                    <td class="ps-3 fw-semibold">@x.ClosingDate.ToString("dd-MMM-yyyy")</td>
+                                    <td>@x.CounterName <span class="text-muted small">(@x.BranchName)</span></td>
+                                    <td class="text-end font-monospace">₹@x.BookBalance.ToString("N2")</td>
+                                    <td class="text-end font-monospace">₹@x.CountedCash.ToString("N2")</td>
+                                    <td class="text-end font-monospace fw-semibold @(x.Difference < 0 ? "text-danger" : x.Difference > 0 ? "text-warning-emphasis" : "text-success")" title="@x.Remarks">
+                                        @(x.Difference == 0 ? "Tallied" : (x.Difference < 0 ? "Short ₹" : "Excess ₹") + Math.Abs(x.Difference).ToString("N2"))
+                                    </td>
+                                    <td class="font-monospace small">@(x.VoucherNo ?? "-")</td>
+                                    <td class="small">@x.CreatedByName<div class="text-muted">@x.CreatedDate.ToString("dd-MMM HH:mm")</div></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var $ = function (id) { return document.getElementById(id); };
+            if (!$('closingForm')) return;
+            var inr = function (n) { return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+            var book = null;
+
+            function diff() {
+                var counted = parseFloat($('clCounted').value), box = $('clDiffBox'), out = $('clDiff');
+                box.classList.remove('border-success', 'border-danger', 'border-warning');
+                $('clRemarksLabel').classList.remove('required-field'); $('clRemarks').required = false;
+                if (book === null || isNaN(counted)) { out.textContent = '-'; return; }
+                var d = Math.round((counted - book) * 100) / 100;
+                out.textContent = d === 0 ? 'Tallied' : (d < 0 ? 'Short ' : 'Excess ') + inr(Math.abs(d));
+                box.classList.add(d === 0 ? 'border-success' : d < 0 ? 'border-danger' : 'border-warning');
+                if (d !== 0) { $('clRemarksLabel').classList.add('required-field'); $('clRemarks').required = true; }
+            }
+
+            function loadBook() {
+                var id = $('clCounter').value, date = $('clDate').value;
+                book = null; $('clBook').textContent = '-'; diff();
+                if (!id || !date) return;
+                fetch('@Url.Action("ClosingBalance")?counterId=' + id + '&date=' + date, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) { if (res.success) { book = Number(res.balance); $('clBook').textContent = inr(book); diff(); } });
+            }
+
+            function count() {
+                var total = 0, any = false, denoms = {};
+                document.querySelectorAll('.cl-qty').forEach(function (q) {
+                    var n = parseInt(q.value, 10), line = q.closest('tr').querySelector('.cl-line');
+                    if (n > 0) { any = true; total += n * parseInt(q.dataset.note, 10); denoms[q.dataset.note] = n; line.textContent = inr(n * parseInt(q.dataset.note, 10)); }
+                    else line.textContent = '-';
+                });
+                $('clDenoms').value = any ? JSON.stringify(denoms) : '';
+                if (any) { $('clCounted').value = total.toFixed(2); diff(); }
+            }
+
+            $('clCounter').addEventListener('change', function () {
+                // a day at or before the last closing is already closed
+                var last = this.selectedOptions[0] ? this.selectedOptions[0].dataset.last : '';
+                if (last) { var d = new Date(last); d.setDate(d.getDate() + 1); $('clDate').min = d.toISOString().slice(0, 10); } else $('clDate').removeAttribute('min');
+                loadBook();
+            });
+            $('clDate').addEventListener('change', loadBook);
+            $('clCounted').addEventListener('input', diff);
+            document.querySelectorAll('.cl-qty').forEach(function (q) { q.addEventListener('input', count); });
+            $('clCounter').dispatchEvent(new Event('change'));
+        });
+    </script>
+}

@@ -1,0 +1,54 @@
+@model EMR.Web.Models.ViewModels.AccReportViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["AccIcon"] = Model.Report == "VoucherRegister" ? "bi-card-list" : "bi-journal-text";
+    var vouchers = Model.DayBook.GroupBy(r => r.TransactionId).ToList();
+}
+
+<div class="container-fluid px-4 py-3 acc-rpt">
+    <div class="mb-3 acc-noprint"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+    <partial name="_Filter" model="Model" />
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-2 small acc-noprint">@vouchers.Count voucher(s) | Debit <strong>₹@Model.DayBook.Sum(r => r.DebitAmount).ToString("N2")</strong> | Credit <strong>₹@Model.DayBook.Sum(r => r.CreditAmount).ToString("N2")</strong></div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+                <thead><tr><th class="ps-3">Date</th><th>Voucher No.</th><th>Type</th><th>Ledger</th><th class="num">Debit</th><th class="num">Credit</th><th>Narration</th><th>Branch</th><th class="pe-3">Entered By</th></tr></thead>
+                <tbody>
+                    @if (vouchers.Count == 0)
+                    {
+                        <tr><td colspan="9" class="text-center py-5 text-muted"><i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>No vouchers in this period.</td></tr>
+                    }
+                    @foreach (var v in vouchers)
+                    {
+                        var h = v.First();
+                        var first = true;
+                        foreach (var l in v)
+                        {
+                            <tr class="@(h.Status == "C" || h.IsReversal ? "text-muted" : "")" style="@(first ? "border-top:2px solid #e2e8f0;" : "")">
+                                @if (first)
+                                {
+                                    <td class="ps-3 text-nowrap" rowspan="@v.Count()">@h.TransactionDate.ToString("dd-MMM-yyyy")</td>
+                                    <td class="font-monospace small text-nowrap" rowspan="@v.Count()"><a asp-action="Voucher" asp-route-id="@h.TransactionId">@h.VoucherNo</a></td>
+                                    <td class="text-nowrap" rowspan="@v.Count()">@h.VoucherTypeName @if (h.IsReversal) { <span class="badge bg-secondary">Reversal</span> } else if (h.Status == "C") { <span class="badge bg-secondary">Cancelled</span> }</td>
+                                }
+                                <td class="@(l.CreditAmount > 0 ? "ps-4" : "fw-semibold")">@l.LedgerName</td>
+                                <td class="num">@(l.DebitAmount != 0 ? l.DebitAmount.ToString("N2") : "")</td>
+                                <td class="num">@(l.CreditAmount != 0 ? l.CreditAmount.ToString("N2") : "")</td>
+                                @if (first)
+                                {
+                                    <td class="small" rowspan="@v.Count()">@h.VoucherNarration @if (!string.IsNullOrEmpty(h.PayeeName)) { <div class="text-muted">@h.PayeeName</div> }</td>
+                                    <td class="small" rowspan="@v.Count()">@h.BranchName</td>
+                                    <td class="small pe-3" rowspan="@v.Count()">@h.EnteredBy</td>
+                                }
+                            </tr>
+                            first = false;
+                        }
+                    }
+                </tbody>
+                <tfoot><tr><td class="ps-3" colspan="4">Total</td><td class="num">@Model.DayBook.Sum(r => r.DebitAmount).ToString("N2")</td><td class="num">@Model.DayBook.Sum(r => r.CreditAmount).ToString("N2")</td><td colspan="3"></td></tr></tfoot>
+            </table>
+        </div>
+    </div>
+</div>

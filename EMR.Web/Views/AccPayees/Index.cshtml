@@ -1,0 +1,123 @@
+@model EMR.Web.Models.ViewModels.AccPayeesPageViewModel
+@{
+    ViewData["Title"] = "Payees";
+    ViewData["AccIcon"] = "bi-person-lines-fill";
+    ViewData["AccSubtitle"] = "Repeat vendors and staff, offered on the petty expense and voucher screens.";
+    const string Page = "UTILITY.ACCOUNTS.PAYEES";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><partial name="_AccHeader" /></div>
+        <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-primary shadow-sm" data-acc-payee="new"><i class="bi bi-plus-lg me-1"></i>Add Payee</button>
+    </div>
+    <partial name="_AccAlerts" />
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body p-3">
+            <form method="get" asp-action="Index" class="row g-3 align-items-end">
+                <div class="col-md-5"><label class="form-label small fw-semibold text-muted">Search</label><input type="text" name="search" class="form-control" value="@Model.Search" placeholder="Name, phone or GSTIN..." /></div>
+                <div class="col-md-auto d-flex gap-2">
+                    <button type="submit" class="btn btn-secondary fw-semibold"><i class="bi bi-funnel me-1"></i>Filter</button>
+                    <a asp-action="Index" class="btn btn-outline-secondary" title="Reset"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="bg-light border-bottom"><tr><th class="ps-4">Payee</th><th>Phone</th><th>GSTIN</th><th>PAN</th><th>Default Expense Head</th><th class="text-center">Status</th><th class="text-end pe-4">Actions</th></tr></thead>
+                <tbody>
+                    @if (Model.Payees.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>No payees yet.</td></tr>
+                    }
+                    @foreach (var x in Model.Payees)
+                    {
+                        <tr>
+                            <td class="ps-4"><div class="fw-semibold">@x.PayeeName</div>@if (!string.IsNullOrEmpty(x.Remarks)) { <div class="small text-muted">@x.Remarks</div> }</td>
+                            <td>@(x.Phone ?? "-")</td>
+                            <td class="font-monospace small">@(x.GSTIN ?? "-")</td>
+                            <td class="font-monospace small">@(x.PAN ?? "-")</td>
+                            <td>@(x.DefaultHeadName ?? "-")</td>
+                            <td class="text-center">
+                                @if (x.IsActive) { <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3">Active</span> }
+                                else { <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3">Inactive</span> }
+                            </td>
+                            <td class="text-end pe-4">
+                                <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-sm btn-outline-primary" title="Edit" data-acc-payee="edit" data-id="@x.PayeeId" data-name="@x.PayeeName" data-phone="@x.Phone"
+                                        data-gstin="@x.GSTIN" data-pan="@x.PAN" data-head="@x.DefaultExpenseHeadId" data-remarks="@x.Remarks" data-active="@(x.IsActive ? "1" : "0")"><i class="bi bi-pencil"></i></button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="payeeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form asp-action="Save" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="PayeeId" id="pyId" value="0" />
+            <div class="modal-header"><h5 class="modal-title" id="pyTitle">Add Payee</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-8"><label class="form-label fw-semibold required-field">Payee Name</label><input name="PayeeName" id="pyName" class="form-control" maxlength="150" required autocomplete="off" /></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">Phone</label><input name="Phone" id="pyPhone" class="form-control" maxlength="20" autocomplete="off" /></div>
+                    <div class="col-md-7"><label class="form-label fw-semibold">GSTIN</label><input name="GSTIN" id="pyGstin" class="form-control font-monospace text-uppercase" maxlength="15" placeholder="19ABCDE1234F1Z5" autocomplete="off" /></div>
+                    <div class="col-md-5"><label class="form-label fw-semibold">PAN</label><input name="PAN" id="pyPan" class="form-control font-monospace text-uppercase" maxlength="10" placeholder="ABCDE1234F" autocomplete="off" /></div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Default Expense Head</label>
+                        <select name="DefaultExpenseHeadId" id="pyHead" class="form-select">
+                            <option value="">-- None --</option>
+                            @foreach (var h in Model.Heads)
+                            {
+                                <option value="@h.ExpenseHeadId">@h.HeadName</option>
+                            }
+                        </select>
+                        <div class="form-text">Filled in when this payee is chosen on a new petty expense.</div>
+                    </div>
+                    <div class="col-12"><label class="form-label fw-semibold">Remarks</label><input name="Remarks" id="pyRemarks" class="form-control" maxlength="300" /></div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="IsActive" value="false" />
+                            <input class="form-check-input" type="checkbox" role="switch" name="IsActive" id="pyActive" value="true" checked>
+                            <label class="form-check-label fw-semibold" for="pyActive">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var $ = function (id) { return document.getElementById(id); }, modal = new bootstrap.Modal($('payeeModal'));
+            document.querySelectorAll('[data-acc-payee]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var d = btn.dataset, edit = d.accPayee === 'edit';
+                    $('pyTitle').textContent = edit ? 'Edit Payee' : 'Add Payee';
+                    $('pyId').value = edit ? d.id : 0;
+                    $('pyName').value = edit ? d.name : '';
+                    $('pyPhone').value = edit ? (d.phone || '') : '';
+                    $('pyGstin').value = edit ? (d.gstin || '') : '';
+                    $('pyPan').value = edit ? (d.pan || '') : '';
+                    $('pyHead').value = edit ? (d.head || '') : '';
+                    $('pyRemarks').value = edit ? (d.remarks || '') : '';
+                    $('pyActive').checked = edit ? d.active === '1' : true;
+                    modal.show();
+                });
+            });
+        });
+    </script>
+}

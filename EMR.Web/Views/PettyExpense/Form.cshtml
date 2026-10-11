@@ -1,0 +1,218 @@
+@model EMR.Web.Models.ViewModels.AccPettyExpenseForm
+@{
+    var isNew = Model.ExpenseId == 0;
+    ViewData["Title"] = isNew ? "New Petty Expense" : "Edit Petty Expense";
+    ViewData["AccIcon"] = "bi-receipt";
+    var s = Model.Settings;
+    var minDate = DateTime.Today.AddDays(-s.BackDateDays);
+    var gst = s.PettyGstInputCredit;
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><partial name="_AccHeader" /></div>
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to List</a>
+    </div>
+    <partial name="_AccAlerts" />
+
+    <form asp-action="@(isNew ? "Create" : "Edit")" asp-route-id="@(isNew ? null : Model.ExpenseId)" method="post" id="expenseForm" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="ExpenseId" />
+        <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-5">
+                                <label asp-for="CounterId" class="form-label fw-semibold required-field">Petty Cash Counter</label>
+                                <select asp-for="CounterId" class="form-select" id="peCounter">
+                                    @if (Model.Counters.Count != 1) { <option value="0">-- Select --</option> }
+                                    @foreach (var c in Model.Counters)
+                                    {
+                                        <option value="@c.CounterId">@c.CounterName (@c.BranchName)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="ExpenseDate" class="form-label fw-semibold required-field">Expense Date</label>
+                                <input asp-for="ExpenseDate" type="date" class="form-control" min="@minDate.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="PayeeName" class="form-label fw-semibold">Paid To</label>
+                                <input asp-for="PayeeName" class="form-control" maxlength="150" placeholder="Person or shop" autocomplete="off" list="pePayees" />
+                                <datalist id="pePayees">
+                                    @foreach (var p in Model.Payees)
+                                    {
+                                        <option value="@p.PayeeName" data-head="@p.DefaultExpenseHeadId">@(p.GSTIN ?? p.Phone)</option>
+                                    }
+                                </datalist>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="BillNo" class="form-label fw-semibold">Bill No.</label>
+                                <input asp-for="BillNo" class="form-control" maxlength="50" autocomplete="off" />
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="BillDate" class="form-label fw-semibold">Bill Date</label>
+                                <input asp-for="BillDate" type="date" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Narration" class="form-label fw-semibold">Narration</label>
+                                <input asp-for="Narration" class="form-control" maxlength="500" placeholder="What the money was spent on" autocomplete="off" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold"><i class="bi bi-paperclip me-1"></i>Attach Bill</label>
+                                <input type="file" name="files" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple />
+                                <div class="form-text">Photo or scan of the bill: JPG, PNG, WEBP or PDF, 5 MB each, up to 5 files. More can be added later from the expense.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0"><i class="bi bi-list-ul me-2 text-primary"></i>Expense Lines</h6>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="peAdd"><i class="bi bi-plus-lg me-1"></i>Add Line</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0">
+                            <thead class="bg-light"><tr><th class="ps-3" style="width:34%;">Expense Head</th><th style="width:170px;">Amount Paid</th>@if (gst) { <th style="width:150px;" title="The GST inside the amount paid, claimed as input credit">GST in it</th> }<th>Remarks</th><th style="width:50px;"></th></tr></thead>
+                            <tbody id="peLines">
+                                @for (var i = 0; i < Model.Lines.Count; i++)
+                                {
+                                    <tr class="pe-line">
+                                        <td class="ps-3">
+                                            <select name="Lines[@i].ExpenseHeadId" class="form-select pe-head">
+                                                <option value="0">-- Select --</option>
+                                                @foreach (var h in Model.Heads)
+                                                {
+                                                    <option value="@h.ExpenseHeadId" selected="@(Model.Lines[i].ExpenseHeadId == h.ExpenseHeadId)" data-max="@h.MaxPerVoucher?.ToString("0.00")" data-bill="@h.BillRequiredAbove?.ToString("0.00")">@h.HeadName</option>
+                                                }
+                                            </select>
+                                        </td>
+                                        <td><div class="input-group"><span class="input-group-text">₹</span><input name="Lines[@i].Amount" type="number" step="0.01" min="0.01" class="form-control text-end pe-amount" value="@(Model.Lines[i].Amount > 0 ? Model.Lines[i].Amount.ToString("0.00") : "")" /></div></td>
+                                        @if (gst)
+                                        {
+                                            <td><input name="Lines[@i].GstAmount" type="number" step="0.01" min="0" class="form-control text-end pe-gst" value="@(Model.Lines[i].GstAmount > 0 ? Model.Lines[i].GstAmount.ToString("0.00") : "")" placeholder="0.00" /></td>
+                                        }
+                                        <td><input name="Lines[@i].Remarks" class="form-control" maxlength="200" value="@Model.Lines[i].Remarks" autocomplete="off" /></td>
+                                        <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger pe-remove" title="Remove line"><i class="bi bi-x-lg"></i></button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot class="bg-light">
+                                <tr><td class="ps-3 text-end fw-semibold">Total</td><td class="text-end font-monospace fw-bold fs-5" id="peTotal">₹0.00</td><td colspan="@(gst ? 3 : 2)" class="small text-muted" id="peHint"></td></tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-header bg-white py-3"><h6 class="fw-bold mb-0"><i class="bi bi-safe me-2 text-primary"></i>Counter</h6></div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Cash in counter</span><strong class="font-monospace" id="ciBalance">-</strong></div>
+                        <div class="d-flex justify-content-between mb-1"><span class="text-muted">Waiting approval</span><span class="font-monospace" id="ciPending">-</span></div>
+                        <div class="d-flex justify-content-between border-top pt-2"><span class="fw-semibold">Available</span><strong class="font-monospace text-success fs-5" id="ciAvailable">-</strong></div>
+                        <div class="d-flex justify-content-between mt-2"><span class="text-muted">After this expense</span><strong class="font-monospace" id="ciAfter">-</strong></div>
+                        <div class="small text-muted mt-2" id="ciClosing"></div>
+                    </div>
+                </div>
+                <div class="card border-0 shadow-sm mb-3">
+                    <div class="card-body small text-muted">
+                        <div><i class="bi bi-check2-circle me-1 text-success"></i>
+                            @if (!s.PettyApprovalRequired) { <span>Posts to the ledger as soon as it is saved.</span> }
+                            else { <span>Up to <strong>₹@s.PettyAutoApproveLimit.ToString("N2")</strong> is approved on save; above it waits for an approver.</span> }
+                        </div>
+                        <div class="mt-1"><i class="bi bi-slash-circle me-1"></i>Maximum per voucher <strong>₹@s.PettyMaxPerVoucher.ToString("N2")</strong>.</div>
+                        <div class="mt-1"><i class="bi bi-calendar-event me-1"></i>Back-dating allowed for @s.BackDateDays day(s).</div>
+                        @if (gst)
+                        {
+                            <div class="mt-1"><i class="bi bi-percent me-1"></i>Enter the amount paid, then the GST inside it. The GST goes to GST Input Credit and needs the bill number.</div>
+                        }
+                    </div>
+                </div>
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg shadow-sm" id="peSave"><i class="bi bi-save me-1"></i>@(isNew ? "Save Expense" : "Save and Resubmit")</button>
+                    <a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var $ = function (id) { return document.getElementById(id); };
+            var inr = function (n) { return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+            var body = $('peLines'), available = null;
+            var autoLimit = @s.PettyAutoApproveLimit.ToString("0.00"), maxVoucher = @s.PettyMaxPerVoucher.ToString("0.00"),
+                approval = @(s.PettyApprovalRequired ? "true" : "false"), overdraw = @(s.AllowPettyOverdraw ? "true" : "false");
+
+            // Lines[i] must stay 0..n-1 without gaps for the server to read every line
+            function reindex() {
+                body.querySelectorAll('tr.pe-line').forEach(function (tr, i) {
+                    tr.querySelectorAll('[name]').forEach(function (el) { el.name = el.name.replace(/Lines\[\d+\]/, 'Lines[' + i + ']'); });
+                });
+            }
+
+            function total() {
+                var sum = 0;
+                body.querySelectorAll('.pe-amount').forEach(function (a) { var v = parseFloat(a.value); if (v > 0) sum += v; });
+                sum = Math.round(sum * 100) / 100;
+                $('peTotal').textContent = inr(sum);
+                var hint = '', bad = false;
+                if (sum > maxVoucher) { hint = 'Above the maximum of ' + inr(maxVoucher) + ' per petty voucher.'; bad = true; }
+                else if (available !== null && sum > available && !overdraw) { hint = 'Only ' + inr(available) + ' is available in this counter.'; bad = true; }
+                else if (sum > 0) hint = (!approval || sum <= autoLimit) ? 'Will be approved and posted on save.' : 'Will wait for an approver.';
+                $('peHint').textContent = hint; $('peHint').className = 'small ' + (bad ? 'text-danger fw-semibold' : 'text-muted');
+                $('ciAfter').textContent = available === null ? '-' : inr(available - sum);
+                $('ciAfter').classList.toggle('text-danger', available !== null && sum > available);
+            }
+
+            function loadCounter() {
+                var id = $('peCounter').value;
+                available = null; ['ciBalance', 'ciPending', 'ciAvailable'].forEach(function (x) { $(x).textContent = '-'; }); $('ciClosing').textContent = '';
+                if (!id || id === '0') { total(); return; }
+                fetch('@Url.Action("CounterInfo")?counterId=' + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (!res.success) return;
+                        // an expense being edited is itself part of "waiting": it does not reduce what is available to it
+                        var own = @(isNew ? "0" : Model.Lines.Sum(l => l.Amount).ToString("0.00"));
+                        available = Number(res.available) + (res.pending >= own ? own : 0);
+                        $('ciBalance').textContent = inr(res.balance); $('ciPending').textContent = inr(res.pending); $('ciAvailable').textContent = inr(available);
+                        $('ciClosing').textContent = res.lastClosing ? 'Closed up to ' + res.lastClosing + ': enter a later date.' : '';
+                        total();
+                    });
+            }
+
+            $('peAdd').addEventListener('click', function () {
+                var tr = body.querySelector('tr.pe-line').cloneNode(true);
+                tr.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+                tr.querySelector('select').value = '0';
+                body.appendChild(tr); reindex(); tr.querySelector('select').focus();
+            });
+            body.addEventListener('click', function (e) {
+                var btn = e.target.closest('.pe-remove'); if (!btn) return;
+                if (body.querySelectorAll('tr.pe-line').length > 1) btn.closest('tr').remove();
+                else { btn.closest('tr').querySelectorAll('input').forEach(function (i) { i.value = ''; }); btn.closest('tr').querySelector('select').value = '0'; }
+                reindex(); total();
+            });
+            body.addEventListener('input', total);
+            // a known payee brings its default expense head to an empty first line
+            $('PayeeName').addEventListener('change', function () {
+                var name = this.value.trim().toLowerCase(), first = body.querySelector('.pe-head');
+                document.querySelectorAll('#pePayees option').forEach(function (o) {
+                    if (o.value.toLowerCase() === name && o.dataset.head && first.value === '0' && first.querySelector('option[value="' + o.dataset.head + '"]')) first.value = o.dataset.head;
+                });
+            });
+            $('peCounter').addEventListener('change', loadCounter);
+            $('expenseForm').addEventListener('submit', function () { $('peSave').disabled = true; });   // no double post
+            loadCounter();
+        });
+    </script>
+}

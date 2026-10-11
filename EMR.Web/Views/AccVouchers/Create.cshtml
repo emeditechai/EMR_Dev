@@ -1,0 +1,215 @@
+@model EMR.Web.Models.ViewModels.AccVoucherForm
+@using EMR.Web.Controllers
+@{
+    ViewData["Title"] = "New Voucher";
+    ViewData["AccIcon"] = "bi-journal-plus";
+    var s = Model.Settings;
+    var minDate = DateTime.Today.AddDays(-s.BackDateDays);
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><partial name="_AccHeader" /></div>
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to List</a>
+    </div>
+    <partial name="_AccAlerts" />
+
+    <form asp-action="Create" method="post" id="voucherForm" enctype="multipart/form-data">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
+
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body">
+                <div class="btn-group mb-2" role="group">
+                    @foreach (var t in AccVouchersController.Types)
+                    {
+                        <input type="radio" class="btn-check" name="VoucherTypeCode" id="vt@(t.Code)" value="@t.Code" data-hint="@t.Hint" checked="@(Model.VoucherTypeCode == t.Code)">
+                        <label class="btn btn-outline-primary px-4" for="vt@(t.Code)">@t.Name</label>
+                    }
+                </div>
+                <div class="small text-muted mb-3" id="vcHint"></div>
+
+                <div class="row g-3">
+                    <div class="col-md-2">
+                        <label asp-for="VoucherDate" class="form-label fw-semibold required-field">Date</label>
+                        <input asp-for="VoucherDate" type="date" class="form-control" min="@minDate.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="col-md-2">
+                        <label asp-for="BranchId" class="form-label fw-semibold required-field">Branch</label>
+                        <select asp-for="BranchId" class="form-select">
+                            @if (Model.CanPickBranch) { <option value="0">-- Select --</option> }
+                            @foreach (var b in Model.Branches)
+                            {
+                                <option value="@b.Id">@b.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-3 vc-money">
+                        <label asp-for="PayeeName" class="form-label fw-semibold" id="vcPayeeLabel">Paid To</label>
+                        <input asp-for="PayeeName" class="form-control" maxlength="150" autocomplete="off" list="vcPayees" />
+                        <datalist id="vcPayees">
+                            @foreach (var p in Model.Payees)
+                            {
+                                <option value="@p.PayeeName">@(p.GSTIN ?? p.Phone)</option>
+                            }
+                        </datalist>
+                    </div>
+                    <div class="col-md-2 vc-money">
+                        <label asp-for="PaymentMode" class="form-label fw-semibold">Mode</label>
+                        <select asp-for="PaymentMode" class="form-select">
+                            <option value="">-- Select --</option>
+                            @foreach (var m in Model.PaymentModes)
+                            {
+                                <option value="@m">@m</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-2 vc-money">
+                        <label asp-for="InstrumentNo" class="form-label fw-semibold">Cheque / Ref. No.</label>
+                        <input asp-for="InstrumentNo" class="form-control" maxlength="100" autocomplete="off" />
+                    </div>
+                    <div class="col-md-1 vc-money" style="min-width:150px;">
+                        <label asp-for="InstrumentDate" class="form-label fw-semibold">Ref. Date</label>
+                        <input asp-for="InstrumentDate" type="date" class="form-control" />
+                    </div>
+                    <div class="col-md-8">
+                        <label asp-for="Narration" class="form-label fw-semibold required-field">Narration</label>
+                        <input asp-for="Narration" class="form-control" maxlength="500" placeholder="What this voucher is for" autocomplete="off" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold"><i class="bi bi-paperclip me-1"></i>Attach Bill</label>
+                        <input type="file" name="files" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple title="JPG, PNG, WEBP or PDF, 5 MB each, up to 5 files" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="fw-bold mb-0"><i class="bi bi-list-columns me-2 text-primary"></i>Ledger Lines</h6>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="vcAdd"><i class="bi bi-plus-lg me-1"></i>Add Line</button>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead class="bg-light"><tr><th class="ps-3" style="width:34%;">Ledger</th><th style="width:170px;" class="text-end">Debit</th><th style="width:170px;" class="text-end">Credit</th><th>Line Narration</th><th style="width:50px;"></th></tr></thead>
+                    <tbody id="vcLines">
+                        @for (var i = 0; i < Model.Lines.Count; i++)
+                        {
+                            <tr class="vc-line">
+                                <td class="ps-3">
+                                    <select name="Lines[@i].LedgerId" class="form-select vc-ledger">
+                                        <option value="0">-- Select ledger --</option>
+                                        @foreach (var g in Model.Ledgers.GroupBy(l => l.GroupName).OrderBy(g => g.Key))
+                                        {
+                                            <optgroup label="@g.Key">
+                                                @foreach (var l in g)
+                                                {
+                                                    <option value="@l.LedgerId" data-type="@l.LedgerType" selected="@(Model.Lines[i].LedgerId == l.LedgerId)">@l.LedgerName</option>
+                                                }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                </td>
+                                <td><input name="Lines[@i].DebitAmount" type="number" step="0.01" min="0" class="form-control text-end vc-dr" value="@(Model.Lines[i].DebitAmount > 0 ? Model.Lines[i].DebitAmount.ToString("0.00") : "")" /></td>
+                                <td><input name="Lines[@i].CreditAmount" type="number" step="0.01" min="0" class="form-control text-end vc-cr" value="@(Model.Lines[i].CreditAmount > 0 ? Model.Lines[i].CreditAmount.ToString("0.00") : "")" /></td>
+                                <td><input name="Lines[@i].Narration" class="form-control" maxlength="300" value="@Model.Lines[i].Narration" autocomplete="off" /></td>
+                                <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger vc-remove" title="Remove line"><i class="bi bi-x-lg"></i></button></td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="bg-light">
+                        <tr>
+                            <td class="ps-3 text-end fw-semibold">Total</td>
+                            <td class="text-end font-monospace fw-bold" id="vcDr">0.00</td>
+                            <td class="text-end font-monospace fw-bold" id="vcCr">0.00</td>
+                            <td colspan="2"><span class="badge rounded-pill px-3 py-2" id="vcDiff"></span></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <span class="small text-muted">@(s.VoucherApprovalRequired ? "The voucher will wait for approval before it is posted." : "The voucher is posted to the ledger on save. A posted voucher is corrected by cancelling it and entering it again.")</span>
+                <div class="d-flex gap-2">
+                    <a asp-action="Index" class="btn btn-outline-secondary px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4 shadow-sm" id="vcSave" disabled><i class="bi bi-save me-1"></i>Save Voucher</button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var $ = function (id) { return document.getElementById(id); };
+            var fmt = function (n) { return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+            var body = $('vcLines');
+
+            function reindex() {
+                body.querySelectorAll('tr.vc-line').forEach(function (tr, i) {
+                    tr.querySelectorAll('[name]').forEach(function (el) { el.name = el.name.replace(/Lines\[\d+\]/, 'Lines[' + i + ']'); });
+                });
+            }
+
+            function totals() {
+                var dr = 0, cr = 0, lines = 0;
+                body.querySelectorAll('tr.vc-line').forEach(function (tr) {
+                    var d = parseFloat(tr.querySelector('.vc-dr').value) || 0, c = parseFloat(tr.querySelector('.vc-cr').value) || 0;
+                    dr += d; cr += c; if ((d > 0 || c > 0) && tr.querySelector('.vc-ledger').value !== '0') lines++;
+                });
+                dr = Math.round(dr * 100) / 100; cr = Math.round(cr * 100) / 100;
+                $('vcDr').textContent = fmt(dr); $('vcCr').textContent = fmt(cr);
+                var diff = Math.round((dr - cr) * 100) / 100, ok = diff === 0 && dr > 0 && lines >= 2, badge = $('vcDiff');
+                badge.textContent = dr === 0 && cr === 0 ? 'Enter the lines' : diff === 0 ? 'Balanced' : 'Difference ' + fmt(Math.abs(diff)) + (diff > 0 ? ' - credit short' : ' - debit short');
+                badge.className = 'badge rounded-pill px-3 py-2 ' + (ok ? 'bg-success' : diff === 0 ? 'bg-secondary' : 'bg-danger');
+                $('vcSave').disabled = !ok;   // an unbalanced voucher cannot be saved (the procedure refuses it too)
+            }
+
+            // ledgers offered depend on the voucher type: Contra = cash / bank only, Journal = no cash / bank
+            function applyType() {
+                var radio = document.querySelector('input[name="VoucherTypeCode"]:checked'), type = radio.value;
+                $('vcHint').textContent = radio.dataset.hint;
+                $('vcPayeeLabel').textContent = type === 'RCT' ? 'Received From' : 'Paid To';
+                document.querySelectorAll('.vc-money').forEach(function (el) { el.classList.toggle('d-none', type === 'JRN'); });
+                body.querySelectorAll('.vc-ledger option[data-type]').forEach(function (o) {
+                    var money = o.dataset.type === 'CASH' || o.dataset.type === 'BANK';
+                    var hide = (type === 'CTR' && !money) || (type === 'JRN' && money);
+                    o.hidden = hide; o.disabled = hide;
+                    if (hide && o.selected) o.parentElement.closest('select').value = '0';
+                });
+                totals();
+            }
+
+            $('vcAdd').addEventListener('click', function () {
+                var tr = body.querySelector('tr.vc-line').cloneNode(true);
+                tr.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+                tr.querySelector('select').value = '0';
+                body.appendChild(tr); reindex();
+                // offer the amount that balances the voucher on the short side
+                var dr = 0, cr = 0;
+                body.querySelectorAll('.vc-dr').forEach(function (x) { dr += parseFloat(x.value) || 0; });
+                body.querySelectorAll('.vc-cr').forEach(function (x) { cr += parseFloat(x.value) || 0; });
+                var diff = Math.round((dr - cr) * 100) / 100;
+                if (diff > 0) tr.querySelector('.vc-cr').value = diff.toFixed(2); else if (diff < 0) tr.querySelector('.vc-dr').value = (-diff).toFixed(2);
+                totals(); tr.querySelector('select').focus();
+            });
+            body.addEventListener('click', function (e) {
+                var btn = e.target.closest('.vc-remove'); if (!btn) return;
+                if (body.querySelectorAll('tr.vc-line').length > 2) btn.closest('tr').remove();
+                else { btn.closest('tr').querySelectorAll('input').forEach(function (i) { i.value = ''; }); btn.closest('tr').querySelector('select').value = '0'; }
+                reindex(); totals();
+            });
+            body.addEventListener('input', function (e) {
+                // a line is either a debit or a credit
+                var tr = e.target.closest('tr');
+                if (e.target.classList.contains('vc-dr') && parseFloat(e.target.value) > 0) tr.querySelector('.vc-cr').value = '';
+                if (e.target.classList.contains('vc-cr') && parseFloat(e.target.value) > 0) tr.querySelector('.vc-dr').value = '';
+                totals();
+            });
+            body.addEventListener('change', totals);
+            document.querySelectorAll('input[name="VoucherTypeCode"]').forEach(function (r) { r.addEventListener('change', applyType); });
+            $('voucherForm').addEventListener('submit', function () { setTimeout(function () { $('vcSave').disabled = true; }, 0); });
+            applyType();
+        });
+    </script>
+}

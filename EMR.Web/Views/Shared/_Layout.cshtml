@@ -289,6 +289,22 @@
                                 <li><a class="dropdown-item" asp-controller="EmailTemplate" asp-action="Index"><i class="bi bi-envelope-paper me-2"></i>Email Templates</a></li>
                                 <li><a class="dropdown-item" asp-controller="EmrTemplates" asp-action="Index"><i class="bi bi-file-earmark-medical me-2"></i>EMR Template Settings</a></li>
                                 <li><a class="dropdown-item" asp-controller="FranchiseTopUp" asp-action="Index" asp-permission="UTILITY.FRANCHISETOPUP"><i class="bi bi-wallet2 me-2"></i>Franchise Top-Up</a></li>
+                                <li class="dropdown-submenu" asp-permission="UTILITY.ACCOUNTS.PETTYEXPENSE,UTILITY.ACCOUNTS.COUNTERS,UTILITY.ACCOUNTS.CLOSING,UTILITY.ACCOUNTS.VOUCHERS,UTILITY.ACCOUNTS.REPORTS,UTILITY.ACCOUNTS.LEDGERS,UTILITY.ACCOUNTS.EXPENSEHEADS,UTILITY.ACCOUNTS.PAYEES,UTILITY.ACCOUNTS.SETTINGS">
+                                    <a class="dropdown-item dropdown-submenu-toggle" href="#"><i class="bi bi-calculator me-2"></i>Accounts<i class="bi bi-chevron-right submenu-arrow"></i></a>
+                                    <ul class="dropdown-menu dropdown-submenu-menu">
+                                        <li><a class="dropdown-item" asp-controller="PettyExpense" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.PETTYEXPENSE"><i class="bi bi-receipt me-2"></i>Petty Expenses</a></li>
+                                        <li><a class="dropdown-item" asp-controller="PettyCash" asp-action="Counters" asp-permission="UTILITY.ACCOUNTS.COUNTERS"><i class="bi bi-safe me-2"></i>Petty Cash Counters</a></li>
+                                        <li><a class="dropdown-item" asp-controller="PettyCash" asp-action="Closing" asp-permission="UTILITY.ACCOUNTS.CLOSING"><i class="bi bi-calendar-check me-2"></i>Petty Cash Closing</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="AccVouchers" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.VOUCHERS"><i class="bi bi-journal-plus me-2"></i>Voucher Entry</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.REPORTS"><i class="bi bi-bar-chart-line me-2"></i>Accounts Reports</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="AccLedgers" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.LEDGERS"><i class="bi bi-diagram-3 me-2"></i>Ledgers and Groups</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccExpenseHeads" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.EXPENSEHEADS"><i class="bi bi-tags me-2"></i>Expense Heads</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccPayees" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.PAYEES"><i class="bi bi-person-lines-fill me-2"></i>Payees</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccSettings" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.SETTINGS"><i class="bi bi-gear me-2"></i>Accounts Settings</a></li>
+                                    </ul>
+                                </li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" asp-controller="PatientPortal" asp-action="Login" target="_blank"><i class="bi bi-person-badge me-2"></i>Patient Login</a></li>
                             </ul>

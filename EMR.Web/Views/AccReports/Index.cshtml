@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "Accounts Reports";
+    ViewData["AccIcon"] = "bi-bar-chart-line";
+    ViewData["AccSubtitle"] = "One ledger for billing, petty cash and manual vouchers.";
+    var groups = new (string Head, (string Title, string Text, string Icon, string Action, Dictionary<string, string?> Route)[] Items)[]
+    {
+        ("Cash and Bank", [
+            ("Petty Cash Book", "Each counter: float received, expenses, running balance.", "bi-safe", "LedgerStatement", new() { ["book"] = "PettyCashBook" }),
+            ("Cash Book", "Cash ledger with billing receipts and payments together.", "bi-cash-stack", "LedgerStatement", new() { ["book"] = "CashBook" }),
+            ("Bank Book", "Each bank ledger with running balance.", "bi-bank", "LedgerStatement", new() { ["book"] = "BankBook" })]),
+        ("Vouchers", [
+            ("Day Book", "Every voucher of a day with its debit and credit lines.", "bi-journal-text", "DayBook", new()),
+            ("Voucher Register", "Petty cash, payment, receipt, contra and journal vouchers, with cancelled ones and their reversals.", "bi-card-list", "DayBook", new() { ["manualOnly"] = "true" })]),
+        ("Ledger", [
+            ("Ledger Statement", "Any ledger: opening, each entry, closing. Click an entry to open its voucher.", "bi-list-columns-reverse", "LedgerStatement", new()),
+            ("Trial Balance", "Opening, period debit and credit, closing for every ledger. Debits equal credits.", "bi-columns-gap", "TrialBalance", new()),
+            ("Income and Expense", "Income against expense for a period, with surplus or deficit.", "bi-graph-up-arrow", "IncomeExpense", new()),
+            ("Ledger Posting Audit", "Bills, receipts, refunds, petty cash and vouchers checked against their ledger entries. Lists what is missing or wrong.", "bi-shield-check", "PostingAudit", new())]),
+        ("Petty Expense", [
+            ("Petty Expense Summary", "Approved petty expenses by head and month.", "bi-pie-chart", "ExpenseSummary", new())])
+    };
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+
+    @foreach (var g in groups)
+    {
+        <h6 class="text-uppercase text-muted fw-bold small mt-4 mb-2">@g.Head</h6>
+        <div class="row g-3">
+            @foreach (var r in g.Items)
+            {
+                <div class="col-xl-3 col-md-4 col-sm-6">
+                    <a asp-action="@r.Action" asp-all-route-data="r.Route" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-2"><i class="bi @r.Icon fs-4 text-primary me-2"></i><span class="fw-bold">@r.Title</span></div>
+                            <div class="small text-muted">@r.Text</div>
+                        </div>
+                    </a>
+                </div>
+            }
+        </div>
+    }
+    <div class="row g-3 mt-1">
+        <div class="col-xl-3 col-md-4 col-sm-6">
+            <a asp-controller="PettyExpense" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.PETTYEXPENSE" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body"><div class="d-flex align-items-center mb-2"><i class="bi bi-receipt fs-4 text-primary me-2"></i><span class="fw-bold">Petty Expense Register</span></div>
+                    <div class="small text-muted">Every petty expense with status, entered by and approved by. Filter by status for the pending approval list.</div></div>
+            </a>
+        </div>
+        <div class="col-xl-3 col-md-4 col-sm-6">
+            <a asp-controller="PettyCash" asp-action="Closing" asp-permission="UTILITY.ACCOUNTS.CLOSING" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                <div class="card-body"><div class="d-flex align-items-center mb-2"><i class="bi bi-calendar-check fs-4 text-primary me-2"></i><span class="fw-bold">Daily Closing Statement</span></div>
+                    <div class="small text-muted">Book balance, counted cash and difference for each closed day.</div></div>
+            </a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,301 @@
+@model EMR.Web.Models.ViewModels.AccLedgersPageViewModel
+@using EMR.Web.Models.ViewModels
+@{
+    ViewData["Title"] = "Ledgers and Groups";
+    ViewData["AccIcon"] = "bi-diagram-3";
+    ViewData["AccSubtitle"] = "Chart of accounts. Ledgers used by billing are system ledgers: only their opening balance can change.";
+    const string Page = "UTILITY.ACCOUNTS.LEDGERS";
+    string Bal(decimal v) => v == 0 ? "-" : $"₹{Math.Abs(v):N2} {(v > 0 ? "Dr" : "Cr")}";
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div><partial name="_AccHeader" /></div>
+        <div class="d-flex gap-2">
+            <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-outline-primary" data-acc-group="new"><i class="bi bi-folder-plus me-1"></i>Add Group</button>
+            <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-primary shadow-sm" data-acc-ledger="new"><i class="bi bi-plus-lg me-1"></i>Add Ledger</button>
+        </div>
+    </div>
+    <partial name="_AccAlerts" />
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabLedgers" type="button">Ledgers <span class="badge bg-secondary ms-1">@Model.Ledgers.Count</span></button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabGroups" type="button">Groups <span class="badge bg-secondary ms-1">@Model.Groups.Count</span></button></li>
+    </ul>
+
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="tabLedgers">
+            <div class="card border-0 shadow-sm mb-3">
+                <div class="card-body p-3">
+                    <form method="get" asp-action="Index" class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-muted">Group</label>
+                            <select name="groupId" class="form-select">
+                                <option value="">-- All Groups --</option>
+                                @foreach (var g in Model.Groups)
+                                {
+                                    <option value="@g.LedgerGroupId" selected="@(Model.GroupId == g.LedgerGroupId)">@g.GroupName (@g.GroupType)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold text-muted">Ledger Type</label>
+                            <select name="ledgerType" class="form-select">
+                                <option value="">-- All Types --</option>
+                                @foreach (var t in AccLedgerTypes.All)
+                                {
+                                    <option value="@t.Code" selected="@(Model.LedgerType == t.Code)">@t.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold text-muted">Search</label>
+                            <input type="text" name="search" class="form-control" value="@Model.Search" placeholder="Ledger name or code..." />
+                        </div>
+                        <div class="col-md-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-secondary w-100 fw-semibold"><i class="bi bi-funnel me-1"></i>Filter</button>
+                            <a asp-action="Index" class="btn btn-outline-secondary" title="Reset"><i class="bi bi-arrow-counterclockwise"></i></a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light border-bottom">
+                            <tr>
+                                <th class="ps-4" style="width:110px;">Code</th>
+                                <th>Ledger</th>
+                                <th>Group</th>
+                                <th style="width:150px;">Type</th>
+                                <th class="text-end" style="width:150px;">Opening</th>
+                                <th class="text-end" style="width:160px;">Balance</th>
+                                <th class="text-center" style="width:100px;">Status</th>
+                                <th class="text-end pe-4" style="width:110px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Ledgers.Count == 0)
+                            {
+                                <tr><td colspan="8" class="text-center py-5 text-muted"><i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>No ledgers found.</td></tr>
+                            }
+                            @foreach (var l in Model.Ledgers)
+                            {
+                                <tr>
+                                    <td class="ps-4 font-monospace small text-muted">@l.LedgerCode</td>
+                                    <td>
+                                        <span class="fw-semibold text-dark">@l.LedgerName</span>
+                                        @if (l.IsSystem) { <span class="badge bg-light text-muted border ms-1" title="Used by billing"><i class="bi bi-lock-fill"></i> System</span> }
+                                        @if (!string.IsNullOrEmpty(l.Remarks)) { <div class="text-muted small">@l.Remarks</div> }
+                                    </td>
+                                    <td>@l.GroupName <span class="text-muted small">(@l.GroupType)</span></td>
+                                    <td><span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">@AccLedgerTypes.Name(l.LedgerType)</span></td>
+                                    <td class="text-end font-monospace small">@Bal(l.OpeningBalanceType == "Cr" ? -l.OpeningBalance : l.OpeningBalance)</td>
+                                    <td class="text-end font-monospace fw-semibold">@Bal(l.Balance)</td>
+                                    <td class="text-center">
+                                        @if (l.IsActive) { <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3">Active</span> }
+                                        else { <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3">Inactive</span> }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group btn-group-sm shadow-sm">
+                                            <a asp-controller="AccReports" asp-action="LedgerStatement" asp-route-ledgerId="@l.LedgerId" asp-permission="UTILITY.ACCOUNTS.REPORTS" class="btn btn-outline-info" title="Ledger statement"><i class="bi bi-list-columns-reverse"></i></a>
+                                            <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-outline-primary" title="Edit" data-acc-ledger="edit"
+                                                    data-id="@l.LedgerId" data-name="@l.LedgerName" data-group="@l.LedgerGroupId" data-type="@l.LedgerType" data-opening="@l.OpeningBalance.ToString("0.00")"
+                                                    data-optype="@l.OpeningBalanceType" data-remarks="@l.Remarks" data-active="@(l.IsActive ? "1" : "0")" data-system="@(l.IsSystem ? "1" : "0")"><i class="bi bi-pencil"></i></button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="tabGroups">
+            <div class="card border-0 shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light border-bottom">
+                            <tr><th class="ps-4">Group</th><th>Nature</th><th>Under</th><th class="text-center">Ledgers</th><th class="text-center">Status</th><th class="text-end pe-4">Actions</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var g in Model.Groups)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-semibold">@g.GroupName @if (g.IsSystem) { <span class="badge bg-light text-muted border ms-1"><i class="bi bi-lock-fill"></i> System</span> }</td>
+                                    <td>@g.GroupType</td>
+                                    <td class="text-muted">@(g.ParentGroupName ?? "-")</td>
+                                    <td class="text-center">@g.LedgerCount</td>
+                                    <td class="text-center">
+                                        @if (g.IsActive) { <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3">Active</span> }
+                                        else { <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3">Inactive</span> }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-sm btn-outline-primary" title="Edit" data-acc-group="edit" data-id="@g.LedgerGroupId" data-name="@g.GroupName"
+                                                data-type="@g.GroupType" data-parent="@g.ParentGroupId" data-active="@(g.IsActive ? "1" : "0")" data-system="@(g.IsSystem ? "1" : "0")"><i class="bi bi-pencil"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ledger -->
+<div class="modal fade" id="ledgerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form asp-action="SaveLedger" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="LedgerId" id="lgId" value="0" />
+            <div class="modal-header"><h5 class="modal-title" id="lgTitle">Add Ledger</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="alert alert-light border small py-2 d-none" id="lgSystemNote"><i class="bi bi-lock-fill me-1"></i>System ledger: billing posts to it by name, so its name, group and type are fixed.</div>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold required-field">Ledger Name</label>
+                        <input name="LedgerName" id="lgName" class="form-control" maxlength="100" required autocomplete="off" />
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label fw-semibold required-field">Group</label>
+                        <select name="LedgerGroupId" id="lgGroup" class="form-select" required>
+                            <option value="">-- Select --</option>
+                            @foreach (var g in Model.Groups.Where(g => g.IsActive))
+                            {
+                                <option value="@g.LedgerGroupId">@g.GroupName (@g.GroupType)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold required-field">Type</label>
+                        <select name="LedgerType" id="lgType" class="form-select">
+                            @foreach (var t in AccLedgerTypes.All)
+                            {
+                                <option value="@t.Code" data-petty="@(t.Code == "PETTY" ? "1" : "0")">@t.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label fw-semibold">Opening Balance</label>
+                        <div class="input-group"><span class="input-group-text">₹</span><input name="OpeningBalance" id="lgOpening" type="number" step="0.01" min="0" class="form-control" value="0.00" /></div>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">Dr / Cr</label>
+                        <select name="OpeningBalanceType" id="lgOpType" class="form-select"><option value="Dr">Dr (asset / expense)</option><option value="Cr">Cr (liability / income)</option></select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Remarks</label>
+                        <input name="Remarks" id="lgRemarks" class="form-control" maxlength="300" placeholder="e.g. bank name and account number" />
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="IsActive" value="false" />
+                            <input class="form-check-input" type="checkbox" role="switch" name="IsActive" id="lgActive" value="true" checked>
+                            <label class="form-check-label fw-semibold" for="lgActive">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Ledger</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Group -->
+<div class="modal fade" id="groupModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form asp-action="SaveGroup" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="LedgerGroupId" id="grId" value="0" />
+            <div class="modal-header"><h5 class="modal-title" id="grTitle">Add Ledger Group</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-semibold required-field">Group Name</label>
+                        <input name="GroupName" id="grName" class="form-control" maxlength="100" required autocomplete="off" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold required-field">Nature</label>
+                        <select name="GroupType" id="grType" class="form-select"><option>Asset</option><option>Liability</option><option>Income</option><option>Expense</option></select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Under (parent)</label>
+                        <select name="ParentGroupId" id="grParent" class="form-select">
+                            <option value="">-- None --</option>
+                            @foreach (var g in Model.Groups.Where(g => g.IsActive))
+                            {
+                                <option value="@g.LedgerGroupId" data-type="@g.GroupType">@g.GroupName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch">
+                            <input type="hidden" name="IsActive" value="false" />
+                            <input class="form-check-input" type="checkbox" role="switch" name="IsActive" id="grActive" value="true" checked>
+                            <label class="form-check-label fw-semibold" for="grActive">Active</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save Group</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var $ = function (id) { return document.getElementById(id); };
+            var ledgerModal = new bootstrap.Modal($('ledgerModal')), groupModal = new bootstrap.Modal($('groupModal'));
+
+            document.querySelectorAll('[data-acc-ledger]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var d = btn.dataset, edit = d.accLedger === 'edit', system = d.system === '1', petty = d.type === 'PETTY';
+                    $('lgTitle').textContent = edit ? 'Edit Ledger' : 'Add Ledger';
+                    $('lgId').value = edit ? d.id : 0;
+                    $('lgName').value = edit ? d.name : '';
+                    $('lgGroup').value = edit ? d.group : '';
+                    $('lgType').value = edit ? d.type : 'GENERAL';
+                    $('lgOpening').value = edit ? d.opening : '0.00';
+                    $('lgOpType').value = edit ? d.optype : 'Dr';
+                    $('lgRemarks').value = edit ? (d.remarks || '') : '';
+                    $('lgActive').checked = edit ? d.active === '1' : true;
+                    // a system ledger keeps its name / group / type; a petty cash ledger belongs to its counter
+                    $('lgName').readOnly = system || petty;
+                    ['lgGroup', 'lgType'].forEach(function (id) { $(id).style.pointerEvents = (system || petty) ? 'none' : ''; $(id).classList.toggle('bg-light', system || petty); });
+                    $('lgActive').onclick = system ? function () { return false; } : null;   // stays on: a disabled box would post "inactive"
+                    $('lgOpening').readOnly = petty;
+                    $('lgSystemNote').classList.toggle('d-none', !system);
+                    $('lgType').querySelectorAll('option[data-petty="1"]').forEach(function (o) { o.hidden = !petty; });
+                    ledgerModal.show();
+                });
+            });
+
+            document.querySelectorAll('[data-acc-group]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var d = btn.dataset, edit = d.accGroup === 'edit', system = d.system === '1';
+                    $('grTitle').textContent = edit ? 'Edit Ledger Group' : 'Add Ledger Group';
+                    $('grId').value = edit ? d.id : 0;
+                    $('grName').value = edit ? d.name : '';
+                    $('grType').value = edit ? d.type : 'Expense';
+                    $('grParent').value = edit ? (d.parent || '') : '';
+                    $('grActive').checked = edit ? d.active === '1' : true;
+                    $('grName').readOnly = system;
+                    $('grType').style.pointerEvents = system ? 'none' : ''; $('grType').classList.toggle('bg-light', system);
+                    $('grActive').onclick = system ? function () { return false; } : null;
+                    groupModal.show();
+                });
+            });
+        });
+    </script>
+}

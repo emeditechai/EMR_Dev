@@ -1,0 +1,15 @@
+@* Header of the Utility > Accounts screens: breadcrumb, title, the success / error message of the last action.
+   ViewData: Title, AccIcon, AccSubtitle. The page's own buttons go in the section it renders after this partial. *@
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+        <li class="breadcrumb-item text-muted">Utility</li>
+        <li class="breadcrumb-item text-muted">Accounts</li>
+        <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
+    </ol>
+</nav>
+<h4 class="fw-bold mb-0 text-primary"><i class="bi @(ViewData["AccIcon"] ?? "bi-calculator") me-2"></i>@ViewData["Title"]</h4>
+@if (ViewData["AccSubtitle"] is string sub)
+{
+    <div class="text-muted small">@sub</div>
+}

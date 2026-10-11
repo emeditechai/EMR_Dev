@@ -103,6 +103,9 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 // Ledger (Dapper)
 builder.Services.AddScoped<ILedgerService, LedgerService>();
 
+// Utility > Accounts: petty cash, vouchers, ledger reports (Dapper)
+builder.Services.AddScoped<IAccountsService, AccountsService>();
+
 // Cancellation & Refund (Dapper)
 builder.Services.AddScoped<ICancellationService, CancellationService>();
 

@@ -1,0 +1,66 @@
+@model EMR.Web.Models.ViewModels.AccReportViewModel
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["AccIcon"] = "bi-columns-gap";
+    string N(decimal v) => v == 0 ? "" : v.ToString("N2");
+    decimal Dr(decimal v) => Math.Max(v, 0);
+    decimal Cr(decimal v) => Math.Max(-v, 0);
+    var t = Model.Trial;
+    var balanced = t.Sum(x => x.ClosingBalance) == 0 && t.Sum(x => x.PeriodDebit) == t.Sum(x => x.PeriodCredit);
+}
+
+<div class="container-fluid px-4 py-3 acc-rpt">
+    <div class="mb-3 acc-noprint"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+    <partial name="_Filter" model="Model" />
+
+    @if (Model.UnbalancedVouchers > 0)
+    {
+        <div class="alert alert-danger shadow-sm"><i class="bi bi-exclamation-octagon-fill me-2"></i>@Model.UnbalancedVouchers voucher(s) in the ledger do not balance. Check the Day Book.</div>
+    }
+    @if (t.Count > 0)
+    {
+        <div class="alert @(balanced ? "alert-success" : "alert-warning") py-2 shadow-sm acc-noprint">
+            <i class="bi @(balanced ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill") me-2"></i>
+            @(balanced ? "The trial balance tallies: total debits equal total credits." : Model.BranchId.HasValue ? "A single branch may not tally on its own when money moved between branches. View all branches for the full trial balance." : "The trial balance does not tally.")
+        </div>
+    }
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead>
+                    <tr><th class="ps-3" rowspan="2">Ledger</th><th class="text-center" colspan="2">Opening</th><th class="text-center" colspan="2">Period</th><th class="text-center" colspan="2">Closing</th></tr>
+                    <tr><th class="num">Debit</th><th class="num">Credit</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Debit</th><th class="num pe-3">Credit</th></tr>
+                </thead>
+                <tbody>
+                    @if (t.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-inbox display-6 d-block mb-2 text-secondary"></i>No ledger has a balance or movement in this period.</td></tr>
+                    }
+                    @foreach (var g in t.GroupBy(x => (x.GroupType, x.GroupName)))
+                    {
+                        <tr class="acc-group"><td class="ps-3" colspan="7">@g.Key.GroupName <span class="fw-normal text-muted">(@g.Key.GroupType)</span></td></tr>
+                        foreach (var x in g)
+                        {
+                            <tr>
+                                <td class="ps-4"><a asp-action="LedgerStatement" asp-route-ledgerId="@x.LedgerId" asp-route-fromDate="@Model.FromDate.ToString("yyyy-MM-dd")" asp-route-toDate="@Model.ToDate.ToString("yyyy-MM-dd")" asp-route-branchId="@Model.BranchId">@x.LedgerName</a></td>
+                                <td class="num">@N(Dr(x.OpeningBalance))</td><td class="num">@N(Cr(x.OpeningBalance))</td>
+                                <td class="num">@N(x.PeriodDebit)</td><td class="num">@N(x.PeriodCredit)</td>
+                                <td class="num">@N(Dr(x.ClosingBalance))</td><td class="num pe-3">@N(Cr(x.ClosingBalance))</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td class="ps-3">Total</td>
+                        <td class="num">@t.Sum(x => Dr(x.OpeningBalance)).ToString("N2")</td><td class="num">@t.Sum(x => Cr(x.OpeningBalance)).ToString("N2")</td>
+                        <td class="num">@t.Sum(x => x.PeriodDebit).ToString("N2")</td><td class="num">@t.Sum(x => x.PeriodCredit).ToString("N2")</td>
+                        <td class="num">@t.Sum(x => Dr(x.ClosingBalance)).ToString("N2")</td><td class="num pe-3">@t.Sum(x => Cr(x.ClosingBalance)).ToString("N2")</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
