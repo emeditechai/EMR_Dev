@@ -1,9 +1,9 @@
-@* Header of the Utility > Accounts screens: breadcrumb, title, the success / error message of the last action.
+@* Header of the Utility > Accounts screens (and of Reports > Accounts): breadcrumb, title, the success / error message of the last action.
    ViewData: Title, AccIcon, AccSubtitle. The page's own buttons go in the section it renders after this partial. *@
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb mb-1">
         <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
-        <li class="breadcrumb-item text-muted">Utility</li>
+        <li class="breadcrumb-item text-muted">@(ViewContext.RouteData.Values["controller"] as string == "AccReports" ? "Reports" : "Utility")</li>
         <li class="breadcrumb-item text-muted">Accounts</li>
         <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
     </ol>

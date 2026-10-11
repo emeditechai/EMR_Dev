@@ -99,7 +99,7 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm">
-                                            <a asp-controller="AccReports" asp-action="LedgerStatement" asp-route-ledgerId="@l.LedgerId" asp-permission="UTILITY.ACCOUNTS.REPORTS" class="btn btn-outline-info" title="Ledger statement"><i class="bi bi-list-columns-reverse"></i></a>
+                                            <a asp-controller="AccReports" asp-action="LedgerStatement" asp-route-ledgerId="@l.LedgerId" asp-permission="REPORTS.ACCOUNTS" class="btn btn-outline-info" title="Ledger statement"><i class="bi bi-list-columns-reverse"></i></a>
                                             <button asp-permission="@(Page + ":EDIT")" type="button" class="btn btn-outline-primary" title="Edit" data-acc-ledger="edit"
                                                     data-id="@l.LedgerId" data-name="@l.LedgerName" data-group="@l.LedgerGroupId" data-type="@l.LedgerType" data-opening="@l.OpeningBalance.ToString("0.00")"
                                                     data-optype="@l.OpeningBalanceType" data-remarks="@l.Remarks" data-active="@(l.IsActive ? "1" : "0")" data-system="@(l.IsSystem ? "1" : "0")"><i class="bi bi-pencil"></i></button>

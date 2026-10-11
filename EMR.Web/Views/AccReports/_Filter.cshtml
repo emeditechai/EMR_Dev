@@ -83,8 +83,8 @@
             }
             <div class="col-md-auto d-flex gap-2 ms-auto">
                 <button type="submit" class="btn btn-secondary fw-semibold"><i class="bi bi-funnel me-1"></i>Show</button>
-                <a asp-permission="UTILITY.ACCOUNTS.REPORTS:EXPORT" asp-action="Export" asp-all-route-data="export" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
-                <a asp-permission="UTILITY.ACCOUNTS.REPORTS:EXPORT" asp-action="Export" asp-all-route-data="pdf" class="btn btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+                <a asp-permission="REPORTS.ACCOUNTS:EXPORT" asp-action="Export" asp-all-route-data="export" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+                <a asp-permission="REPORTS.ACCOUNTS:EXPORT" asp-action="Export" asp-all-route-data="pdf" class="btn btn-outline-danger"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
                 <button type="button" class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
                 <a asp-action="Index" class="btn btn-outline-secondary" title="All accounts reports"><i class="bi bi-grid"></i></a>
             </div>

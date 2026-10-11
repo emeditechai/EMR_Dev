@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 /// <summary>
-/// Utility > Accounts > Accounts Reports (SQLScripts/2245), page UTILITY.ACCOUNTS.REPORTS: VIEW, EXPORT.
+/// Reports > Accounts (SQLScripts/2245; menu moved from Utility > Accounts by 2247), page REPORTS.ACCOUNTS: VIEW, EXPORT.
 /// Read-only reports over the one ledger that holds billing entries and the petty cash / manual vouchers:
 /// Ledger Statement (also Cash Book, Bank Book and Petty Cash Book - the same statement for a ledger of that type),
 /// Day Book, Voucher Register, Trial Balance, Income and Expense, Petty Expense Summary, Ledger Posting Audit.
@@ -15,7 +15,7 @@ namespace EMR.Web.Controllers;
 /// </summary>
 public class AccReportsController(IAccountsService accounts) : AccountsControllerBase
 {
-    public const string PageCode = "UTILITY.ACCOUNTS.REPORTS";
+    public const string PageCode = "REPORTS.ACCOUNTS";
 
     private static readonly Dictionary<string, (string Title, string? LedgerType)> Books = new(StringComparer.OrdinalIgnoreCase)
     {

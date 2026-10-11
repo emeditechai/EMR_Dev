@@ -289,7 +289,7 @@
                                 <li><a class="dropdown-item" asp-controller="EmailTemplate" asp-action="Index"><i class="bi bi-envelope-paper me-2"></i>Email Templates</a></li>
                                 <li><a class="dropdown-item" asp-controller="EmrTemplates" asp-action="Index"><i class="bi bi-file-earmark-medical me-2"></i>EMR Template Settings</a></li>
                                 <li><a class="dropdown-item" asp-controller="FranchiseTopUp" asp-action="Index" asp-permission="UTILITY.FRANCHISETOPUP"><i class="bi bi-wallet2 me-2"></i>Franchise Top-Up</a></li>
-                                <li class="dropdown-submenu" asp-permission="UTILITY.ACCOUNTS.PETTYEXPENSE,UTILITY.ACCOUNTS.COUNTERS,UTILITY.ACCOUNTS.CLOSING,UTILITY.ACCOUNTS.VOUCHERS,UTILITY.ACCOUNTS.REPORTS,UTILITY.ACCOUNTS.LEDGERS,UTILITY.ACCOUNTS.EXPENSEHEADS,UTILITY.ACCOUNTS.PAYEES,UTILITY.ACCOUNTS.SETTINGS">
+                                <li class="dropdown-submenu" asp-permission="UTILITY.ACCOUNTS.PETTYEXPENSE,UTILITY.ACCOUNTS.COUNTERS,UTILITY.ACCOUNTS.CLOSING,UTILITY.ACCOUNTS.VOUCHERS,UTILITY.ACCOUNTS.LEDGERS,UTILITY.ACCOUNTS.EXPENSEHEADS,UTILITY.ACCOUNTS.PAYEES,UTILITY.ACCOUNTS.SETTINGS">
                                     <a class="dropdown-item dropdown-submenu-toggle" href="#"><i class="bi bi-calculator me-2"></i>Accounts<i class="bi bi-chevron-right submenu-arrow"></i></a>
                                     <ul class="dropdown-menu dropdown-submenu-menu">
                                         <li><a class="dropdown-item" asp-controller="PettyExpense" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.PETTYEXPENSE"><i class="bi bi-receipt me-2"></i>Petty Expenses</a></li>
@@ -297,7 +297,6 @@
                                         <li><a class="dropdown-item" asp-controller="PettyCash" asp-action="Closing" asp-permission="UTILITY.ACCOUNTS.CLOSING"><i class="bi bi-calendar-check me-2"></i>Petty Cash Closing</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="AccVouchers" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.VOUCHERS"><i class="bi bi-journal-plus me-2"></i>Voucher Entry</a></li>
-                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.REPORTS"><i class="bi bi-bar-chart-line me-2"></i>Accounts Reports</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item" asp-controller="AccLedgers" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.LEDGERS"><i class="bi bi-diagram-3 me-2"></i>Ledgers and Groups</a></li>
                                         <li><a class="dropdown-item" asp-controller="AccExpenseHeads" asp-action="Index" asp-permission="UTILITY.ACCOUNTS.EXPENSEHEADS"><i class="bi bi-tags me-2"></i>Expense Heads</a></li>
@@ -356,6 +355,24 @@
                                         <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="BillingAdjustments"><i class="bi bi-plus-slash-minus me-2"></i>RPT-06: Billing Adjustments</a></li>
                                         <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="RefundReversals"><i class="bi bi-arrow-counterclockwise me-2"></i>RPT-07: Refund & Reversal</a></li>
                                         <li><a class="dropdown-item" asp-controller="DoctorSettlementReports" asp-action="SettlementSummary"><i class="bi bi-pie-chart-fill me-2"></i>RPT-08: Settlement Summary</a></li>
+                                    </ul>
+                                </li>
+                                <li class="dropdown-submenu" asp-permission="REPORTS.ACCOUNTS">
+                                    <a class="dropdown-item dropdown-submenu-toggle" href="#"><i class="bi bi-calculator me-2"></i>Accounts<i class="bi bi-chevron-right submenu-arrow"></i></a>
+                                    <ul class="dropdown-menu dropdown-submenu-menu">
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="Index"><i class="bi bi-grid me-2"></i>All Accounts Reports</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="LedgerStatement" asp-route-book="PettyCashBook"><i class="bi bi-safe me-2"></i>Petty Cash Book</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="ExpenseSummary"><i class="bi bi-pie-chart me-2"></i>Petty Expense Summary</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="LedgerStatement" asp-route-book="CashBook"><i class="bi bi-cash-stack me-2"></i>Cash Book</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="LedgerStatement" asp-route-book="BankBook"><i class="bi bi-bank me-2"></i>Bank Book</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="DayBook"><i class="bi bi-journal-text me-2"></i>Day Book</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="DayBook" asp-route-manualOnly="true"><i class="bi bi-card-list me-2"></i>Voucher Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="LedgerStatement"><i class="bi bi-list-columns-reverse me-2"></i>Ledger Statement</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="TrialBalance"><i class="bi bi-columns-gap me-2"></i>Trial Balance</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="IncomeExpense"><i class="bi bi-graph-up-arrow me-2"></i>Income and Expense</a></li>
+                                        <li><a class="dropdown-item" asp-controller="AccReports" asp-action="PostingAudit"><i class="bi bi-shield-check me-2"></i>Ledger Posting Audit</a></li>
                                     </ul>
                                 </li>
                                 <li><a class="dropdown-item" asp-controller="Reports" asp-action="IPDReport"><i class="bi bi-hospital me-2"></i>IPD Report</a></li>
