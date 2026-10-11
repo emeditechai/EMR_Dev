@@ -253,6 +253,14 @@
                                 </div>
                                 <input class="form-check-input ms-3" type="checkbox" role="switch" asp-for="LabReportApprovedNotificationEnabled" style="width: 2.8em; height: 1.4em;" />
                             </div>
+                            <hr class="my-1" />
+                            <div class="form-check form-switch p-0 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <label class="form-check-label fw-bold text-dark d-block" for="MembershipPointsNotificationEnabled">Membership Points Earned Notification</label>
+                                    <small class="text-muted">Automatically send WhatsApp message to the membership card holder when a B2C LAB bill earns points (once the bill is fully paid)</small>
+                                </div>
+                                <input class="form-check-input ms-3" type="checkbox" role="switch" asp-for="MembershipPointsNotificationEnabled" style="width: 2.8em; height: 1.4em;" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -319,6 +327,32 @@
                                 <span class="tag-chip" onclick="insertTag('LabReportApprovedMessageTemplate', '{TokenNo}')">{TokenNo}</span>
                             </div>
                             <textarea asp-for="LabReportApprovedMessageTemplate" id="LabReportApprovedMessageTemplate" rows="4" class="form-control font-monospace" style="font-size: 0.88rem;"></textarea>
+                        </div>
+
+                        <!-- Membership Points Earned Template (SQLScripts/2243) -->
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <div>
+                                    <label asp-for="MembershipPointsMessageTemplate" class="form-label small fw-bold text-dark mb-0">Membership Points Earned Message Template</label>
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border ms-2"><i class="bi bi-award me-1"></i>Sent to the card holder</span>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <span class="small text-muted me-1">Click to insert:</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{CardHolderName}')">{CardHolderName}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{PatientName}')">{PatientName}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{HospitalName}')">{HospitalName}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{CardNo}')">{CardNo}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{PlanName}')">{PlanName}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{BillNo}')">{BillNo}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{PointsEarned}')">{PointsEarned}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{PointsValue}')">{PointsValue}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{PointsBalance}')">{PointsBalance}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{BalanceValue}')">{BalanceValue}</span>
+                                <span class="tag-chip" onclick="insertTag('MembershipPointsMessageTemplate', '{ExpiryDate}')">{ExpiryDate}</span>
+                            </div>
+                            <textarea asp-for="MembershipPointsMessageTemplate" id="MembershipPointsMessageTemplate" rows="4" class="form-control font-monospace" style="font-size: 0.88rem;" maxlength="1000"></textarea>
+                            <div class="form-text">{PointsValue} / {BalanceValue} are in Rs. at the plan's point value; {ExpiryDate} is when these points expire (Points Expire After on the plan); {PatientName} is the patient of the bill, {CardHolderName} the card's primary member.</div>
                         </div>
 
                         <!-- Video Consultation Patient Template -->

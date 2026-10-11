@@ -5,7 +5,7 @@ using EMR.Web.Models.ViewModels;
 
 namespace EMR.Web.Services;
 
-public class PaymentService(IDbConnectionFactory db) : IPaymentService
+public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppService pointsWhatsApp) : IPaymentService
 {
     // ─── Get active payment methods ──────────────────────────────────────────
     public async Task<IEnumerable<PaymentMethodViewModel>> GetActiveMethodsAsync()
@@ -1174,6 +1174,9 @@ public class PaymentService(IDbConnectionFactory db) : IPaymentService
                     SELECT c.CardNo, ph.PointsRedeemed, ph.PointsRedeemedAmount, ph.PointsEarned, ISNULL(c.PointsBalance, 0)
                     FROM PaymentHeader ph LEFT JOIN MembershipCard c ON c.CardId = ph.MembershipCardId
                     WHERE ph.PaymentHeaderId = @Id", new { Id = paymentHeaderId });
+            // points earned by this payment: WhatsApp to the card holder (if switched on for the branch, SQLScripts/2243)
+            if (request.ModuleCode == "LAB" && mem.Item4 > 0)
+                pointsWhatsApp.QueueForPayment(paymentHeaderId, userId);
 
             // ── Assign token on full payment ──────────────────────────────────
             string? assignedToken = null;

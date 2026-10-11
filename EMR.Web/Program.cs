@@ -249,6 +249,7 @@ builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowA
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
 builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
+builder.Services.AddScoped<IMembershipPointsWhatsAppService, MembershipPointsWhatsAppService>();
 builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotificationService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 builder.Services.AddScoped<IMembershipApiClient,          MembershipApiClient>();
