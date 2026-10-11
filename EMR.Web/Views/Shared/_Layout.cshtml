@@ -628,6 +628,19 @@
                 } catch (e) { }
             })();
         </script>
+        <script>
+            // Shortcut keys for the Doctor IP screens, which are not in the menu:
+            //   Alt + Shift + D  Doctor IP (commission configuration)
+            //   Alt + Shift + C  Doctor IP Commission, to run the calculation manually (Hospital Settings mode Manual / Both)
+            document.addEventListener('keydown', function (e) {
+                if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return;
+                var url = e.code === 'KeyD' ? '@Url.Action("Index", "DoctorIp")'
+                        : e.code === 'KeyC' ? '@Url.Action("Index", "DoctorIpCommission")?manual=true' : null;
+                if (!url) return;
+                e.preventDefault();
+                window.location.href = url;
+            });
+        </script>
     }
 </body>
 </html>

@@ -61,7 +61,7 @@ public class DoctorIpCommissionController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> Index(int? doctorId = null, DateTime? fromDate = null, DateTime? toDate = null, string tab = "pending")
+    public async Task<IActionResult> Index(int? doctorId = null, DateTime? fromDate = null, DateTime? toDate = null, string tab = "pending", bool manual = false)
     {
         var branchId = User.GetCurrentBranchId();
         if (!branchId.HasValue)
@@ -82,6 +82,9 @@ public class DoctorIpCommissionController(
             var setups = await doctorIpApiClient.GetListAsync(companyId, branchId);
             var until = UnlockedUntil();
             var (mode, runTime) = await RunSettingsAsync(branchId.Value);
+            // Opened with the "run manually" shortcut (Alt+Shift+C) while the branch is set to scheduled runs only.
+            if (manual && mode == "Automatic")
+                TempData["ErrorMessage"] = "Doctor IP commission is set to Automatic in Hospital Settings, so it cannot be run manually. Change the run mode to Manual or Both to calculate from this screen.";
 
             return View(new DoctorIpCommissionIndexViewModel
             {
