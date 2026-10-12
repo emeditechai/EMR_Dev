@@ -13,7 +13,8 @@ namespace EMR.Api.Services
             DateTime? toDate,
             string? dateFilterType,
             string? statusFilter,
-            string? search);
+            string? search,
+            int? createdBy = null);
 
         Task<SampleCollectionOrderDetailDto?> GetDetailAsync(int labOrderId);
 

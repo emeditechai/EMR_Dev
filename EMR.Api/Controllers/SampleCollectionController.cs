@@ -17,7 +17,8 @@ namespace EMR.Api.Controllers
             [FromQuery] DateTime? toDate,
             [FromQuery] string? dateFilterType = "BookingDate",
             [FromQuery] string? statusFilter = "All",
-            [FromQuery] string? search = null)
+            [FromQuery] string? search = null,
+            [FromQuery] int? createdBy = null)
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
@@ -27,7 +28,7 @@ namespace EMR.Api.Controllers
             }
 
             var result = await sampleCollectionService.GetHeaderListAsync(
-                branchId, fromDate, toDate, dateFilterType, statusFilter, search);
+                branchId, fromDate, toDate, dateFilterType, statusFilter, search, createdBy);
             return Ok(result);
         }
 

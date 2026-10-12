@@ -27,7 +27,8 @@
         <div class="d-flex align-items-center gap-2">
             <!-- Segregated Booking Source Tabs -->
             <ul class="nav nav-pills sample-source-tabs bg-light p-1 rounded-pill border shadow-xs" id="bookingSourceTabs" role="tablist">
-                <li class="nav-item" role="presentation">
+                @* a franchise login works only on its own B2B orders: no B2C tab (SQLScripts/2266) *@
+                <li class="nav-item @(User.IsFranchiseUser() ? "d-none" : "")" role="presentation">
                     <button class="nav-link active rounded-pill px-3 py-1 fw-semibold d-flex align-items-center gap-2" id="tabB2C" data-tab="B2C" type="button" role="tab" aria-selected="true">
                         <i class="bi bi-person-circle"></i>
                         <span>B2C Patient</span>
@@ -907,6 +908,9 @@
                 updateStatsForCurrentTab();
                 renderFilteredHeaders();
             });
+
+            // a franchise login: straight to its B2B bookings (the B2C tab is not shown)
+            if (@(User.IsFranchiseUser() ? "true" : "false")) setTimeout(function () { $('#tabB2B').trigger('click'); }, 0);   // after the whole script has set up
 
             // ── 1. Row Selection Click ──────────────────────────────────────────
             $(document).on('click', '.order-header-row', function () {

@@ -17,7 +17,8 @@ namespace EMR.Api.Services
             DateTime? toDate,
             string? dateFilterType,
             string? statusFilter,
-            string? search)
+            string? search,
+            int? createdBy = null)
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -29,7 +30,8 @@ namespace EMR.Api.Services
                     ToDate = toDate,
                     DateFilterType = string.IsNullOrWhiteSpace(dateFilterType) ? "BookingDate" : dateFilterType,
                     StatusFilter = string.IsNullOrWhiteSpace(statusFilter) ? "All" : statusFilter,
-                    Search = search
+                    Search = search,
+                    CreatedBy = createdBy is > 0 ? createdBy : null   // script 2266
                 },
                 commandType: CommandType.StoredProcedure
             );
