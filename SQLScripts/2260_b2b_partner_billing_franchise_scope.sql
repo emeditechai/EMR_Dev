@@ -29,7 +29,9 @@ BEGIN
       AND (@OwnFranchiseId IS NULL OR lo.CreatedBy = @UserId OR (lo.AgentType = ''F'' AND lo.B2BAgentID = @OwnFranchiseId))');
     SET @def = STUFF(@def, CHARINDEX(@a3, @def), LEN(@a3), @a3 + N' AND (@OwnFranchiseId IS NULL OR f.Franchise_ID = @OwnFranchiseId)');
     SET @def = STUFF(@def, CHARINDEX(@a4, @def), LEN(@a4), @a4 + N' AND @OwnFranchiseId IS NULL');
-    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    -- "PROCEDURE" is looked for after the CREATE (a header comment may say "Stored Procedure" earlier)
+    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def, PATINDEX(N'%CREATE%PROCEDURE%', @def)) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    IF @def IS NULL THROW 55198, 'The procedure text could not be prepared; not changed.', 1;
     EXEC sys.sp_executesql @def;
 END
 GO

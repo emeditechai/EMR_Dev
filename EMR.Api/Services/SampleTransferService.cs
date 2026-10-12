@@ -20,7 +20,8 @@ namespace EMR.Api.Services
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null)
+            int? subCategoryId = null,
+            int? createdBy = null)   // 2264: a franchise login's user id - only its own samples
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -35,7 +36,8 @@ namespace EMR.Api.Services
                     Search = search,
                     DepartmentId = departmentId,
                     CategoryId = categoryId,
-                    SubCategoryId = subCategoryId
+                    SubCategoryId = subCategoryId,
+                    CreatedBy = createdBy is > 0 ? createdBy : null
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -119,7 +121,8 @@ namespace EMR.Api.Services
             string? mode = "Outgoing",
             DateTime? fromDate = null,
             DateTime? toDate = null,
-            string? search = null)
+            string? search = null,
+            int? createdBy = null)
         {
             using var connection = db.CreateConnection();
             var list = await connection.QueryAsync<SampleTransferAuditDto>(
@@ -130,7 +133,8 @@ namespace EMR.Api.Services
                     Mode = string.IsNullOrWhiteSpace(mode) ? "Outgoing" : mode,
                     FromDate = fromDate,
                     ToDate = toDate,
-                    Search = search
+                    Search = search,
+                    CreatedBy = createdBy is > 0 ? createdBy : null
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -147,7 +151,8 @@ namespace EMR.Api.Services
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null)
+            int? subCategoryId = null,
+            int? createdBy = null)   // 2264: a franchise login's user id - only its own samples
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -162,7 +167,8 @@ namespace EMR.Api.Services
                     Search = search,
                     DepartmentId = departmentId,
                     CategoryId = categoryId,
-                    SubCategoryId = subCategoryId
+                    SubCategoryId = subCategoryId,
+                    CreatedBy = createdBy is > 0 ? createdBy : null
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -243,7 +249,7 @@ namespace EMR.Api.Services
             return branches.ToList();
         }
 
-        public async Task<List<SampleTransferEligibleItemDto>> GetWorksheetDataAsync(string sampleCollectionIds)
+        public async Task<List<SampleTransferEligibleItemDto>> GetWorksheetDataAsync(string sampleCollectionIds, int? createdBy = null)
         {
             if (string.IsNullOrWhiteSpace(sampleCollectionIds))
                 return new List<SampleTransferEligibleItemDto>();
@@ -251,7 +257,7 @@ namespace EMR.Api.Services
             using var connection = db.CreateConnection();
             var items = await connection.QueryAsync<SampleTransferEligibleItemDto>(
                 "dbo.usp_SampleTransfer_GetWorksheetData",
-                new { SampleCollectionIds = sampleCollectionIds },
+                new { SampleCollectionIds = sampleCollectionIds, CreatedBy = createdBy is > 0 ? createdBy : null },
                 commandType: CommandType.StoredProcedure
             );
 

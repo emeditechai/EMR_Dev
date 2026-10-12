@@ -254,6 +254,9 @@ builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailServ
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
 builder.Services.AddScoped<IMembershipPointsWhatsAppService, MembershipPointsWhatsAppService>();
 builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotificationService>();
+// the bell: in-app notifications pushed live to the signed-in user (SQLScripts/2263)
+builder.Services.AddSignalR();
+builder.Services.AddScoped<EMR.Web.Services.Notifications.INotificationService, EMR.Web.Services.Notifications.NotificationService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 builder.Services.AddScoped<IMembershipApiClient,          MembershipApiClient>();
 builder.Services.AddScoped<IMembershipCardDeliveryService, MembershipCardDeliveryService>();
@@ -463,5 +466,7 @@ app.MapControllerRoute(
     pattern: "{controller=Account}/{action=Login}/{id?}")
     .WithStaticAssets();
 
+
+app.MapHub<EMR.Web.Services.Notifications.NotificationHub>("/hubs/notifications");
 
 app.Run();

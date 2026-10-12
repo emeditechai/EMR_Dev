@@ -373,13 +373,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ─── Discount approval: every discount records its reason and who approved it ─────────
     var _discApproval = null;   // { amount, reason, approvedBy, approvedByName } captured in this dialog
-    var _approvers = null;      // active users (User Master), loaded once
+    var _approvers = null;      // users who may approve a discount, loaded once per module
+    var _approversFor = null;
     const DISCOUNT_REASONS = ['Senior citizen', 'Staff / staff family', 'Referred by doctor', 'Health camp',
                               'Regular patient', 'Financial hardship', 'Management approval'];
 
     async function loadApprovers() {
-        if (_approvers) return _approvers;
-        try { const r = await fetch('/OPD/GetDiscountApprovers'); _approvers = r.ok ? await r.json() : []; }
+        // per module: a LAB bill lists only Administrator / Manager users
+        if (_approvers && _approversFor === _moduleCode) return _approvers;
+        _approversFor = _moduleCode;
+        try { const r = await fetch('/OPD/GetDiscountApprovers?moduleCode=' + encodeURIComponent(_moduleCode || '')); _approvers = r.ok ? await r.json() : []; }
         catch (e) { _approvers = []; }
         return _approvers;
     }

@@ -16,7 +16,8 @@ namespace EMR.Api.Services
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null);
+            int? subCategoryId = null,
+            int? createdBy = null);
 
         Task<ExecuteSampleTransferResponseDto> ExecuteTransferAsync(
             ExecuteSampleTransferRequestDto request,
@@ -27,7 +28,8 @@ namespace EMR.Api.Services
             string? mode = "Outgoing",
             DateTime? fromDate = null,
             DateTime? toDate = null,
-            string? search = null);
+            string? search = null,
+            int? createdBy = null);
 
         Task<SampleTransferReceivableListResult> GetReceivableSamplesAsync(
             int targetBranchId,
@@ -38,7 +40,8 @@ namespace EMR.Api.Services
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null);
+            int? subCategoryId = null,
+            int? createdBy = null);
 
         Task<ReceiveSampleTransferResponseDto> ReceiveSamplesAsync(
             ReceiveSampleTransferRequestDto request,
@@ -46,6 +49,6 @@ namespace EMR.Api.Services
 
         Task<List<TargetBranchOptionDto>> GetTargetBranchesAsync(int currentBranchId);
         
-        Task<List<SampleTransferEligibleItemDto>> GetWorksheetDataAsync(string sampleCollectionIds);
+        Task<List<SampleTransferEligibleItemDto>> GetWorksheetDataAsync(string sampleCollectionIds, int? createdBy = null);
     }
 }

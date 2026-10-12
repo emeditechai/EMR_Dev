@@ -1,0 +1,64 @@
+@{
+    ViewData["Title"] = "Notifications";
+}
+@* All of the signed-in user's notifications (SQLScripts/2263); rows, reading and removing come from wwwroot/js/notifications.js *@
+<div class="container-fluid py-3" style="max-width: 900px;">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <div>
+            <h4 class="mb-0 fw-bold"><i class="bi bi-bell me-2 text-primary"></i>Notifications</h4>
+            <div class="text-muted small">Messages sent to you by the system. Only you can see them.</div>
+        </div>
+        <div class="ms-auto d-flex gap-2">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Filter">
+                <button type="button" class="btn btn-outline-primary active" data-filter="all">All</button>
+                <button type="button" class="btn btn-outline-primary" data-filter="unread">Unread <span class="badge bg-danger ms-1 d-none" id="pgUnread"></span></button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="pgReadAll"><i class="bi bi-check2-all me-1"></i>Mark all as read</button>
+        </div>
+    </div>
+    <div class="card border-0 shadow-sm overflow-hidden">
+        <div id="pgList"><div class="emr-bell-empty">Loading…</div></div>
+        <div class="text-center p-2 border-top d-none" id="pgMoreWrap">
+            <button type="button" class="btn btn-sm btn-link text-decoration-none" id="pgMore">Load older notifications</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    if (!window.EmrNotify) return;
+    var N = window.EmrNotify, list = document.getElementById('pgList'), more = document.getElementById('pgMoreWrap');
+    var filter = 'all', oldest = null, PAGE = 25;
+
+    function unread(c) { var b = document.getElementById('pgUnread'); b.textContent = c; b.classList.toggle('d-none', !c); }
+
+    function page(reset) {
+        if (reset) { oldest = null; list.innerHTML = '<div class="emr-bell-empty">Loading…</div>'; }
+        N.feed({ top: PAGE, beforeId: oldest, unreadOnly: filter === 'unread' }).then(function (r) {
+            if (!r || !r.success) { list.innerHTML = '<div class="emr-bell-empty">Notifications could not be loaded.</div>'; return; }
+            unread(r.unreadCount);
+            var html = r.items.map(N.row).join('');
+            if (reset) list.innerHTML = html || '<div class="emr-bell-empty"><i class="bi bi-bell-slash d-block fs-3 mb-1"></i>'
+                + (filter === 'unread' ? 'No unread notifications.' : 'You have no notifications.') + '</div>';
+            else list.insertAdjacentHTML('beforeend', html);
+            if (r.items.length) oldest = r.items[r.items.length - 1].notificationId;
+            more.classList.toggle('d-none', r.items.length < PAGE);
+        });
+    }
+
+    N.wireList(list, function () { if (!list.querySelector('.emr-notif')) page(true); });
+    N.on(function () { page(true); });   // a new one arrived / changed in another tab
+    document.getElementById('pgMore').addEventListener('click', function () { page(false); });
+    document.getElementById('pgReadAll').addEventListener('click', function () { N.markAllRead().then(function () { page(true); }); });
+    document.querySelectorAll('[data-filter]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            document.querySelectorAll('[data-filter]').forEach(function (x) { x.classList.toggle('active', x === b); });
+            filter = b.getAttribute('data-filter');
+            page(true);
+        });
+    });
+    page(true);
+})();
+</script>
+}

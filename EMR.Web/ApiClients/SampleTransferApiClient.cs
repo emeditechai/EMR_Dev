@@ -25,7 +25,8 @@ namespace EMR.Web.ApiClients
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null)
+            int? subCategoryId = null,
+            int? createdBy = null)
         {
             string query = $"?sourceBranchId={sourceBranchId}";
             if (fromDate.HasValue) query += $"&fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}";
@@ -36,6 +37,7 @@ namespace EMR.Web.ApiClients
             if (departmentId.HasValue && departmentId.Value > 0) query += $"&departmentId={departmentId.Value}";
             if (categoryId.HasValue && categoryId.Value > 0) query += $"&categoryId={categoryId.Value}";
             if (subCategoryId.HasValue && subCategoryId.Value > 0) query += $"&subCategoryId={subCategoryId.Value}";
+            if (createdBy is > 0) query += $"&createdBy={createdBy.Value}";
 
             var response = await _httpClient.GetAsync($"api/SampleTransfer/eligible{query}");
             response.EnsureSuccessStatusCode();
@@ -75,13 +77,15 @@ namespace EMR.Web.ApiClients
             string? mode = "Outgoing",
             DateTime? fromDate = null,
             DateTime? toDate = null,
-            string? search = null)
+            string? search = null,
+            int? createdBy = null)
         {
             string query = $"?branchId={branchId}";
             if (!string.IsNullOrEmpty(mode)) query += $"&mode={Uri.EscapeDataString(mode)}";
             if (fromDate.HasValue) query += $"&fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}";
             if (toDate.HasValue) query += $"&toDate={toDate.Value:yyyy-MM-ddTHH:mm:ss}";
             if (!string.IsNullOrEmpty(search)) query += $"&search={Uri.EscapeDataString(search)}";
+            if (createdBy is > 0) query += $"&createdBy={createdBy.Value}";
 
             var response = await _httpClient.GetAsync($"api/SampleTransfer/history{query}");
             if (!response.IsSuccessStatusCode) return new List<SampleTransferAuditDto>();
@@ -99,10 +103,10 @@ namespace EMR.Web.ApiClients
                    ?? new List<TargetBranchOptionDto>();
         }
 
-        public async Task<List<SampleTransferEligibleItemDto>> GetWorksheetDataAsync(string sampleCollectionIds)
+        public async Task<List<SampleTransferEligibleItemDto>> GetWorksheetDataAsync(string sampleCollectionIds, int? createdBy = null)
         {
             if (string.IsNullOrWhiteSpace(sampleCollectionIds)) return new List<SampleTransferEligibleItemDto>();
-            var response = await _httpClient.GetAsync($"api/SampleTransfer/worksheet-data?sampleCollectionIds={Uri.EscapeDataString(sampleCollectionIds)}");
+            var response = await _httpClient.GetAsync($"api/SampleTransfer/worksheet-data?sampleCollectionIds={Uri.EscapeDataString(sampleCollectionIds)}" + (createdBy is > 0 ? $"&createdBy={createdBy.Value}" : ""));
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<List<SampleTransferEligibleItemDto>>()
                    ?? new List<SampleTransferEligibleItemDto>();
@@ -117,7 +121,8 @@ namespace EMR.Web.ApiClients
             string? search = null,
             int? departmentId = null,
             int? categoryId = null,
-            int? subCategoryId = null)
+            int? subCategoryId = null,
+            int? createdBy = null)
         {
             string query = $"?targetBranchId={targetBranchId}";
             if (fromDate.HasValue) query += $"&fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}";
@@ -128,6 +133,7 @@ namespace EMR.Web.ApiClients
             if (departmentId.HasValue && departmentId.Value > 0) query += $"&departmentId={departmentId.Value}";
             if (categoryId.HasValue && categoryId.Value > 0) query += $"&categoryId={categoryId.Value}";
             if (subCategoryId.HasValue && subCategoryId.Value > 0) query += $"&subCategoryId={subCategoryId.Value}";
+            if (createdBy is > 0) query += $"&createdBy={createdBy.Value}";
 
             var response = await _httpClient.GetAsync($"api/SampleTransfer/receivable{query}");
             response.EnsureSuccessStatusCode();

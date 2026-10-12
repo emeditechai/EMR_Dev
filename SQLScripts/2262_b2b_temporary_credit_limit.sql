@@ -40,7 +40,9 @@ BEGIN
             CAST(0 AS DECIMAL(18,2)) AS TempLimitIncrease,
             CAST(NULL AS DATE) AS TempLimitValidTill,
             CAST(0 AS BIT) AS TempLimitActive;');
-    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    -- "PROCEDURE" is looked for after the CREATE (a header comment may say "Stored Procedure" earlier)
+    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def, PATINDEX(N'%CREATE%PROCEDURE%', @def)) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    IF @def IS NULL THROW 55198, 'The procedure text could not be prepared; not changed.', 1;
     EXEC sys.sp_executesql @def;
 END
 ELSE IF CHARINDEX(N'(@TempValidTill IS NULL OR @TempValidTill >= CAST(GETDATE() AS DATE))', @def) > 0
@@ -50,7 +52,9 @@ BEGIN
                              N'@TempValidTill IS NOT NULL AND @TempValidTill >= CAST(GETDATE() AS DATE)');
     SET @def = REPLACE(@def, N'-- 2262: the temporary increase counts while it is valid - till its date, or with no end date when blank',
                              N'-- 2262: the temporary increase counts only with an amount and a valid-till date of today or later');
-    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    -- "PROCEDURE" is looked for after the CREATE (a header comment may say "Stored Procedure" earlier)
+    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def, PATINDEX(N'%CREATE%PROCEDURE%', @def)) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    IF @def IS NULL THROW 55198, 'The procedure text could not be prepared; not changed.', 1;
     EXEC sys.sp_executesql @def;
 END
 GO
@@ -61,7 +65,9 @@ DECLARE @old NVARCHAR(400) = N'(cl.Temp_Limit_Valid_Till IS NULL OR cl.Temp_Limi
 IF @rep IS NOT NULL AND CHARINDEX(@old, @rep) > 0
 BEGIN
     SET @rep = REPLACE(@rep, @old, N'cl.Temp_Limit_Valid_Till IS NOT NULL AND cl.Temp_Limit_Valid_Till >= CAST(GETDATE() AS DATE)');
-    SET @rep = STUFF(@rep, PATINDEX(N'%CREATE%PROCEDURE%', @rep), CHARINDEX(N'PROCEDURE', @rep) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @rep), N'CREATE OR ALTER PROCEDURE');
+    -- "PROCEDURE" is looked for after the CREATE (a header comment may say "Stored Procedure" earlier)
+    SET @rep = STUFF(@rep, PATINDEX(N'%CREATE%PROCEDURE%', @rep), CHARINDEX(N'PROCEDURE', @rep, PATINDEX(N'%CREATE%PROCEDURE%', @rep)) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @rep), N'CREATE OR ALTER PROCEDURE');
+    IF @rep IS NULL THROW 55198, 'The procedure text could not be prepared; not changed.', 1;
     EXEC sys.sp_executesql @rep;
 END
 GO

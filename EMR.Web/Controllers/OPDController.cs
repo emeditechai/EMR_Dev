@@ -2403,8 +2403,11 @@ public class OPDController(
 
     /// <summary>Active users (User Master) who can be named as the approver of a discount.</summary>
     [HttpGet]
-    public async Task<IActionResult> GetDiscountApprovers()
+    /// <summary>The payment screen's "Approved by" list. LAB bills: only Administrator / Manager users (the save checks the
+    /// same); every other module: every active user, as before.</summary>
+    public async Task<IActionResult> GetDiscountApprovers(string? moduleCode = null)
     {
+        var labOnly = string.Equals(moduleCode, "LAB", StringComparison.OrdinalIgnoreCase);
         using var con = db.CreateConnection();
         var users = await con.QueryAsync(@"
             SELECT u.Id,
@@ -2412,9 +2415,9 @@ public class OPDController(
                    NULLIF(LTRIM(RTRIM(u.Role)), '') AS Role
             FROM dbo.Users u
             WHERE u.IsActive = 1 AND ISNULL(u.IsLockedOut, 0) = 0
-              AND (u.CompanyId IS NULL OR u.CompanyId = @CompanyId)
+              AND (u.CompanyId IS NULL OR u.CompanyId = @CompanyId)" + (labOnly ? " AND " + PaymentService.LabDiscountApproverSql : "") + @"
             ORDER BY Name",
-            new { CompanyId = User.GetCompanyId() });
+            new { CompanyId = User.GetCompanyId(), ApproverRoles = PaymentService.LabDiscountApproverRoles });
         return Json(users.Select(u => new { id = (int)u.Id, name = (string)u.Name, role = (string?)u.Role }));
     }
 

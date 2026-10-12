@@ -478,7 +478,9 @@ BEGIN
 
 ' + @anchor;
     SET @def = STUFF(@def, CHARINDEX(@anchor, @def), LEN(@anchor), @hook);
-    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    -- "PROCEDURE" is looked for after the CREATE (a header comment may say "Stored Procedure" earlier)
+    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def, PATINDEX(N'%CREATE%PROCEDURE%', @def)) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    IF @def IS NULL THROW 55198, 'The procedure text could not be prepared; not changed.', 1;
     EXEC sys.sp_executesql @def;
 END
 GO
@@ -496,7 +498,9 @@ BEGIN
 
 ' + @anchor;
     SET @def = STUFF(@def, CHARINDEX(@anchor, @def), LEN(@anchor), @hook);
-    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    -- "PROCEDURE" is looked for after the CREATE (a header comment may say "Stored Procedure" earlier)
+    SET @def = STUFF(@def, PATINDEX(N'%CREATE%PROCEDURE%', @def), CHARINDEX(N'PROCEDURE', @def, PATINDEX(N'%CREATE%PROCEDURE%', @def)) + 9 - PATINDEX(N'%CREATE%PROCEDURE%', @def), N'CREATE OR ALTER PROCEDURE');
+    IF @def IS NULL THROW 55198, 'The procedure text could not be prepared; not changed.', 1;
     EXEC sys.sp_executesql @def;
 END
 GO

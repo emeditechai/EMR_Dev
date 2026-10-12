@@ -5,7 +5,8 @@ using EMR.Web.Models.ViewModels;
 
 namespace EMR.Web.Services;
 
-public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppService pointsWhatsApp) : IPaymentService
+public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppService pointsWhatsApp,
+    EMR.Web.Services.Notifications.INotificationService notifications) : IPaymentService
 {
     // ─── Get active payment methods ──────────────────────────────────────────
     public async Task<IEnumerable<PaymentMethodViewModel>> GetActiveMethodsAsync()
@@ -239,6 +240,21 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
         && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0
             || (request.LineItems?.Any(l => l.LineDiscountAmount > 0 || l.LineDiscountValue > 0) ?? false));
 
+    /// <summary>Roles whose users may approve a discount on a LAB bill (the payment screen's "Approved by" list).</summary>
+    public static readonly string[] LabDiscountApproverRoles = ["Administrator", "Manager"];
+
+    public const string LabDiscountApproverMessage = "The discount must be approved by a user with the Administrator or Manager role.";
+
+    /// <summary>Active users holding an active Administrator / Manager role - the SQL shared by the list and the save check.</summary>
+    public const string LabDiscountApproverSql = @"
+        EXISTS (SELECT 1 FROM dbo.UserRoles ur JOIN dbo.Roles r ON r.Id = ur.RoleId
+                WHERE ur.UserId = u.Id AND ur.IsActive = 1 AND r.Name IN @ApproverRoles)";
+
+    private static async Task<bool> IsLabDiscountApproverAsync(System.Data.IDbConnection con, System.Data.IDbTransaction tx, int userId) =>
+        await con.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM dbo.Users u WHERE u.Id = @userId AND u.IsActive = 1 AND " + LabDiscountApproverSql,
+            new { userId, ApproverRoles = LabDiscountApproverRoles }, tx) > 0;
+
     /// <summary>True when the request carries a discount but no reason / approver (checked before a bill is saved).</summary>
     public static bool IsDiscountApprovalMissing(SavePaymentRequest? request) =>
         request != null
@@ -386,6 +402,16 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
     }
 
     public async Task<SavePaymentResult> SavePaymentAsync(SavePaymentRequest request, int? userId)
+    {
+        var result = await SavePaymentCoreAsync(request, userId);
+        // a bill saved with a discount: the bell of the user chosen as "Approved by" (SQLScripts/2263) - once per bill
+        if (result.Success && result.PaymentHeaderId is int headerId && request.DiscountApprovedBy is > 0
+            && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0))
+            await notifications.NotifyDiscountApprovalAsync(headerId, userId);
+        return result;
+    }
+
+    private async Task<SavePaymentResult> SavePaymentCoreAsync(SavePaymentRequest request, int? userId)
     {
         try
         {
@@ -681,6 +707,8 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
                     bool approvalGiven = !string.IsNullOrWhiteSpace(request.DiscountReason) && request.DiscountApprovedBy is > 0;
                     if (discountChanged && !approvalGiven)
                         return new SavePaymentResult { Success = false, Error = DiscountApprovalRequiredMessage };
+                    if (discountChanged && request.ModuleCode == "LAB" && !await IsLabDiscountApproverAsync(con, tx, request.DiscountApprovedBy!.Value))
+                        return new SavePaymentResult { Success = false, Error = LabDiscountApproverMessage };
 
                     // + the membership benefit already on the bill (0 for every other bill)
                     decimal manualPart = hDiscAmt > 0 ? hDiscAmt : (existingMemDisc > 0 ? (decimal)existingHeader.HeaderDiscountAmount : lineDiscountTotal);
@@ -745,6 +773,8 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
 
                 if (hDiscAmt > 0 && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0))
                     return new SavePaymentResult { Success = false, Error = DiscountApprovalRequiredMessage };
+                if (hDiscAmt > 0 && request.ModuleCode == "LAB" && !await IsLabDiscountApproverAsync(con, tx, request.DiscountApprovedBy!.Value))
+                    return new SavePaymentResult { Success = false, Error = LabDiscountApproverMessage };
 
                 // ── Membership benefits (B2C LAB, SQLScripts/2241): benefit rules on tests and Free Home Collection, from the
                 //    member's plan; a line with a benefit takes no share of a manual discount, and benefit rules block one ──

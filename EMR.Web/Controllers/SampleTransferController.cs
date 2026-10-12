@@ -14,6 +14,7 @@ using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.EntityFrameworkCore;
+using Dapper;
 
 namespace EMR.Web.Controllers
 {
@@ -24,6 +25,37 @@ namespace EMR.Web.Controllers
         IAuditLogService auditLogService,
         ApplicationDbContext dbContext) : Controller
     {
+        /// <summary>A franchise login sees and moves only the samples of the bills it created or that are for its own
+        /// franchise (SQLScripts/2264); every other login: all samples of the branch (null).</summary>
+        private int? OwnSamplesOnly => User.IsFranchiseUser() ? User.GetUserId() : null;
+
+        /// <summary>Samples of tests whose category needs no sample (e.g. Radiology): nothing to transfer (SQLScripts/2265).</summary>
+        private async Task<bool> HasNoSampleTestsAsync(IEnumerable<long> sampleCollectionIds)
+        {
+            var ids = sampleCollectionIds.Distinct().ToArray();
+            return await dbContext.Database.GetDbConnection().ExecuteScalarAsync<int>(@"
+                SELECT COUNT(1)
+                FROM dbo.SampleCollection sc
+                LEFT JOIN dbo.LabInvestigationMaster lim ON lim.Test_ID = sc.InvestigationID
+                JOIN dbo.LabTestCategoryMaster c ON c.Category_ID = ISNULL(lim.Category_ID, sc.TestcategoryID)
+                WHERE sc.samplecollectionID IN @ids AND c.Is_Sample_Collection_Required = 0", new { ids }) > 0;
+        }
+
+        /// <summary>False when a franchise login names a sample that is not its own.</summary>
+        private async Task<bool> MayMoveAsync(IEnumerable<long> sampleCollectionIds)
+        {
+            if (OwnSamplesOnly is not int userId) return true;
+            var ids = sampleCollectionIds.Distinct().ToArray();
+            var own = await dbContext.Database.GetDbConnection().ExecuteScalarAsync<int>(@"
+                SELECT COUNT(DISTINCT sc.samplecollectionID)
+                FROM dbo.SampleCollection sc
+                JOIN dbo.LabOrder lo ON lo.LabOrderId = sc.Laborderid
+                WHERE sc.samplecollectionID IN @ids
+                  AND (lo.CreatedBy = @userId OR (lo.AgentType = 'F' AND lo.B2BAgentID = @franchiseId))",
+                new { ids, userId, franchiseId = User.GetFranchiseId() });
+            return own == ids.Length;
+        }
+
         [HttpGet]
         public async Task<IActionResult> Index(
             DateTime? fromDate,
@@ -39,13 +71,13 @@ namespace EMR.Web.Controllers
             string? branchName = User.FindFirstValue("BranchName") ?? "Current Branch";
 
             var today = DateTime.Today;
-            var effectiveFrom = fromDate ?? today.AddDays(-7); // Default to last 7 days so collected samples are immediately visible
+            var effectiveFrom = fromDate ?? today;   // opens on today's samples; the date filters widen it
             var effectiveTo = toDate.HasValue
                 ? (toDate.Value.TimeOfDay == TimeSpan.Zero ? toDate.Value.Date.AddDays(1).AddSeconds(-1) : toDate.Value)
                 : today.AddDays(1).AddSeconds(-1);
 
             var listResult = await sampleTransferApiClient.GetEligibleSamplesAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, transferStatusFilter, search, departmentId, categoryId, subCategoryId);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, transferStatusFilter, search, departmentId, categoryId, subCategoryId, OwnSamplesOnly);
 
             var targetBranches = await sampleTransferApiClient.GetTargetBranchesAsync(branchId);
 
@@ -64,7 +96,7 @@ namespace EMR.Web.Controllers
                 .Select(x => new SelectListItem { Value = x.SubCategoryId.ToString(), Text = x.SubCategoryName })
                 .ToList();
 
-            var receivableResult = await sampleTransferApiClient.GetReceivableSamplesAsync(branchId, null, null);
+            var receivableResult = await sampleTransferApiClient.GetReceivableSamplesAsync(branchId, today, today.AddDays(1).AddSeconds(-1), createdBy: OwnSamplesOnly);
 
             var viewModel = new SampleTransferDashboardViewModel
             {
@@ -127,7 +159,7 @@ namespace EMR.Web.Controllers
                 : toDate;
 
             var result = await sampleTransferApiClient.GetEligibleSamplesAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, transferStatusFilter, search, departmentId, categoryId, subCategoryId);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, transferStatusFilter, search, departmentId, categoryId, subCategoryId, OwnSamplesOnly);
 
             return Json(new { success = true, data = result });
         }
@@ -140,6 +172,10 @@ namespace EMR.Web.Controllers
 
             if (request.TargetBranchId <= 0)
                 return Json(new { success = false, message = "Please select a valid destination/target branch." });
+            if (!await MayMoveAsync(request.SampleCollectionIds.Select(x => (long)x)))
+                return Json(new { success = false, message = "One or more selected samples are not available to you." });
+            if (await HasNoSampleTestsAsync(request.SampleCollectionIds))
+                return Json(new { success = false, message = "One or more selected tests need no sample collection (e.g. Radiology) and cannot be transferred." });
 
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
             request.SourceBranchId = branchId;
@@ -191,7 +227,7 @@ namespace EMR.Web.Controllers
                 : toDate;
 
             var list = await sampleTransferApiClient.GetTransferHistoryAsync(
-                branchId, mode, fromDate, effectiveTo, search);
+                branchId, mode, fromDate, effectiveTo, search, OwnSamplesOnly);
 
             return Json(new { success = true, data = list });
         }
@@ -215,7 +251,7 @@ namespace EMR.Web.Controllers
                 : toDate;
 
             var result = await sampleTransferApiClient.GetReceivableSamplesAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, receiveStatusFilter, search, departmentId, categoryId, subCategoryId);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, receiveStatusFilter, search, departmentId, categoryId, subCategoryId, OwnSamplesOnly);
 
             return Json(new { success = true, data = result });
         }
@@ -225,6 +261,8 @@ namespace EMR.Web.Controllers
         {
             if (request == null || request.SampleCollectionIds == null || request.SampleCollectionIds.Count == 0)
                 return Json(new { success = false, message = "No samples selected for receiving." });
+            if (!await MayMoveAsync(request.SampleCollectionIds.Select(x => (long)x)))
+                return Json(new { success = false, message = "One or more selected samples are not available to you." });
 
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
             request.TargetBranchId = branchId;
@@ -265,7 +303,7 @@ namespace EMR.Web.Controllers
             if (string.IsNullOrWhiteSpace(ids))
                 return Content("No samples provided for printing.");
 
-            var items = await sampleTransferApiClient.GetWorksheetDataAsync(ids);
+            var items = await sampleTransferApiClient.GetWorksheetDataAsync(ids, OwnSamplesOnly);
 
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
             var settings = await dbContext.HospitalSettings
