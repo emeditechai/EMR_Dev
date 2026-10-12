@@ -102,7 +102,7 @@ public class LabFranchiseWizardViewModel
 
     [Required(ErrorMessage = "Credit Facility Type is required.")]
     [Display(Name = "Credit Facility Type")]
-    public int Credit_Facility_Type { get; set; } = 1; // 1 = Prepaid (Wallet), 2 = Postpaid (Credit), 3 = Hybrid
+    public int Credit_Facility_Type { get; set; } = 1; // 1 = Prepaid (Wallet), 2 = Postpaid (Credit)
 
     [Required(ErrorMessage = "Credit Limit is required.")]
     [Range(0, 99999999, ErrorMessage = "Credit Limit must be a valid non-negative number.")]

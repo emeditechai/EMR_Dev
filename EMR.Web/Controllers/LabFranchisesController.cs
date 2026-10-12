@@ -111,6 +111,7 @@ public class LabFranchisesController(
     public async Task<IActionResult> Create(LabFranchiseWizardViewModel model)
     {
         var companyId = User.GetCompanyId();
+        ApplyPrepaidRules(model);
 
         if (!ModelState.IsValid)
         {
@@ -259,6 +260,7 @@ public class LabFranchisesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(int id, LabFranchiseWizardViewModel model)
     {
+        ApplyPrepaidRules(model);
         var companyId = User.GetCompanyId();
 
         if (id != model.Franchise_ID)
@@ -517,8 +519,7 @@ public class LabFranchisesController(
         return new List<SelectListItem>
         {
             new() { Value = "1", Text = "Prepaid (Wallet)", Selected = selectedId == 1 },
-            new() { Value = "2", Text = "Postpaid (Credit)", Selected = selectedId == 2 },
-            new() { Value = "3", Text = "Hybrid", Selected = selectedId == 3 }
+            new() { Value = "2", Text = "Postpaid (Credit)", Selected = selectedId == 2 }
         };
     }
 
@@ -555,6 +556,26 @@ public class LabFranchisesController(
 
     /// <summary>Creates the franchise's login and emails its details. Returns null when all went through, otherwise
     /// what the user creating the franchise must know (no login made / the email could not be sent).</summary>
+    /// <summary>A Prepaid (Wallet) franchise has no credit terms: whatever was posted for them is dropped.</summary>
+    private void ApplyPrepaidRules(LabFranchiseWizardViewModel model)
+    {
+        if (model.Credit_Facility_Type is not (1 or 2))
+            ModelState.AddModelError(nameof(model.Credit_Facility_Type), "Choose Prepaid (Wallet) or Postpaid (Credit).");
+        if (model.Credit_Facility_Type != 1) return;
+        model.Credit_Limit = 0;
+        model.Credit_Days = null;
+        model.Grace_Days = 0;
+        model.Security_Deposit_Amount = null;
+        model.Security_Deposit_Received_On = null;
+        model.Interest_On_Overdue_Percent = null;
+        model.Temporary_Limit_Increase = 0;
+        model.Temp_Limit_Valid_Till = null;
+        foreach (var key in new[] { nameof(model.Credit_Limit), nameof(model.Credit_Days), nameof(model.Grace_Days), nameof(model.Security_Deposit_Amount),
+                                    nameof(model.Security_Deposit_Received_On), nameof(model.Interest_On_Overdue_Percent),
+                                    nameof(model.Temporary_Limit_Increase), nameof(model.Temp_Limit_Valid_Till) })
+            ModelState.Remove(key);
+    }
+
     private async Task<string?> CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId)
     {
         var email = model.Email.Trim();

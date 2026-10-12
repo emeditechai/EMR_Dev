@@ -29,7 +29,7 @@ public class FranchiseBulkHandler(ILabFranchiseService service, LabBulkLookups l
     private const string RefBranch = "REF_Branch";
 
     private static readonly string[] FranchiseTypes = ["Collection Center", "Franchise Lab", "Pickup Point", "Marketing"];
-    private static readonly string[] CreditTypes = ["Prepaid (Wallet)", "Postpaid (Credit)", "Hybrid"];
+    private static readonly string[] CreditTypes = ["Prepaid (Wallet)", "Postpaid (Credit)"];
     private static readonly Regex MobileRegex = new(@"^[0-9]{10}$", RegexOptions.Compiled);
     private static readonly Regex EmailRegex = new(@"^[^@\s]+@[^@\s]+\.[^@\s]+$", RegexOptions.Compiled);
 
