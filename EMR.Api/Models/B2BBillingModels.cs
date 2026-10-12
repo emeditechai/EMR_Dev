@@ -25,6 +25,11 @@ namespace EMR.Api.Models
         public decimal AvailableCredit { get; set; }
         public bool CanBook { get; set; } = true;
         public string? BlockReason { get; set; }
+        // 2262: the limit in force (CreditLimit) = base limit + the temporary increase while it is valid
+        public decimal BaseCreditLimit { get; set; }
+        public decimal TempLimitIncrease { get; set; }
+        public DateTime? TempLimitValidTill { get; set; }
+        public bool TempLimitActive { get; set; }
     }
 
     public class WalletTopUpRequest

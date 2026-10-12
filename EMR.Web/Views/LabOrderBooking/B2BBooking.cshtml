@@ -1899,14 +1899,37 @@
                     }
 
                     // 2. Postpaid Credit Facility: Credit Limit Check (runtime)
+                    //    creditLimit = base limit + the temporary increase while valid (2262). Over the base limit but
+                    //    within the temporary increase: an alert, the user may continue. Over creditLimit: blocked.
                     if (credit.creditFacilityType === 2 && credit.creditLimit > 0) {
-                        if ((credit.currentOutstanding + currentB2BTotal) > credit.creditLimit) {
+                        var baseLimit = credit.baseCreditLimit || credit.creditLimit;
+                        var afterBill = credit.currentOutstanding + currentB2BTotal;
+                        if (credit.tempLimitActive && afterBill > baseLimit && afterBill <= credit.creditLimit && window._tempLimitAcceptedFor !== afterBill) {
+                            restoreBtn();
+                            var validTill = credit.tempLimitValidTill ? new Date(credit.tempLimitValidTill).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'no end date';
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Using Temporary Credit Limit',
+                                html: `Credit Limit: <b>₹${baseLimit.toFixed(2)}</b> + Temporary Increase: <b>₹${credit.tempLimitIncrease.toFixed(2)}</b> (valid till ${validTill})<br>Current Outstanding: <b>₹${credit.currentOutstanding.toFixed(2)}</b><br>This Bill Total: <b>₹${currentB2BTotal.toFixed(2)}</b><br><br><span class="text-warning-emphasis">This bill goes <b>₹${(afterBill - baseLimit).toFixed(2)}</b> over the regular credit limit and uses the temporary increase.<br>Temporary credit left after this bill: <b>₹${(credit.creditLimit - afterBill).toFixed(2)}</b>.</span>`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Continue billing',
+                                cancelButtonText: 'Back to booking',
+                                confirmButtonColor: '#0d6efd',
+                                cancelButtonColor: '#6c757d',
+                                allowOutsideClick: false
+                            }).then(function (r) {
+                                // accepted for this amount only: a changed bill asks again
+                                if (r.isConfirmed) { window._tempLimitAcceptedFor = afterBill; $('#btnSaveB2BSubmit').trigger('click'); }
+                            });
+                            return;
+                        }
+                        if (afterBill > credit.creditLimit) {
                             restoreBtn();
                             var over = (credit.currentOutstanding + currentB2BTotal) - credit.creditLimit;
                             Swal.fire({
                                 icon: 'error',
                                 title: 'Credit Limit Exceeded',
-                                html: `Credit Limit: <b>₹${credit.creditLimit.toFixed(2)}</b><br>Current Outstanding: <b>₹${credit.currentOutstanding.toFixed(2)}</b><br>This Bill Total: <b>₹${currentB2BTotal.toFixed(2)}</b><br><br><span class="text-danger">Exceeds partner credit limit by <b>₹${over.toFixed(2)}</b>.<br>Order booking on credit is blocked until outstanding bills are settled.</span>`,
+                                html: `Credit Limit: <b>₹${credit.creditLimit.toFixed(2)}</b>${credit.tempLimitActive ? ` (₹${baseLimit.toFixed(2)} + temporary ₹${credit.tempLimitIncrease.toFixed(2)})` : ''}<br>Current Outstanding: <b>₹${credit.currentOutstanding.toFixed(2)}</b><br>This Bill Total: <b>₹${currentB2BTotal.toFixed(2)}</b><br><br><span class="text-danger">Exceeds partner credit limit by <b>₹${over.toFixed(2)}</b>.<br>Order booking on credit is blocked until outstanding bills are settled.</span>`,
                                 confirmButtonColor: '#dc3545',
                                 showCloseButton: true
                             });
@@ -2406,9 +2429,16 @@
                 return;
             }
 
-            // 2. Postpaid Credit Limit
+            // 2. Postpaid Credit Limit (creditLimit includes the temporary increase while valid - 2262)
             if (partnerCreditData.creditFacilityType === 2 && partnerCreditData.creditLimit > 0) {
                 var totalWithBill = partnerCreditData.currentOutstanding + b2bTotal;
+                var baseLim = partnerCreditData.baseCreditLimit || partnerCreditData.creditLimit;
+                if (partnerCreditData.tempLimitActive && totalWithBill > baseLim && totalWithBill <= partnerCreditData.creditLimit) {
+                    alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
+                        .html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Temporary credit in use:</strong> Outstanding (₹${partnerCreditData.currentOutstanding.toFixed(2)}) + This Bill (₹${b2bTotal.toFixed(2)}) is over the credit limit (₹${baseLim.toFixed(2)}) and within the temporary increase of ₹${partnerCreditData.tempLimitIncrease.toFixed(2)}. Temporary credit left after this bill: <strong>₹${(partnerCreditData.creditLimit - totalWithBill).toFixed(2)}</strong>.`);
+                    $('#btnSaveB2BSubmit').prop('disabled', false);
+                    return;
+                }
                 if (totalWithBill > partnerCreditData.creditLimit) {
                     var over = totalWithBill - partnerCreditData.creditLimit;
                     alertEl.removeClass('d-none alert-warning alert-info').addClass('alert-danger')
