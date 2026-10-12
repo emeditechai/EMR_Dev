@@ -8,7 +8,7 @@ public class LabReportDispatchApiClient(IHttpClientFactory httpClientFactory) : 
 
     public async Task<LabReportDispatchResult> GetDashboardAsync(
         int branchId, DateTime? fromDate, DateTime? toDate, string dateBasis,
-        string? search, string dispatchStatus, string clientType)
+        string? search, string dispatchStatus, string clientType, int? createdBy = null)
     {
         var q = new List<string>
         {
@@ -20,6 +20,7 @@ public class LabReportDispatchApiClient(IHttpClientFactory httpClientFactory) : 
         if (fromDate.HasValue) q.Add($"fromDate={Uri.EscapeDataString(fromDate.Value.ToString("yyyy-MM-ddTHH:mm:ss"))}");
         if (toDate.HasValue) q.Add($"toDate={Uri.EscapeDataString(toDate.Value.ToString("yyyy-MM-ddTHH:mm:ss"))}");
         if (!string.IsNullOrWhiteSpace(search)) q.Add($"search={Uri.EscapeDataString(search.Trim())}");
+        if (createdBy is > 0) q.Add($"createdBy={createdBy.Value}");
 
         var response = await Client.GetAsync($"api/lab-report-dispatch/dashboard?{string.Join("&", q)}");
         response.EnsureSuccessStatusCode();

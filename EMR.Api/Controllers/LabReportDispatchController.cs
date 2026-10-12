@@ -16,11 +16,12 @@ public class LabReportDispatchController(ILabReportDispatchService service) : Co
         [FromQuery] string? dateBasis = "BillingDate",
         [FromQuery] string? search = null,
         [FromQuery] string? dispatchStatus = "ALL",
-        [FromQuery] string? clientType = "ALL")
+        [FromQuery] string? clientType = "ALL",
+        [FromQuery] int? createdBy = null)
     {
         if (branchId <= 0) return BadRequest(new { message = "BranchId is required." });
 
-        var result = await service.GetDashboardAsync(branchId, fromDate, toDate, dateBasis, search, dispatchStatus, clientType);
+        var result = await service.GetDashboardAsync(branchId, fromDate, toDate, dateBasis, search, dispatchStatus, clientType, createdBy);
         return Ok(result);
     }
 

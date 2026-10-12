@@ -57,12 +57,21 @@ namespace EMR.Web.Controllers
             model.B2BAgentId = ownFranchiseId;
         }
 
-        /// <summary>True unless a franchise login asks for a bill that is not its own.</summary>
+        /// <summary>A franchise login sees and acts only for its own franchise on the B2B invoice / settlement screens,
+        /// whoever generated the invoice; other logins: any partner. True when the partner is allowed.</summary>
+        private bool FranchiseMayUsePartner(string? agentType, int? agentId)
+        {
+            if (User.GetFranchiseId() is not int ownFranchiseId) return true;
+            var type = agentType?.Trim().ToUpperInvariant();
+            return (type == "F" || type == "FRANCHISE") && agentId == ownFranchiseId;
+        }
+
+        /// <summary>True unless a franchise login asks for a bill that is not its own (created by that login, or for its franchise - 2258).</summary>
         private async Task<bool> FranchiseOwnsOrderAsync(int labOrderId)
         {
             if (User.GetFranchiseId() is not int ownFranchiseId) return true;
             var owned = await dbContext.Database
-                .SqlQuery<int>($"SELECT COUNT(1) AS Value FROM dbo.LabOrder WHERE LabOrderId = {labOrderId} AND AgentType = 'F' AND B2BAgentID = {ownFranchiseId}")
+                .SqlQuery<int>($"SELECT COUNT(1) AS Value FROM dbo.LabOrder WHERE LabOrderId = {labOrderId} AND ((AgentType = 'F' AND B2BAgentID = {ownFranchiseId}) OR CreatedBy = {User.GetUserId()})")
                 .SingleAsync();
             return owned > 0;
         }
@@ -402,6 +411,18 @@ namespace EMR.Web.Controllers
                     }
                 }
 
+                // a franchise login on a Prepaid (Wallet) facility pays from its wallet only - no spot payment
+                if (creditStatus.CreditFacilityType == 1 && User.IsFranchiseUser())
+                {
+                    if (!string.IsNullOrWhiteSpace(model.PaymentDataJson))
+                    {
+                        ModelState.AddModelError(string.Empty, "Spot payment is not available for a franchise login. The bill is paid from the franchise wallet.");
+                        await PopulateSelectLists(model);
+                        return View(model);
+                    }
+                    model.DeductFromWallet = true;
+                }
+
                 // If spot payment data is provided, precedence is given to Spot Payment (bypassing wallet deduction)
                 if (!string.IsNullOrWhiteSpace(model.PaymentDataJson))
                 {
@@ -416,7 +437,7 @@ namespace EMR.Web.Controllers
                         if (creditStatus.WalletBalance < b2bTotal)
                         {
                             var deficit = b2bTotal - creditStatus.WalletBalance;
-                            ModelState.AddModelError(string.Empty, $"Insufficient wallet balance for {creditStatus.PartnerName}! Available Wallet: ₹{creditStatus.WalletBalance:N2}, Required: ₹{b2bTotal:N2} (Deficit: ₹{deficit:N2}). Please recharge wallet or complete spot payment.");
+                            ModelState.AddModelError(string.Empty, $"Insufficient wallet balance for {creditStatus.PartnerName}! Available Wallet: ₹{creditStatus.WalletBalance:N2}, Required: ₹{b2bTotal:N2} (Deficit: ₹{deficit:N2}). " + (User.IsFranchiseUser() ? "Please contact the lab to top up your wallet." : "Please recharge wallet or complete spot payment."));
                             await PopulateSelectLists(model);
                             return View(model);
                         }
@@ -2267,16 +2288,24 @@ namespace EMR.Web.Controllers
             // Partner Type (F franchise / C company) and one partner of that type - script 2234; a partner needs its type
             var effectiveAgentType = agentType?.Trim().ToUpperInvariant() is "F" or "C" ? agentType.Trim().ToUpperInvariant() : null;
             var effectiveAgentId = effectiveAgentType != null && agentId is > 0 ? agentId : null;
+            // a franchise login sees the bills it created or that are for its own franchise (2258)
+            int? createdBy = null;
+            if (User.GetFranchiseId() is int ownFranchiseId)
+            {
+                effectiveAgentType = "F";
+                effectiveAgentId = ownFranchiseId;
+                createdBy = User.GetUserId();
+            }
             ViewBag.AgentType = effectiveAgentType ?? string.Empty;
             ViewBag.AgentId = effectiveAgentId ?? 0;
             ViewBag.Partners = (await dbContext.Database.GetDbConnection().QueryAsync<(string Type, int Id, string Name, string? Code)>(@"
                 SELECT 'F', Franchise_ID, Franchise_Name, Franchise_Code FROM dbo.LabFranchiseMaster WHERE ISNULL(IsDeleted, 0) = 0
                 UNION ALL
                 SELECT 'C', Corporate_ID, Corporate_Name, Corporate_Code FROM dbo.CorporateMaster
-                ORDER BY 1, 3")).ToList();
+                ORDER BY 1, 3")).Where(p => createdBy == null || (p.Type == "F" && p.Id == effectiveAgentId)).ToList();
 
             var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: true,
-                agentType: effectiveAgentType, agentId: effectiveAgentId);
+                agentType: effectiveAgentType, agentId: effectiveAgentId, createdBy: createdBy);
 
             var branches = await dbContext.BranchMasters
                 .Where(b => b.IsActive)
@@ -3594,6 +3623,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetOutstandingBillsForSettlement(string agentType, int agentId)
         {
+            if (!FranchiseMayUsePartner(agentType, agentId)) return Json(new { success = false, error = "You can only work with your own franchise's bills." });
             try
             {
                 var branchId = User.GetCurrentBranchId();
@@ -3614,6 +3644,10 @@ namespace EMR.Web.Controllers
             {
                 var branchId = User.GetCurrentBranchId();
                 if (branchId.HasValue) request.BranchId = branchId.Value;
+
+                if (!await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BSETTLEMENT", "SETTLE")) return Json(new { success = false, error = "You do not have permission for this action." });
+                if (!FranchiseMayUsePartner(request.AgentType, request.AgentId))
+                    return Json(new { success = false, error = "You can only work with your own franchise's bills." });
 
                 if (request.PaidAmount <= 0)
                 {
@@ -3673,6 +3707,7 @@ namespace EMR.Web.Controllers
             }
 
             var receipt = await b2bBillingApiClient.GetSettlementReceiptAsync(receiptNo);
+            if (receipt != null && !FranchiseMayUsePartner(receipt.AgentType, receipt.AgentId)) receipt = null;
             if (receipt == null)
             {
                 return NotFound($"Settlement receipt '{receiptNo}' was not found.");
@@ -3769,6 +3804,15 @@ namespace EMR.Web.Controllers
                 ViewBag.Corporates = new List<SelectListItem>();
             }
 
+            // a franchise login: only its own franchise's invoices (whoever generated them)
+            if (User.GetFranchiseId() is int ownFranchiseId)
+            {
+                agentType = "F";
+                agentId = ownFranchiseId;
+                ViewBag.Franchises = ((List<SelectListItem>)ViewBag.Franchises).Where(f => f.Value == ownFranchiseId.ToString()).ToList();
+                ViewBag.Corporates = new List<SelectListItem>();
+            }
+
             ViewBag.CurrentAgentType = agentType;
             ViewBag.CurrentAgentId = agentId;
             ViewBag.CurrentStatus = status;
@@ -3784,6 +3828,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetUninvoicedOrders(string agentType, int? agentId = null, string? agentIds = null, DateTime? fromDate = null, DateTime? toDate = null)
         {
+            if (User.GetFranchiseId() is int ownFranchiseId) { agentType = "F"; agentId = ownFranchiseId; agentIds = null; }
             try
             {
                 var orders = await b2bBillingApiClient.GetUninvoicedOrdersAsync(agentType, agentId, agentIds, fromDate, toDate);
@@ -3802,6 +3847,14 @@ namespace EMR.Web.Controllers
             {
                 var branchId = User.GetCurrentBranchId();
                 if (branchId.HasValue) request.BranchId = branchId.Value;
+
+                if (!await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BINVOICES", "GENERATE_INVOICE")) return Json(new { success = false, error = "You do not have permission for this action." });
+                // a franchise login: only its own franchise, in the single invoice and in every batch group
+                if (User.GetFranchiseId() is int ownId
+                    && (!string.Equals(request.AgentType, "F", StringComparison.OrdinalIgnoreCase)
+                        || (request.AgentId > 0 && request.AgentId != ownId)
+                        || (request.PartnerGroups != null && request.PartnerGroups.Any(g => g.AgentId != ownId))))
+                    return Json(new { success = false, error = "You can only work with your own franchise's bills." });
 
                 bool hasGroups = request.PartnerGroups != null && request.PartnerGroups.Any(g => !string.IsNullOrWhiteSpace(g.SelectedOrderIds));
                 bool hasSingle = request.AgentId > 0 && !string.IsNullOrWhiteSpace(request.SelectedOrderIds);
@@ -3869,7 +3922,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> B2BInvoiceDetail(int id)
         {
             var detail = await b2bBillingApiClient.GetInvoiceDetailAsync(id);
-            if (detail == null)
+            if (detail == null || !FranchiseMayUsePartner(detail.PartnerType, detail.PartnerId))
             {
                 TempData["Error"] = "Invoice not found.";
                 return RedirectToAction(nameof(B2BInvoices));

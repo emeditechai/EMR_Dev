@@ -1,4 +1,6 @@
+using Dapper;
 using EMR.Web.ApiClients;
+using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
@@ -14,8 +16,21 @@ public class LabReportDispatchController(
     ILabReportingApiClient labReportingApiClient,
     ILabReportPdfService reportPdfService,
     IAuditLogService auditLogService,
-    IQueryStringEncryptionService encryptionService) : Controller
+    IQueryStringEncryptionService encryptionService,
+    IDbConnectionFactory db) : Controller
 {
+    /// <summary>A franchise login works only on the bills it created or that are for its own franchise (2259); every other login: all bills.</summary>
+    private int? OwnBillsOnly => User.IsFranchiseUser() ? User.GetUserId() : null;
+
+    private async Task<bool> MayOpenAsync(int labOrderId)
+    {
+        if (OwnBillsOnly is not int userId) return true;
+        using var con = db.CreateConnection();
+        return await con.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM dbo.LabOrder WHERE LabOrderId = @labOrderId AND (CreatedBy = @userId OR (AgentType = 'F' AND B2BAgentID = @franchiseId))",
+            new { labOrderId, userId, franchiseId = User.GetFranchiseId() }) > 0;
+    }
+
     private static readonly HashSet<string> DispatchStatuses = new(StringComparer.OrdinalIgnoreCase)
         { "ALL", "READY", "PARTIAL", "AWAITING", "INPROGRESS", "NOTSTARTED", "PRINTED", "NOTPRINTED" };
 
@@ -53,7 +68,7 @@ public class LabReportDispatchController(
 
         try
         {
-            var result = await dispatchApiClient.GetDashboardAsync(branchId, from, to, basis, search, status, client);
+            var result = await dispatchApiClient.GetDashboardAsync(branchId, from, to, basis, search, status, client, OwnBillsOnly);
             var encMap = result.Rows.ToDictionary(
                 r => r.LabOrderId,
                 r => encryptionService.EncryptParameters(new Dictionary<string, string?> { ["labOrderId"] = r.LabOrderId.ToString() }));
@@ -70,6 +85,7 @@ public class LabReportDispatchController(
     public async Task<IActionResult> GetBillTestsJson(int labOrderId)
     {
         if (labOrderId <= 0) return Json(new { success = false, message = "Valid LabOrderId is required." });
+        if (!await MayOpenAsync(labOrderId)) return Json(new { success = false, message = "This bill is not available to you." });
 
         try
         {
@@ -103,6 +119,7 @@ public class LabReportDispatchController(
     public async Task<IActionResult> PrintBill(int labOrderId)
     {
         if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
+        if (!await MayOpenAsync(labOrderId)) return Forbid();
 
         await LogPrintAsync(labOrderId, "LAB.BillPrinted", "Lab bill printed from the Report Dispatch dashboard.", null);
         return RedirectToAction("PrintBill", "LabOrderBooking", new { labOrderId });
@@ -122,6 +139,7 @@ public class LabReportDispatchController(
         // Numeric = the Lab Report (default, as always); Template = the Microbiology Report
         var reportType = LabReportTypes.Normalize(reportingType);
         if (labOrderId <= 0) return BadRequest(new { message = "Valid LabOrderId is required." });
+        if (!await MayOpenAsync(labOrderId)) return StatusCode(StatusCodes.Status403Forbidden, new { message = "This bill is not available to you." });
 
         // "approved" prints only the approved tests of a partly approved bill (a clean, final-looking copy);
         // "pending" prints the validated-but-unapproved ones; the default keeps the whole printable report.

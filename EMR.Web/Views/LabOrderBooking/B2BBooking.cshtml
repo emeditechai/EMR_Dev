@@ -376,7 +376,7 @@
                                         <span class="fs-6 fw-bold text-success font-monospace" id="lblWalletBalance">₹ 0.00</span>
                                     </div>
                                     <div class="form-check form-switch mt-1">
-                                        <input class="form-check-input" type="checkbox" id="chkDeductWallet" checked onchange="onWalletDeductToggle(this)">
+                                        <input class="form-check-input" type="checkbox" id="chkDeductWallet" checked onchange="onWalletDeductToggle(this)" disabled="@(User.IsFranchiseUser() ? "disabled" : null)">
                                         <label class="form-check-label small fw-semibold text-dark" for="chkDeductWallet">
                                             Pay from Franchise Wallet
                                         </label>
@@ -811,6 +811,10 @@
                     <div class="form-text text-muted small mt-1">
                         <i class="bi bi-info-circle me-1"></i>Rates automatically update to contracted B2B rate cards when a Franchise or Corporate Company is selected.
                     </div>
+                    @* 2256: a franchise / company bills only what is on its own rate list *@
+                    <div id="noPartnerRates" class="alert alert-warning py-2 px-3 mt-2 mb-0 small d-none">
+                        <i class="bi bi-exclamation-triangle me-1"></i><span></span>
+                    </div>
                 </div>
             </div>
 
@@ -1086,6 +1090,8 @@
             ? 'Please contact the lab to top up your wallet'
             : 'Top up the franchise wallet in <b>Utility &rsaquo; Franchise Top-Up</b>';
         var currentAgentId = parseInt($('#SelectedB2BAgentId').val()) || 0;
+        // a franchise login on a Prepaid (Wallet) facility pays from its wallet only: no spot payment (server enforces it too)
+        var walletOnly = @(User.IsFranchiseUser() ? "true" : "false");
 
         // Prescription / OVD Document / Consent upload gate for this bill
         window.LabComplianceDocsController = LabComplianceDocs.create({
@@ -1851,6 +1857,7 @@
                     document.getElementById('frmB2BBooking').submit();
                 }
 
+                if (walletOnly) $('#hdnPaymentDataJson').val('');
                 // If spot payment data has already been captured, bypass checks and submit immediately
                 if ($('#hdnPaymentDataJson').val()) {
                     $('#hdnDeductFromWallet').val('false');
@@ -1917,11 +1924,18 @@
                             return;
                         }
 
+                        if (walletOnly) $('#chkDeductWallet').prop('checked', true);
                         var isDeductWallet = $('#chkDeductWallet').is(':checked');
                         if (isDeductWallet) {
                             if (credit.walletBalance < currentB2BTotal) {
                                 restoreBtn();
                                 var deficit = currentB2BTotal - credit.walletBalance;
+                                if (walletOnly) {
+                                    Swal.fire({ icon: 'error', title: 'Insufficient Wallet Balance',
+                                        html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>${walletTopUpHint} and save again.`,
+                                        confirmButtonText: 'Back to booking', confirmButtonColor: '#6c757d', showCloseButton: true });
+                                    return;
+                                }
                                 Swal.fire({
                                     icon: 'warning',
                                     title: 'Insufficient Wallet Balance',
@@ -2299,13 +2313,15 @@
                                 var b2b = (x.b2BRate !== undefined && x.b2BRate !== null) ? x.b2BRate : ((x.b2bRate !== undefined && x.b2bRate !== null) ? x.b2bRate : x.mrp);
                                 map.set(key, b2b);
                             });
-                            lineItems.forEach(item => {
-                                var key = item.itemType + '_' + item.id;
-                                if (map.has(key)) {
-                                    item.b2bRate = map.get(key);
-                                }
-                            });
+                            // 2256: a test not on the new partner's rate list cannot be billed to it - take it off the bill
+                            var dropped = lineItems.filter(item => !map.has(item.itemType + '_' + item.id));
+                            dropped.forEach(item => lineItems.splice(lineItems.indexOf(item), 1));
+                            lineItems.forEach(item => { item.b2bRate = map.get(item.itemType + '_' + item.id); });
                             renderTable();
+                            if (dropped.length) {
+                                Swal.fire({ icon: 'info', title: 'Removed from the bill',
+                                    text: `Not on this ${currentAgentType === 'C' ? 'company' : 'franchise'}'s rate list: ${dropped.map(i => i.name || i.code).join(', ')}.` });
+                            }
                         }
                     });
                 }
@@ -2334,7 +2350,7 @@
                 $('#lblWalletBalance').text(`₹ ${credit.walletBalance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
 
                 // Only default to checked on initial partner selection, NEVER override user's choice during re-fetch
-                if (isInitial || $('#hdnDeductFromWallet').val() === '') {
+                if (isInitial || walletOnly || $('#hdnDeductFromWallet').val() === '') {
                     $('#chkDeductWallet').prop('checked', true);
                     $('#hdnDeductFromWallet').val('true');
                 }
@@ -2410,10 +2426,16 @@
 
             // 3. Prepaid Wallet
             if (partnerCreditData.creditFacilityType === 1) {
-                var isDeduct = $('#chkDeductWallet').is(':checked');
+                var isDeduct = walletOnly || $('#chkDeductWallet').is(':checked');
                 if (isDeduct) {
                     if (partnerCreditData.walletBalance < b2bTotal) {
                         var shortfall = b2bTotal - partnerCreditData.walletBalance;
+                        if (walletOnly) {
+                            alertEl.removeClass('d-none alert-info alert-warning').addClass('alert-danger')
+                                .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. ${walletTopUpHint} before booking.`);
+                            $('#btnSaveB2BSubmit').prop('disabled', true);
+                            return;
+                        }
                         alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
                             .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. ${walletTopUpHint}, or uncheck to collect spot payment.`);
                         $('#btnSaveB2BSubmit').prop('disabled', false);
@@ -2443,6 +2465,7 @@
         }
 
         function triggerPrepaidSpotPayment() {
+            if (walletOnly) return;   // no spot payment for a franchise login
             var fname = ($('#FirstName').val() || '').trim();
             var lname = ($('#LastName').val() || '').trim();
             var sal = $('#ddlSalutation').val() || '';
@@ -3284,12 +3307,17 @@
             var gender = $('#ddlGender').val() || '';
             var ageYears = $('#AgeYears').val() || '';
 
-            var rateType = 'B2C';
-            var agentParam = '';
-            if (currentAgentId && currentAgentId > 0) {
-                rateType = currentAgentType === 'C' ? 'Corporate' : 'Franchise';
-                agentParam = `&agentId=${currentAgentId}`;
+            // B2B billing lists only the selected partner's rate list (2256): nothing until a franchise / company is chosen
+            var $ddl = $('#ddlInvestigations');
+            if (!(currentAgentId && currentAgentId > 0)) {
+                $ddl.empty().append('<option value=""></option>').val('').prop('disabled', true).trigger('change.select2');
+                $('#lblAvailCount').text('0');
+                $('#noPartnerRates').removeClass('d-none').find('span')
+                    .text(`Select a ${currentAgentType === 'C' ? 'company' : 'franchise'} first; the tests come from its rate list.`);
+                return;
             }
+            var rateType = currentAgentType === 'C' ? 'Corporate' : 'Franchise';
+            var agentParam = `&agentId=${currentAgentId}`;
 
             var branchId = '@(User.GetCurrentBranchId() ?? 1)';
             var url = `/LabOrderBooking/GetAvailableInvestigations?branchId=${branchId}&rateType=${rateType}${agentParam}`;
@@ -3299,11 +3327,14 @@
             if (gender) url += `&gender=${encodeURIComponent(gender)}`;
             if (ageYears) url += `&ageInYears=${ageYears}`;
 
-            var $ddl = $('#ddlInvestigations');
             $ddl.prop('disabled', true);
 
             $.get(url, function(res) {
                 $ddl.empty().append('<option value=""></option>');
+                var noRates = rateType !== 'B2C' && !(res.isSuccess && res.data && res.data.length) && !dept && !cat && !subCat;
+                var partnerWord = rateType === 'Corporate' ? 'company' : 'franchise';
+                $('#noPartnerRates').toggleClass('d-none', !noRates).find('span')
+                    .text(`No investigations or packages are on this ${partnerWord}'s rate list for this branch. Set them up in ${rateType === 'Corporate' ? 'Corporate' : 'Franchise'} Rate List first; tests from the B2C rate list cannot be billed to a ${partnerWord}.`);
                 if (res.isSuccess && res.data && res.data.length > 0) {
                     $('#lblAvailCount').text(res.data.length);
 

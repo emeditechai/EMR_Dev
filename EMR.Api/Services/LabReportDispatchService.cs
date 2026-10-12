@@ -9,7 +9,7 @@ public class LabReportDispatchService(IDbConnectionFactory connectionFactory) : 
 {
     public async Task<LabReportDispatchResult> GetDashboardAsync(
         int branchId, DateTime? fromDate, DateTime? toDate, string? dateBasis,
-        string? search, string? dispatchStatus, string? clientType)
+        string? search, string? dispatchStatus, string? clientType, int? createdBy = null)
     {
         using var db = connectionFactory.CreateConnection();
         using var multi = await db.QueryMultipleAsync(
@@ -22,7 +22,8 @@ public class LabReportDispatchService(IDbConnectionFactory connectionFactory) : 
                 DateBasis = string.IsNullOrWhiteSpace(dateBasis) ? "BillingDate" : dateBasis,
                 Search = search,
                 DispatchStatus = string.IsNullOrWhiteSpace(dispatchStatus) ? "ALL" : dispatchStatus,
-                ClientType = string.IsNullOrWhiteSpace(clientType) ? "ALL" : clientType
+                ClientType = string.IsNullOrWhiteSpace(clientType) ? "ALL" : clientType,
+                CreatedBy = createdBy is > 0 ? createdBy : null   // script 2259
             },
             commandType: CommandType.StoredProcedure);
 

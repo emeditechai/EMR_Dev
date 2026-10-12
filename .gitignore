@@ -58,3 +58,4 @@ __pycache__/
 # AI model files (large binaries) - fetched with Tools/AiModels/download-trocr.*
 EMR.Web/AiModels/**/*.onnx
 EMR.Web/AiModels/**/tokenizer.json
+EMR.Web/wwwroot/uploads/logos/hospital_logo_ec1e55fb0d4545b8973990b9e780e3b0.jpeg

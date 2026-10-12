@@ -5,6 +5,8 @@
     ViewData["ReportAccent"] = "#0369a1";
     ViewData["DateLabel"] = "bill date";
     ViewData["BranchWide"] = true;
+    // 2260: a franchise login sees only the bills it created or that are for its own franchise
+    if (User.IsFranchiseUser()) { ViewData["ScopeNote"] = "Your franchise's bills only"; }
 }
 <partial name="_LabReportShell" />
 

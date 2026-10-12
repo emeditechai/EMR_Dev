@@ -3,6 +3,8 @@
     ViewData["Title"] = "B2B Invoices";
     var currentAgentType = ViewBag.CurrentAgentType as string;
     var currentAgentId = ViewBag.CurrentAgentId as int?;
+    // a franchise login sees only its own franchise: the partner filters are fixed (the server enforces it too)
+    var franchiseLocked = User.IsFranchiseUser();
     var currentStatus = ViewBag.CurrentStatus as string;
     var fromDate = ViewBag.FromDate as string;
     var toDate = ViewBag.ToDate as string;
@@ -43,11 +45,12 @@
             </h4>
             <p class="text-muted small mb-0">Generate periodic invoices for Postpaid Franchises and Corporate Companies based on credit days &amp; billing cycles.</p>
         </div>
+        @* each button follows the role's permission (Settings > Security) *@
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-primary btn-sm px-3 fw-bold" onclick="openGenerateInvoiceModal()">
+            <button type="button" class="btn btn-primary btn-sm px-3 fw-bold" onclick="openGenerateInvoiceModal()" asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:GENERATE_INVOICE" asp-permission-mode="hide">
                 <i class="bi bi-plus-lg me-1"></i> Generate New Invoice
             </button>
-            <a asp-action="B2BSettlement" class="btn btn-outline-success btn-sm px-3 fw-semibold">
+            <a asp-action="B2BSettlement" class="btn btn-outline-success btn-sm px-3 fw-semibold" asp-permission="LAB.LABORDERBOOKING.B2BSETTLEMENT:SETTLE" asp-permission-mode="hide">
                 <i class="bi bi-wallet2 me-1"></i> Settle Bills Payment
             </a>
         </div>
@@ -59,17 +62,17 @@
             <form method="get" asp-action="B2BInvoices" class="row g-2 align-items-end">
                 <div class="col-12 col-md-2">
                     <label class="form-label small fw-semibold text-muted mb-1">Partner Type</label>
-                    <select name="agentType" id="filterAgentType" class="form-select form-select-sm" onchange="onFilterTypeChange(this.value)">
-                        <option value="">All Types</option>
+                    <select name="agentType" id="filterAgentType" class="form-select form-select-sm" onchange="onFilterTypeChange(this.value)" disabled="@(franchiseLocked ? "disabled" : null)">
+                        @if (!franchiseLocked) { <option value="">All Types</option> }
                         <option value="F" selected="@(currentAgentType == "F")">Franchise</option>
-                        <option value="C" selected="@(currentAgentType == "C")">Corporate</option>
+                        @if (!franchiseLocked) { <option value="C" selected="@(currentAgentType == "C")">Corporate</option> }
                     </select>
                 </div>
 
                 <div class="col-12 col-md-3" id="filterFranchiseCol" style="@(currentAgentType == "C" ? "display:none;" : "")">
                     <label class="form-label small fw-semibold text-muted mb-1">Franchise</label>
-                    <select name="agentId" id="filterFranchiseId" class="form-select form-select-sm s2-basic">
-                        <option value="">-- All Franchises --</option>
+                    <select name="agentId" id="filterFranchiseId" class="form-select form-select-sm s2-basic" disabled="@(franchiseLocked ? "disabled" : null)">
+                        @if (!franchiseLocked) { <option value="">-- All Franchises --</option> }
                         @if (ViewBag.Franchises != null)
                         {
                             foreach (var f in (IEnumerable<SelectListItem>)ViewBag.Franchises)
@@ -189,7 +192,7 @@
                                         </a>
                                         @if (inv.Status != "P")
                                         {
-                                            <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@inv.PartnerType&agentId=@inv.PartnerId" class="btn btn-outline-success" title="Settle in Payment Screen">
+                                            <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@inv.PartnerType&agentId=@inv.PartnerId" asp-permission="LAB.LABORDERBOOKING.B2BSETTLEMENT:SETTLE" asp-permission-mode="hide" class="btn btn-outline-success" title="Settle in Payment Screen">
                                                 <i class="bi bi-wallet2"></i>
                                             </a>
                                         }
@@ -203,7 +206,7 @@
                         <tr>
                             <td colspan="11" class="text-center py-5 text-muted">
                                 <i class="bi bi-receipt-cutoff fs-3 d-block mb-1 text-secondary"></i>
-                                No B2B invoices found. Click "Generate New Invoice" to create one from un-invoiced lab orders.
+                                No B2B invoices found.<span asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:GENERATE_INVOICE" asp-permission-mode="hide"> Click "Generate New Invoice" to create one from un-invoiced lab orders.</span>
                             </td>
                         </tr>
                     }

@@ -20,7 +20,8 @@ public class LabFranchisesController(
     IWebHostEnvironment environment,
     IAuditLogService auditLogService,
     IPasswordHasherService passwordHasherService,
-    IEmailService emailService) : Controller
+    IEmailService emailService,
+    ILogger<LabFranchisesController> logger) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(
@@ -160,7 +161,7 @@ public class LabFranchisesController(
 
             var newId = await franchiseApiClient.CreateAsync(req);
 
-            await CreateLinkedUserAsync(model, newId, companyId);
+            var loginNote = await CreateLinkedUserAsync(model, newId, companyId);
 
             await auditLogService.LogAsync(
                 "Create Lab Franchise",
@@ -171,6 +172,7 @@ public class LabFranchisesController(
             );
 
             TempData["SuccessMessage"] = "Lab Franchise created successfully.";
+            if (loginNote != null) TempData["Warning"] = loginNote;   // the login / credentials email did not go through
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -551,12 +553,14 @@ public class LabFranchisesController(
         return $"/uploads/franchise_docs/{uniqueFileName}";
     }
 
-    private async Task CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId)
+    /// <summary>Creates the franchise's login and emails its details. Returns null when all went through, otherwise
+    /// what the user creating the franchise must know (no login made / the email could not be sent).</summary>
+    private async Task<string?> CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId)
     {
         var email = model.Email.Trim();
 
         if (await dbContext.Users.AnyAsync(u => u.Username == email))
-            return;
+            return $"No login was created for this franchise: a user with the username {email} already exists.";
 
         var defaultPassword = "Welcome@123";
         var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);
@@ -617,10 +621,14 @@ public class LabFranchisesController(
         });
         await dbContext.SaveChangesAsync();
 
-        await SendCredentialsEmailAsync(branchId, model.Franchise_Name, email, defaultPassword);
+        var (sent, reason) = await SendCredentialsEmailAsync(branchId, model.Franchise_Name, email, defaultPassword);
+        return sent ? null
+            : $"The franchise login {email} was created, but its login details could not be emailed ({reason}). Please share them with the franchise.";
     }
 
-    private async Task SendCredentialsEmailAsync(int branchId, string name, string email, string password)
+    /// <summary>The login details mail: sent with the parent branch's mail settings, or else the settings of the branch
+    /// the user creating the franchise is working in (a new branch often has no mail settings of its own).</summary>
+    private async Task<(bool Sent, string Reason)> SendCredentialsEmailAsync(int branchId, string name, string email, string password)
     {
         var baseUrl = await emailService.GetApplicationBaseUrlAsync(branchId) ?? $"{Request.Scheme}://{Request.Host}";
         var loginUrl = $"{baseUrl}/Account/Login";
@@ -638,12 +646,20 @@ public class LabFranchisesController(
             <p><a href='{loginUrl}'>Click here to login</a></p>
             <br/><p>Regards,<br/>eClinicPlus+ Team</p>";
 
+        const string subject = "eClinicPlus+ — Your Login Credentials";
         try
         {
-            await emailService.SendEmailAsync(branchId, email, "eClinicPlus+ — Your Login Credentials", htmlBody);
+            var result = await emailService.SendEmailAsync(branchId, email, subject, htmlBody);
+            var ownBranch = User.GetCurrentBranchId();
+            if (!result.Success && ownBranch is int fallback && fallback != branchId)
+                result = await emailService.SendEmailAsync(fallback, email, subject, htmlBody);
+            if (!result.Success) logger.LogWarning("Franchise login email to {Email} not sent: {Reason}", email, result.Message);
+            return (result.Success, result.Message);
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "Franchise login email to {Email} not sent", email);
+            return (false, "the mail server could not be reached");
         }
     }
 }

@@ -26,6 +26,29 @@ public class UsersController(
     IAreaService areaService,
     ILabTestCategoryApiClient labTestCategoryApiClient) : Controller
 {
+    /// <summary>
+    /// Which users this login may see and manage. Signed in to the head office (Branchmaster.IsHOBranch): every user of
+    /// the company, all branches (null = no branch limit). Any other branch: the users of the branches assigned to the
+    /// signed-in user.
+    /// </summary>
+    private async Task<List<int>?> VisibleBranchIdsAsync()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId.HasValue && await dbContext.BranchMasters.AnyAsync(b => b.BranchId == branchId.Value && b.IsHOBranch))
+            return null;
+        var me = User.GetUserId();
+        var ids = await dbContext.UserBranches.Where(ub => ub.UserId == me && ub.IsActive).Select(ub => ub.BranchId).ToListAsync();
+        if (branchId.HasValue && !ids.Contains(branchId.Value)) ids.Add(branchId.Value);
+        return ids;
+    }
+
+    /// <summary>False when the user belongs only to branches this login may not see (see <see cref="VisibleBranchIdsAsync"/>).</summary>
+    private async Task<bool> MaySeeUserAsync(int userId)
+    {
+        if (await VisibleBranchIdsAsync() is not { } ids) return true;
+        return await dbContext.UserBranches.AnyAsync(ub => ub.UserId == userId && ub.IsActive && ids.Contains(ub.BranchId));
+    }
+
     public async Task<IActionResult> Index()
     {
         if (!CanManage())
@@ -47,11 +70,8 @@ public class UsersController(
             query = query.Where(x => x.CompanyId == companyId);
         }
 
-        // Filter to current branch if a branch is active in session
-        if (branchId.HasValue)
-        {
-            query = query.Where(x => x.UserBranches.Any(ub => ub.BranchId == branchId.Value && ub.IsActive));
-        }
+        if (await VisibleBranchIdsAsync() is { } myBranchIds)
+            query = query.Where(x => x.UserBranches.Any(ub => ub.IsActive && myBranchIds.Contains(ub.BranchId)));
 
         var deptDict = await dbContext.DepartmentMasters
             .ToDictionaryAsync(d => d.DeptId, d => d.DeptName);
@@ -127,6 +147,7 @@ public class UsersController(
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
+        if (!await MaySeeUserAsync(id)) return NotFound();
         var user = await dbContext.Users
             .Include(x => x.UserBranches.Where(b => b.IsActive))
                 .ThenInclude(x => x.Branch)
@@ -376,6 +397,7 @@ public class UsersController(
         {
             return RedirectToAction("Index", "Dashboard");
         }
+        if (!await MaySeeUserAsync(id)) return NotFound();
 
         var user = await dbContext.Users
             .Include(x => x.UserBranches)
@@ -458,6 +480,7 @@ public class UsersController(
             return RedirectToAction("Index", "Dashboard");
         }
 
+        if (!await MaySeeUserAsync(model.Id)) return NotFound();
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == model.Id);
         if (user is null)
         {
@@ -593,6 +616,7 @@ public class UsersController(
             return RedirectToAction("Index", "Dashboard");
         }
 
+        if (!await MaySeeUserAsync(id)) return NotFound();
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == id);
         if (user is null)
         {

@@ -125,7 +125,7 @@ namespace EMR.Api.Services
             return await connection.QueryAsync<SubCategoryDto>("dbo.usp_GetLabSubCategories", new { CategoryId = categoryId }, commandType: CommandType.StoredProcedure);
         }
 
-        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null)
+        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null, int? createdBy = null)
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -142,7 +142,8 @@ namespace EMR.Api.Services
                     DateType = dateType is "B" or "C" ? dateType : null,  // script 2220; anything else = order date
                     PaymentFilter = paymentFilter is "DUE" or "PARTIAL" or "PAID" or "PCAN" or "FCAN" ? paymentFilter : null,  // script 2233
                     AgentType = agentType is "F" or "C" ? agentType : null,                                                 // script 2234
-                    AgentId = agentId is > 0 ? agentId : null
+                    AgentId = agentId is > 0 ? agentId : null,
+                    CreatedBy = createdBy is > 0 ? createdBy : null                                                        // script 2258
                 },
                 commandType: CommandType.StoredProcedure
             );
