@@ -1,0 +1,137 @@
+@{
+    ViewData["Title"] = "Test & Department Volume and Revenue";
+    ViewData["ReportSubtitle"] = "which tests, profiles and packages bring the volume and the money: top 20 by count and by revenue, department share, packages against single tests, growth against the previous period, and BOM cost and gross profit per test";
+    ViewData["ReportIcon"] = "bi-bar-chart-steps";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["DateLabel"] = "bill date";
+}
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    // LR-23 (SQLScripts/2267): revenue per line = its share of the bill's net, B2B at the partner rate; cost = BOM material
+    // (actual runs + estimate for tests not run yet), both exactly as the Owner MIS. Collection kits are per bill, not per test.
+    const pct = (v) => v === null || v === undefined ? '' : `${Number(v) > 0 ? '+' : ''}${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%`;
+    const growth = (v) => v === null || v === undefined ? '<span class="text-muted">no earlier data</span>'
+        : `<span class="${Number(v) >= 0 ? 'text-success' : 'text-danger'} fw-semibold"><i class="bi ${Number(v) >= 0 ? 'bi-arrow-up-right' : 'bi-arrow-down-right'}"></i> ${pct(v)}</span> vs previous period`;
+    const KIND = { Test: 'bg-secondary-subtle text-secondary-emphasis', Profile: 'bg-info-subtle text-info-emphasis', Package: 'bg-warning-subtle text-warning-emphasis' };
+    const kindBadge = (k, h) => `<span class="badge rounded-pill ${KIND[k] || 'bg-light text-dark'} border">${h.esc(k)}</span>`;
+    let charts = [];
+
+    function bars(id, items, valueOf, label, color, fmt) {
+        return new Chart(document.getElementById(id), {
+            type: 'bar',
+            data: { labels: items.map(t => t.GroupName.length > 34 ? t.GroupName.slice(0, 33) + '…' : t.GroupName),
+                    datasets: [{ label, data: items.map(valueOf), backgroundColor: color, borderRadius: 3, barThickness: 12 }] },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { title: (c) => items[c[0].dataIndex].GroupName, label: (c) => ' ' + fmt(c.parsed.x) } } },
+                scales: { x: { beginAtZero: true, ticks: { callback: (v) => fmt(v, true) } }, y: { ticks: { autoSkip: false, font: { size: 11 } } } }
+            }
+        });
+    }
+
+    function drawExtra(data, h) {
+        charts.forEach(c => c.destroy()); charts = [];
+        const tests = (data.groups || []).filter(g => g.GroupKey === 'byTest');
+        if (!tests.length) { $('#lrExtra').empty(); return; }
+        const byRev = tests.slice().sort((a, b) => a.RankRevenue - b.RankRevenue).slice(0, 20);
+        const byCnt = tests.slice().sort((a, b) => a.RankCount - b.RankCount).slice(0, 20);
+        const hgt = Math.max(180, Math.max(byRev.length, byCnt.length) * 22 + 30);
+        $('#lrExtra').html(`
+            <div class="row g-2 mb-2">
+                <div class="col-12 col-xl-6"><div class="lr-card p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold fs-7"><i class="bi bi-currency-rupee me-1 text-success"></i>Top ${byRev.length} by revenue</span>
+                        <span class="text-muted fs-9">${h.money(data.summary?.Top20Revenue)} · ${data.summary?.Revenue ? (Number(data.summary.Top20Revenue) * 100 / Number(data.summary.Revenue)).toFixed(1) : 0}% of revenue</span></div>
+                    <div style="position:relative;height:${hgt}px;"><canvas id="trRev"></canvas></div></div></div>
+                <div class="col-12 col-xl-6"><div class="lr-card p-3 h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold fs-7"><i class="bi bi-123 me-1 text-primary"></i>Top ${byCnt.length} by count</span>
+                        <span class="text-muted fs-9">times billed in the period</span></div>
+                    <div style="position:relative;height:${hgt}px;"><canvas id="trCnt"></canvas></div></div></div>
+            </div>`);
+        charts.push(bars('trRev', byRev, t => Number(t.Revenue) || 0, 'Revenue', 'rgba(15,118,110,.8)',
+            (v, axis) => axis ? '₹' + Number(v).toLocaleString('en-IN', { notation: 'compact' }) : h.money(v)));
+        charts.push(bars('trCnt', byCnt, t => Number(t.Tests) || 0, 'Count', 'rgba(29,78,216,.75)',
+            (v) => Number(v).toLocaleString('en-IN')));
+    }
+
+    LabReport.init({
+        report: 'test-revenue', title: 'Test & Department Volume and Revenue', defaultRange: 'month', summaryAlways: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name or code, bill no, patient...',
+        filters: [
+            { id: 'kind', label: 'Item', allLabel: 'Tests, profiles and packages', options: [['Test', 'Single tests'], ['Profile', 'Profiles'], ['Package', 'Packages']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' },
+            { id: 'billingType', label: 'Billing', allLabel: 'B2C and B2B', options: [['B2C', 'B2C'], ['B2B', 'B2B']] },
+            { id: 'createdBy', label: 'Billed by', allLabel: 'All users', fromOptions: 'createdBy', adminOnly: true }
+        ],
+        kpis: [
+            { label: 'Revenue', color: '#0f766e', value: (s, h) => h.money(s.Revenue), sub: (s) => growth(s.RevenueGrowthPct) },
+            { label: 'Tests billed', color: '#1d4ed8', value: (s, h) => h.num(s.Tests), sub: (s, h) => `${h.num(s.DistinctItems)} different items · ${h.num(s.Bills)} bills · ${growth(s.TestsGrowthPct)}` },
+            { label: 'Tests · Profiles · Packages', color: '#7c3aed',
+              value: (s, h) => `<span class="fs-6">${s.Revenue ? Math.round(Number(s.TestRevenue) * 100 / Number(s.Revenue)) : 0}% · ${s.Revenue ? Math.round(Number(s.ProfileRevenue) * 100 / Number(s.Revenue)) : 0}% · ${s.Revenue ? Math.round(Number(s.PackageRevenue) * 100 / Number(s.Revenue)) : 0}%</span>`,
+              sub: (s, h) => `of revenue · ${h.num(s.TestCount)} tests, ${h.num(s.ProfileCount)} profiles, ${h.num(s.PackageCount)} packages` },
+            { label: 'Top sellers', color: '#b45309', value: (s, h) => `<span class="fs-7">${h.esc(s.TopByRevenue || '—')}</span>`,
+              sub: (s, h) => `${s.TopByRevenue ? h.money(s.TopByRevenueAmount) + ' revenue' : ''}${s.TopByCount ? ` · most billed: ${h.esc(s.TopByCount)} (${h.num(s.TopByCountTests)})` : ''}` },
+            { label: 'Gross profit', color: '#15803d',
+              value: (s, h) => h.money(s.Profit),
+              sub: (s, h) => `${s.MarginPct === null || s.MarginPct === undefined ? '' : Number(s.MarginPct).toLocaleString('en-IN', { maximumFractionDigits: 1 }) + '% margin · '}BOM cost ${h.money(s.MaterialCost)}`
+                  + (Number(s.MaterialPending) ? ` (${h.money(s.MaterialPending)} estimated for ${h.num(s.PendingTests)} tests not run yet)` : '')
+                  + (Number(s.NoBomTests) ? ` · <span class="text-danger">${h.num(s.NoBomTests)} without BOM</span>` : '')
+                  + (Number(s.OutsourcedTests) ? ` · ${h.num(s.OutsourcedTests)} outsourced` : '')
+                  + '<div class="text-muted">Collection kits are a per-bill cost: see the Owner MIS.</div>' },
+            { label: 'Leading department', color: '#be123c', value: (s, h) => `<span class="fs-6">${h.esc(s.TopDepartment || '—')}</span>`,
+              sub: (s) => s.TopDepartmentSharePct === null || s.TopDepartmentSharePct === undefined ? '' : `${Number(s.TopDepartmentSharePct).toLocaleString('en-IN', { maximumFractionDigits: 1 })}% of revenue` }
+        ],
+        groups: [
+            { key: 'byTest', label: 'Test, profile or package', rowField: 'ItemKey', byId: true,
+              name: (r, h) => `${h.esc(r.GroupName)}<div class="text-muted fs-9 fw-normal">#${r.RankRevenue} by revenue · #${r.RankCount} by count · ${h.esc(r.Detail || '')}</div>` },
+            { key: 'byKind', label: 'Single test / profile / package', rowField: 'Kind', byId: true, name: (r, h) => kindBadge(r.GroupName, h) },
+            { key: 'byDepartment', label: 'Department', rowField: 'Department', byId: true },
+            { key: 'byBillingType', label: 'B2C / B2B', rowField: 'BillingType', byId: true }
+        ],
+        groupCols: [
+            { field: 'Tests', label: 'Count', num: true, fmt: (v, h) => h.num(v) },
+            { field: 'Bills', label: 'Bills', num: true, total: 'none', fmt: (v, h) => h.num(v) },
+            { field: 'Mrp', label: 'MRP', money: true },
+            { field: 'Discount', label: 'Discount', money: true },
+            { field: 'PartnerMargin', label: 'Partner margin', money: true },
+            { field: 'Revenue', label: 'Revenue', money: true },
+            { field: 'MaterialCost', label: 'BOM cost', money: true },
+            { field: 'Profit', label: 'Gross profit', money: true },
+            { field: 'MarginPct', label: 'Margin', num: true, total: 'none', fmt: (v, h) => v === null || v === undefined ? '—' : `<span class="${Number(v) < 0 ? 'text-danger' : (Number(v) < 30 ? 'text-warning-emphasis' : 'text-success')}">${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 1 })}%</span>` },
+            { field: 'NoBomTests', label: 'No BOM', num: true, fmt: (v, h) => Number(v) ? `<span class="text-danger">${h.num(v)}</span>` : '—' },
+            { field: 'AvgRevenue', label: 'Per test', num: true, total: 'none', fmt: (v, h) => v === null || v === undefined ? '—' : h.money(v) },
+            { field: 'PrevRevenue', label: 'Previous period', money: true },
+            { field: 'GrowthPct', label: 'Growth', num: true, total: 'none', fmt: (v) => v === null || v === undefined ? '<span class="text-muted">new</span>' : `<span class="${Number(v) >= 0 ? 'text-success' : 'text-danger'}">${pct(v)}</span>` }
+        ],
+        shareOf: 'Revenue',
+        cols: [
+            { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Bill', cls: 'text-nowrap', html: (r, h) => `<span class="fw-semibold">${h.esc(r.BillNo)}</span>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `${h.esc(r.PatientName)}<div class="text-muted fs-9">${h.esc(r.PatientCode || '')}</div>`, text: r => `${r.PatientName} (${r.PatientCode || ''})` },
+            { label: 'Test / profile / package', html: (r, h) => `<span class="fw-semibold">${h.esc(r.TestName)}</span> ${kindBadge(r.Kind, h)}<div class="text-muted fs-9">${h.esc(r.TestCode || '')}</div>`, text: r => `${r.TestName} [${r.Kind}]` },
+            { label: 'Department', html: (r, h) => h.esc(r.Department), text: r => r.Department },
+            { label: 'Billing', html: (r, h) => `${h.esc(r.BillingType)}${r.PartnerName ? `<div class="text-muted fs-9">${h.esc(r.PartnerName)}</div>` : ''}`, text: r => r.PartnerName ? `${r.BillingType} · ${r.PartnerName}` : r.BillingType },
+            { label: 'MRP', cls: 'text-end', money: true, sum: 'Mrp', html: (r, h) => h.money(r.Mrp), text: r => Number(r.Mrp) || 0 },
+            { label: 'Discount', cls: 'text-end', money: true, sum: 'Discount', html: (r, h) => Number(r.Discount) ? h.money(r.Discount) : '—', text: r => Number(r.Discount) || 0 },
+            { label: 'Partner margin', cls: 'text-end', money: true, sum: 'PartnerMargin', html: (r, h) => Number(r.PartnerMargin) ? h.money(r.PartnerMargin) : '—', text: r => Number(r.PartnerMargin) || 0 },
+            { label: 'Revenue', cls: 'text-end', money: true, sum: 'Revenue', html: (r, h) => `<span class="fw-semibold">${h.money(r.Revenue)}</span>`, text: r => Number(r.Revenue) || 0 },
+            { label: 'BOM cost', cls: 'text-end', money: true, sum: 'MaterialCost',
+              html: (r, h) => `${Number(r.MaterialCost) ? h.money(r.MaterialCost) : '—'}<div class="fs-9 ${r.CostBasis === 'No BOM' ? 'text-danger' : 'text-muted'}">${h.esc(r.CostBasis || '')}</div>`,
+              text: r => Number(r.MaterialCost) || 0 },
+            { label: 'Gross profit', cls: 'text-end', money: true, sum: 'Profit', html: (r, h) => `<span class="${Number(r.Profit) < 0 ? 'text-danger' : ''}">${h.money(r.Profit)}</span>`, text: r => Number(r.Profit) || 0 },
+            { label: 'Billed by', html: (r, h) => h.esc(r.BilledBy || ''), text: r => r.BilledBy || '' }
+        ],
+        afterLoad: drawExtra
+    });
+})();
+</script>
+}

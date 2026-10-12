@@ -224,6 +224,7 @@ public class ReportsController : Controller
         ["unauthorized"]        = new[] { "withdrawAction", "outcome", "amended", "unapprovedBy", "departmentId" },
         // LR-24 / LR-26 / LR-27 (SQLScripts/2210)
         ["revenue-trend"]       = new[] { "billingType", "createdBy" },
+        ["test-revenue"]        = new[] { "kind", "billingType", "departmentId", "createdBy" },   // LR-23 (SQLScripts/2267)
         ["patient-analytics"]   = new[] { "patientType", "ageBand", "gender", "createdBy" },
         ["staff-productivity"]  = new[] { "activity", "staffId" },
         // Quality & Compliance BOM & costing (SQLScripts/2248)
@@ -287,6 +288,7 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabDispatchPrint() => LabReportPage("LabDispatchPrint");
     [HttpGet] public IActionResult LabUnauthorized() => LabReportPage("LabUnauthorized");
     [HttpGet] public IActionResult LabRevenueTrend() => LabReportPage("LabRevenueTrend");
+    [HttpGet] public IActionResult LabTestRevenue() => LabReportPage("LabTestRevenue");
     [HttpGet] public IActionResult LabPatientAnalytics() => LabReportPage("LabPatientAnalytics");
     [HttpGet] public IActionResult LabStaffProductivity() => LabReportPage("LabStaffProductivity");
 

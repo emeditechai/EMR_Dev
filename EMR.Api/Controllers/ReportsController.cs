@@ -135,6 +135,8 @@ public class ReportsController : ControllerBase
             ["unauthorized"]        = ("dbo.usp_Api_LabReport_Unauthorized",      new[] { "WithdrawAction", "Outcome", "Amended" }, new[] { "UnapprovedBy", "DepartmentId" }),
             // LR-24 / LR-26 / LR-27 management (SQLScripts/2210)
             ["revenue-trend"]       = ("dbo.usp_Api_LabReport_RevenueTrend",      new[] { "BillingType" },                          new[] { "CreatedBy" }),
+            // LR-23 (SQLScripts/2267)
+            ["test-revenue"]        = ("dbo.usp_Api_LabReport_TestRevenue",       new[] { "Kind", "BillingType" },                  new[] { "DepartmentId", "CreatedBy" }),
             ["patient-analytics"]   = ("dbo.usp_Api_LabReport_PatientAnalytics",  new[] { "PatientType", "AgeBand", "Gender" },     new[] { "CreatedBy" }),
             ["staff-productivity"]  = ("dbo.usp_Api_LabReport_StaffProductivity", new[] { "Activity" },                             new[] { "StaffId" }),
             // Doctor IP (referral doctor commission) reports: branch-wide (SQLScripts/2222)

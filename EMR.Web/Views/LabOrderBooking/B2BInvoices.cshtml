@@ -33,6 +33,29 @@
             align-items: center;
             justify-content: space-between;
         }
+
+        /* Generate-invoice modal: partner multi-select stays one line, a summary instead of a chip per partner;
+           the chosen partners show as a slim, scrolling strip of removable chips under it */
+        .s2-compact + .select2-container .select2-selection--multiple { min-height: 31px; max-height: 31px; overflow: hidden; cursor: pointer; position: relative; padding-right: 26px; }
+        .s2-compact + .select2-container .select2-selection__choice,
+        .s2-compact + .select2-container .select2-selection__clear { display: none !important; }
+        .s2-compact + .select2-container .select2-search--inline .select2-search__field { margin-top: 3px; }
+        .s2-compact + .select2-container .select2-search__field::placeholder { color: transparent; }
+        .s2-compact + .select2-container .s2-summary { position: absolute; left: 10px; right: 26px; top: 50%; transform: translateY(-50%); font-size: .82rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; color: #0f172a; }
+        .s2-compact + .select2-container .s2-summary.is-empty { color: #94a3b8; }
+        .s2-compact + .select2-container.select2-container--open .s2-summary { display: none; }
+        .s2-compact + .select2-container .select2-selection--multiple::after { content: "\F282"; font-family: "bootstrap-icons"; position: absolute; right: 9px; top: 50%;
+            transform: translateY(-50%); font-size: .7rem; color: #64748b; }
+        #generateInvoiceModal .select2-results__option--selected { background: #eff6ff !important; color: #1d4ed8; font-weight: 600; }
+        #generateInvoiceModal .select2-results__option--selected::before { content: "\F26E"; font-family: "bootstrap-icons"; margin-right: 6px; }
+        .partner-chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 54px; overflow-y: auto; margin-top: 6px; }
+        .partner-chips:empty { display: none; }
+        .partner-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; font-size: .72rem; line-height: 1.2; padding: 2px 4px 2px 8px;
+            border-radius: 999px; background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe; }
+        .partner-chip span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+        .partner-chip button { border: 0; background: none; color: #64748b; padding: 0 2px; line-height: 1; font-size: .8rem; }
+        .partner-chip button:hover { color: #dc2626; }
     </style>
 }
 
@@ -244,7 +267,7 @@
                                 <a href="javascript:void(0)" class="text-secondary text-decoration-none ms-1" onclick="toggleSelectAllPartners('F', false)">Clear</a>
                             </div>
                         </div>
-                        <select id="modalFranchiseId" class="form-select form-select-sm s2-modal-multi" multiple="multiple" onchange="fetchUninvoicedOrders()">
+                        <select id="modalFranchiseId" class="form-select form-select-sm s2-modal-multi s2-compact" multiple="multiple" data-noun="franchise" data-chips="#modalFranchiseChips" onchange="fetchUninvoicedOrders()">
                             <option value="ALL">-- All Franchises (Generate for All) --</option>
                             @if (ViewBag.Franchises != null)
                             {
@@ -254,6 +277,7 @@
                                 }
                             }
                         </select>
+                        <div class="partner-chips" id="modalFranchiseChips"></div>
                         <div class="form-text text-muted" style="font-size:0.7rem;">Select one, multiple, or All Franchises in one shot.</div>
                     </div>
                     <div class="col-12 col-md-5" id="modalCorporateCol" style="display:none;">
@@ -265,7 +289,7 @@
                                 <a href="javascript:void(0)" class="text-secondary text-decoration-none ms-1" onclick="toggleSelectAllPartners('C', false)">Clear</a>
                             </div>
                         </div>
-                        <select id="modalCorporateId" class="form-select form-select-sm s2-modal-multi" multiple="multiple" onchange="fetchUninvoicedOrders()">
+                        <select id="modalCorporateId" class="form-select form-select-sm s2-modal-multi s2-compact" multiple="multiple" data-noun="company" data-chips="#modalCorporateChips" onchange="fetchUninvoicedOrders()">
                             <option value="ALL">-- All Corporates (Generate for All) --</option>
                             @if (ViewBag.Corporates != null)
                             {
@@ -275,6 +299,7 @@
                                 }
                             }
                         </select>
+                        <div class="partner-chips" id="modalCorporateChips"></div>
                         <div class="form-text text-muted" style="font-size:0.7rem;">Select one, multiple, or All Corporates in one shot.</div>
                     </div>
                     <div class="col-12 col-md-3">
@@ -359,6 +384,15 @@
                 closeOnSelect: false
             });
 
+            // compact partner selection: one-line summary in the box, removable chips under it
+            $('.s2-compact').each(function () {
+                const $sel = $(this);
+                const $box = $sel.next('.select2-container').find('.select2-selection--multiple');
+                if (!$box.find('.s2-summary').length) $box.append('<span class="s2-summary"></span>');
+                $sel.on('change', function () { renderPartnerSelection($sel); });
+                renderPartnerSelection($sel);
+            });
+
             $('#modalFranchiseId').on('select2:select', function(e) {
                 if (e.params.data.id === 'ALL') {
                     toggleSelectAllPartners('F', true);
@@ -369,6 +403,31 @@
                     toggleSelectAllPartners('C', true);
                 }
             });
+        });
+
+        function renderPartnerSelection($sel) {
+            const noun = $sel.data('noun') || 'partner';
+            const chosen = $sel.find('option:selected').filter(function () { return this.value && this.value !== 'ALL'; });
+            const total = $sel.find('option').filter(function () { return this.value && this.value !== 'ALL'; }).length;
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const plural = noun === 'company' ? 'companies' : noun + 's';
+            let text, empty = false;
+            if (!chosen.length) { text = `Choose ${plural}...`; empty = true; }
+            else if (chosen.length === 1) text = chosen.first().text();
+            else if (chosen.length === total) text = `All ${plural} (${total})`;
+            else text = `${chosen.length} ${plural} selected`;
+            $sel.next('.select2-container').find('.s2-summary').text(text).toggleClass('is-empty', empty);
+            $($sel.data('chips')).html(chosen.length > 1 ? chosen.map(function () {
+                return `<span class="partner-chip" title="${esc($(this).text())}"><span>${esc($(this).text())}</span>`
+                     + `<button type="button" aria-label="Remove" data-v="${esc(this.value)}">&times;</button></span>`;
+            }).get().join('') : '');
+        }
+
+        // remove one partner from its chip
+        $(document).on('click', '.partner-chip button', function () {
+            const $sel = $(this).closest('.partner-chips').siblings('select.s2-compact');
+            const v = String($(this).data('v'));
+            $sel.val(($sel.val() || []).filter(x => x !== v)).trigger('change');
         });
 
         function toggleSelectAllPartners(type, selectAll) {
