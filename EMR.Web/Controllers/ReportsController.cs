@@ -72,7 +72,7 @@ public class ReportsController : Controller
         return Json(new { success = false, message = result.ErrorMessage });
     }
 
-    // ── Reports > LAB > B2C Collection Register ─────────────────────────────
+    // ── Reports > LAB > Daily Collection Register (B2C + direct B2B receipts, SQLScripts/2255) ──
     /// <summary>Administrator (active role) or super admin sees every user's collections; others only their own.</summary>
     private bool CanSeeAllCollections() =>
         User.IsSuperAdmin() || string.Equals(User.GetActiveRole(), "Administrator", StringComparison.OrdinalIgnoreCase);
@@ -85,7 +85,7 @@ public class ReportsController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetLabB2CCollectionRegisterData(string fromDate, string toDate, int? paymentMethodId, int? collectedBy, string? search)
+    public async Task<IActionResult> GetLabB2CCollectionRegisterData(string fromDate, string toDate, int? paymentMethodId, int? collectedBy, string? search, string? billingType)
     {
         var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
         if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
@@ -96,7 +96,8 @@ public class ReportsController : Controller
 
         var seeAll = CanSeeAllCollections();
         var result = await _reportApi.GetLabB2CCollectionRegisterAsync(branchId, fDate, tDate, paymentMethodId,
-            seeAll ? collectedBy : User.GetUserId(), search, User.GetUserId(), seeAll, User.IsSuperAdmin());
+            seeAll ? collectedBy : User.GetUserId(), search, User.GetUserId(), seeAll, User.IsSuperAdmin(),
+            string.IsNullOrWhiteSpace(billingType) ? null : billingType.Trim().ToUpperInvariant());
         if (result.IsSuccess)
         {
             return Json(new { success = true, data = result.Data, scope = seeAll ? "ALL" : "SELF" });
@@ -226,6 +227,12 @@ public class ReportsController : Controller
         ["patient-analytics"]   = new[] { "patientType", "ageBand", "gender", "createdBy" },
         ["staff-productivity"]  = new[] { "activity", "staffId" },
         // Quality & Compliance BOM & costing (SQLScripts/2248)
+        // LF-06 equipment and EQAS register (SQLScripts/2253)
+        ["iqc-runs"]              = new[] { "runStatus", "analyzerId", "testId" },   // LF-05, SQLScripts/2254
+        ["equipment-due"]         = new[] { "dueState", "typeId", "departmentId" },
+        ["equipment-downtime"]    = new[] { "breakdownStatus", "typeId" },
+        ["eqas-performance"]      = new[] { "performance", "programId" },
+        ["capa-register"]         = new[] { "capaStatus", "sourceType" },
         ["bom-consumption"]       = new[] { "runType", "departmentId", "itemId" },   // SQLScripts/2249
         ["bom-register"]          = new[] { "appliesTo", "departmentId", "categoryId" },
         ["bom-coverage"]          = new[] { "coverage", "departmentId" },
@@ -284,6 +291,12 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabStaffProductivity() => LabReportPage("LabStaffProductivity");
 
     // Quality & Compliance > BOM & costing reports (SQLScripts/2248): company masters, the same for every user of the branch
+    // LF-06 equipment and EQAS register (SQLScripts/2253): branch masters, the same for every user of the branch
+    [HttpGet] public IActionResult LabIqcRuns() => LabReportPage("LabIqcRuns");   // LF-05, SQLScripts/2254
+    [HttpGet] public IActionResult LabEquipmentDue() => LabReportPage("LabEquipmentDue");
+    [HttpGet] public IActionResult LabEquipmentDowntime() => LabReportPage("LabEquipmentDowntime");
+    [HttpGet] public IActionResult LabEqasPerformance() => LabReportPage("LabEqasPerformance");
+    [HttpGet] public IActionResult LabCapaRegister() => LabReportPage("LabCapaRegister");
     [HttpGet] public IActionResult LabBomConsumption() => LabReportPage("LabBomConsumption");
     [HttpGet] public IActionResult LabBomRegister() => LabReportPage("LabBomRegister");
     [HttpGet] public IActionResult LabBomCoverage() => LabReportPage("LabBomCoverage");

@@ -1,0 +1,122 @@
+@{
+    ViewData["Title"] = "CAPA Register";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@* Quality & Compliance > Equipment & EQAS > CAPA Register (SQLScripts/2253): corrective and preventive actions opened by a failed
+   calibration, an unacceptable EQAS result, a breakdown, or by hand. Open -> action taken (root cause + corrective action) ->
+   closed (effectiveness checked; closing is its own permission). *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item active">CAPA Register</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-clipboard2-check me-2"></i>CAPA Register</h4>
+            <div class="text-muted small">Corrective and preventive actions: root cause, action, owner, target date and effectiveness</div>
+        </div>
+        <span id="canClose" class="d-none" asp-permission="QC.CAPA:CLOSE"></span>
+        <button type="button" class="btn btn-primary px-3 shadow-sm" id="btnAdd" asp-permission="QC.CAPA:EDIT"><i class="bi bi-plus-lg me-1"></i>New CAPA</button>
+    </div>
+    <div class="row g-2 mb-3" id="kpis"></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3"><div class="row g-2 align-items-end">
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Branch</label><select id="fBranch" class="form-select"></select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Status</label><select id="fStatus" class="form-select">
+            <option value="PENDING" selected>Open + action taken</option><option value="OPEN">Open</option><option value="ACTION_TAKEN">Action taken</option><option value="CLOSED">Closed</option><option value="">All</option></select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Source</label><select id="fSource" class="form-select">
+            <option value="">All</option><option value="EQAS">EQAS</option><option value="CALIBRATION">Calibration</option><option value="BREAKDOWN">Breakdown</option><option value="OTHER">Other</option></select></div>
+        <div class="col-md-5"><label class="form-label small fw-semibold text-muted">Search</label><input id="fSearch" class="form-control" placeholder="CAPA no., title, equipment..." /></div>
+    </div></div></div>
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">CAPA</th><th>Source</th><th>Title</th><th>Equipment / programme</th><th>Responsible</th><th>Target</th><th class="text-center">Status</th><th class="text-end pe-3"></th></tr></thead>
+            <tbody id="rows"><tr><td colspan="8" class="text-center text-muted py-4">Loading...</td></tr></tbody></table>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="mCapa" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><div><h6 class="modal-title fw-bold mb-0" id="caTitle">CAPA</h6><div class="small text-muted" id="caSub"></div></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><form id="caForm" autocomplete="off"><input type="hidden" name="CapaId" data-type="number" />
+        <div class="row g-3">
+            <div class="col-md-8"><label class="form-label fw-semibold">Title <span class="text-danger">*</span></label><input name="Title" class="form-control" maxlength="200" /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Branch</label><select name="BranchId" data-type="number" class="form-select" id="caBranch"></select></div>
+            <div class="col-12"><label class="form-label fw-semibold">Problem (non-conformity)</label><textarea name="Problem" class="form-control" rows="2" maxlength="1000"></textarea></div>
+            <div class="col-12"><label class="form-label fw-semibold">Root cause</label><textarea name="RootCause" class="form-control" rows="2" maxlength="1000"></textarea></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Corrective action</label><textarea name="CorrectiveAction" class="form-control" rows="3" maxlength="1000"></textarea></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Preventive action</label><textarea name="PreventiveAction" class="form-control" rows="3" maxlength="1000"></textarea></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Responsible</label><select name="ResponsibleUserId" data-type="number" class="form-select" id="caUser"></select></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Target date</label><input name="TargetDate" type="date" class="form-control" /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Status</label><select name="Status" class="form-select" id="caStatus">
+                <option value="OPEN">Open</option><option value="ACTION_TAKEN">Action taken</option><option value="CLOSED">Closed</option></select></div>
+            <div class="col-12" id="caEffBox"><label class="form-label fw-semibold">Effectiveness check <span class="text-danger">*</span></label>
+                <textarea name="Effectiveness" class="form-control" rows="2" maxlength="1000" placeholder="e.g. next EQAS cycle acceptable; QC within limits for 20 runs"></textarea></div>
+        </div></form></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="caSave"><i class="bi bi-save me-1"></i>Save CAPA</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson), myBranch = @(ViewBag.BranchId ?? 0);
+    const canEdit = !!document.getElementById('btnAdd'), canClose = !!document.getElementById('canClose');
+    const $ = x => document.getElementById(x);
+    const modal = new bootstrap.Modal($('mCapa')), form = $('caForm');
+    const openId = +(new URLSearchParams(location.search).get('id') || 0);
+    let rows = [], opened = false;
+    $('fBranch').innerHTML = QC.options(L.branches.filter(b => b.Id === myBranch), myBranch); $('fBranch').disabled = true;   // CAPAs are branch-wise
+    $('caBranch').innerHTML = QC.options(L.branches.filter(b => b.Id === myBranch), myBranch);
+    $('caUser').innerHTML = QC.options(L.users, '', '-- Not assigned --');
+    if (!canClose) $('caStatus').querySelector('option[value="CLOSED"]').disabled = true;
+    const src = s => ({ EQAS: 'bg-primary', CALIBRATION: 'bg-info text-dark', BREAKDOWN: 'bg-danger', OTHER: 'bg-secondary' })[s];
+    const st = s => ({ OPEN: '<span class="badge bg-danger">Open</span>', ACTION_TAKEN: '<span class="badge bg-warning text-dark">Action taken</span>', CLOSED: '<span class="badge bg-success">Closed</span>' })[s];
+
+    async function load() {
+        // an opened CAPA link shows that CAPA whatever its status
+        const r = await QC.get('@Url.Action("List", "QcCapa")', { status: openId && !opened ? '' : $('fStatus').value, sourceType: $('fSource').value, search: $('fSearch').value });
+        if (!r.success) { $('rows').innerHTML = `<tr><td colspan="8" class="text-danger text-center py-4">${QC.esc(r.message)}</td></tr>`; return; }
+        rows = r.data || [];
+        const n = f => rows.filter(f).length;
+        const tile = (label, v, cls, icon) => `<div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100"><div class="card-body py-2"><div class="small text-muted"><i class="bi ${icon} me-1"></i>${label}</div><div class="fs-4 fw-bold ${cls}">${v}</div></div></div></div>`;
+        $('kpis').innerHTML = tile('Open', n(c => c.Status === 'OPEN'), 'text-danger', 'bi-exclamation-circle') + tile('Action taken', n(c => c.Status === 'ACTION_TAKEN'), 'text-warning-emphasis', 'bi-hourglass-split')
+            + tile('Overdue', n(c => c.IsOverdue), n(c => c.IsOverdue) ? 'text-danger' : '', 'bi-alarm') + tile('Closed (listed)', n(c => c.Status === 'CLOSED'), 'text-success', 'bi-check2-circle');
+        $('rows').innerHTML = rows.length ? rows.map(c => `<tr class="${c.IsOverdue ? 'table-warning' : ''}">
+            <td class="ps-3 font-monospace fw-semibold">${QC.esc(c.CapaNo)}<div class="small text-muted font-sans">${QC.date(c.CreatedDate)}</div></td>
+            <td><span class="badge ${src(c.SourceType)}">${QC.esc(c.SourceType)}</span></td>
+            <td><div class="fw-semibold">${QC.esc(c.Title)}</div><div class="small text-muted text-truncate" style="max-width:340px">${QC.esc(c.Problem || '')}</div></td>
+            <td class="small">${c.EquipmentName ? `${QC.esc(c.AssetCode)} ${QC.esc(c.EquipmentName)}` : QC.esc(c.ProgramName || '—')}</td>
+            <td class="small">${QC.esc(c.ResponsibleName || '—')}</td>
+            <td class="${c.IsOverdue ? 'text-danger fw-bold' : ''}">${c.TargetDate ? QC.date(c.TargetDate) : '—'}</td>
+            <td class="text-center">${st(c.Status)}${c.ClosedOn ? `<div class="small text-muted">${QC.date(c.ClosedOn)}</div>` : ''}</td>
+            <td class="text-end pe-3"><button class="btn btn-sm btn-outline-primary act-open" data-id="${c.CapaId}">${canEdit && c.Status !== 'CLOSED' ? 'Update' : 'View'}</button></td></tr>`).join('')
+            : '<tr><td colspan="8" class="text-center text-muted py-4">No CAPA for the filters.</td></tr>';
+        if (openId && !opened) { opened = true; const c = rows.find(x => x.CapaId === openId); if (c) open(c); }
+    }
+    const syncEff = () => $('caEffBox').classList.toggle('d-none', $('caStatus').value !== 'CLOSED');
+    $('caStatus').addEventListener('change', syncEff);
+    function open(c) {
+        form.reset();
+        QC.fill(form, c || { BranchId: myBranch, Status: 'OPEN' });
+        if (c && c.TargetDate) form.TargetDate.value = String(c.TargetDate).slice(0, 10);
+        const ro = !canEdit || (c && c.Status === 'CLOSED');
+        form.querySelectorAll('input,select,textarea').forEach(el => el.disabled = ro || el.name === 'BranchId');
+        $('caSave').classList.toggle('d-none', ro);
+        $('caTitle').textContent = c ? `${c.CapaNo} · ${c.Title}` : 'New CAPA';
+        $('caSub').textContent = c ? `${c.SourceType}${c.EquipmentName ? ' · ' + c.AssetCode + ' ' + c.EquipmentName : ''}${c.ProgramName ? ' · ' + c.ProgramName : ''} · raised by ${c.CreatedByName || '—'} on ${QC.date(c.CreatedDate)}` : 'Raised by hand (complaint, audit finding, internal QC...)';
+        syncEff(); modal.show();
+    }
+    $('btnAdd')?.addEventListener('click', () => open(null));
+    $('rows').addEventListener('click', e => { const b = e.target.closest('.act-open'); if (b) open(rows.find(x => x.CapaId === +b.dataset.id)); });
+    $('caSave').addEventListener('click', async function () {
+        const body = QC.formData(form);
+        if (!body.Title) return QC.fail('Title is required.');
+        this.disabled = true; const r = await QC.post('@Url.Action("Save", "QcCapa")', body); this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        modal.hide(); QC.ok('CAPA saved'); load();
+    });
+    ['fStatus', 'fSource'].forEach(k => $(k).addEventListener('change', load));
+    $('fSearch').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+    load();
+})();
+</script>
+}

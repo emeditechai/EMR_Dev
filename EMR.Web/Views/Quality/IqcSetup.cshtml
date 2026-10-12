@@ -1,0 +1,191 @@
+@{
+    ViewData["Title"] = "QC Materials, Lots & Targets";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+    var itemsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.ControlItems);
+}
+@* Quality & Compliance > Internal QC > QC Materials, Lots & Targets (SQLScripts/2254, LF-05): control material per level,
+   its lots (expiry), and per lot the mean / SD on each analyzer for each parameter - the basis of Westgard judgement. *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li><li class="breadcrumb-item text-muted">Internal QC</li>
+                <li class="breadcrumb-item active">QC Materials, Lots &amp; Targets</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-sliders me-2"></i>QC Materials, Lots &amp; Targets</h4>
+            <div class="text-muted small">Control material → lot → mean and SD per analyzer and parameter</div>
+        </div>
+        <button type="button" class="btn btn-primary px-3 shadow-sm" id="btnAdd" asp-permission="QC.IQC.SETUP:ADD"><i class="bi bi-plus-lg me-1"></i>Add Control Material</button>
+    </div>
+    <div class="row g-3">
+        <div class="col-xl-5">
+            <div class="card border-0 shadow-sm h-100"><div class="card-header bg-white fw-semibold">1. Control materials</div>
+                <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover table-sm align-middle mb-0"><thead class="bg-light"><tr>
+                    <th class="ps-3">Material</th><th>Level</th><th class="text-center">Active lots</th><th class="text-end pe-3"></th></tr></thead><tbody id="mRows"></tbody></table></div></div></div>
+        </div>
+        <div class="col-xl-7">
+            <div class="card border-0 shadow-sm h-100"><div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">2. Lots <span class="text-muted fw-normal" id="lotFor"></span></span>
+                <button type="button" class="btn btn-sm btn-outline-primary d-none" id="btnLot"><i class="bi bi-plus-lg me-1"></i>Add lot</button></div>
+                <div class="card-body p-0"><div class="table-responsive"><table class="table table-hover table-sm align-middle mb-0"><thead class="bg-light"><tr>
+                    <th class="ps-3">Lot no.</th><th>Expiry</th><th>Received / opened</th><th class="text-center">Targets</th><th class="text-center">Status</th><th class="text-end pe-3"></th></tr></thead>
+                    <tbody id="lRows"><tr><td colspan="6" class="text-center text-muted py-3">Choose a control material.</td></tr></tbody></table></div></div></div>
+        </div>
+        <div class="col-12">
+            <div class="card border-0 shadow-sm"><div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">3. Targets (mean / SD) <span class="text-muted fw-normal" id="tgtFor"></span></span>
+                <div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-outline-primary d-none" id="btnRow"><i class="bi bi-plus-lg me-1"></i>Add analyzer / parameter</button>
+                    <button type="button" class="btn btn-sm btn-primary d-none" id="btnTgtSave"><i class="bi bi-save me-1"></i>Save targets</button></div></div>
+                <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+                    <th class="ps-3" style="min-width:200px">Analyzer</th><th style="min-width:220px">Parameter</th><th style="width:90px">Unit</th><th style="width:110px">Mean</th><th style="width:100px">SD</th>
+                    <th class="text-end">CV %</th><th style="width:150px">Source</th><th class="text-center" title="Reject when 4 results in a row are beyond 1 SD on the same side">4-1s</th>
+                    <th class="text-center" title="Reject when 10 results in a row are on the same side of the mean">10x</th><th class="text-center">Active</th><th class="text-center">Points</th><th class="text-end pe-3"></th></tr></thead>
+                    <tbody id="tRows"><tr><td colspan="12" class="text-center text-muted py-3">Choose a lot.</td></tr></tbody></table></div>
+                    <div class="small text-muted px-3 py-2"><i class="bi bi-info-circle me-1"></i>1-2s (warning), 1-3s, 2-2s and R-4s are always applied. Use the manufacturer's mean / SD for a new lot, then the lab's own (20+ runs, see the Levey-Jennings chart).</div></div></div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="mMat" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="matTitle">Control material</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><form id="matForm" autocomplete="off"><input type="hidden" name="MaterialId" data-type="number" />
+        <div class="row g-3">
+            <div class="col-md-8"><label class="form-label fw-semibold">Material name <span class="text-danger">*</span></label><input name="MaterialName" class="form-control" maxlength="200" placeholder="e.g. Lyphochek Assayed Chemistry Control" /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Level <span class="text-danger">*</span></label><input name="ControlLevel" class="form-control" maxlength="30" list="levels" />
+                <datalist id="levels"><option>Level 1</option><option>Level 2</option><option>Level 3</option><option>Normal</option><option>Abnormal</option><option>Positive</option><option>Negative</option></datalist></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Manufacturer</label><input name="Manufacturer" class="form-control" maxlength="150" /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Matrix</label><input name="Matrix" class="form-control" maxlength="100" placeholder="Human serum, whole blood..." /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Department</label><select name="DepartmentId" data-type="number" class="form-select" id="matDept"></select></div>
+            <div class="col-md-8"><label class="form-label fw-semibold">Item Master item (Control / Calibrator)</label><select name="ItemId" data-type="number" class="form-select" id="matItem"></select>
+                <div class="form-text">Links the control to stock and to the BOM QC share.</div></div>
+            <div class="col-md-4 form-check form-switch mt-4 ms-2"><input class="form-check-input" type="checkbox" name="Status" id="matStatus" /><label class="form-check-label" for="matStatus">Active</label></div>
+            <div class="col-12"><label class="form-label fw-semibold">Remarks</label><input name="Remarks" class="form-control" maxlength="500" /></div>
+        </div></form></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="matSave">Save</button></div>
+</div></div></div>
+
+<div class="modal fade" id="mLot" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="lotTitle">Lot</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><form id="lotForm" autocomplete="off"><input type="hidden" name="LotId" data-type="number" />
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label fw-semibold">Lot no. <span class="text-danger">*</span></label><input name="LotNo" class="form-control" maxlength="50" /></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Expiry <span class="text-danger">*</span></label><input name="ExpiryDate" type="date" class="form-control" /></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Received on</label><input name="ReceivedOn" type="date" class="form-control" /></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Opened on</label><input name="OpenedOn" type="date" class="form-control" /></div>
+            <div class="col-12 form-check form-switch ms-2"><input class="form-check-input" type="checkbox" name="Status" id="lotStatus" /><label class="form-check-label" for="lotStatus">In use</label></div>
+            <div class="col-12"><label class="form-label fw-semibold">Remarks</label><input name="Remarks" class="form-control" maxlength="300" /></div>
+        </div></form></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="lotSave">Save</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson), items = @Html.Raw(itemsJson);
+    const canEdit = !!document.getElementById('btnAdd');
+    const $ = x => document.getElementById(x);
+    const mMat = new bootstrap.Modal($('mMat')), mLot = new bootstrap.Modal($('mLot')), matForm = $('matForm'), lotForm = $('lotForm');
+    const chartUrl = '@Url.Action("Index", "IqcChart")';
+    let data = { materials: [], lots: [], targets: [] }, mat = null, lot = null, rows = [];
+    $('matDept').innerHTML = QC.options(L.departments, '', '-- Not set --');
+    $('matItem').innerHTML = QC.options(items, '', '-- Not linked --');
+    const anOpts = sel => QC.options(L.analyzers.filter(a => a.Status || String(a.Id) === String(sel || '')), sel, '-- Analyzer --');   // active analyzers of the Analyzer master
+    const testOpts = sel => QC.options(L.tests, sel, '-- Parameter --');
+
+    async function load() {
+        const r = await QC.get('@Url.Action("List", "IqcSetup")');
+        if (!r.success) return QC.fail(r.message);
+        data = r.data; renderMaterials();
+        if (mat) { mat = data.materials.find(m => m.MaterialId === mat.MaterialId) || null; renderLots(); }
+        if (lot) { lot = data.lots.find(l => l.LotId === lot.LotId) || null; loadTargets(); }
+    }
+    function renderMaterials() {
+        $('mRows').innerHTML = data.materials.length ? data.materials.map(m => `<tr class="${mat && mat.MaterialId === m.MaterialId ? 'table-primary' : ''}" role="button" data-id="${m.MaterialId}">
+            <td class="ps-3"><div class="fw-semibold">${QC.esc(m.MaterialName)}</div><div class="small text-muted">${QC.esc(m.Manufacturer || '')}${m.ItemName ? ' · item ' + QC.esc(m.ItemName) : ''}</div>${m.Status ? '' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+            <td><span class="badge bg-info-subtle text-info-emphasis border">${QC.esc(m.ControlLevel)}</span></td><td class="text-center">${m.ActiveLots}</td>
+            <td class="text-end pe-3">${canEdit ? `<button class="btn btn-sm btn-link act-edit" data-id="${m.MaterialId}"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`).join('')
+            : '<tr><td colspan="4" class="text-center text-muted py-3">No control material yet.</td></tr>';
+    }
+    function renderLots() {
+        $('btnLot').classList.toggle('d-none', !(mat && canEdit));
+        $('lotFor').textContent = mat ? `· ${mat.MaterialName} (${mat.ControlLevel})` : '';
+        const ls = mat ? data.lots.filter(l => l.MaterialId === mat.MaterialId) : [];
+        $('lRows').innerHTML = !mat ? '<tr><td colspan="6" class="text-center text-muted py-3">Choose a control material.</td></tr>' : ls.length ? ls.map(l => `<tr class="${lot && lot.LotId === l.LotId ? 'table-primary' : ''}" role="button" data-id="${l.LotId}">
+            <td class="ps-3 font-monospace fw-semibold">${QC.esc(l.LotNo)}</td><td class="${l.IsExpired ? 'text-danger fw-bold' : ''}">${QC.date(l.ExpiryDate)}${l.IsExpired ? ' · expired' : ''}</td>
+            <td class="small">${QC.date(l.ReceivedOn) || '—'} / ${QC.date(l.OpenedOn) || '—'}</td><td class="text-center">${l.Targets}</td>
+            <td class="text-center">${l.Status && !l.IsExpired ? '<span class="badge bg-success">In use</span>' : '<span class="badge bg-secondary">Not in use</span>'}</td>
+            <td class="text-end pe-3">${canEdit ? `<button class="btn btn-sm btn-link act-lot" data-id="${l.LotId}"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`).join('')
+            : '<tr><td colspan="6" class="text-center text-muted py-3">No lot. Add the lot in use.</td></tr>';
+    }
+    function loadTargets() {
+        $('btnRow').classList.toggle('d-none', !(lot && canEdit)); $('btnTgtSave').classList.toggle('d-none', !(lot && canEdit));
+        $('tgtFor').textContent = lot ? `· lot ${lot.LotNo}` : '';
+        rows = lot ? data.targets.filter(t => t.LotId === lot.LotId).map(t => ({ ...t, isNew: false })) : [];
+        renderTargets();
+    }
+    function renderTargets() {
+        if (!lot) { $('tRows').innerHTML = '<tr><td colspan="12" class="text-center text-muted py-3">Choose a lot.</td></tr>'; return; }
+        const dis = canEdit ? '' : 'disabled';
+        $('tRows').innerHTML = rows.length ? rows.map((t, i) => {
+            const cv = t.Mean && t.Sd ? (Number(t.Sd) * 100 / Math.abs(Number(t.Mean))) : null;
+            return `<tr>
+            <td class="ps-3">${t.isNew ? `<select class="form-select form-select-sm tf" data-i="${i}" data-k="AnalyzerId" ${dis}>${anOpts(t.AnalyzerId)}</select>` : QC.esc(t.AnalyzerName)}</td>
+            <td>${t.isNew ? `<select class="form-select form-select-sm tf" data-i="${i}" data-k="TestId" ${dis}>${testOpts(t.TestId)}</select>` : QC.esc(t.TestName)}</td>
+            <td><input class="form-control form-control-sm tf" data-i="${i}" data-k="Unit" value="${QC.esc(t.Unit || '')}" maxlength="30" ${dis} /></td>
+            <td><input class="form-control form-control-sm tf" data-i="${i}" data-k="Mean" type="number" step="any" value="${t.Mean ?? ''}" ${dis} /></td>
+            <td><input class="form-control form-control-sm tf" data-i="${i}" data-k="Sd" type="number" step="any" min="0" value="${t.Sd ?? ''}" ${dis} /></td>
+            <td class="text-end small cv">${cv == null ? '—' : cv.toFixed(2)}</td>
+            <td><select class="form-select form-select-sm tf" data-i="${i}" data-k="Source" ${dis}><option value="MANUFACTURER" ${t.Source !== 'LAB' ? 'selected' : ''}>Manufacturer</option><option value="LAB" ${t.Source === 'LAB' ? 'selected' : ''}>Lab-established</option></select></td>
+            <td class="text-center"><input type="checkbox" class="form-check-input tf" data-i="${i}" data-k="Rule41s" ${t.Rule41s ? 'checked' : ''} ${dis} /></td>
+            <td class="text-center"><input type="checkbox" class="form-check-input tf" data-i="${i}" data-k="Rule10x" ${t.Rule10x ? 'checked' : ''} ${dis} /></td>
+            <td class="text-center"><input type="checkbox" class="form-check-input tf" data-i="${i}" data-k="IsActive" ${t.IsActive !== false ? 'checked' : ''} ${dis} /></td>
+            <td class="text-center">${t.TargetId ? `<a href="${chartUrl}?targetId=${t.TargetId}" title="Levey-Jennings">${t.Points}</a>` : '—'}</td>
+            <td class="text-end pe-3">${t.isNew ? `<button class="btn btn-sm btn-link text-danger tdel" data-i="${i}"><i class="bi bi-trash"></i></button>` : ''}</td></tr>`;
+        }).join('') : '<tr><td colspan="12" class="text-center text-muted py-3">No target. Add each analyzer / parameter this control is run on.</td></tr>';
+    }
+    $('tRows').addEventListener('input', e => { const el = e.target.closest('.tf'); if (!el) return; const t = rows[+el.dataset.i];
+        t[el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value;
+        if (el.dataset.k === 'Mean' || el.dataset.k === 'Sd') { const cv = t.Mean && t.Sd ? Number(t.Sd) * 100 / Math.abs(Number(t.Mean)) : null; el.closest('tr').querySelector('.cv').textContent = cv == null ? '—' : cv.toFixed(2); } });
+    $('tRows').addEventListener('change', e => { const el = e.target.closest('.tf'); if (el) rows[+el.dataset.i][el.dataset.k] = el.type === 'checkbox' ? el.checked : el.value; });
+    $('tRows').addEventListener('click', e => { const b = e.target.closest('.tdel'); if (b) { rows.splice(+b.dataset.i, 1); renderTargets(); } });
+    $('btnRow').addEventListener('click', () => { rows.push({ isNew: true, Source: 'MANUFACTURER', IsActive: true }); renderTargets(); });
+    $('btnTgtSave').addEventListener('click', async function () {
+        const targets = rows.map(t => ({ analyzerId: +t.AnalyzerId, testId: +t.TestId, unit: t.Unit || null, mean: Number(t.Mean), sd: Number(t.Sd), source: t.Source || 'MANUFACTURER',
+                                         rule41s: !!t.Rule41s, rule10x: !!t.Rule10x, isActive: t.IsActive !== false }));
+        if (targets.some(t => !t.analyzerId || !t.testId || isNaN(t.mean) || !(t.sd > 0))) return QC.fail('Every row needs the analyzer, the parameter, the mean and an SD above 0.');
+        this.disabled = true; const r = await QC.post('@Url.Action("SaveTargets", "IqcSetup")', { lotId: lot.LotId, targets }); this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        QC.ok('Targets saved'); load();
+    });
+
+    $('mRows').addEventListener('click', e => {
+        const ed = e.target.closest('.act-edit'); const tr = e.target.closest('tr[data-id]');
+        if (ed) { openMat(data.materials.find(m => m.MaterialId === +ed.dataset.id)); return; }
+        if (tr) { mat = data.materials.find(m => m.MaterialId === +tr.dataset.id); lot = null; renderMaterials(); renderLots(); loadTargets(); }
+    });
+    $('lRows').addEventListener('click', e => {
+        const ed = e.target.closest('.act-lot'); const tr = e.target.closest('tr[data-id]');
+        if (ed) { openLot(data.lots.find(l => l.LotId === +ed.dataset.id)); return; }
+        if (tr) { lot = data.lots.find(l => l.LotId === +tr.dataset.id); renderLots(); loadTargets(); }
+    });
+    function openMat(m) { matForm.reset(); QC.fill(matForm, m || { Status: true }); $('matTitle').textContent = m ? `Edit ${m.MaterialName} (${m.ControlLevel})` : 'Add control material'; mMat.show(); }
+    function openLot(l) {
+        lotForm.reset(); QC.fill(lotForm, l || { Status: true });
+        ['ExpiryDate', 'ReceivedOn', 'OpenedOn'].forEach(k => { if (l && l[k]) lotForm[k].value = String(l[k]).slice(0, 10); });
+        $('lotTitle').textContent = l ? `Edit lot ${l.LotNo}` : `New lot of ${mat.MaterialName} (${mat.ControlLevel})`; mLot.show();
+    }
+    $('btnAdd')?.addEventListener('click', () => openMat(null));
+    $('btnLot').addEventListener('click', () => openLot(null));
+    $('matSave').addEventListener('click', async function () {
+        const b = QC.formData(matForm); this.disabled = true; const r = await QC.post('@Url.Action("SaveMaterial", "IqcSetup")', b); this.disabled = false;
+        if (!r.success) return QC.fail(r.message); mMat.hide(); QC.ok('Material saved'); load();
+    });
+    $('lotSave').addEventListener('click', async function () {
+        const b = QC.formData(lotForm); b.MaterialId = mat.MaterialId; this.disabled = true; const r = await QC.post('@Url.Action("SaveLot", "IqcSetup")', b); this.disabled = false;
+        if (!r.success) return QC.fail(r.message); mLot.hide(); QC.ok('Lot saved'); load();
+    });
+    load();
+})();
+</script>
+}

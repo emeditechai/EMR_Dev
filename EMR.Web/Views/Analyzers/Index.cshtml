@@ -160,6 +160,7 @@
                     <th class="py-3">Branch</th>
                     <th class="py-3">Department (LAB)</th>
                     <th class="py-3">Interface Protocol</th>
+                    <th class="py-3">Calibration &amp; maintenance</th>
                     <th class="py-3 text-center" style="width: 120px;">Status</th>
                     <th class="pe-4 py-3 text-end" style="width: 140px;">Actions</th>
                 </tr>
@@ -218,6 +219,8 @@
                                     </span>
                                 }
                             </td>
+                            @* LF-06: the analyzer's equipment record (Quality & Compliance > Equipment Register), filled by the script below *@
+                            <td class="eq-status small" data-analyzer="@item.Analyzer_ID"><span class="text-muted">&hellip;</span></td>
                             <td class="text-center">
                                 <form asp-permission="MASTER.ANALYZERS:STATUS" asp-action="ToggleStatus" asp-route-id="@item.Analyzer_ID" method="post" class="d-inline">
                                     @Html.AntiForgeryToken()
@@ -267,7 +270,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="7" class="text-center py-5">
+                        <td colspan="8" class="text-center py-5">
                             <div class="text-muted">
                                 <i class="bi bi-cpu fs-1 d-block mb-2 text-secondary opacity-50"></i>
                                 <h6 class="fw-semibold">No Analyzers Found</h6>
@@ -283,3 +286,43 @@
         </table>
     </div>
 </div>
+
+@* LF-06 (SQLScripts/2253): each analyzer's calibration / maintenance position from the Equipment Register *@
+<span id="eqCanOpen" class="d-none" asp-permission="QC.EQUIPMENT:VIEW"></span>
+<span id="eqCanAdd" class="d-none" asp-permission="QC.EQUIPMENT:ADD"></span>
+@section Scripts {
+<script>
+(function () {
+    const cells = document.querySelectorAll('td.eq-status');
+    if (!cells.length) return;
+    const canOpen = !!document.getElementById('eqCanOpen'), canAdd = !!document.getElementById('eqCanAdd');
+    const cardUrl = '@Url.Action("Card", "QcEquipment")', addUrl = '@Url.Action("Index", "QcEquipment")';
+    const fmt = s => s ? new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    const due = (label, state, date) => ({
+        OVERDUE: `<div class="text-danger fw-semibold">${label} overdue (${fmt(date)})</div>`, NEVER: `<div class="text-danger fw-semibold">${label} not recorded</div>`,
+        DUE_30: `<div class="text-warning-emphasis">${label} due ${fmt(date)}</div>`, OK: `<div class="text-success">${label} ${fmt(date)}</div>` })[state] || '';
+    fetch('@Url.Action("AnalyzerStatus", "QcEquipment")', { headers: { 'Accept': 'application/json' } })
+        .then(r => r.ok ? r.json() : null)
+        .then(res => {
+            const byId = {}; ((res && res.success && res.data) || []).forEach(e => byId[e.AnalyzerId] = e);
+            cells.forEach(td => {
+                const e = byId[td.dataset.analyzer];
+                if (!e) {
+                    td.innerHTML = canAdd ? `<a class="btn btn-sm btn-outline-secondary py-0" href="${addUrl}?analyzerId=${td.dataset.analyzer}"><i class="bi bi-plus-lg me-1"></i>Register as equipment</a>`
+                                          : '<span class="text-muted">Not in equipment register</span>';
+                    return;
+                }
+                if (!e.IsOwnBranch) {   // equipment is branch-wise: handled at the branch it is registered for
+                    td.innerHTML = `<span class="font-monospace small">${e.AssetCode}</span><div class="text-muted small">Registered at ${(e.BranchName || 'another branch').replace(/</g, '&lt;')}</div>`;
+                    return;
+                }
+                const st = e.Status === 'OUT_OF_SERVICE' ? `<span class="badge bg-danger" title="${(e.StatusReason || '').replace(/"/g, '&quot;')}">Out of service</span>`
+                         : e.Status === 'RETIRED' ? '<span class="badge bg-secondary">Retired</span>' : '';
+                const body = `${st}${due('Calibration', e.CalibrationState, e.NextCalibrationDue)}${due('PM', e.PmState, e.NextPmDue)}` || '<span class="text-muted">No schedule set</span>';
+                td.innerHTML = (canOpen ? `<a class="text-decoration-none font-monospace small" href="${cardUrl}?id=${e.EquipmentId}">${e.AssetCode}</a>` : `<span class="font-monospace small">${e.AssetCode}</span>`) + body;
+            });
+        })
+        .catch(() => cells.forEach(td => td.innerHTML = '<span class="text-muted">—</span>'));
+})();
+</script>
+}

@@ -1,0 +1,97 @@
+@{
+    ViewData["Title"] = "Levey-Jennings Charts";
+}
+@* Quality & Compliance > Internal QC > Levey-Jennings Charts (SQLScripts/2254, LF-05): a control level's results over time against
+   its mean and ±1/2/3 SD, points coloured by the Westgard judgement, and the lab's own mean / SD / CV of accepted runs. *@
+<div class="container-fluid px-4 py-3">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+        <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li><li class="breadcrumb-item text-muted">Internal QC</li>
+        <li class="breadcrumb-item active">Levey-Jennings Charts</li></ol></nav>
+    <h4 class="fw-bold mb-3 text-primary"><i class="bi bi-graph-up me-2"></i>Levey-Jennings Charts</h4>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3"><div class="row g-2 align-items-end">
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Analyzer</label><select id="fAnalyzer" class="form-select"></select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Parameter</label><select id="fTest" class="form-select"></select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Control level / lot</label><select id="fTarget" class="form-select"></select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">From</label><input type="date" id="fFrom" class="form-control" /></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">To</label><input type="date" id="fTo" class="form-control" /></div>
+    </div></div></div>
+    <div class="row g-3">
+        <div class="col-xl-9"><div class="card border-0 shadow-sm"><div class="card-body">
+            <div class="fw-semibold mb-1" id="cTitle">Choose a control.</div><div class="small text-muted mb-2" id="cSub"></div>
+            <div style="height:380px"><canvas id="lj"></canvas></div>
+            <div class="small text-muted mt-2"><span class="badge bg-success">&nbsp;</span> accepted &nbsp; <span class="badge bg-warning">&nbsp;</span> warning (1-2s) &nbsp; <span class="badge bg-danger">&nbsp;</span> rejected</div>
+        </div></div></div>
+        <div class="col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body small" id="stats"><span class="text-muted">Statistics appear here.</span></div></div></div>
+        <div class="col-12"><div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Run</th><th class="text-end">Value</th><th class="text-end">z</th><th>Rules</th><th class="text-center">Run status</th><th>Corrective action</th><th>By</th></tr></thead><tbody id="pRows"></tbody></table></div></div></div></div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/lib/chartjs/chart.umd.min.js"></script>
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const preTarget = @(ViewBag.TargetId ?? 0);
+    const $ = x => document.getElementById(x);
+    let all = [], chart = null;
+    const iso = d => d.toISOString().slice(0, 10);
+    const t0 = new Date(); $('fTo').value = iso(t0); const f0 = new Date(); f0.setDate(f0.getDate() - 30); $('fFrom').value = iso(f0);
+    const uniq = (arr, k, n) => [...new Map(arr.map(x => [x[k], { Id: x[k], Name: x[n] }])).values()].sort((a, b) => String(a.Name).localeCompare(String(b.Name)));
+
+    function fillTests(sel) { const t = all.filter(x => String(x.AnalyzerId) === $('fAnalyzer').value); $('fTest').innerHTML = QC.options(uniq(t, 'TestId', 'TestName'), sel, '-- Parameter --'); }
+    function fillTargets(sel) {
+        const t = all.filter(x => String(x.AnalyzerId) === $('fAnalyzer').value && String(x.TestId) === $('fTest').value);
+        $('fTarget').innerHTML = t.map(x => `<option value="${x.TargetId}" ${String(x.TargetId) === String(sel || '') ? 'selected' : ''}>${QC.esc(x.ControlLevel)} · ${QC.esc(x.LotNo)}${x.IsActive ? '' : ' (inactive)'}</option>`).join('');
+    }
+    async function init() {
+        const r = await QC.get('@Url.Action("Targets", "IqcChart")');
+        if (!r.success) return QC.fail(r.message);
+        all = r.data;
+        const pre = all.find(x => x.TargetId === preTarget);
+        $('fAnalyzer').innerHTML = QC.options(uniq(all, 'AnalyzerId', 'AnalyzerName'), pre ? pre.AnalyzerId : '', '-- Analyzer --');
+        if (pre) { fillTests(pre.TestId); fillTargets(pre.TargetId); load(); }
+    }
+    async function load() {
+        const id = $('fTarget').value; if (!id) return;
+        const r = await QC.get('@Url.Action("Data", "IqcChart")', { targetId: id, from: $('fFrom').value, to: $('fTo').value });
+        if (!r.success) return QC.fail(r.message);
+        const { target: t, points: pts, stats: s } = r.data;
+        const m = Number(t.Mean), sd = Number(t.Sd);
+        $('cTitle').textContent = `${t.TestName} · ${t.ControlLevel} (lot ${t.LotNo}) · ${t.AnalyzerName}`;
+        $('cSub').textContent = `Target ${QC.num(m, 2)} ± ${QC.num(sd, 2)} ${t.Unit || ''} (${t.Source === 'LAB' ? 'lab-established' : 'manufacturer'})${t.Rule41s ? ' · 4-1s on' : ''}${t.Rule10x ? ' · 10x on' : ''}`;
+        const labels = pts.map(p => QC.dateTime(p.RunAt));
+        const col = p => p.Status === 'REJECTED' && p.Flags ? '#dc3545' : (p.Flags ? '#f59e0b' : '#198754');
+        const line = (v, c, dash, label) => ({ label, data: pts.map(() => m + v * sd), borderColor: c, borderWidth: v === 0 ? 2 : 1, borderDash: dash, pointRadius: 0, fill: false });
+        const ds = [
+            { label: 'Result', data: pts.map(p => Number(p.Value)), borderColor: '#0d6efd', backgroundColor: pts.map(col), pointBackgroundColor: pts.map(col), pointRadius: 5, tension: 0, borderWidth: 1.5 },
+            line(0, '#198754', [], 'Mean'), line(1, '#94a3b8', [4, 4], '+1 SD'), line(-1, '#94a3b8', [4, 4], '-1 SD'),
+            line(2, '#f59e0b', [6, 3], '+2 SD'), line(-2, '#f59e0b', [6, 3], '-2 SD'), line(3, '#dc3545', [2, 2], '+3 SD'), line(-3, '#dc3545', [2, 2], '-3 SD')];
+        if (chart) chart.destroy();
+        chart = new Chart($('lj'), { type: 'line', data: { labels, datasets: ds },
+            options: { maintainAspectRatio: false, animation: false, plugins: { legend: { display: false },
+                tooltip: { filter: i => i.datasetIndex === 0, callbacks: { label: c => { const p = pts[c.dataIndex]; return `${QC.num(p.Value, 3)} (z ${QC.num(p.ZScore, 2)})${p.Flags ? ' ' + p.Flags : ''}`; } } } },
+                scales: { y: { suggestedMin: m - 4 * sd, suggestedMax: m + 4 * sd, ticks: { callback: v => v } }, x: { ticks: { maxRotation: 60, autoSkip: true } } } } });
+        const bias = s && s.ObsMean != null ? (Number(s.ObsMean) - m) * 100 / m : null;
+        $('stats').innerHTML = `<div class="fw-semibold mb-2">Target</div>
+            <div>Mean <b>${QC.num(m, 3)}</b> · SD <b>${QC.num(sd, 3)}</b> · CV <b>${QC.num(sd * 100 / Math.abs(m), 2)}%</b></div>
+            <hr><div class="fw-semibold mb-2">This period (accepted + warning runs)</div>
+            ${s && s.N ? `<div>n = <b>${s.N}</b></div><div>Mean <b>${QC.num(s.ObsMean, 3)}</b>${bias != null ? ` <span class="${Math.abs(bias) > 5 ? 'text-danger' : 'text-muted'}">(bias ${bias.toFixed(2)}%)</span>` : ''}</div>
+              <div>SD <b>${s.ObsSd == null ? '—' : QC.num(s.ObsSd, 3)}</b> · CV <b>${s.ObsCvPct == null ? '—' : QC.num(s.ObsCvPct, 2) + '%'}</b></div>
+              <div class="mt-2">Warnings <b>${s.Warnings}</b> · rejected runs <b>${pts.filter(p => p.Status === 'REJECTED').length}</b></div>
+              ${s.N >= 20 ? '<div class="alert alert-info py-1 px-2 mt-2 mb-0">20+ points: these can become the lab-established mean / SD of this lot.</div>' : `<div class="text-muted mt-2">${20 - s.N} more runs before a lab-established mean / SD.</div>`}`
+              : '<span class="text-muted">No runs in the period.</span>'}`;
+        $('pRows').innerHTML = pts.length ? pts.slice().reverse().map(p => `<tr class="${p.Flags && p.Status === 'REJECTED' ? 'table-danger' : ''}"><td class="ps-3">${QC.dateTime(p.RunAt)}</td>
+            <td class="text-end">${QC.num(p.Value, 3)}</td><td class="text-end fw-semibold">${QC.num(p.ZScore, 2)}</td><td>${QC.esc(p.Flags || '')}</td>
+            <td class="text-center">${({ ACCEPTED: '<span class="badge bg-success">Accepted</span>', WARNING: '<span class="badge bg-warning text-dark">Warning</span>', REJECTED: '<span class="badge bg-danger">Rejected</span>' })[p.Status]}</td>
+            <td class="small">${QC.esc(p.CorrectiveAction || '')}</td><td class="small">${QC.esc(p.EnteredByName || '')}</td></tr>`).join('')
+            : '<tr><td colspan="7" class="text-center text-muted py-3">No QC run in the period.</td></tr>';
+    }
+    $('fAnalyzer').addEventListener('change', () => { fillTests(); $('fTarget').innerHTML = ''; });
+    $('fTest').addEventListener('change', () => { fillTargets(); load(); });
+    ['fTarget', 'fFrom', 'fTo'].forEach(k => $(k).addEventListener('change', load));
+    init();
+})();
+</script>
+}

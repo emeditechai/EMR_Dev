@@ -35,7 +35,7 @@
             { label: 'Waiting now', color: '#b91c1c', value: (s, h) => h.num(s.WaitingTests), sub: (s) => s.WaitingTests ? `oldest ${hrs(s.OldestWaitingHours)}` : 'nothing waiting' }
         ],
         groups: [
-            { key: 'byPathologist', label: 'Pathologist', rowField: 'PathologistId', byId: true },
+            { key: 'byPathologist', label: 'Pathologist', rowField: 'PathologistId', byId: true, adminOnly: true },   // others see only their own sign-offs
             { key: 'byLevel', label: 'Level', rowField: 'LevelNo', byId: true },
             { key: 'byDepartment', label: 'Department', rowField: 'DepartmentId', byId: true },
             { key: 'byDate', label: 'Sign-off date', rowField: 'SignedDay', name: (r, h) => h.fmtD(r.GroupName) }

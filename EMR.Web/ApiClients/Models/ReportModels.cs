@@ -59,6 +59,11 @@ public class B2CCollectionSummary
     public decimal HighestReceipt { get; set; }
     public decimal CancelledBillCollection { get; set; }
     public int CancelledBillReceipts { get; set; }
+    // 2255 Daily Collection Register: B2C and direct B2B receipts
+    public decimal B2CCollection { get; set; }
+    public decimal B2BCollection { get; set; }
+    public int B2CReceipts { get; set; }
+    public int B2BReceipts { get; set; }
 }
 
 public class B2CCollectionModeRow
@@ -108,6 +113,8 @@ public class B2CCollectionReceiptRow
     public bool IsBillActive { get; set; }
     public int? CollectedById { get; set; }
     public string CollectedBy { get; set; } = string.Empty;
+    public string BillingType { get; set; } = "B2C";      // 2255: B2C | B2B
+    public string? PartnerName { get; set; }
 }
 
 public class B2CCollectionPaymentMethod

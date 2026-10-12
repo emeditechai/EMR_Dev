@@ -41,7 +41,7 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>Reports > LAB > B2C Collection Register: money receipts collected on B2C lab bills.</summary>
+    /// <summary>Reports > LAB > Daily Collection Register: money receipts of B2C bills and B2B bills paid directly (SQLScripts/2255).</summary>
     [HttpGet("lab/b2c-collection-register")]
     public async Task<IActionResult> GetLabB2CCollectionRegister(
         [FromQuery] int branchId,
@@ -52,7 +52,8 @@ public class ReportsController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] int userId = 0,
         [FromQuery] bool isAdmin = false,
-        [FromQuery] bool isSuperAdmin = false)
+        [FromQuery] bool isSuperAdmin = false,
+        [FromQuery] string? billingType = null)
     {
         if (branchId <= 0) return BadRequest(new { message = "Valid branchId is required." });
         if ((toDate.Date - fromDate.Date).TotalDays > 366)
@@ -61,7 +62,7 @@ public class ReportsController : ControllerBase
         try
         {
             var result = await _reportService.GetLabB2CCollectionRegisterAsync(branchId, fromDate, toDate, paymentMethodId, collectedBy, search,
-                userId, isAdmin, isSuperAdmin);
+                userId, isAdmin, isSuperAdmin, billingType?.Trim().ToUpperInvariant());
             return Ok(result);
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 50010 or 50011)
@@ -143,6 +144,12 @@ public class ReportsController : ControllerBase
             ["doctorip-pending"]      = ("dbo.usp_Api_LabReport_DoctorIpPending",      new[] { "ItemType", "Frequency" }, new[] { "DoctorId" }),
             ["doctorip-unconfigured"] = ("dbo.usp_Api_LabReport_DoctorIpUnconfigured", new[] { "Reason" },                new[] { "DoctorId" }),
             // Quality & Compliance: BOM & costing, company masters against the branch's B2C rates (SQLScripts/2248)
+            // LF-06 equipment and EQAS register (SQLScripts/2253)
+            ["iqc-runs"]              = ("dbo.usp_Api_LabReport_IqcRuns",              new[] { "RunStatus" },             new[] { "AnalyzerId", "TestId" }),   // LF-05, SQLScripts/2254
+            ["equipment-due"]         = ("dbo.usp_Api_LabReport_EquipmentDue",         new[] { "DueState" },              new[] { "TypeId", "DepartmentId" }),
+            ["equipment-downtime"]    = ("dbo.usp_Api_LabReport_EquipmentDowntime",    new[] { "BreakdownStatus" },       new[] { "TypeId" }),
+            ["eqas-performance"]      = ("dbo.usp_Api_LabReport_EqasPerformance",      new[] { "Performance" },           new[] { "ProgramId" }),
+            ["capa-register"]         = ("dbo.usp_Api_LabReport_CapaRegister",         new[] { "CapaStatus", "SourceType" }, Array.Empty<string>()),
             ["bom-consumption"]       = ("dbo.usp_Api_LabReport_BomConsumption",       new[] { "RunType" },               new[] { "DepartmentId", "ItemId" }),   // SQLScripts/2249
             ["bom-register"]          = ("dbo.usp_Api_LabReport_BomRegister",          new[] { "AppliesTo" },             new[] { "DepartmentId", "CategoryId" }),
             ["bom-coverage"]          = ("dbo.usp_Api_LabReport_BomCoverage",          new[] { "Coverage" },              new[] { "DepartmentId" }),
@@ -196,7 +203,7 @@ public class ReportsController : ControllerBase
     }
 
     private static readonly string[] OwnerMisSections =
-        { "summary", "trend", "tests", "departments", "doctors", "partners", "quality", "ageing", "modes", "branches" };
+        { "summary", "trend", "tests", "departments", "doctors", "partners", "quality", "ageing", "modes", "branches", "items" };   // items: SQLScripts/2252
 
     /// <summary>LF-18 Owner MIS: revenue by test / department / doctor / partner, TAT, quality, collection and ageing.</summary>
     [HttpGet("lab/owner-mis")]

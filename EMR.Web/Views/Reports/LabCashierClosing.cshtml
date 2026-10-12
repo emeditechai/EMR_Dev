@@ -40,8 +40,8 @@
             { label: 'Paid from wallet', color: '#64748b', value: (s, h) => h.money(s.WalletUsed), sub: (s, h) => `${h.num(s.WalletBills)} bill(s) · no money at the counter` }
         ],
         groups: [
-            { key: 'byCashier', label: 'Cashier', rowField: 'CashierId', byId: true },
-            { key: 'byCashierDay', label: 'Cashier & day', rowField: 'CashierDay' },
+            { key: 'byCashier', label: 'Cashier', rowField: 'CashierId', byId: true, adminOnly: true },   // others see only their own collection
+            { key: 'byCashierDay', label: 'Cashier & day', rowField: 'CashierDay', adminOnly: true },
             { key: 'byMode', label: 'Payment mode', rowField: 'ModeName' },
             { key: 'byDate', label: 'Date', rowField: 'EntryDay', name: (r, h) => h.fmtD(r.GroupName) }
         ],

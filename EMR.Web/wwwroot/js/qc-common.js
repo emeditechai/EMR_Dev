@@ -25,6 +25,16 @@ window.QC = (function () {
         try { return await r.json(); } catch (e) { return { success: false, message: 'The server did not answer. Please try again.' }; }
     }
 
+    /** multipart post (a form with a file): fields = { name: value }, files = { name: File } */
+    async function postForm(url, fields, files) {
+        const fd = new FormData();
+        Object.entries(fields || {}).forEach(([k, v]) => { if (v !== null && v !== undefined && v !== '') fd.append(k, v); });
+        Object.entries(files || {}).forEach(([k, f]) => { if (f) fd.append(k, f); });
+        const r = await fetch(url, { method: 'POST', headers: { 'Accept': 'application/json' }, body: fd });
+        if (r.status === 403) return { success: false, message: 'You do not have permission for this action.' };
+        try { return await r.json(); } catch (e) { return { success: false, message: 'The server did not answer. Please try again.' }; }
+    }
+
     function ok(msg) {
         if (window.Swal) Swal.fire({ icon: 'success', title: msg, timer: 1600, showConfirmButton: false, toast: true, position: 'top-end' });
     }
@@ -87,5 +97,5 @@ window.QC = (function () {
         else select.value = '';
     }
 
-    return { esc, num, qty, money, date, dateTime, get, post, ok, fail, confirm, options, formData, fill, statusBadge, itemPicker, clearPicker };
+    return { esc, num, qty, money, date, dateTime, get, post, postForm, ok, fail, confirm, options, formData, fill, statusBadge, itemPicker, clearPicker };
 })();

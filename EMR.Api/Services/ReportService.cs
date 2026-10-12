@@ -38,7 +38,7 @@ public class ReportService : IReportService
     }
 
     public async Task<B2CCollectionRegisterResult> GetLabB2CCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate,
-        int? paymentMethodId, int? collectedBy, string? search, int userId, bool isAdmin, bool isSuperAdmin)
+        int? paymentMethodId, int? collectedBy, string? search, int userId, bool isAdmin, bool isSuperAdmin, string? billingType = null)
     {
         using var connection = new SqlConnection(_connectionString);
         using var multi = await connection.QueryMultipleAsync(
@@ -53,7 +53,9 @@ public class ReportService : IReportService
                 Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
                 UserId = userId,
                 IsAdmin = isAdmin,
-                IsSuperAdmin = isSuperAdmin
+                IsSuperAdmin = isSuperAdmin,
+                // 2255: B2C | B2B | all
+                BillingType = billingType is "B2C" or "B2B" ? billingType : null
             },
             commandType: CommandType.StoredProcedure,
             commandTimeout: 60);

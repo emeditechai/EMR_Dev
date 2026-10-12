@@ -384,6 +384,15 @@ namespace EMR.Web.Controllers
             if (request.ReportStatusId == 5 && await PathologistApprovalRequiredAsync())
                 return Json(new { success = false, message = "Pathologist approval is required for this branch. Approve the report from the Pathologist Dashboard." });
 
+            // LF-05 (SQLScripts/2254): a parameter with a rejected internal QC run (no corrective action yet) cannot be validated / approved
+            if (request.ReportStatusId is 3 or 5)
+            {
+                var iqcBlock = await EMR.Web.Controllers.Quality.IqcGate.BlockAsync(HttpContext, request.LabOrderId,
+                    (request.Entries ?? new()).Where(e => !string.IsNullOrWhiteSpace(e.TestValue)).Select(e => e.SamplecollectionID));
+                if (iqcBlock != null)
+                    return Json(new { success = false, code = "IQC_REJECTED", message = iqcBlock });
+            }
+
             // NABL: a Critical / Panic result needs its communication recorded before it is approved (SQLScripts/2202)
             if (request.ReportStatusId == 5)
             {

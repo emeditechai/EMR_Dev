@@ -260,6 +260,16 @@
                                 <li><a class="dropdown-item" asp-controller="QcBom" asp-action="Index"><i class="bi bi-diagram-3 me-2"></i>Test BOM</a></li>
                                 <li><a class="dropdown-item" asp-controller="QcSampleKits" asp-action="Index"><i class="bi bi-droplet me-2"></i>Sample Collection Kit</a></li>
                                 <li><a class="dropdown-item" asp-controller="QcCostPreview" asp-action="Index"><i class="bi bi-calculator me-2"></i>BOM Cost Preview</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Internal QC</h6></li>
+                                <li><a class="dropdown-item" asp-controller="IqcEntry" asp-action="Index"><i class="bi bi-clipboard-pulse me-2"></i>Daily QC Entry</a></li>
+                                <li><a class="dropdown-item" asp-controller="IqcChart" asp-action="Index"><i class="bi bi-graph-up me-2"></i>Levey-Jennings Charts</a></li>
+                                <li><a class="dropdown-item" asp-controller="IqcSetup" asp-action="Index"><i class="bi bi-sliders me-2"></i>QC Materials, Lots &amp; Targets</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Equipment &amp; EQAS</h6></li>
+                                <li><a class="dropdown-item" asp-controller="QcEquipment" asp-action="Index"><i class="bi bi-tools me-2"></i>Equipment Register</a></li>
+                                <li><a class="dropdown-item" asp-controller="QcEqas" asp-action="Index"><i class="bi bi-award me-2"></i>EQAS Programmes &amp; Results</a></li>
+                                <li><a class="dropdown-item" asp-controller="QcCapa" asp-action="Index"><i class="bi bi-clipboard2-check me-2"></i>CAPA Register</a></li>
                             </ul>
                         </li>
                         <li class="nav-item dropdown">
@@ -334,7 +344,7 @@
                                     <a class="dropdown-item dropdown-submenu-toggle" href="#"><i class="bi bi-droplet-half me-2"></i>LAB<i class="bi bi-chevron-right submenu-arrow"></i></a>
                                     <ul class="dropdown-menu dropdown-submenu-menu">
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabBillingRegister"><i class="bi bi-journal-text me-2"></i>Daily Billing Register</a></li>
-                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabB2CCollectionRegister"><i class="bi bi-receipt me-2"></i>B2C Collection Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabB2CCollectionRegister"><i class="bi bi-receipt me-2"></i>Daily Collection Register</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabOutstandingDues"><i class="bi bi-hourglass-split me-2"></i>Outstanding Dues &amp; Ageing</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabDiscountRegister"><i class="bi bi-percent me-2"></i>Discount Register</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabCancellationRefund"><i class="bi bi-x-octagon me-2"></i>Cancellation &amp; Refund Register</a></li>
@@ -364,6 +374,13 @@
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabAnalyzerCost"><i class="bi bi-cpu me-2"></i>Analyzer-wise Cost Comparison</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabPriceImpact"><i class="bi bi-sliders me-2"></i>Price-Change Impact (What-if)</a></li>
                                         <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabDeptCostSummary"><i class="bi bi-building me-2"></i>Department Cost Summary</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">Equipment &amp; EQAS</h6></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabIqcRuns"><i class="bi bi-clipboard-pulse me-2"></i>IQC Run Register</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabEquipmentDue"><i class="bi bi-calendar-check me-2"></i>Equipment Calibration &amp; Maintenance Due</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabEquipmentDowntime"><i class="bi bi-exclamation-octagon me-2"></i>Equipment Breakdown &amp; Downtime</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabEqasPerformance"><i class="bi bi-award me-2"></i>EQAS Performance</a></li>
+                                        <li><a class="dropdown-item" asp-controller="Reports" asp-action="LabCapaRegister"><i class="bi bi-clipboard2-check me-2"></i>CAPA Register</a></li>
                                     </ul>
                                 </li>
                                 <li class="dropdown-submenu">

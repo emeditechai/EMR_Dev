@@ -1,0 +1,58 @@
+@{
+    ViewData["Title"] = "IQC Run Register";
+    ViewData["ReportSubtitle"] = "Internal QC runs of the period with their Westgard judgement and corrective actions";
+    ViewData["ReportIcon"] = "bi-clipboard-pulse";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["DateLabel"] = "run date";
+    ViewData["ScopeNote"] = "QC runs of this branch";
+}
+@* SQLScripts/2254 (LF-05): one row per run (a parameter's control levels at one time) *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const chartUrl = '@Url.Action("Index", "IqcChart")';
+    const tone = { ACCEPTED: 'good', WARNING: 'warn', REJECTED: 'bad' };
+    LabReport.init({
+        report: 'iqc-runs', title: 'IQC Run Register', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Parameter or analyzer...',
+        filters: [
+            { id: 'runStatus', label: 'Status', allLabel: 'All runs', options: [['ACCEPTED', 'Accepted'], ['WARNING', 'Warning (1-2s)'], ['REJECTED', 'Rejected'], ['PENDING', 'Rejected, action pending']] },
+            { id: 'analyzerId', label: 'Analyzer', allLabel: 'All analyzers', fromOptions: 'analyzerId' },
+            { id: 'testId', label: 'Parameter', allLabel: 'All parameters', fromOptions: 'testId' }
+        ],
+        kpis: [
+            { label: 'QC runs', color: '#0f766e', value: (s, h) => h.num(s.Runs), sub: (s, h) => `${h.num(s.Parameters)} parameters · ${h.num(s.Analyzers)} analyzers` },
+            { label: 'Not rejected', color: '#15803d', value: s => s.AcceptedPct == null ? '—' : `${Number(s.AcceptedPct).toFixed(1)}%`, sub: (s, h) => `${h.num(s.Accepted)} accepted · ${h.num(s.Warnings)} warnings` },
+            { label: 'Rejected', color: '#b91c1c', value: (s, h) => h.num(s.Rejected), sub: () => '1-3s, 2-2s, R-4s, 4-1s, 10x' },
+            { label: 'Action pending', color: '#7f1d1d', value: (s, h) => h.num(s.ActionPending), sub: () => 'validation blocked for these parameters' }
+        ],
+        groups: [
+            { key: 'byAnalyzer', label: 'Analyzer', rowField: 'AnalyzerId', byId: true },
+            { key: 'byTest', label: 'Parameter', rowField: 'TestId', byId: true },
+            { key: 'byStatus', label: 'Status', rowField: 'StatusLabel' },
+            { key: 'byDate', label: 'Date', rowField: 'RunDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [{ field: 'Runs', label: 'Runs', num: true }, { field: 'Warnings', label: 'Warnings', num: true }, { field: 'Rejected', label: 'Rejected', num: true },
+                    { field: 'AcceptedPct', label: 'Not rejected %', num: true, total: 'none', fmt: v => QcRep.pct(v) }],
+        shareOf: 'Runs',
+        rowClass: r => r.ActionPending ? 'row-muted' : '',
+        cols: [
+            { label: 'Run', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.RunAt), text: r => r.RunAt },
+            { label: 'Analyzer', html: (r, h) => h.esc(r.AnalyzerName || ''), text: r => r.AnalyzerName || '' },
+            { label: 'Parameter', html: (r, h) => `<span class="fw-semibold">${h.esc(r.TestName)}</span>`, text: r => r.TestName },
+            { label: 'Control values', html: (r, h) => `<span class="fs-9">${h.esc(r.ValuesText || '')}</span>`, text: r => r.ValuesText || '' },
+            { label: 'Judgement', html: (r, h) => QcRep.pill(r.StatusLabel + (r.Rules && r.Status === 'REJECTED' ? ' · ' + r.Rules : ''), tone[r.Status], h), text: r => `${r.StatusLabel} ${r.Rules || ''}` },
+            { label: 'Corrective action', html: (r, h) => r.ActionPending ? '<span class="text-danger fw-semibold">pending · validation blocked</span>'
+                  : `<span class="fs-9">${h.esc(r.CorrectiveAction || '')}</span>${r.PatientImpact ? `<div class="fs-9 text-muted">Look-back: ${h.esc(r.PatientImpact)}</div>` : ''}${r.CapaNo ? `<div class="fs-9">${h.esc(r.CapaNo)}</div>` : ''}`,
+              text: r => r.CorrectiveAction || (r.ActionPending ? 'pending' : '') },
+            { label: 'By', html: (r, h) => `<span class="fs-9">${h.esc(r.EnteredByName || '')}${r.ActionByName ? '<br>action: ' + h.esc(r.ActionByName) : ''}</span>`, text: r => r.EnteredByName || '' }
+        ]
+    });
+})();
+</script>
+}
