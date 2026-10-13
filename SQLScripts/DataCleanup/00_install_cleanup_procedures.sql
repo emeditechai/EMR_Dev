@@ -22,15 +22,27 @@
 --   cleanup.usp_ClearOpdTransactions   OPD bookings / bills: service items, payments, cancellation & refund,
 --                                       consultations (EMR), video consultations, doctor disbursal & adjustments,
 --                                       vitals, ledger postings, OPD audit entries.
+--                                       (2026-10-13: also misc charges, critical value calls, BOM consumption, doctor IP
+--                                       commission, membership points of the bills, and every LAB / OPD ledger kind:
+--                                       GST, discount, membership discount, round-off, receipt, refund; doctor settlements)
+--   cleanup.usp_ClearMembership        Membership cards, members, points ledger, redeem OTPs, WhatsApp log, card-fee
+--                                       payments (module MEM) and MEM_* ledger vouchers.
+--   cleanup.usp_ClearAccounts          OPD / LAB Day Closing; petty cash floats, expenses (bill scans), closings; manual
+--                                       vouchers (bill scans); their ledger vouchers. Counters, ledgers, heads kept.
+--   cleanup.usp_ClearQuality           BOM consumption, IQC runs / results, EQAS cycles / results, CAPA, equipment
+--                                       breakdowns / calibrations / maintenance (equipment and programmes kept).
+--   cleanup.usp_ClearRemainingLedger   Every ledger voucher still left on the branch (only with LAB, OPD, MEMBERSHIP and
+--                                       ACCOUNTS), so the books start from the ledger opening balances.
 --   cleanup.usp_ClearLabRateLists      Lab rate lists: B2C, Franchise, Corporate (header + detail).
 --   cleanup.usp_ClearPatients          Patient Master (OPD > Patient Master) - only patients with no transaction left.
 --   cleanup.usp_ClearDoctors           Doctor Master and its set-up (branches, departments, fees, schedules, rooms,
 --                                       commission, visit process, Doctor IP) - only doctors with no transaction left.
 --   cleanup.usp_ClearFranchises        Lab Franchise Master and its set-up (credit limit, wallet & top-ups, barcode
 --                                       series & pool, franchise rate lists) - only franchises with no bill left.
---   cleanup.usp_ClearActivityLogs      Page-view / activity audit entries, e-mail and WhatsApp send logs.
+--   cleanup.usp_ClearActivityLogs      Page-view / activity audit entries, e-mail and WhatsApp send logs, bell
+--                                       notifications, page-permission decisions, Doctor IP access log.
 --                                       Security history (SEC entries, PermissionAuditLog) is kept.
---   cleanup.usp_ResetSequences         Bill, token, receipt, cancellation, barcode and patient-code counters of a
+--   cleanup.usp_ResetSequences         Bill, token, receipt, cancellation, barcode, accounts voucher and patient-code counters of a
 --                                       branch, reset only when that branch has no document of that kind left.
 --
 -- Masters and configuration are never touched: company, branches, users & roles, permissions, departments,
@@ -70,6 +82,49 @@ AS
 BEGIN
     SET NOCOUNT ON;
     INSERT INTO #CleanupReport (Area, ObjectName, Action, RowsAffected, Note) VALUES (@Area, @Object, @Action, @Rows, @Note);
+END;
+GO
+
+-- Deletes the ledger vouchers listed in the caller's #L (TransactionId), with any voucher that reverses one of them
+-- (a cancelled voucher's reversal), and reports the rows.
+CREATE OR ALTER PROCEDURE cleanup.usp_DeleteLedger
+    @Area NVARCHAR(40),
+    @Note NVARCHAR(300)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @n INT;
+    WHILE 1 = 1
+    BEGIN
+        INSERT INTO #L (TransactionId)
+        SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
+        WHERE t.ReversalOfTransactionId IN (SELECT TransactionId FROM #L) AND t.TransactionId NOT IN (SELECT TransactionId FROM #L);
+        IF @@ROWCOUNT = 0 BREAK;
+    END
+    DELETE d FROM dbo.Acc_LedgerTransactionDetail d INNER JOIN #L l ON l.TransactionId = d.TransactionId; SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @Area, 'Acc_LedgerTransactionDetail', 'DELETE', @n, 'ledger lines';
+    DELETE t FROM dbo.Acc_LedgerTransaction t INNER JOIN #L l ON l.TransactionId = t.TransactionId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @Area, 'Acc_LedgerTransaction', 'DELETE', @n, @Note;
+END;
+GO
+
+-- Membership points of the cards in the caller's #MC: card balance = the sum of its ledger points; what is left of
+-- each earning (RemainingPoints) is worked out again, oldest earning used first.
+CREATE OR ALTER PROCEDURE cleanup.usp_RecalcMembershipPoints
+    @Area NVARCHAR(40)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @n INT;
+    ;WITH e AS (SELECT l.LedgerId, l.CardId, l.Points,
+                       SUM(l.Points) OVER (PARTITION BY l.CardId ORDER BY l.CreatedDate, l.LedgerId ROWS UNBOUNDED PRECEDING) AS Cum
+                FROM dbo.MembershipLedger l INNER JOIN #MC m ON m.CardId = l.CardId WHERE l.Points > 0),
+          u AS (SELECT l.CardId, -SUM(l.Points) AS Used FROM dbo.MembershipLedger l INNER JOIN #MC m ON m.CardId = l.CardId
+                WHERE l.Points < 0 GROUP BY l.CardId)
+    UPDATE l SET l.RemainingPoints = CASE WHEN e.Cum - ISNULL(u.Used, 0) >= e.Points THEN e.Points
+                                          WHEN e.Cum - ISNULL(u.Used, 0) <= 0 THEN 0 ELSE e.Cum - ISNULL(u.Used, 0) END
+    FROM dbo.MembershipLedger l INNER JOIN e ON e.LedgerId = l.LedgerId LEFT JOIN u ON u.CardId = e.CardId;
+    UPDATE c SET c.PointsBalance = ISNULL((SELECT SUM(l.Points) FROM dbo.MembershipLedger l WHERE l.CardId = c.CardId), 0)
+    FROM dbo.MembershipCard c INNER JOIN #MC m ON m.CardId = c.CardId;                                SET @n = @@ROWCOUNT;
+    IF @n > 0 EXEC cleanup.usp_Report @Area, 'MembershipCard', 'UPDATE', @n, 'points balances recalculated from the remaining points entries';
 END;
 GO
 
@@ -150,6 +205,15 @@ BEGIN
     CREATE TABLE #P (PaymentHeaderId INT PRIMARY KEY);
     INSERT INTO #P SELECT ph.PaymentHeaderId FROM dbo.PaymentHeader ph
     WHERE ph.ModuleCode = 'LAB' AND (ph.ModuleRefId IN (SELECT LabOrderId FROM #O) OR ph.BranchId IN (SELECT BranchId FROM #B));
+
+    -- membership points earned / redeemed on these bills (the cards stay; their balances are worked out again)
+    CREATE TABLE #MC (CardId INT PRIMARY KEY);
+    INSERT INTO #MC SELECT DISTINCT l.CardId FROM dbo.MembershipLedger l INNER JOIN #P p ON p.PaymentHeaderId = l.PaymentHeaderId;
+    DELETE x FROM dbo.MembershipPointsWhatsAppLog x INNER JOIN #P p ON p.PaymentHeaderId = x.PaymentHeaderId; SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipPointsWhatsAppLog', 'DELETE', @n, 'points WhatsApp messages of these bills';
+    DELETE x FROM dbo.MembershipRedeemOtp x INNER JOIN #P p ON p.PaymentHeaderId = x.UsedPaymentHeaderId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipRedeemOtp', 'DELETE', @n, 'redeem OTPs used on these bills';
+    DELETE x FROM dbo.MembershipLedger x INNER JOIN #P p ON p.PaymentHeaderId = x.PaymentHeaderId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipLedger', 'DELETE', @n, 'points earned / redeemed on these bills';
+    EXEC cleanup.usp_RecalcMembershipPoints @A;
+
     DELETE d FROM dbo.PaymentDetail d INNER JOIN #P p ON p.PaymentHeaderId = d.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentDetail', 'DELETE', @n, 'money receipts';
     DELETE l FROM dbo.PaymentLineItem l INNER JOIN #P p ON p.PaymentHeaderId = l.PaymentHeaderId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentLineItem', 'DELETE', @n, 'bill lines';
     DELETE h FROM dbo.PaymentHeader h INNER JOIN #P p ON p.PaymentHeaderId = h.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentHeader', 'DELETE', @n, 'bill payment headers';
@@ -183,13 +247,15 @@ BEGIN
     FROM dbo.LabFranchiseWallet wl INNER JOIN #F f ON f.Franchise_ID = wl.Franchise_ID;              SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabFranchiseWallet', 'UPDATE', @n, 'wallet balances recalculated from the remaining transactions';
 
     -- ledger postings
+    -- every LAB kind of the branch: bill, GST, discount, membership discount, round-off, receipt, cancellation, refund;
+    -- B2B bill / wallet payment / settlement; membership points earned or reversed on LAB bills (MEM_EARN, MEM_REVERSE)
     CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);
     INSERT INTO #L SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
-    WHERE (t.ReferenceType IN ('LAB_BILL', 'B2B_LAB_BILL', 'B2B_WALLET_PAY', 'LAB_CANCEL') AND (t.ReferenceId IN (SELECT LabOrderId FROM #O) OR t.BranchId IN (SELECT BranchId FROM #B)))
-       OR (t.ReferenceType = 'B2B_SETTLEMENT' AND t.BranchId IN (SELECT BranchId FROM #B))
+    WHERE (t.ReferenceType IN ('LAB_BILL', 'B2B_LAB_BILL', 'B2B_WALLET_PAY', 'LAB_CANCEL') AND t.ReferenceId IN (SELECT LabOrderId FROM #O))
+       OR (t.BranchId IN (SELECT BranchId FROM #B)
+           AND (t.ReferenceType LIKE 'LAB[_]%' OR t.ReferenceType IN ('B2B_LAB_BILL', 'B2B_WALLET_PAY', 'B2B_SETTLEMENT', 'MEM_EARN', 'MEM_REVERSE')))
        OR (@WholeCompany = 1 AND t.ReferenceType = 'B2B_WALLET_TOPUP' AND t.ReferenceId IN (SELECT Franchise_ID FROM #F));
-    DELETE d FROM dbo.Acc_LedgerTransactionDetail d INNER JOIN #L l ON l.TransactionId = d.TransactionId; SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_LedgerTransactionDetail', 'DELETE', @n, 'ledger lines';
-    DELETE t FROM dbo.Acc_LedgerTransaction t INNER JOIN #L l ON l.TransactionId = t.TransactionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_LedgerTransaction', 'DELETE', @n, 'ledger vouchers (LAB bill, cancel, B2B bill / wallet / settlement)';
+    EXEC cleanup.usp_DeleteLedger @A, N'ledger vouchers (LAB bill, GST, discount, round-off, receipt, cancel, refund; B2B bill / wallet / settlement; points earned)';
 
     -- messages and audit entries of these bills
     DELETE w FROM dbo.WhatsAppLog w WHERE w.ModuleCode IN ('LAB', 'LABREPORT')
@@ -200,7 +266,22 @@ BEGIN
                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuditLogs', 'DELETE', @n, 'LAB audit entries of these bills';
     END
 
+    -- critical value calls, reagent consumption (BOM) and referring-doctor (IP) commission worked out on these bills
+    DELETE x FROM dbo.LabCriticalCommunication x INNER JOIN #O o ON o.LabOrderId = x.LabOrderId;     SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabCriticalCommunication', 'DELETE', @n, 'critical value communication';
+    DELETE x FROM dbo.QcConsumptionLine x WHERE x.ConsumptionId IN (SELECT c.ConsumptionId FROM dbo.QcConsumption c INNER JOIN #O o ON o.LabOrderId = c.LabOrderId);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcConsumptionLine', 'DELETE', @n, 'reagent / consumable lines used by these tests';
+    DELETE x FROM dbo.QcConsumption x INNER JOIN #O o ON o.LabOrderId = x.LabOrderId;                SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcConsumption', 'DELETE', @n, 'BOM consumption of these tests';
+    DELETE x FROM dbo.QcConsumptionLog x INNER JOIN #O o ON o.LabOrderId = x.LabOrderId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcConsumptionLog', 'DELETE', @n, 'BOM consumption errors';
+    DELETE x FROM dbo.Doctor_IP_Commission_Dtl x INNER JOIN #O o ON o.LabOrderId = x.LabOrderId;     SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Doctor_IP_Commission_Dtl', 'DELETE', @n, 'doctor IP commission lines of these bills';
+    DELETE h FROM dbo.Doctor_IP_Commission_Hdr h
+    WHERE h.Branch_ID IN (SELECT BranchId FROM #B) AND NOT EXISTS (SELECT 1 FROM dbo.Doctor_IP_Commission_Dtl d WHERE d.Commission_Hdr_ID = h.Commission_Hdr_ID);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Doctor_IP_Commission_Hdr', 'DELETE', @n, 'doctor IP commission runs left without lines';
+    DELETE x FROM dbo.Doctor_IP_Commission_RunLog x WHERE x.Branch_ID IN (SELECT BranchId FROM #B);  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Doctor_IP_Commission_RunLog', 'DELETE', @n, 'doctor IP commission run log';
+    DELETE x FROM dbo.UserNotification x WHERE x.RefModule = 'LAB' AND x.RefId IN (SELECT LabOrderId FROM #O);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'UserNotification', 'DELETE', @n, 'bell notifications about these bills';
+
     -- the bills
+    DELETE x FROM dbo.LabOrderMiscCharge x INNER JOIN #O o ON o.LabOrderId = x.LabOrderId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabOrderMiscCharge', 'DELETE', @n, 'misc charges on the bills';
     DELETE i FROM dbo.LabOrderItem i INNER JOIN #O o ON o.LabOrderId = i.LabOrderId;                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabOrderItem', 'DELETE', @n, 'billed tests';
     DELETE lo FROM dbo.LabOrder lo INNER JOIN #O o ON o.LabOrderId = lo.LabOrderId;                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabOrder', 'DELETE', @n, 'B2C / B2B LAB bills';
 END;
@@ -226,6 +307,7 @@ BEGIN
     INSERT INTO #S SELECT s.OPDServiceId FROM dbo.PatientOPDService s INNER JOIN #B b ON b.BranchId = s.BranchId;
 
     DELETE x FROM dbo.PatientOPDServiceItem x INNER JOIN #S s ON s.OPDServiceId = x.OPDServiceId;     SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PatientOPDServiceItem', 'DELETE', @n, 'booked services';
+    DELETE x FROM dbo.OPDTokenStatusLog x INNER JOIN #S s ON s.OPDServiceId = x.OPDServiceId;         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'OPDTokenStatusLog', 'DELETE', @n, 'token status history';
     DELETE x FROM dbo.EmrPatientConsultation x INNER JOIN #S s ON s.OPDServiceId = x.OPDServiceId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'EmrPatientConsultation', 'DELETE', @n, 'doctor consultations (EMR)';
     DELETE x FROM dbo.tbl_VideoConsultation x INNER JOIN #S s ON s.OPDServiceId = x.OPDServiceId;     SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'tbl_VideoConsultation', 'DELETE', @n, 'video consultations';
 
@@ -236,6 +318,7 @@ BEGIN
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorBillingAdjustment', 'DELETE', @n, 'doctor bill adjustments';
     DELETE x FROM dbo.DoctorDisbursal x WHERE x.VisitId IN (SELECT OPDServiceId FROM #S) OR x.BranchId IN (SELECT BranchId FROM #B);
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorDisbursal', 'DELETE', @n, 'doctor disbursal';
+    DELETE x FROM dbo.DoctorSettlement x WHERE x.BranchId IN (SELECT BranchId FROM #B);               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorSettlement', 'DELETE', @n, 'doctor settlements / payout vouchers of the branch';
 
     -- payments: OPD payments only. A payment of another module that points at one of these visits (OPDServiceId)
     -- keeps its record and loses only that link.
@@ -257,11 +340,14 @@ BEGIN
     DELETE bc FROM dbo.BillCancellation bc INNER JOIN #C c ON c.CancellationId = bc.CancellationId;   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'BillCancellation', 'DELETE', @n, 'Bill Cancellation (OPD)';
 
     -- ledger postings
+    -- every OPD kind of the branch: bill, discount, round-off, receipt, cancellation, refund
     CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);
     INSERT INTO #L SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
-    WHERE t.ReferenceType IN ('OPD_BILL', 'OPD_CANCEL') AND (t.ReferenceId IN (SELECT OPDServiceId FROM #S) OR t.BranchId IN (SELECT BranchId FROM #B));
-    DELETE d FROM dbo.Acc_LedgerTransactionDetail d INNER JOIN #L l ON l.TransactionId = d.TransactionId; SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_LedgerTransactionDetail', 'DELETE', @n, 'ledger lines';
-    DELETE t FROM dbo.Acc_LedgerTransaction t INNER JOIN #L l ON l.TransactionId = t.TransactionId;   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_LedgerTransaction', 'DELETE', @n, 'ledger vouchers (OPD bill, cancel)';
+    WHERE (t.ReferenceType IN ('OPD_BILL', 'OPD_CANCEL') AND t.ReferenceId IN (SELECT OPDServiceId FROM #S))
+       OR (t.ReferenceType LIKE 'OPD[_]%' AND t.BranchId IN (SELECT BranchId FROM #B));
+    EXEC cleanup.usp_DeleteLedger @A, N'ledger vouchers (OPD bill, discount, round-off, receipt, cancel, refund)';
+    DELETE x FROM dbo.UserNotification x WHERE x.RefModule = 'OPD' AND x.RefId IN (SELECT OPDServiceId FROM #S);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'UserNotification', 'DELETE', @n, 'bell notifications about these bills';
 
     -- vitals: recorded against the patient (no branch on the record) - those of patients of the branches in scope
     DELETE v FROM dbo.PatientVitals v
@@ -329,10 +415,12 @@ BEGIN
        OR EXISTS (SELECT 1 FROM dbo.PaymentHeader x WHERE x.PatientId = pt.PatientId)
        OR EXISTS (SELECT 1 FROM dbo.SampleCollection x WHERE x.PatientID = pt.PatientId)
        OR EXISTS (SELECT 1 FROM dbo.EmrPatientConsultation x WHERE x.PatientId = pt.PatientId)
-       OR EXISTS (SELECT 1 FROM dbo.tbl_VideoConsultation x WHERE x.PatientId = pt.PatientId);
+       OR EXISTS (SELECT 1 FROM dbo.tbl_VideoConsultation x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.MembershipCard x WHERE x.PrimaryPatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.MembershipCardMember x WHERE x.PatientId = pt.PatientId);
     DELETE pt FROM #Pt pt INNER JOIN #Keep k ON k.PatientId = pt.PatientId;
     SELECT @n = COUNT(1) FROM #Keep;
-    IF @n > 0 EXEC cleanup.usp_Report @A, 'PatientMaster', 'KEPT', @n, 'still have bills / bookings (of another branch, or their transactions were not cleared)';
+    IF @n > 0 EXEC cleanup.usp_Report @A, 'PatientMaster', 'KEPT', @n, 'still have bills / bookings / a membership card (of another branch, or not cleared)';
 
     IF OBJECT_ID('tempdb..#CleanupFiles') IS NOT NULL
         INSERT INTO #CleanupFiles (Area, FilePath)
@@ -453,6 +541,13 @@ BEGIN
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuditLogs', 'DELETE', @n, 'activity / page-view / module audit entries (security entries kept)';
     DELETE e FROM dbo.EmailLogs e WHERE @All = 1 OR e.BranchId IN (SELECT BranchId FROM #B);           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'EmailLogs', 'DELETE', @n, 'e-mail send log';
     DELETE w FROM dbo.WhatsAppLog w WHERE @All = 1 OR w.BranchId IN (SELECT BranchId FROM #B);         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'WhatsAppLog', 'DELETE', @n, 'WhatsApp send log';
+    DELETE x FROM dbo.UserNotification x
+    WHERE @All = 1 OR x.BranchId IN (SELECT BranchId FROM #B) OR (@BranchId IS NULL AND x.BranchId IS NULL AND x.CompanyId = @CompanyId);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'UserNotification', 'DELETE', @n, 'bell notifications';
+    DELETE x FROM dbo.AuthorizationDecisionLog x WHERE @All = 1 OR x.Branch_ID IN (SELECT BranchId FROM #B);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuthorizationDecisionLog', 'DELETE', @n, 'page permission decisions (audit mode)';
+    DELETE x FROM dbo.DoctorIpAccessLog x WHERE @All = 1 OR (@BranchId IS NULL AND x.CompanyId = @CompanyId);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorIpAccessLog', 'DELETE', @n, 'Doctor IP screen access log';
 END;
 GO
 
@@ -501,9 +596,206 @@ BEGIN
     UPDATE s SET s.LastSeq = 0 FROM dbo.ReceiptSequence s INNER JOIN #B b ON b.BranchId = s.BranchId
     WHERE NOT EXISTS (SELECT 1 FROM dbo.PaymentHeader x WHERE x.BranchId = s.BranchId);                SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'ReceiptSequence', 'RESET', @n, 'money receipt numbers (OPD and LAB share it)';
 
+    -- accounts voucher numbers (petty cash, contra, journal, payment, receipt ...): per voucher type and financial year,
+    -- restarted when the branch has no voucher of that type and year left
+    DELETE s FROM dbo.Acc_VoucherSequence s INNER JOIN #B b ON b.BranchId = s.BranchId
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.Acc_LedgerTransaction t
+                      WHERE t.BranchId = s.BranchId AND t.VoucherTypeId = s.VoucherTypeId AND t.FinancialYear = s.FinancialYear);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_VoucherSequence', 'RESET', @n, 'accounts voucher numbers';
+
     -- patient codes
     UPDATE s SET s.LastSeq = 0 FROM dbo.PatientCodeCounter s INNER JOIN #B b ON b.BranchId = s.BranchId
     WHERE NOT EXISTS (SELECT 1 FROM dbo.PatientMaster x WHERE x.BranchId = s.BranchId);                SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PatientCodeCounter', 'RESET', @n, 'patient codes';
+END;
+GO
+
+-- ============================================================================
+-- Membership cards (OPD / LAB > Membership): cards issued at the branches in scope, their members, points, redeem
+-- OTPs, WhatsApp messages, the card-fee payments and their ledger vouchers. A card still used by a bill that is not
+-- being cleared is kept.
+-- ============================================================================
+CREATE OR ALTER PROCEDURE cleanup.usp_ClearMembership
+    @CompanyId INT = NULL,
+    @BranchId  INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC cleanup.usp_Guard;
+    DECLARE @n INT, @A NVARCHAR(40) = N'Membership';
+    CREATE TABLE #B (BranchId INT PRIMARY KEY, CompanyId INT);
+    INSERT INTO #B SELECT BranchId, CompanyId FROM cleanup.ufn_ScopeBranches(@CompanyId, @BranchId);
+
+    CREATE TABLE #Card (CardId INT PRIMARY KEY);
+    INSERT INTO #Card SELECT c.CardId FROM dbo.MembershipCard c
+    WHERE c.IssueBranchId IN (SELECT BranchId FROM #B)
+       OR (@BranchId IS NULL AND c.IssueBranchId IS NULL AND c.CompanyId IN (SELECT CompanyId FROM #B));
+    CREATE TABLE #KeepCard (CardId INT PRIMARY KEY);
+    INSERT INTO #KeepCard SELECT DISTINCT ph.MembershipCardId FROM dbo.PaymentHeader ph
+    WHERE ph.MembershipCardId IN (SELECT CardId FROM #Card) AND ph.ModuleCode <> 'MEM';
+    DELETE c FROM #Card c INNER JOIN #KeepCard k ON k.CardId = c.CardId;
+    SELECT @n = COUNT(1) FROM #KeepCard;
+    IF @n > 0 EXEC cleanup.usp_Report @A, 'MembershipCard', 'KEPT', @n, 'still used by OPD / LAB bills that were not cleared';
+
+    DELETE x FROM dbo.MembershipRedeemOtp x INNER JOIN #Card c ON c.CardId = x.CardId;               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipRedeemOtp', 'DELETE', @n, 'points redeem OTPs';
+    DELETE x FROM dbo.MembershipPointsWhatsAppLog x INNER JOIN #Card c ON c.CardId = x.CardId;       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipPointsWhatsAppLog', 'DELETE', @n, 'points WhatsApp messages';
+    DELETE x FROM dbo.MembershipLedger x INNER JOIN #Card c ON c.CardId = x.CardId;                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipLedger', 'DELETE', @n, 'points earned / redeemed / issued';
+    DELETE x FROM dbo.MembershipCardMember x INNER JOIN #Card c ON c.CardId = x.CardId;              SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipCardMember', 'DELETE', @n, 'family members on the cards';
+
+    -- card fees (payments of module MEM)
+    CREATE TABLE #P (PaymentHeaderId INT PRIMARY KEY);
+    INSERT INTO #P SELECT ph.PaymentHeaderId FROM dbo.PaymentHeader ph
+    WHERE ph.ModuleCode = 'MEM'
+      AND (ph.BranchId IN (SELECT BranchId FROM #B)
+           OR ph.PaymentHeaderId IN (SELECT c.FeePaymentHeaderId FROM dbo.MembershipCard c INNER JOIN #Card x ON x.CardId = c.CardId));
+    DELETE d FROM dbo.PaymentDetail d INNER JOIN #P p ON p.PaymentHeaderId = d.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentDetail', 'DELETE', @n, 'card fee receipts';
+    DELETE l FROM dbo.PaymentLineItem l INNER JOIN #P p ON p.PaymentHeaderId = l.PaymentHeaderId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentLineItem', 'DELETE', @n, 'card fee lines';
+    DELETE h FROM dbo.PaymentHeader h INNER JOIN #P p ON p.PaymentHeaderId = h.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentHeader', 'DELETE', @n, 'card fee payments';
+
+    -- ledger: card sale, fee receipt, points earned / expired / reversed
+    CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);
+    INSERT INTO #L SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
+    WHERE t.ReferenceType LIKE 'MEM[_]%' AND t.BranchId IN (SELECT BranchId FROM #B);
+    EXEC cleanup.usp_DeleteLedger @A, N'ledger vouchers (card sale, fee receipt, points earned / expired / reversed)';
+
+    DELETE x FROM dbo.MembershipCard x INNER JOIN #Card c ON c.CardId = x.CardId;                    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MembershipCard', 'DELETE', @n, 'membership cards (numbering restarts from the highest card left)';
+END;
+GO
+
+-- ============================================================================
+-- Accounts (Utility > Accounts) and day closing: OPD / LAB Day Closing with their petty cash links, petty cash
+-- floats, expenses (with bill scans) and closings, manual vouchers (with bill scans), and their ledger vouchers.
+-- Kept: ledgers, groups, expense heads, payees, petty cash counters, voucher types, accounts settings, book locks.
+-- ============================================================================
+CREATE OR ALTER PROCEDURE cleanup.usp_ClearAccounts
+    @CompanyId INT = NULL,
+    @BranchId  INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC cleanup.usp_Guard;
+    DECLARE @n INT, @A NVARCHAR(40) = N'Accounts & day closing';
+    CREATE TABLE #B (BranchId INT PRIMARY KEY, CompanyId INT);
+    INSERT INTO #B SELECT BranchId, CompanyId FROM cleanup.ufn_ScopeBranches(@CompanyId, @BranchId);
+
+    -- OPD / LAB Day Closing
+    CREATE TABLE #CC (CashClosingId INT PRIMARY KEY);
+    INSERT INTO #CC SELECT c.CashClosingId FROM dbo.CashClosing c INNER JOIN #B b ON b.BranchId = c.BranchId;
+    DELETE x FROM dbo.CashClosingPetty x INNER JOIN #CC c ON c.CashClosingId = x.CashClosingId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CashClosingPetty', 'DELETE', @n, 'petty cash floats taken by day closings';
+    DELETE x FROM dbo.CashClosingLine x INNER JOIN #CC c ON c.CashClosingId = x.CashClosingId;       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CashClosingLine', 'DELETE', @n, 'day closing breakdown lines';
+    DELETE x FROM dbo.CashClosing x INNER JOIN #CC c ON c.CashClosingId = x.CashClosingId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CashClosing', 'DELETE', @n, 'OPD / LAB day closings (count, hand-over, verification)';
+
+    -- petty cash of the counters of these branches
+    CREATE TABLE #Ctr (CounterId INT PRIMARY KEY);
+    INSERT INTO #Ctr SELECT c.CounterId FROM dbo.Acc_PettyCashCounter c INNER JOIN #B b ON b.BranchId = c.BranchId;
+    CREATE TABLE #PE (ExpenseId INT PRIMARY KEY);
+    INSERT INTO #PE SELECT e.ExpenseId FROM dbo.Acc_PettyExpense e
+    WHERE e.BranchId IN (SELECT BranchId FROM #B) OR e.CounterId IN (SELECT CounterId FROM #Ctr);
+    CREATE TABLE #V (VoucherId INT PRIMARY KEY);
+    INSERT INTO #V SELECT v.VoucherId FROM dbo.Acc_Voucher v INNER JOIN #B b ON b.BranchId = v.BranchId;
+
+    -- bill scans (stored under App_Data/accounts on the web server: listed, not deleted by SQL)
+    IF OBJECT_ID('tempdb..#CleanupFiles') IS NOT NULL
+        INSERT INTO #CleanupFiles (Area, FilePath)
+        SELECT @A, N'App_Data/accounts/' + a.StoredName FROM dbo.Acc_Attachment a
+        WHERE (a.RefType = 'PETTY_EXP' AND a.RefId IN (SELECT ExpenseId FROM #PE)) OR (a.RefType = 'VOUCHER' AND a.RefId IN (SELECT VoucherId FROM #V));
+    DELETE a FROM dbo.Acc_Attachment a
+    WHERE (a.RefType = 'PETTY_EXP' AND a.RefId IN (SELECT ExpenseId FROM #PE)) OR (a.RefType = 'VOUCHER' AND a.RefId IN (SELECT VoucherId FROM #V));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_Attachment', 'DELETE', @n, 'bill scans of petty expenses and vouchers';
+    DELETE x FROM dbo.Acc_PettyExpenseLine x INNER JOIN #PE e ON e.ExpenseId = x.ExpenseId;          SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_PettyExpenseLine', 'DELETE', @n, 'petty expense lines';
+    DELETE x FROM dbo.Acc_PettyExpense x INNER JOIN #PE e ON e.ExpenseId = x.ExpenseId;              SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_PettyExpense', 'DELETE', @n, 'petty expenses';
+    DELETE x FROM dbo.Acc_PettyCashFloat x INNER JOIN #Ctr c ON c.CounterId = x.CounterId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_PettyCashFloat', 'DELETE', @n, 'petty cash floats issued / replenished / returned';
+    DELETE x FROM dbo.Acc_PettyCashClosing x INNER JOIN #Ctr c ON c.CounterId = x.CounterId;         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_PettyCashClosing', 'DELETE', @n, 'petty cash day closings';
+    DELETE x FROM dbo.Acc_VoucherLine x INNER JOIN #V v ON v.VoucherId = x.VoucherId;                SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_VoucherLine', 'DELETE', @n, 'manual voucher lines';
+    DELETE x FROM dbo.Acc_Voucher x INNER JOIN #V v ON v.VoucherId = x.VoucherId;                    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_Voucher', 'DELETE', @n, 'manual vouchers (payment, receipt, contra, journal)';
+
+    CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);
+    INSERT INTO #L SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
+    WHERE t.BranchId IN (SELECT BranchId FROM #B) AND t.ReferenceType IN ('CASH_CLOSE', 'PETTY_EXP', 'PETTY_FLOAT', 'PETTY_CLOSE', 'MANUAL_VCH');
+    EXEC cleanup.usp_DeleteLedger @A, N'ledger vouchers (day closing difference, petty expense / float / closing, manual vouchers)';
+
+    SELECT @n = COUNT(1) FROM dbo.Acc_BranchLock l INNER JOIN #B b ON b.BranchId = l.BranchId WHERE l.LockedUpTo IS NOT NULL;
+    IF @n > 0 EXEC cleanup.usp_Report @A, 'Acc_BranchLock', 'KEPT', @n, 'books locked up to a date: unlock in Accounts Settings if needed';
+END;
+GO
+
+-- ============================================================================
+-- Quality & compliance records (not masters): reagent consumption, IQC runs and results, EQAS cycles and results,
+-- CAPA, equipment breakdowns / calibrations / maintenance. Kept: equipment, analyzers, IQC materials / lots /
+-- targets, EQAS programmes and their tests, BOMs, inventory items.
+-- ============================================================================
+CREATE OR ALTER PROCEDURE cleanup.usp_ClearQuality
+    @CompanyId INT = NULL,
+    @BranchId  INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC cleanup.usp_Guard;
+    DECLARE @n INT, @A NVARCHAR(40) = N'Quality & compliance';
+    CREATE TABLE #B (BranchId INT PRIMARY KEY, CompanyId INT);
+    INSERT INTO #B SELECT BranchId, CompanyId FROM cleanup.ufn_ScopeBranches(@CompanyId, @BranchId);
+    DECLARE @WholeCompany BIT = CASE WHEN @BranchId IS NULL THEN 1 ELSE 0 END;
+
+    DELETE x FROM dbo.QcConsumptionLine x WHERE x.ConsumptionId IN (SELECT c.ConsumptionId FROM dbo.QcConsumption c WHERE c.BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcConsumptionLine', 'DELETE', @n, 'reagent / consumable lines';
+    DELETE x FROM dbo.QcConsumption x WHERE x.BranchId IN (SELECT BranchId FROM #B);                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcConsumption', 'DELETE', @n, 'BOM consumption';
+
+    CREATE TABLE #Run (RunId BIGINT PRIMARY KEY);
+    INSERT INTO #Run SELECT r.RunId FROM dbo.IqcRun r WHERE r.BranchId IN (SELECT BranchId FROM #B);
+    DELETE x FROM dbo.IqcResult x INNER JOIN #Run r ON r.RunId = x.RunId;                            SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IqcResult', 'DELETE', @n, 'IQC results';
+    DELETE x FROM dbo.IqcRun x INNER JOIN #Run r ON r.RunId = x.RunId;                               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IqcRun', 'DELETE', @n, 'IQC runs';
+
+    CREATE TABLE #Cyc (CycleId BIGINT PRIMARY KEY);
+    INSERT INTO #Cyc SELECT c.CycleId FROM dbo.QcEqasCycle c INNER JOIN dbo.QcEqasProgram p ON p.ProgramId = c.ProgramId
+    WHERE p.BranchId IN (SELECT BranchId FROM #B) OR (@WholeCompany = 1 AND p.BranchId IS NULL AND p.CompanyId IN (SELECT CompanyId FROM #B));
+    CREATE TABLE #Eq (EquipmentId BIGINT PRIMARY KEY);
+    INSERT INTO #Eq SELECT e.EquipmentId FROM dbo.QcEquipment e
+    WHERE e.BranchId IN (SELECT BranchId FROM #B) OR (@WholeCompany = 1 AND e.BranchId IS NULL AND e.CompanyId IN (SELECT CompanyId FROM #B));
+    IF OBJECT_ID('tempdb..#CleanupFiles') IS NOT NULL
+        INSERT INTO #CleanupFiles (Area, FilePath)
+        SELECT @A, v.FilePath FROM (
+            SELECT c.ReportPath AS FilePath FROM dbo.QcEqasCycle c INNER JOIN #Cyc x ON x.CycleId = c.CycleId
+            UNION ALL SELECT k.CertificatePath FROM dbo.QcEquipmentCalibration k INNER JOIN #Eq e ON e.EquipmentId = k.EquipmentId
+            UNION ALL SELECT m.ReportPath FROM dbo.QcEquipmentMaintenance m INNER JOIN #Eq e ON e.EquipmentId = m.EquipmentId) v
+        WHERE NULLIF(LTRIM(RTRIM(v.FilePath)), '') IS NOT NULL;
+    DELETE x FROM dbo.QcEqasResult x INNER JOIN #Cyc c ON c.CycleId = x.CycleId;                     SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcEqasResult', 'DELETE', @n, 'EQAS results';
+    DELETE x FROM dbo.QcEqasCycle x INNER JOIN #Cyc c ON c.CycleId = x.CycleId;                      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcEqasCycle', 'DELETE', @n, 'EQAS cycles (programmes kept)';
+    DELETE x FROM dbo.QcEquipmentBreakdown x INNER JOIN #Eq e ON e.EquipmentId = x.EquipmentId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcEquipmentBreakdown', 'DELETE', @n, 'equipment breakdowns';
+    DELETE x FROM dbo.QcEquipmentCalibration x INNER JOIN #Eq e ON e.EquipmentId = x.EquipmentId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcEquipmentCalibration', 'DELETE', @n, 'equipment calibrations';
+    DELETE x FROM dbo.QcEquipmentMaintenance x INNER JOIN #Eq e ON e.EquipmentId = x.EquipmentId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcEquipmentMaintenance', 'DELETE', @n, 'equipment maintenance';
+
+    CREATE TABLE #Capa (CapaId BIGINT PRIMARY KEY);
+    INSERT INTO #Capa SELECT c.CapaId FROM dbo.QcCapa c
+    WHERE c.BranchId IN (SELECT BranchId FROM #B) OR (@WholeCompany = 1 AND c.BranchId IS NULL AND c.CompanyId IN (SELECT CompanyId FROM #B));
+    UPDATE x SET x.CapaId = NULL FROM dbo.IqcRun x INNER JOIN #Capa c ON c.CapaId = x.CapaId;
+    UPDATE x SET x.CapaId = NULL FROM dbo.QcEqasResult x INNER JOIN #Capa c ON c.CapaId = x.CapaId;
+    UPDATE x SET x.CapaId = NULL FROM dbo.QcEquipmentBreakdown x INNER JOIN #Capa c ON c.CapaId = x.CapaId;
+    DELETE x FROM dbo.QcCapa x INNER JOIN #Capa c ON c.CapaId = x.CapaId;                            SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'QcCapa', 'DELETE', @n, 'CAPA records';
+END;
+GO
+
+-- ============================================================================
+-- Every ledger voucher still left on the branches in scope (any kind). Only run together with LAB, OPD, MEMBERSHIP
+-- and ACCOUNTS, so no document is left without its voucher. A franchise wallet top-up voucher stays unless the whole
+-- company is cleared (the top-up itself belongs to the franchise, not a branch). Ledger masters and their opening
+-- balances are kept.
+-- ============================================================================
+CREATE OR ALTER PROCEDURE cleanup.usp_ClearRemainingLedger
+    @CompanyId INT = NULL,
+    @BranchId  INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC cleanup.usp_Guard;
+    DECLARE @A NVARCHAR(40) = N'Ledger (remaining)', @kinds NVARCHAR(400);
+    CREATE TABLE #B (BranchId INT PRIMARY KEY, CompanyId INT);
+    INSERT INTO #B SELECT BranchId, CompanyId FROM cleanup.ufn_ScopeBranches(@CompanyId, @BranchId);
+    CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);
+    INSERT INTO #L SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
+    WHERE t.BranchId IN (SELECT BranchId FROM #B) AND (@BranchId IS NULL OR ISNULL(t.ReferenceType, '') <> 'B2B_WALLET_TOPUP');
+    SELECT @kinds = STRING_AGG(CONCAT(ISNULL(t.ReferenceType, 'none'), ' ', t.Cnt), ', ')
+    FROM (SELECT t.ReferenceType, COUNT(1) AS Cnt FROM dbo.Acc_LedgerTransaction t INNER JOIN #L l ON l.TransactionId = t.TransactionId GROUP BY t.ReferenceType) t;
+    SET @kinds = N'every other ledger voucher of the branch' + ISNULL(N' (' + @kinds + N')', N'');
+    EXEC cleanup.usp_DeleteLedger @A, @kinds;
 END;
 GO
 
@@ -512,7 +804,7 @@ GO
 -- (@Execute = 1 with the confirmation text) or rolls everything back (dry run - the default), then reports.
 -- ============================================================================
 CREATE OR ALTER PROCEDURE cleanup.usp_Run
-    @Areas          NVARCHAR(400),            -- LAB, OPD, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES
+    @Areas          NVARCHAR(400),            -- LAB, OPD, MEMBERSHIP, ACCOUNTS, QUALITY, LEDGER, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES
     @CompanyId      INT           = NULL,
     @BranchId       INT           = NULL,
     @AllCompanies   BIT           = 0,        -- required to run without a company / branch
@@ -528,9 +820,12 @@ BEGIN
     -- ── what to run ──
     DECLARE @a TABLE (Area VARCHAR(20) PRIMARY KEY);
     INSERT INTO @a SELECT DISTINCT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@Areas, ',') WHERE LTRIM(RTRIM(value)) <> '';
-    IF EXISTS (SELECT 1 FROM @a WHERE Area NOT IN ('LAB', 'OPD', 'RATELISTS', 'PATIENTS', 'DOCTORS', 'FRANCHISES', 'LOGS', 'SEQUENCES'))
-        THROW 50110, 'Unknown area. Use LAB, OPD, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES.', 1;
+    IF EXISTS (SELECT 1 FROM @a WHERE Area NOT IN ('LAB', 'OPD', 'MEMBERSHIP', 'ACCOUNTS', 'QUALITY', 'LEDGER', 'RATELISTS', 'PATIENTS', 'DOCTORS', 'FRANCHISES', 'LOGS', 'SEQUENCES'))
+        THROW 50110, 'Unknown area. Use LAB, OPD, MEMBERSHIP, ACCOUNTS, QUALITY, LEDGER, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES.', 1;
     IF NOT EXISTS (SELECT 1 FROM @a) THROW 50111, 'Nothing to clear: @Areas is empty.', 1;
+    IF EXISTS (SELECT 1 FROM @a WHERE Area = 'LEDGER')
+       AND (SELECT COUNT(1) FROM @a WHERE Area IN ('LAB', 'OPD', 'MEMBERSHIP', 'ACCOUNTS')) < 4
+        THROW 50118, 'LEDGER removes every voucher of the branch: run it only together with LAB, OPD, MEMBERSHIP and ACCOUNTS.', 1;
 
     -- ── scope ──
     IF @CompanyId IS NULL AND @BranchId IS NULL AND ISNULL(@AllCompanies, 0) = 0
@@ -573,6 +868,10 @@ BEGIN
         -- dependency order: transactions first, then what they referred to, number series last
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'LAB')        EXEC cleanup.usp_ClearLabTransactions @CompanyId, @BranchId, @ClearAuditLogs;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'OPD')        EXEC cleanup.usp_ClearOpdTransactions @CompanyId, @BranchId, @ClearAuditLogs;
+        IF EXISTS (SELECT 1 FROM @a WHERE Area = 'MEMBERSHIP') EXEC cleanup.usp_ClearMembership @CompanyId, @BranchId;
+        IF EXISTS (SELECT 1 FROM @a WHERE Area = 'ACCOUNTS')   EXEC cleanup.usp_ClearAccounts @CompanyId, @BranchId;
+        IF EXISTS (SELECT 1 FROM @a WHERE Area = 'QUALITY')    EXEC cleanup.usp_ClearQuality @CompanyId, @BranchId;
+        IF EXISTS (SELECT 1 FROM @a WHERE Area = 'LEDGER')     EXEC cleanup.usp_ClearRemainingLedger @CompanyId, @BranchId;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'RATELISTS')  EXEC cleanup.usp_ClearLabRateLists @CompanyId, @BranchId, @RateTypes;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'FRANCHISES') EXEC cleanup.usp_ClearFranchises @CompanyId;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'PATIENTS')   EXEC cleanup.usp_ClearPatients @CompanyId, @BranchId;
