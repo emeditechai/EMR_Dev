@@ -286,6 +286,26 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
+                        <div>
+                            <div class="lp-label">Block Billing Until Day Closed</div>
+                            <div class="lp-desc">OPD / LAB Day Closing: Yes blocks payments while earlier days are open; No only warns at login.</div>
+                            <span class="lp-pill @(Model.DayClosingBlockBilling ? "yes" : "no")"><i class="bi @(Model.DayClosingBlockBilling ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DayClosingBlockBilling ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-person-check-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Allow Verifying Own Day Closing</div>
+                            <div class="lp-desc">OPD / LAB Day Closing: Yes lets a verifier verify their own closing; No needs a second person.</div>
+                            <span class="lp-pill @(Model.DayClosingAllowSelfVerify ? "yes" : "no")"><i class="bi @(Model.DayClosingAllowSelfVerify ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DayClosingAllowSelfVerify ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

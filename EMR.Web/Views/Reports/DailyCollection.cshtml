@@ -204,6 +204,39 @@
             </table>
         </div>
     </div>
+
+    <!-- 2274: cash hand-over and petty cash (as the LAB Daily Collection Register) -->
+    <div class="row g-3 mt-0" id="cashRow">
+        <div class="col-lg-7">
+            <div class="cr-card h-100">
+                <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                    <div class="fw-semibold"><i class="bi bi-cash-coin text-success me-1"></i>Cash hand-over</div>
+                    <span class="text-muted fs-9">cash only &middot; UPI, card and bank go straight to the bank</span>
+                </div>
+                <div class="tbl-scroll">
+                    <table class="table mb-0 cr-table" id="tblCash">
+                        <thead><tr>
+                            <th class="ps-3 no-sort">Person</th><th class="no-sort text-end">Cash collected</th><th class="no-sort text-end">Cash refunds paid</th>
+                            <th class="no-sort text-end">Given to petty cash</th><th class="no-sort text-end">Returned from petty cash</th><th class="no-sort text-end">Net cash to hand over</th>
+                        </tr></thead>
+                        <tbody></tbody><tfoot></tfoot>
+                    </table>
+                </div>
+                <div class="px-3 py-2 text-muted fs-9">Net cash = cash collected &minus; cash refunds &minus; cash given to petty cash (float issued or replenished) + float returned.
+                    Petty expenses are paid from the float, so they are not deducted again. Petty cash belongs to the branch: it also shows in the LAB registers.</div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="cr-card h-100">
+                <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                    <div class="fw-semibold"><i class="bi bi-wallet text-warning me-1"></i>Petty cash
+                        <span class="badge bg-warning-subtle text-warning-emphasis border ms-1" id="lblPettyCount">0</span></div>
+                    <span class="text-muted fs-9" id="lblPettyTotals"></span>
+                </div>
+                <div id="pettyList" class="px-3 py-2 fs-8"></div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
@@ -219,7 +252,7 @@
     const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#b91c1c', '#475569'];
 
     // all rows of the period come from the server once; mode / collector / search filter them here
-    let allReceipts = [], allRefunds = [], receipts = [], refunds = [], view = [];
+    let allReceipts = [], allRefunds = [], allPetty = [], receipts = [], refunds = [], petty = [], view = [];
     let mode = 'receipt', who = 'collector', page = 1, sortKey = 'paymentDate', sortDir = -1, loadSeq = 0;
     let chMode = null, chDay = null;
 
@@ -264,8 +297,9 @@
             $('#stateLoading').addClass('d-none');
             if (!res || !res.success) { $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
             const rows = res.data || [];
-            allReceipts = rows.filter(r => r.entryType !== 'REFUND');
+            allReceipts = rows.filter(r => r.entryType === 'RECEIPT');
             allRefunds = rows.filter(r => r.entryType === 'REFUND');
+            allPetty = rows.filter(r => String(r.entryType).startsWith('PETTY'));   // 2274
             fillFilters();
             applyFilters();
         })
@@ -285,7 +319,7 @@
         };
         const uniq = list => [...new Set(list.filter(Boolean))].sort((a, b) => a.localeCompare(b));
         fill('#selMode', 'All modes', uniq(allReceipts.map(r => r.paymentMode)));
-        fill('#selCollector', 'All users', uniq(allReceipts.concat(allRefunds).map(r => r.collectedBy)));
+        fill('#selCollector', 'All users', uniq(allReceipts.concat(allRefunds, allPetty).map(r => r.collectedBy)));
     }
 
     function applyFilters() {
@@ -295,7 +329,10 @@
                     .some(v => String(v ?? '').toLowerCase().includes(q)));
         receipts = allReceipts.filter(match);
         refunds = allRefunds.filter(match);
-        renderKpis(); renderModes(); renderDays(); renderWho(); renderRefunds();
+        // petty cash is cash: the payment-mode filter keeps it unless another mode is chosen
+        petty = allPetty.filter(r => (!m || /cash/i.test(m)) && (!c || r.collectedBy === c) &&
+            (!q || [r.receiptNo, r.billNo, r.patientName, r.doctorName, r.reference].some(v => String(v ?? '').toLowerCase().includes(q))));
+        renderKpis(); renderModes(); renderDays(); renderWho(); renderRefunds(); renderCash(); renderPetty();
         page = 1; buildView();
     }
 
@@ -367,7 +404,7 @@
     // ── main table: receipt wise (one line per receipt) or bill wise (one line per bill) ──
     const receiptCols = [
         ['receiptNo', 'Receipt No'], ['paymentDate', 'Receipt Date &amp; Time'], ['billNo', 'Bill No / Token'], ['patientName', 'Patient'],
-        ['doctorName', 'Doctor'], ['paymentMode', 'Payment Mode'], ['amount', 'Amount Collected', 1], ['netAmount', 'Bill Net', 1],
+        ['doctorName', 'Doctor'], ['paymentMode', 'Payment Mode'], ['amount', 'Amount Collected', 1], ['discountAmount', 'Discount', 1], ['netAmount', 'Bill Net', 1],
         ['billPaid', 'Bill Paid', 1], ['balanceDue', 'Balance', 1], ['paymentStatus', 'Status'], ['collectedBy', 'Collected By']];
     const billCols = [
         ['paymentDate', 'Payment Date'], ['receiptNo', 'Receipt No'], ['billNo', 'Bill No / Token'], ['patientName', 'Patient'], ['doctorName', 'Doctor'],
@@ -424,7 +461,7 @@
 
         $('#lblCount').text(view.length);
         $('#stateEmpty').toggleClass('d-none', view.length > 0);
-        $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', view.length === 0 && refunds.length === 0);
+        $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', view.length === 0 && refunds.length === 0 && petty.length === 0);
 
         $('#tblMain tbody').html(slice.map((r, i) => {
             const cancelled = r.cancellationType === 'F' ? 'row-cancelled' : '';
@@ -454,6 +491,7 @@
                 <td>${esc(r.doctorName || '—')}</td>
                 <td><div>${esc(r.paymentMode)}</div>${r.reference ? `<div class="text-muted fs-9">${esc(r.reference)}</div>` : ''}</td>
                 <td class="text-end amt fw-bold text-success">${money(r.amount)}</td>
+                <td class="text-end amt ${r.discountAmount > 0 ? 'text-danger' : 'text-muted'}">${r.discountAmount > 0 ? '&minus; ' + money(r.discountAmount) : money(0)}</td>
                 <td class="text-end amt">${money(r.netAmount)}</td>
                 <td class="text-end amt">${money(r.billPaid)}</td>
                 ${bal}
@@ -470,7 +508,8 @@
                 <td class="text-end amt text-success">${money(collected)}</td><td class="text-end amt">${money(sum(view, r => r.balanceDue))}</td>
                 <td colspan="2"></td><td class="text-end">${sum(view, r => r.receiptCount)}</td><td colspan="2"></td></tr>`
             : `<tr><td colspan="7" class="ps-3 text-end">Total (${view.length} receipts)</td>
-                <td class="text-end amt text-success">${money(collected)}</td><td colspan="6"></td></tr>`);
+                <td class="text-end amt text-success">${money(collected)}</td>
+                <td class="text-end amt text-danger" title="Discount of the bills in the list, each bill counted once">${billDiscount(view) > 0 ? '&minus; ' + money(billDiscount(view)) : ''}</td><td colspan="6"></td></tr>`);
         $('#lblShowing').text(view.length ? `Showing ${start + 1}–${start + slice.length} of ${view.length}` : '');
 
         const $p = $('#pager').empty();
@@ -480,6 +519,51 @@
             for (let p = Math.max(1, page - 2); p <= Math.min(pages, page + 2); p++) add(p, p, false, p === page);
             add('&raquo;', page + 1, page === pages);
         }
+    }
+
+    // a bill's discount once, however many receipts it has in the list
+    function billDiscount(list) {
+        const seen = new Set(); let t = 0;
+        list.forEach(r => { if (!seen.has(r.paymentHeaderId)) { seen.add(r.paymentHeaderId); t += Number(r.discountAmount) || 0; } });
+        return t;
+    }
+
+    // ── 2274: cash hand-over per person and petty cash ──
+    const isCash = s => /cash/i.test(s || '');
+    function cashRows() {
+        const map = new Map();
+        const get = n => { const k = n || 'Not recorded'; let g = map.get(k); if (!g) { g = { name: k, cash: 0, refunds: 0, toPetty: 0, fromPetty: 0 }; map.set(k, g); } return g; };
+        receipts.filter(r => isCash(r.paymentMode)).forEach(r => get(r.collectedBy).cash += Number(r.amount) || 0);
+        refunds.filter(r => isCash(r.paymentMode)).forEach(r => get(r.collectedBy).refunds += Number(r.amount) || 0);
+        petty.forEach(r => { const e = Number(r.pettyCash) || 0; if (e < 0) get(r.collectedBy).toPetty -= e; else if (e > 0) get(r.collectedBy).fromPetty += e; });
+        return [...map.values()].map(g => ({ ...g, net: g.cash - g.refunds - g.toPetty + g.fromPetty })).sort((a, b) => b.cash - a.cash);
+    }
+    function renderCash() {
+        const list = cashRows();
+        const neg = v => v ? `<span class="text-danger">&minus; ${money(v)}</span>` : '<span class="text-muted">&mdash;</span>';
+        $('#tblCash tbody').html(list.length ? list.map(g => `<tr><td class="ps-3 fw-semibold">${esc(g.name)}</td>
+            <td class="text-end amt">${money(g.cash)}</td><td class="text-end amt">${neg(g.refunds)}</td><td class="text-end amt">${neg(g.toPetty)}</td>
+            <td class="text-end amt">${g.fromPetty ? '+ ' + money(g.fromPetty) : '<span class="text-muted">&mdash;</span>'}</td>
+            <td class="text-end amt fw-bold ${g.net < 0 ? 'text-danger' : 'text-success'}">${money(g.net)}</td></tr>`).join('')
+            : '<tr><td colspan="6" class="text-muted text-center py-3">No cash movement in this period.</td></tr>');
+        const s = f => list.reduce((t, g) => t + g[f], 0);
+        $('#tblCash tfoot').html(list.length > 1 ? `<tr class="fw-bold"><td class="ps-3">Total</td><td class="text-end amt">${money(s('cash'))}</td>
+            <td class="text-end amt">${money(s('refunds'))}</td><td class="text-end amt">${money(s('toPetty'))}</td><td class="text-end amt">${money(s('fromPetty'))}</td>
+            <td class="text-end amt">${money(s('net'))}</td></tr>` : '');
+    }
+    function renderPetty() {
+        $('#lblPettyCount').text(petty.length);
+        const out = sum(petty, r => Number(r.pettyCash) < 0 ? -r.pettyCash : 0), back = sum(petty, r => Number(r.pettyCash) > 0 ? r.pettyCash : 0);
+        $('#lblPettyTotals').text(petty.length ? `out of the till ${money(out)}${back ? ' · back ' + money(back) : ''} · expenses ${money(sum(petty, r => r.pettyExpense))}` : '');
+        $('#pettyList').html(petty.length ? petty.slice().sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate)).map(r => {
+            const e = Number(r.pettyCash) || 0;
+            const eff = e < 0 ? '<span class="text-danger">out of the till</span>' : e > 0 ? '<span class="text-success">back to the till</span>' : '<span class="text-muted">from the float</span>';
+            return `<div class="d-flex justify-content-between border-bottom py-2"><div class="me-2">
+                <span class="fw-semibold">${esc(r.billNo)}</span> <span class="text-muted">${esc(r.patientName || '')} &middot; ${fmtDT(r.paymentDate)}${r.receiptNo ? ' &middot; ' + esc(r.receiptNo) : ''}</span>
+                ${r.doctorName || r.reference ? `<div class="text-muted fs-9">${esc([r.doctorName, r.reference].filter(Boolean).join(' · '))}</div>` : ''}
+                <div class="text-muted fs-9">by ${esc(r.collectedBy || '')}</div></div>
+                <div class="text-end text-nowrap"><div class="amt fw-semibold">${money(r.amount)}</div><div class="fs-9">${eff}</div></div></div>`;
+        }).join('') : '<div class="text-muted py-2">No petty cash movement in this period.</div>');
     }
 
     function renderRefunds() {
@@ -507,22 +591,35 @@
         return view.map((r, i) => ({
             '#': i + 1, 'Receipt No': r.receiptNo, 'Receipt Date': fmtDT(r.paymentDate), 'Bill No': r.billNo, 'Token': r.tokenNo, 'Bill Date': fmtD(r.billDate),
             'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mobile': r.phoneNumber, 'Doctor': r.doctorName,
-            'Payment Mode': r.paymentMode, 'Reference': r.reference, 'Amount Collected': r.amount, 'Bill Net': r.netAmount, 'Bill Paid': r.billPaid,
+            'Payment Mode': r.paymentMode, 'Reference': r.reference, 'Amount Collected': r.amount, 'Discount': r.discountAmount, 'Bill Net': r.netAmount, 'Bill Paid': r.billPaid,
             'Balance': r.balanceDue, 'Status': statusText(r.paymentStatus) + cancelText(r.cancellationType), 'Collected By': r.collectedBy }));
     }
     const refundRows = () => refunds.map((r, i) => ({ '#': i + 1, 'Refund Date': fmtDT(r.paymentDate), 'Bill No': r.billNo, 'Token': r.tokenNo,
         'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mode': r.paymentMode, 'Reference': r.reference, 'Refund': r.amount, 'Paid By': r.collectedBy }));
+    const cashExport = () => cashRows().map(g => ({ 'Person': g.name, 'Cash Collected': g.cash, 'Cash Refunds Paid': g.refunds,
+        'Given to Petty Cash': g.toPetty, 'Returned from Petty Cash': g.fromPetty, 'Net Cash to Hand Over': g.net }));
+    const pettyEffect = r => Number(r.pettyCash) < 0 ? 'Out of the till' : Number(r.pettyCash) > 0 ? 'Back to the till' : 'From the float';
+    const pettyExport = () => petty.map((r, i) => ({ '#': i + 1, 'Date': fmtDT(r.paymentDate), 'Movement': r.billNo, 'Counter': r.patientName, 'Voucher No': r.receiptNo,
+        'Amount': r.amount, 'Effect on Till': pettyEffect(r), 'Payee': r.doctorName || '', 'Detail': r.reference || '', 'By': r.collectedBy }));
     function fileBase() { return `OPD_Daily_Collection_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`; }
 
     $('#btnExcel').on('click', function () {
         const wb = XLSX.utils.book_new();
         const data = exportRows();
-        data.push(mode === 'bill' ? { 'Doctor': 'TOTAL', 'Collected': sum(view, r => r.amount) } : { 'Payment Mode': 'TOTAL', 'Amount Collected': sum(view, r => r.amount) });
+        data.push(mode === 'bill' ? { 'Doctor': 'TOTAL', 'Collected': sum(view, r => r.amount) } : { 'Payment Mode': 'TOTAL', 'Amount Collected': sum(view, r => r.amount), 'Discount': billDiscount(view) });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), mode === 'bill' ? 'Bills' : 'Receipts');
         if (refunds.length) {
             const rf = refundRows(); rf.push({ 'Reference': 'TOTAL', 'Refund': sum(refunds, r => r.amount) });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rf), 'Refunds');
         }
+        const cash = cashExport();
+        if (cash.length) {
+            const tot = f => cash.reduce((t, g) => t + g[f], 0);
+            cash.push({ 'Person': 'TOTAL', 'Cash Collected': tot('Cash Collected'), 'Cash Refunds Paid': tot('Cash Refunds Paid'), 'Given to Petty Cash': tot('Given to Petty Cash'),
+                        'Returned from Petty Cash': tot('Returned from Petty Cash'), 'Net Cash to Hand Over': tot('Net Cash to Hand Over') });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cash), 'Cash Hand-over');
+        }
+        if (petty.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pettyExport()), 'Petty Cash');
         XLSX.writeFile(wb, fileBase() + '.xlsx');
     });
 
@@ -545,12 +642,12 @@
                 columnStyles: { 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' }, 10: { halign: 'right' }, 11: { halign: 'right' } } });
         } else {
             doc.autoTable({ ...opts, startY: 62,
-                head: [['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Doctor', 'Mode', 'Collected', 'Bill Net', 'Balance', 'Status', 'Collected By']],
+                head: [['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Doctor', 'Mode', 'Collected', 'Discount', 'Bill Net', 'Balance', 'Status', 'Collected By']],
                 body: view.map((r, i) => [i + 1, r.receiptNo || '', fmtDT(r.paymentDate), (r.billNo || '') + (r.tokenNo ? '\n' + r.tokenNo : ''), r.patientName + '\n' + (r.patientCode || ''),
-                    r.doctorName || '', r.paymentMode + (r.reference ? '\n' + r.reference : ''), f2(r.amount), f2(r.netAmount), f2(r.balanceDue),
+                    r.doctorName || '', r.paymentMode + (r.reference ? '\n' + r.reference : ''), f2(r.amount), f2(r.discountAmount), f2(r.netAmount), f2(r.balanceDue),
                     statusText(r.paymentStatus) + cancelText(r.cancellationType), r.collectedBy || '']),
-                foot: [['', '', '', '', '', '', 'TOTAL', f2(sum(view, r => r.amount)), '', '', '', '']],
-                columnStyles: { 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' } } });
+                foot: [['', '', '', '', '', '', 'TOTAL', f2(sum(view, r => r.amount)), f2(billDiscount(view)), '', '', '', '']],
+                columnStyles: { 7: { halign: 'right' }, 8: { halign: 'right' }, 9: { halign: 'right' }, 10: { halign: 'right' } } });
         }
         if (refunds.length) {
             doc.text('Refunds paid out', 40, doc.lastAutoTable.finalY + 18);
@@ -559,6 +656,24 @@
                 body: refunds.map((r, i) => [i + 1, fmtDT(r.paymentDate), r.billNo || '', r.patientName + '\n' + (r.patientCode || ''), r.paymentMode || '', r.reference || '', f2(r.amount), r.collectedBy || '']),
                 foot: [['', '', '', '', '', 'TOTAL', f2(sum(refunds, r => r.amount)), '']],
                 columnStyles: { 6: { halign: 'right' } } });
+        }
+        const cash = cashRows();
+        if (cash.length) {
+            const tot = f => cash.reduce((t, g) => t + g[f], 0);
+            doc.text('Cash hand-over (cash collected - cash refunds - given to petty cash + returned)', 40, doc.lastAutoTable.finalY + 18);
+            doc.autoTable({ ...opts, startY: doc.lastAutoTable.finalY + 24,
+                head: [['Person', 'Cash Collected', 'Cash Refunds Paid', 'Given to Petty Cash', 'Returned from Petty Cash', 'Net Cash to Hand Over']],
+                body: cash.map(g => [g.name, f2(g.cash), f2(g.refunds), f2(g.toPetty), f2(g.fromPetty), f2(g.net)]),
+                foot: [['TOTAL', f2(tot('cash')), f2(tot('refunds')), f2(tot('toPetty')), f2(tot('fromPetty')), f2(tot('net'))]],
+                columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } } });
+        }
+        if (petty.length) {
+            doc.text('Petty cash (expenses are paid from the float, not from the till)', 40, doc.lastAutoTable.finalY + 18);
+            doc.autoTable({ ...opts, startY: doc.lastAutoTable.finalY + 24, headStyles: { fillColor: [180, 83, 9] },
+                head: [['#', 'Date', 'Movement', 'Counter', 'Voucher No', 'Amount', 'Effect on Till', 'Payee / Detail', 'By']],
+                body: petty.map((r, i) => [i + 1, fmtDT(r.paymentDate), r.billNo || '', r.patientName || '', r.receiptNo || '', f2(r.amount), pettyEffect(r),
+                    [r.doctorName, r.reference].filter(Boolean).join(' · '), r.collectedBy || '']),
+                columnStyles: { 5: { halign: 'right' } } });
         }
         doc.save(fileBase() + '.pdf');
     });

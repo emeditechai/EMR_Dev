@@ -1,0 +1,195 @@
+@{
+    var module = ViewData["Module"] as string ?? "OPD";
+    ViewData["Title"] = module + " Day Closing Verification";
+    var controller = ViewContext.RouteData.Values["controller"] as string;
+}
+<style>
+    .dc-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .75rem; }
+    .dc-amt { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; font-family: var(--bs-font-monospace); }
+    .dc-row { cursor: pointer; }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">@module</li>
+                <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
+            </ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-clipboard-check me-2"></i>@ViewData["Title"]</h4>
+            <div class="text-muted small">The @module cash closings of the branch. The Super Admin or a Manager / Finance user with the Verify permission verifies them (a shortage is recoverable from the cashier,
+                an excess goes to income) or sends them back. Your own closing only when Hospital Settings allows it.</div>
+        </div>
+        <div class="d-flex align-items-end gap-2">
+            <div>
+                <label class="form-label small fw-semibold mb-1" for="vbDate">Business date</label>
+                <input type="date" id="vbDate" class="form-control form-control-sm" value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="vbReload" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </div>
+    @Html.AntiForgeryToken()
+
+    <div id="vbError" class="alert alert-danger d-none"></div>
+    <div id="vbNote" class="alert alert-info small d-none"></div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="dc-card p-3"><div class="small text-muted text-uppercase fw-semibold">Submitted</div><div class="fs-4 fw-bold" id="kS">0</div></div></div>
+        <div class="col-6 col-lg-3"><div class="dc-card p-3"><div class="small text-muted text-uppercase fw-semibold">Verified</div><div class="fs-4 fw-bold text-success" id="kV">0</div></div></div>
+        <div class="col-6 col-lg-3"><div class="dc-card p-3"><div class="small text-muted text-uppercase fw-semibold">Not closed yet</div><div class="fs-4 fw-bold text-warning-emphasis" id="kO">0</div></div></div>
+        <div class="col-6 col-lg-3"><div class="dc-card p-3"><div class="small text-muted text-uppercase fw-semibold">Net difference</div><div class="fs-4 fw-bold dc-amt text-start" id="kD">₹0.00</div></div></div>
+    </div>
+
+    <div class="dc-card mb-3">
+        <div class="px-3 py-2 border-bottom fw-semibold"><i class="bi bi-list-check me-1 text-primary"></i>Closings</div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light"><tr><th class="ps-3">Cashier</th><th>Closing No.</th><th class="text-end">Expected</th><th class="text-end">Counted</th><th class="text-end">Difference</th>
+                    <th>Handed over</th><th class="text-end">Float kept</th><th>Status</th><th class="text-end pe-3"></th></tr></thead>
+                <tbody id="vbBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="dc-card">
+        <div class="px-3 py-2 border-bottom fw-semibold"><i class="bi bi-hourglass-split me-1 text-warning"></i>Cash not closed yet</div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light"><tr><th class="ps-3">User</th><th class="text-end">Cash transactions</th><th class="text-end">Cash effect</th><th>Last closing</th></tr></thead>
+                <tbody id="vbOpen"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- one closing -->
+<div class="modal fade" id="vbModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title" id="vbTitle">Day closing</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body" id="vbDetail"></div>
+            <div class="modal-footer d-none" id="vbActions">
+                <input class="form-control form-control-sm me-auto" style="max-width:340px;" id="vbRemarks" maxlength="500" placeholder="Remarks (required to send back)" />
+                <button type="button" class="btn btn-outline-danger" id="vbBack"><i class="bi bi-arrow-return-left me-1"></i>Send back</button>
+                <button type="button" class="btn btn-success" id="vbVerify"><i class="bi bi-check2-circle me-1"></i>Verify</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const base = '@Url.Action("Index", controller)'.replace(/\/Index$/, '');
+    const $ = id => document.getElementById(id);
+    const money = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtDT = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); };
+    const STATUS = { S: ['Submitted', 'bg-primary-subtle text-primary'], B: ['Sent back', 'bg-danger-subtle text-danger'], V: ['Verified', 'bg-success-subtle text-success'] };
+    const KIND = { RECEIPT: 'Receipts', REFUND: 'Refunds paid', PETTYOUT: 'Given to petty cash', PETTYIN: 'Returned from petty cash' };
+    const diffText = d => d === 0 ? '<span class="text-success">Tallied</span>' : `<span class="${d < 0 ? 'text-danger' : 'text-warning-emphasis'}">${d < 0 ? 'Short ' : 'Excess '}${money(Math.abs(d))}</span>`;
+    let board = null, current = null;
+    // a submitted closing, a user with Verify, and not their own unless Hospital Settings allows it
+    const mayReview = c => !!board && c.status === 'S' && board.canVerify && (c.userId !== board.me || board.allowSelf);
+    const modal = new bootstrap.Modal($('vbModal'));
+
+    (function () { const p = new URLSearchParams(location.search); if (p.get('date')) $('vbDate').value = p.get('date'); })();
+
+    async function load() {
+        $('vbError').classList.add('d-none');
+        let r;
+        try { r = await (await fetch(`${base}/Board?date=${encodeURIComponent($('vbDate').value)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json(); }
+        catch (e) { r = { success: false, message: 'Server error while loading. Please try again.' }; }
+        if (!r.success) { $('vbError').textContent = r.message || 'Unable to load.'; $('vbError').classList.remove('d-none'); return; }
+        board = r;
+        $('vbNote').classList.toggle('d-none', r.canVerify);
+        $('vbNote').textContent = r.canVerify ? '' : 'You can view the closings. Verifying needs the Super Admin, or the Manager or Finance role with the Verify permission of this page for this branch.';
+        const list = r.closings;
+        $('kS').textContent = list.filter(c => c.status === 'S').length;
+        $('kV').textContent = list.filter(c => c.status === 'V').length;
+        $('kO').textContent = r.open.length;
+        const nd = list.reduce((t, c) => t + (Number(c.difference) || 0), 0);
+        $('kD').innerHTML = diffText(Math.round(nd * 100) / 100);
+
+        $('vbBody').innerHTML = list.length ? list.map(c => {
+            const st = STATUS[c.status] || [c.status, ''];
+            return `<tr class="dc-row" data-id="${c.cashClosingId}">
+                <td class="ps-3 fw-semibold">${esc(c.userName)}${c.seqNo > 1 ? ' <span class="text-muted small">#' + c.seqNo + '</span>' : ''}<div class="small text-muted">${fmtDT(c.submittedOn)}</div></td>
+                <td class="font-monospace small">${esc(c.closingNo)}</td>
+                <td class="dc-amt">${money(c.expectedCash)}</td><td class="dc-amt">${money(c.countedCash)}</td><td class="dc-amt">${diffText(c.difference)}</td>
+                <td class="small">${money(c.handedAmount)} ${c.handoverMode === 'BANK' ? 'bank deposit' + (c.bankReference ? ' (' + esc(c.bankReference) + ')' : '') : 'to ' + esc(c.handedToName || '-')}</td>
+                <td class="dc-amt">${money(c.retainedFloat)}</td>
+                <td><span class="badge border ${st[1]}">${st[0]}</span>${c.voucherNo ? `<div class="small font-monospace text-muted">${esc(c.voucherNo)}</div>` : ''}</td>
+                <td class="text-end pe-3"><button type="button" class="btn btn-sm ${mayReview(c) ? 'btn-primary' : 'btn-outline-secondary'} py-0"
+                    title="${c.status === 'S' && c.userId === r.me && !r.allowSelf ? 'Your own closing: another verifier verifies it' : ''}">${mayReview(c) ? 'Review' : 'View'}</button>
+                    ${c.status === 'S' && c.userId === r.me && !r.allowSelf ? '<div class="small text-muted">your own closing</div>' : ''}</td></tr>`;
+        }).join('') : '<tr><td colspan="9" class="text-center text-muted py-4">No closing submitted for this date.</td></tr>';
+
+        $('vbOpen').innerHTML = r.open.length ? r.open.map(o => `<tr><td class="ps-3 fw-semibold">${esc(o.userName)}</td><td class="text-end">${o.openTxns}</td>
+            <td class="dc-amt">${money(o.openCash)}</td><td class="small text-muted">${o.lastCutoff ? 'closed up to ' + fmtDT(o.lastCutoff) + ', cash taken after it' : 'not closed'}</td></tr>`).join('')
+            : '<tr><td colspan="4" class="text-center text-muted py-3">Every user has closed their cash.</td></tr>';
+    }
+
+    async function open(id) {
+        const c = board.closings.find(x => x.cashClosingId === id);
+        if (!c) return;
+        current = c;
+        let lines = [];
+        try { const r = await (await fetch(`${base}/Detail?id=${id}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json(); if (r.success) lines = r.lines; } catch (e) { }
+        $('vbTitle').textContent = `${c.userName} · ${c.closingNo}`;
+        const row = (l, v, cls) => `<tr class="${cls || ''}"><td>${l}</td><td class="dc-amt">${v}</td></tr>`;
+        $('vbDetail').innerHTML = `
+            <div class="row g-3">
+                <div class="col-md-6"><table class="table table-sm mb-0">
+                    ${row('Opening float', money(c.openingFloat))}${row('+ Cash receipts', money(c.cashReceipts))}${row('&minus; Cash refunds paid', money(c.cashRefunds))}
+                    ${row('&minus; Given to petty cash', money(c.pettyOut))}${row('+ Returned from petty cash', money(c.pettyIn))}
+                    ${row('<b>Expected</b>', '<b>' + money(c.expectedCash) + '</b>')}${row('<b>Counted</b>', '<b>' + money(c.countedCash) + '</b>')}${row('<b>Difference</b>', diffText(c.difference))}
+                </table></div>
+                <div class="col-md-6"><table class="table table-sm mb-0">
+                    ${row('Handed over ' + (c.handoverMode === 'BANK' ? 'by bank deposit' : 'to ' + esc(c.handedToName || '-')), money(c.handedAmount))}
+                    ${c.bankReference ? row('Deposit slip', esc(c.bankReference)) : ''}
+                    ${row('Float kept', money(c.retainedFloat))}${row('UPI / card / bank (not in the till)', money(c.nonCashTotal))}
+                </table>
+                ${c.remarks ? `<div class="small mt-2"><b>Cashier's remark:</b> ${esc(c.remarks)}</div>` : ''}
+                ${c.verifyRemarks ? `<div class="small mt-1"><b>${c.status === 'B' ? 'Sent back' : 'Verified'} by ${esc(c.verifiedByName || '')}:</b> ${esc(c.verifyRemarks)}</div>` : ''}
+                <a class="small d-inline-block mt-2" target="_blank" href="${base}/VerifySlip?id=${c.cashClosingId}"><i class="bi bi-printer me-1"></i>Hand-over slip</a></div>
+            </div>
+            <table class="table table-sm mt-3 mb-0 small"><thead class="table-light"><tr><th>Breakdown</th><th>Mode</th><th class="text-end">Count</th><th class="text-end">Amount</th></tr></thead>
+                <tbody>${lines.map(l => `<tr><td>${KIND[l.kind] || l.kind}${l.module === 'PETTY' ? '' : ' (' + esc(l.module) + ')'}</td><td>${esc(l.modeName)}${l.isCash ? '' : ' <span class="badge bg-light text-dark border">not in till</span>'}</td>
+                    <td class="text-end">${l.cnt}</td><td class="dc-amt">${money(l.amount)}</td></tr>`).join('') || '<tr><td colspan="4" class="text-muted">No transaction.</td></tr>'}</tbody></table>
+            ${c.status === 'S' && c.difference < 0 ? `<div class="alert alert-warning small mt-3 mb-0">Verifying posts the shortage of ${money(Math.abs(c.difference))} as recoverable from ${esc(c.userName)}.</div>` : ''}
+            ${c.status === 'S' && c.difference > 0 ? `<div class="alert alert-info small mt-3 mb-0">Verifying posts the excess of ${money(c.difference)} to Cash Excess at Counter.</div>` : ''}`;
+        const can = mayReview(c);
+        $('vbActions').classList.toggle('d-none', !can);
+        $('vbRemarks').value = '';
+        modal.show();
+    }
+
+    async function act(action) {
+        if (!current) return;
+        const remarks = $('vbRemarks').value.trim();
+        if (action === 'B' && !remarks) { Swal.fire({ icon: 'warning', text: 'Enter why the closing is sent back.' }); return; }
+        const fd = new FormData();
+        fd.append('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+        fd.append('id', current.cashClosingId); fd.append('action', action); fd.append('remarks', remarks);
+        $('vbVerify').disabled = $('vbBack').disabled = true;
+        try {
+            const r = await (await fetch(base + '/VerifyAction', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json();
+            if (!r.success) { Swal.fire({ icon: 'error', text: r.message || 'Not saved.' }); return; }
+            modal.hide();
+            Swal.fire({ icon: 'success', text: r.message, timer: 2500, showConfirmButton: false });
+            load();
+        } catch (e) { Swal.fire({ icon: 'error', text: 'Server error. Please try again.' }); }
+        finally { $('vbVerify').disabled = $('vbBack').disabled = false; }
+    }
+
+    $('vbBody').addEventListener('click', e => { const tr = e.target.closest('tr[data-id]'); if (tr) open(parseInt(tr.dataset.id, 10)); });
+    $('vbVerify').addEventListener('click', () => act('V'));
+    $('vbBack').addEventListener('click', () => act('B'));
+    $('vbDate').addEventListener('change', load);
+    $('vbReload').addEventListener('click', load);
+    load();
+})();
+</script>
+}

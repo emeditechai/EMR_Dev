@@ -152,6 +152,9 @@ namespace EMR.Web.Controllers
                 else if (PaymentService.HasDiscount(discountCheck)
                          && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BBOOKING", EMR.Shared.Security.PermissionControls.Discount))
                     ModelState.AddModelError(string.Empty, PaymentService.DiscountNotPermittedMessage);
+                // Hospital Settings "Block Billing Until Day Closed" (SQLScripts/2275)
+                if (await DayClosingGuard.BlockMessageAsync(HttpContext, "LAB", branchId, User.GetUserId()) is string dayClosingBlock)
+                    ModelState.AddModelError(string.Empty, dayClosingBlock);
             }
 
             if (!model.DemographicsOnly)
@@ -1160,6 +1163,10 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, error = "Please select a branch first." });
             }
+
+            // Hospital Settings "Block Billing Until Day Closed" (SQLScripts/2275): refuse before anything is saved
+            if (await DayClosingGuard.BlockMessageAsync(HttpContext, "LAB", branchId, User.GetUserId()) is string dayClosingBlock)
+                return Json(new { success = false, error = dayClosingBlock });
 
             // A discount must carry its reason and approver: refuse before anything is saved.
             if (!string.IsNullOrWhiteSpace(paymentDataJson))

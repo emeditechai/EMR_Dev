@@ -707,6 +707,10 @@ public class OPDController(
                 return Json(new { success = false, error = "Please select a branch first." });
             }
 
+            // Hospital Settings "Block Billing Until Day Closed" (SQLScripts/2275): refuse before anything is saved
+            if (await DayClosingGuard.BlockMessageAsync(HttpContext, "OPD", branchId, User.GetUserId()) is string dayClosingBlock)
+                return Json(new { success = false, error = dayClosingBlock });
+
             // A discount must carry its reason and approver: refuse before anything is saved.
             if (!string.IsNullOrWhiteSpace(paymentDataJson))
             {
@@ -2412,13 +2416,14 @@ public class OPDController(
         var users = await con.QueryAsync(@"
             SELECT u.Id,
                    ISNULL(NULLIF(LTRIM(RTRIM(u.FullName)), ''), u.Username) AS Name,
-                   NULLIF(LTRIM(RTRIM(u.Role)), '') AS Role
+                   NULLIF(LTRIM(RTRIM(u.Role)), '') AS Role,
+                   u.Username
             FROM dbo.Users u
             WHERE u.IsActive = 1 AND ISNULL(u.IsLockedOut, 0) = 0
               AND (u.CompanyId IS NULL OR u.CompanyId = @CompanyId)" + (labOnly ? " AND " + PaymentService.LabDiscountApproverSql : "") + @"
             ORDER BY Name",
             new { CompanyId = User.GetCompanyId(), ApproverRoles = PaymentService.LabDiscountApproverRoles });
-        return Json(users.Select(u => new { id = (int)u.Id, name = (string)u.Name, role = (string?)u.Role }));
+        return Json(users.Select(u => new { id = (int)u.Id, name = (string)u.Name, role = (string?)u.Role, username = (string?)u.Username }));
     }
 
     [HttpGet]
@@ -2454,6 +2459,9 @@ public class OPDController(
             return Json(new SavePaymentResult { Success = false, Error = PaymentService.DiscountNotPermittedMessage });
 
         var userId = User.GetUserId();
+        // Hospital Settings "Block Billing Until Day Closed" (SQLScripts/2275)
+        if (await DayClosingGuard.BlockMessageAsync(HttpContext, request.ModuleCode, User.GetCurrentBranchId(), userId) is string dayClosingBlock)
+            return Json(new SavePaymentResult { Success = false, Error = dayClosingBlock });
         var result = await paymentService.SavePaymentAsync(request, userId);
 
         if (result.Success)

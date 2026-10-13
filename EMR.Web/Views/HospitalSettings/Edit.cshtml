@@ -329,6 +329,34 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Block Billing Until Day Closed</div>
+                            <div class="lp-desc">OPD and LAB Day Closing. Yes: a user cannot take payments while an earlier day of that module is not closed. No: the user is only warned at login.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="DayClosingBlockBilling">
+                                <label class="form-check-label" asp-for="DayClosingBlockBilling">Block billing until the day is closed</label>
+                            </div>
+                            <span asp-validation-for="DayClosingBlockBilling" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-person-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Allow Verifying Own Day Closing</div>
+                            <div class="lp-desc">OPD and LAB Day Closing. Yes: a user with the Verify permission may verify their own cash closing. No: a second person must verify it.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="DayClosingAllowSelfVerify">
+                                <label class="form-check-label" asp-for="DayClosingAllowSelfVerify">Allow verifying own closing</label>
+                            </div>
+                            <span asp-validation-for="DayClosingAllowSelfVerify" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

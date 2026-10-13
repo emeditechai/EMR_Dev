@@ -33,6 +33,11 @@ public class DailyCollectionRegisterItem
     public string? PaymentMode { get; set; }
     public string? Reference { get; set; }
     public string? CollectedBy { get; set; }
+
+    /// <summary>Petty cash rows (EntryType PETTYOUT / PETTYIN / PETTYEXP, script 2274): the effect on the till
+    /// (minus given out, plus returned) and an expense paid from the float (information only).</summary>
+    public decimal PettyCash { get; set; }
+    public decimal PettyExpense { get; set; }
 }
 
 public class PatientRegisterItem

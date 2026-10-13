@@ -407,8 +407,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!ta.value) ta.value = prevReason || '';
         const approvers = await loadApprovers();
         const sel = document.getElementById('pmDiscApprover');
+        // two users with the same name: the username tells them apart (the notification goes to the one chosen)
+        const twin = n => approvers.filter(x => (x.name || '').toLowerCase() === (n || '').toLowerCase()).length > 1;
         sel.innerHTML = '<option value="">-- Select the approving person --</option>' + approvers.map(u =>
-            `<option value="${u.id}" ${String(u.id) === String(prevBy) ? 'selected' : ''}>${esc(u.name)}${u.role ? ' (' + esc(u.role) + ')' : ''}</option>`).join('');
+            `<option value="${u.id}" ${String(u.id) === String(prevBy) ? 'selected' : ''}>${esc(u.name)}${twin(u.name) && u.username ? ' · ' + esc(u.username) : ''}${u.role ? ' (' + esc(u.role) + ')' : ''}</option>`).join('');
     }
 
     function renderDiscApprovalInfo(discAmt) {
@@ -442,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function () {
         sel.classList.toggle('is-invalid', !sel.value);
         if (reason.length < 3) { showError('Enter the reason for the discount.'); ta.focus(); return null; }
         if (!sel.value) { showError('Select who approved the discount.'); sel.focus(); return null; }
-        _discApproval = { amount: discAmt, reason, approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '') };
+        _discApproval = { amount: discAmt, reason, approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '').replace(/ · .*$/, '') };
         return _discApproval;
     }
 

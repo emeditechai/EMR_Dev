@@ -71,6 +71,14 @@ public class HospitalSettings
     /// (default No = no reminders). SQLScripts/2229.</summary>
     public bool OpdFollowUpNotificationRequired { get; set; } = false;
 
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2275): Yes = payments are refused while the user has earlier days of that
+    /// module not closed; No (default) = the user is only warned at login.</summary>
+    public bool DayClosingBlockBilling { get; set; } = false;
+
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2275): Yes = a user with the Verify permission may verify their own closing;
+    /// No (default) = a second person checks the cash.</summary>
+    public bool DayClosingAllowSelfVerify { get; set; } = false;
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;

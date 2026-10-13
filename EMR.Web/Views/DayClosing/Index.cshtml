@@ -1,0 +1,350 @@
+@{
+    var module = ViewData["Module"] as string ?? "OPD";
+    ViewData["Title"] = module + " Day Closing";
+    var notes = new[] { 500, 200, 100, 50, 20, 10, 5, 2, 1 };
+    var controller = ViewContext.RouteData.Values["controller"] as string;
+}
+<style>
+    .dc-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .75rem; }
+    .dc-sum td { padding: .45rem .75rem; }
+    .dc-sum .lbl { color: var(--bs-secondary-color); }
+    .dc-sum .exp td { font-weight: 700; font-size: 1.05rem; border-top: 2px solid var(--bs-border-color); }
+    .dc-amt { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; font-family: var(--bs-font-monospace); }
+    .dc-diff { border: 2px solid var(--bs-border-color); border-radius: .6rem; padding: .5rem .75rem; text-align: center; }
+    .dc-diff.ok { border-color: #198754; } .dc-diff.short { border-color: #dc3545; } .dc-diff.excess { border-color: #d97706; }
+    .dc-qty { max-width: 90px; }
+    .dc-step { font-size: .7rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--bs-secondary-color); }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">@module</li>
+                <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
+            </ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-cash-coin me-2"></i>@ViewData["Title"]</h4>
+            <div class="text-muted small">Count your @module cash, hand it over and submit it for verification. Petty cash is shared with the
+                @(module == "OPD" ? "LAB" : "OPD") closing: a float goes into the first closing that takes it.</div>
+        </div>
+        <div class="d-flex align-items-end gap-2">
+            <div>
+                <label class="form-label small fw-semibold mb-1" for="dcDate">Business date</label>
+                <input type="date" id="dcDate" class="form-control form-control-sm" value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="dcReload" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </div>
+
+    <div id="dcPending" class="alert alert-warning d-none"></div>
+    <div id="dcSentBack" class="alert alert-danger d-none"></div>
+    <div id="dcError" class="alert alert-danger d-none"></div>
+
+    <div class="row g-3">
+        <!-- what the system expects -->
+        <div class="col-lg-6">
+            <div class="dc-card h-100">
+                <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                    <div class="fw-semibold"><i class="bi bi-calculator me-1 text-primary"></i>Expected cash <span class="text-muted fw-normal small" id="dcWindow"></span></div>
+                    <span class="badge bg-secondary-subtle text-secondary border" id="dcSeq"></span>
+                </div>
+                <table class="table table-sm mb-0 dc-sum">
+                    <tbody>
+                        <tr><td class="lbl">Opening float <span class="small">(kept at your last @module closing)</span></td><td class="dc-amt" id="sOpening">-</td></tr>
+                        <tr><td class="lbl">+ @module cash receipts</td><td class="dc-amt" id="sReceipts">-</td></tr>
+                        <tr><td class="lbl">&minus; Cash refunds paid</td><td class="dc-amt" id="sRefunds">-</td></tr>
+                        <tr><td class="lbl">&minus; Given to petty cash</td><td class="dc-amt" id="sPettyOut">-</td></tr>
+                        <tr><td class="lbl">+ Returned from petty cash</td><td class="dc-amt" id="sPettyIn">-</td></tr>
+                        <tr class="exp"><td>Expected cash in the till</td><td class="dc-amt" id="sExpected">-</td></tr>
+                    </tbody>
+                </table>
+                <div class="px-3 py-2 border-top d-none" id="dcPettyBox">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="dcIncludePetty" checked>
+                        <label class="form-check-label small" for="dcIncludePetty">Include the petty cash floats of the day in this closing
+                            (<span id="dcPettyCount">0</span> not closed yet). Turn off to leave them for the @(module == "OPD" ? "LAB" : "OPD") closing.</label>
+                    </div>
+                </div>
+                <div class="px-3 py-2 border-top small" id="dcNonCash"></div>
+                <div class="px-3 pb-2">
+                    <a class="small" data-bs-toggle="collapse" href="#dcTxns" role="button"><i class="bi bi-list-ul me-1"></i>Transactions (<span id="dcTxnCount">0</span>)</a>
+                    <div class="collapse mt-2" id="dcTxns">
+                        <div class="table-responsive" style="max-height:320px;">
+                            <table class="table table-sm table-hover mb-0 small">
+                                <thead class="table-light"><tr><th>Time</th><th>Type</th><th>No.</th><th>Bill / Counter</th><th>Mode</th><th class="text-end">Amount</th></tr></thead>
+                                <tbody id="dcTxnBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- count and hand over -->
+        <div class="col-lg-6">
+            <form class="dc-card h-100" id="dcForm" autocomplete="off">
+                @Html.AntiForgeryToken()
+                <div class="px-3 py-2 border-bottom fw-semibold"><i class="bi bi-cash-stack me-1 text-success"></i>Count and hand over</div>
+                <div class="p-3">
+                    <div class="dc-step mb-1">1 · Count the cash</div>
+                    <div class="row g-2">
+                        @foreach (var n in notes)
+                        {
+                            <div class="col-6 col-md-4">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text" style="width:64px;">₹@n &times;</span>
+                                    <input type="number" min="0" step="1" class="form-control text-end dc-qty-in" data-note="@n" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    <div class="row g-2 mt-2 align-items-stretch">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold mb-1" for="dcCounted">Counted cash</label>
+                            <div class="input-group"><span class="input-group-text">₹</span><input type="number" step="0.01" min="0" class="form-control fw-bold" id="dcCounted" /></div>
+                        </div>
+                        <div class="col-6"><div class="dc-diff h-100" id="dcDiffBox"><div class="small text-muted">Difference</div><strong id="dcDiff">-</strong></div></div>
+                    </div>
+
+                    <div class="dc-step mt-3 mb-1">2 · Hand over</div>
+                    <div class="btn-group btn-group-sm mb-2" role="group">
+                        <input type="radio" class="btn-check" name="dcMode" id="dcModePerson" value="PERSON" checked>
+                        <label class="btn btn-outline-primary" for="dcModePerson"><i class="bi bi-person me-1"></i>To a person</label>
+                        <input type="radio" class="btn-check" name="dcMode" id="dcModeBank" value="BANK">
+                        <label class="btn btn-outline-primary" for="dcModeBank"><i class="bi bi-bank me-1"></i>Bank deposit</label>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6" id="dcToWrap">
+                            <label class="form-label small fw-semibold mb-1" for="dcTo">Received by</label>
+                            <select class="form-select form-select-sm" id="dcTo"><option value="">-- Select --</option></select>
+                        </div>
+                        <div class="col-md-6 d-none" id="dcBankWrap">
+                            <label class="form-label small fw-semibold mb-1" for="dcBankRef">Deposit slip no.</label>
+                            <input class="form-control form-control-sm" id="dcBankRef" maxlength="100" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-semibold mb-1" for="dcHanded">Handed over</label>
+                            <input type="number" step="0.01" min="0" class="form-control form-control-sm text-end" id="dcHanded" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label small fw-semibold mb-1" for="dcKept">Float kept</label>
+                            <input type="number" step="0.01" min="0" class="form-control form-control-sm text-end" id="dcKept" value="0" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-semibold mb-1" for="dcRemarks" id="dcRemarksLbl">Remarks</label>
+                            <input class="form-control form-control-sm" id="dcRemarks" maxlength="500" placeholder="Required when the cash does not tally" />
+                        </div>
+                    </div>
+                </div>
+                <div class="px-3 py-2 border-top d-flex justify-content-between align-items-center">
+                    <span class="small text-muted">The float kept is your opening float next time.</span>
+                    <button type="submit" class="btn btn-success px-4" id="dcSubmit"><i class="bi bi-send-check me-1"></i>Submit closing</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- my closings -->
+    <div class="dc-card mt-3">
+        <div class="px-3 py-2 border-bottom fw-semibold"><i class="bi bi-clock-history me-1 text-primary"></i>My @module closings (last 31 days)</div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-light"><tr><th class="ps-3">Date</th><th>Closing No.</th><th class="text-end">Expected</th><th class="text-end">Counted</th><th class="text-end">Difference</th>
+                    <th class="text-end">Handed over</th><th class="text-end">Float kept</th><th>Status</th><th></th></tr></thead>
+                <tbody id="dcHistory"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const base = '@Url.Action("Index", controller)'.replace(/\/Index$/, '');
+    const module = '@module';
+    const $ = id => document.getElementById(id);
+    const money = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtD = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); };
+    const fmtT = s => { const d = new Date(s); return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); };
+    const KIND = { RECEIPT: 'Receipt', REFUND: 'Refund', PETTYOUT: 'Petty cash out', PETTYIN: 'Petty cash back' };
+    const STATUS = { S: ['Submitted', 'bg-primary-subtle text-primary'], B: ['Sent back', 'bg-danger-subtle text-danger'], V: ['Verified', 'bg-success-subtle text-success'] };
+    let header = null, receiversLoaded = false;
+
+    function qs() {
+        const p = new URLSearchParams(location.search);
+        if (p.get('date')) $('dcDate').value = p.get('date');
+    }
+
+    async function loadReceivers() {
+        if (receiversLoaded) return;
+        try {
+            const r = await (await fetch(base + '/Receivers', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json();
+            if (r.success) {
+                $('dcTo').innerHTML = '<option value="">-- Select --</option>' + r.users.map(u =>
+                    `<option value="${u.userId}">${esc(u.userName)}${u.loginName && u.loginName !== u.userName ? ' · ' + esc(u.loginName) : ''}${u.isVerifier ? ' (verifier)' : ''}</option>`).join('');
+                receiversLoaded = true;
+            }
+        } catch (e) { /* the list stays empty: bank deposit still works */ }
+    }
+
+    async function load() {
+        $('dcError').classList.add('d-none');
+        const url = `${base}/Summary?date=${encodeURIComponent($('dcDate').value)}&includePetty=${$('dcIncludePetty').checked}`;
+        let res;
+        try { res = await (await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json(); }
+        catch (e) { res = { success: false, message: 'Server error while loading. Please try again.' }; }
+        if (!res.success) { $('dcError').textContent = res.message || 'Unable to load.'; $('dcError').classList.remove('d-none'); return; }
+        header = res.header;
+        render(res);
+    }
+
+    function render(res) {
+        const h = header;
+        $('sOpening').textContent = money(h.openingFloat);
+        $('sReceipts').textContent = money(h.cashReceipts);
+        $('sRefunds').textContent = money(h.cashRefunds);
+        $('sPettyOut').textContent = money(h.pettyOut);
+        $('sPettyIn').textContent = money(h.pettyIn);
+        $('sExpected').textContent = money(h.expectedCash);
+        $('sExpected').classList.toggle('text-danger', h.expectedCash < 0);
+        $('dcSeq').textContent = h.cashClosingId ? 'Correcting closing #' + h.seqNo : (h.seqNo > 1 ? 'Closing #' + h.seqNo + ' of the day' : 'First closing of the day');
+        $('dcWindow').textContent = h.windowFrom ? '· entered after ' + fmtT(h.windowFrom) : '';
+        $('dcPettyCount').textContent = h.pettyOpenCount;
+        $('dcPettyBox').classList.toggle('d-none', !(h.pettyOpenCount > 0) || !!h.cashClosingId);
+
+        const nonCash = res.lines.filter(l => !l.isCash);
+        $('dcNonCash').innerHTML = nonCash.length
+            ? '<span class="text-muted">Not in the till (settles through the bank):</span> ' + nonCash.map(l => `${esc(l.modeName)} ${KIND[l.kind] === 'Refund' ? 'refunds' : ''} <strong>${money(l.amount)}</strong> (${l.cnt})`).join(' · ')
+            : '<span class="text-muted">No UPI / card / bank receipts.</span>';
+
+        $('dcTxnCount').textContent = res.transactions.length;
+        $('dcTxnBody').innerHTML = res.transactions.length ? res.transactions.map(t => `<tr>
+            <td class="text-nowrap">${fmtT(t.txnAt)}</td><td>${KIND[t.kind] || t.kind}</td><td class="font-monospace">${esc(t.refNo || '')}</td>
+            <td>${esc(t.billNo || '')}${t.billNo ? '<br>' : ''}<span class="text-muted">${esc(t.partyName || '')}</span></td>
+            <td>${esc(t.modeName)}${t.isCash ? '' : ' <span class="badge bg-light text-dark border">not in till</span>'}</td>
+            <td class="text-end font-monospace ${t.kind === 'RECEIPT' || t.kind === 'PETTYIN' ? '' : 'text-danger'}">${t.kind === 'RECEIPT' || t.kind === 'PETTYIN' ? '' : '&minus; '}${money(t.amount)}</td></tr>`).join('')
+            : '<tr><td colspan="6" class="text-muted text-center py-3">No transaction since your last closing of this day.</td></tr>';
+
+        // earlier days still open
+        const pend = res.pending || [];
+        $('dcPending').classList.toggle('d-none', pend.length === 0);
+        $('dcPending').innerHTML = pend.length ? '<i class="bi bi-exclamation-triangle me-1"></i><strong>Earlier days to close:</strong> ' + pend.map(p =>
+            `<a href="#" class="dc-goto ms-2" data-date="${p.businessDate.slice(0, 10)}">${fmtD(p.businessDate)}</a> <span class="small text-muted">(${p.module === 'PETTY' ? 'petty cash not closed' : p.reason === 'SENT_BACK' ? 'sent back' : p.reason === 'LATE_CASH' ? 'cash after closing' : 'not closed'})</span>`).join(',')
+            + (h.blockBilling ? '<div class="small mt-1">Billing is blocked until they are closed (Hospital Settings).</div>' : '') : '';
+
+        // a closing sent back is corrected and submitted again
+        const back = h.cashClosingId && h.status === 'B' ? res.closings.find(c => c.cashClosingId === h.cashClosingId) : null;
+        $('dcSentBack').classList.toggle('d-none', !back);
+        $('dcSentBack').innerHTML = back ? `<i class="bi bi-arrow-return-left me-1"></i><strong>Sent back</strong> by ${esc(back.verifiedByName || '')}: ${esc(back.verifyRemarks || '')}. Count again and submit.` : '';
+
+        const nothing = !h.cashClosingId && res.transactions.length === 0;
+        $('dcSubmit').disabled = nothing;
+        $('dcSubmit').innerHTML = h.cashClosingId ? '<i class="bi bi-send-check me-1"></i>Submit again' : '<i class="bi bi-send-check me-1"></i>Submit closing';
+
+        $('dcHistory').innerHTML = (res.history || []).length ? res.history.map(c => {
+            const st = STATUS[c.status] || [c.status, ''];
+            return `<tr><td class="ps-3">${fmtD(c.businessDate)}${c.seqNo > 1 ? ' <span class="text-muted small">#' + c.seqNo + '</span>' : ''}</td>
+                <td class="font-monospace small">${esc(c.closingNo)}</td><td class="text-end font-monospace">${money(c.expectedCash)}</td>
+                <td class="text-end font-monospace">${money(c.countedCash)}</td>
+                <td class="text-end font-monospace ${c.difference < 0 ? 'text-danger' : c.difference > 0 ? 'text-warning-emphasis' : 'text-success'}">${c.difference === 0 ? 'Tallied' : money(c.difference)}</td>
+                <td class="text-end font-monospace">${money(c.handedAmount)}</td><td class="text-end font-monospace">${money(c.retainedFloat)}</td>
+                <td><span class="badge border ${st[1]}">${st[0]}</span>${c.verifyRemarks ? `<div class="small text-muted">${esc(c.verifyRemarks)}</div>` : ''}</td>
+                <td class="text-end pe-3"><a class="btn btn-sm btn-outline-secondary py-0" target="_blank" href="${base}/Slip?id=${c.cashClosingId}" title="Hand-over slip"><i class="bi bi-printer"></i></a></td></tr>`;
+        }).join('') : '<tr><td colspan="9" class="text-center text-muted py-3">No closing yet.</td></tr>';
+        diff();
+    }
+
+    function counted() { const v = parseFloat($('dcCounted').value); return isNaN(v) ? null : Math.round(v * 100) / 100; }
+    function diff() {
+        const c = counted(), box = $('dcDiffBox');
+        box.classList.remove('ok', 'short', 'excess');
+        $('dcRemarksLbl').classList.remove('required-field');
+        if (!header || c === null) { $('dcDiff').textContent = '-'; return; }
+        const d = Math.round((c - header.expectedCash) * 100) / 100;
+        $('dcDiff').textContent = d === 0 ? 'Tallied' : (d < 0 ? 'Short ' : 'Excess ') + money(Math.abs(d));
+        box.classList.add(d === 0 ? 'ok' : d < 0 ? 'short' : 'excess');
+        if (d !== 0) $('dcRemarksLbl').classList.add('required-field');
+    }
+    function countNotes() {
+        let total = 0, any = false;
+        document.querySelectorAll('.dc-qty-in').forEach(q => { const n = parseInt(q.value, 10); if (n > 0) { any = true; total += n * parseInt(q.dataset.note, 10); } });
+        if (any) { $('dcCounted').value = total.toFixed(2); onCounted(); }
+    }
+    function onCounted() {
+        const c = counted() ?? 0, kept = parseFloat($('dcKept').value) || 0;
+        $('dcHanded').value = Math.max(0, c - kept).toFixed(2);
+        diff();
+    }
+    function denomJson() {
+        const o = {}; let any = false;
+        document.querySelectorAll('.dc-qty-in').forEach(q => { const n = parseInt(q.value, 10); if (n > 0) { o[q.dataset.note] = n; any = true; } });
+        return any ? JSON.stringify(o) : '';
+    }
+    function setMode() {
+        const bank = $('dcModeBank').checked;
+        $('dcToWrap').classList.toggle('d-none', bank);
+        $('dcBankWrap').classList.toggle('d-none', !bank);
+    }
+
+    $('dcForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        if (!header) return;
+        const c = counted();
+        if (c === null) { Swal.fire({ icon: 'warning', text: 'Enter the cash counted (or fill the denominations).' }); return; }
+        const handed = parseFloat($('dcHanded').value) || 0, kept = parseFloat($('dcKept').value) || 0;
+        if (Math.round((handed + kept) * 100) !== Math.round(c * 100)) { Swal.fire({ icon: 'warning', text: 'Handed over + float kept must equal the cash counted.' }); return; }
+        const d = Math.round((c - header.expectedCash) * 100) / 100;
+        if (d !== 0 && !$('dcRemarks').value.trim()) { Swal.fire({ icon: 'warning', text: 'The cash does not tally: enter a remark explaining the difference.' }); $('dcRemarks').focus(); return; }
+        const ok = await Swal.fire({ icon: 'question', title: 'Submit the ' + module + ' closing?',
+            html: `Expected <b>${money(header.expectedCash)}</b>, counted <b>${money(c)}</b>${d ? ` (${d < 0 ? 'short' : 'excess'} ${money(Math.abs(d))})` : ' (tallied)'}.<br>It goes to a verifier for verification.`,
+            showCancelButton: true, confirmButtonText: 'Submit' });
+        if (!ok.isConfirmed) return;
+
+        const fd = new FormData();
+        fd.append('__RequestVerificationToken', document.querySelector('#dcForm input[name="__RequestVerificationToken"]').value);
+        fd.append('BusinessDate', $('dcDate').value);
+        if (header.cashClosingId) fd.append('CashClosingId', header.cashClosingId);
+        fd.append('CountedCash', c);
+        fd.append('DenominationJson', denomJson());
+        const mode = $('dcModeBank').checked ? 'BANK' : 'PERSON';
+        fd.append('HandoverMode', mode);
+        if (mode === 'PERSON' && $('dcTo').value) fd.append('HandedToUserId', $('dcTo').value);
+        fd.append('HandedAmount', handed);
+        fd.append('RetainedFloat', kept);
+        fd.append('BankReference', $('dcBankRef').value);
+        fd.append('Remarks', $('dcRemarks').value);
+        fd.append('IncludePetty', $('dcIncludePetty').checked);
+        $('dcSubmit').disabled = true;
+        try {
+            const r = await (await fetch(base + '/Submit', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })).json();
+            if (!r.success) { Swal.fire({ icon: 'error', text: r.message || 'Not submitted.' }); $('dcSubmit').disabled = false; return; }
+            await Swal.fire({ icon: 'success', text: r.message, showCancelButton: true, confirmButtonText: 'Print hand-over slip', cancelButtonText: 'Done' })
+                .then(x => { if (x.isConfirmed) window.open(base + '/Slip?id=' + r.cashClosingId, '_blank'); });
+            document.querySelectorAll('.dc-qty-in').forEach(q => q.value = '');
+            ['dcCounted', 'dcHanded', 'dcRemarks', 'dcBankRef'].forEach(id => $(id).value = '');
+            load();
+        } catch (err) {
+            Swal.fire({ icon: 'error', text: 'Server error. Please try again.' });
+            $('dcSubmit').disabled = false;
+        }
+    });
+
+    document.querySelectorAll('.dc-qty-in').forEach(q => q.addEventListener('input', countNotes));
+    $('dcCounted').addEventListener('input', onCounted);
+    $('dcKept').addEventListener('input', onCounted);
+    $('dcHanded').addEventListener('input', function () { const c = counted() ?? 0; $('dcKept').value = Math.max(0, c - (parseFloat(this.value) || 0)).toFixed(2); });
+    document.querySelectorAll('input[name="dcMode"]').forEach(r => r.addEventListener('change', setMode));
+    $('dcDate').addEventListener('change', load);
+    $('dcReload').addEventListener('click', load);
+    $('dcIncludePetty').addEventListener('change', load);
+    $('dcPending').addEventListener('click', function (e) {
+        const a = e.target.closest('.dc-goto'); if (!a) return;
+        e.preventDefault(); $('dcDate').value = a.dataset.date; load();
+    });
+
+    qs(); setMode(); loadReceivers(); load();
+})();
+</script>
+}

@@ -699,6 +699,32 @@ public class AccountController(
             SameSite = SameSiteMode.Strict,
             Path = "/"
         });
+
+        await WarnOpenDayClosingsAsync(user.Id, branch?.BranchId);
+    }
+
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2275): earlier days the user has not closed - a warning at login and one bell
+    /// notification a day. Never stops a login.</summary>
+    private async Task WarnOpenDayClosingsAsync(int userId, int? branchId)
+    {
+        try
+        {
+            var svc = HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IDayClosingService>();
+            var pending = (await svc.GetPendingAsync(userId, branchId)).Where(p => p.BusinessDate < DateTime.Today).ToList();
+            if (pending.Count == 0) return;
+            var text = string.Join("; ", pending.GroupBy(p => p.Module == "PETTY" ? "Petty cash (close in OPD or LAB)" : p.Module)
+                .Select(g => $"{g.Key}: {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"));
+            TempData["Warning"] = $"Cash not closed for earlier days - {text}. Use OPD / LAB Day Closing.";
+            var notes = HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Notifications.INotificationService>();
+            var opd = pending.Any(p => p.Module is "OPD" or "PETTY");
+            await notes.NotifyUsersAsync([userId], "DAY_CLOSING", "WARNING", "Day closing pending",
+                $"Your cash is not closed for earlier days - {text}.", opd ? "/OpdDayClosing/Index" : "/LabDayClosing/Index", "CASH", null,
+                $"DAY_CLOSING_PENDING:{userId}:{DateTime.Today:yyyyMMdd}", branchId, null);
+        }
+        catch (Exception ex)
+        {
+            HttpContext.RequestServices.GetService<ILogger<AccountController>>()?.LogWarning(ex, "Day closing login check failed for user {UserId}", userId);
+        }
     }
 
     // Super admin is a flag on the account, set only in the database (Users.IsSuperAdmin), never from a screen.

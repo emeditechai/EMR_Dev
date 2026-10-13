@@ -39,6 +39,11 @@ public interface INotificationService
     /// must not fail the payment it reports.</summary>
     Task NotifyDiscountApprovalAsync(int paymentHeaderId, int? actorUserId);
 
+    /// <summary>One notification to each of the users (SQLScripts/2275 usp_Notification_CreateMany): saved in their bell and
+    /// pushed live. @eventKey makes it once per event and user. Never throws.</summary>
+    Task NotifyUsersAsync(IEnumerable<int> userIds, string category, string severity, string title, string message,
+                          string? link = null, string? refModule = null, long? refId = null, string? eventKey = null, int? branchId = null, int? actorUserId = null);
+
     Task<(List<NotificationItem> Items, int UnreadCount)> ListAsync(int userId, int top, long? beforeId, bool unreadOnly);
     Task<int> MarkReadAsync(int userId, long? notificationId);
     Task<int> DismissAsync(int userId, long notificationId);
@@ -76,6 +81,28 @@ public sealed class NotificationService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "[NOTIFY] Discount approval notification for payment {PaymentHeaderId} not created", paymentHeaderId);
+        }
+    }
+
+    public async Task NotifyUsersAsync(IEnumerable<int> userIds, string category, string severity, string title, string message,
+                                       string? link = null, string? refModule = null, long? refId = null, string? eventKey = null, int? branchId = null, int? actorUserId = null)
+    {
+        var ids = userIds.Where(i => i > 0).Distinct().ToList();
+        if (ids.Count == 0) return;
+        try
+        {
+            using var con = db.CreateConnection();
+            var rows = await con.QueryAsync<CreatedRow>("dbo.usp_Notification_CreateMany", new
+            {
+                RecipientsJson = System.Text.Json.JsonSerializer.Serialize(ids), Category = category, Severity = severity,
+                Title = title.Length > 200 ? title[..200] : title, Message = message.Length > 1000 ? message[..1000] : message,
+                Link = link, RefModule = refModule, RefId = refId, EventKey = eventKey, BranchId = branchId, ActorUserId = actorUserId
+            }, commandType: CommandType.StoredProcedure);
+            foreach (var row in rows) await PushAsync(row);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "[NOTIFY] {Category} notification not created", category);
         }
     }
 

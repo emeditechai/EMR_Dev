@@ -105,6 +105,7 @@ builder.Services.AddScoped<ILedgerService, LedgerService>();
 
 // Utility > Accounts: petty cash, vouchers, ledger reports (Dapper)
 builder.Services.AddScoped<IAccountsService, AccountsService>();
+builder.Services.AddScoped<IDayClosingService, DayClosingService>();   // OPD / LAB Day Closing (SQLScripts/2275)
 
 // Cancellation & Refund (Dapper)
 builder.Services.AddScoped<ICancellationService, CancellationService>();

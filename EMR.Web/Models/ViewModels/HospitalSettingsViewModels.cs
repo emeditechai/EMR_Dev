@@ -183,6 +183,12 @@ public class HospitalSettingsViewModel
     [Display(Name = "Follow up Notification Required")]
     public bool OpdFollowUpNotificationRequired { get; set; }
 
+    [Display(Name = "Block Billing Until Day Closed")]
+    public bool DayClosingBlockBilling { get; set; }
+
+    [Display(Name = "Allow Verifying Own Day Closing")]
+    public bool DayClosingAllowSelfVerify { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 
