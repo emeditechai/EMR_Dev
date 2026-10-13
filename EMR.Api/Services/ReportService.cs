@@ -60,7 +60,7 @@ public class ReportService : IReportService
             commandType: CommandType.StoredProcedure,
             commandTimeout: 60);
 
-        return new B2CCollectionRegisterResult
+        var result = new B2CCollectionRegisterResult
         {
             Summary = await multi.ReadFirstOrDefaultAsync<B2CCollectionSummary>() ?? new B2CCollectionSummary(),
             ByMode = (await multi.ReadAsync<B2CCollectionModeRow>()).ToList(),
@@ -69,6 +69,15 @@ public class ReportService : IReportService
             Receipts = (await multi.ReadAsync<B2CCollectionReceiptRow>()).ToList(),
             PaymentMethods = (await multi.ReadAsync<B2CCollectionPaymentMethod>()).ToList()
         };
+        // 2269: cash hand-over with petty cash (absent on a database without the script)
+        if (!multi.IsConsumed)
+        {
+            result.CashHandover = (await multi.ReadAsync<B2CCollectionCashHandoverRow>()).ToList();
+            result.PettyMovements = (await multi.ReadAsync<B2CCollectionPettyMovementRow>()).ToList();
+            result.PettyCounters = (await multi.ReadAsync<B2CCollectionPettyCounterRow>()).ToList();
+            if (!multi.IsConsumed) result.Refunds = (await multi.ReadAsync<B2CCollectionRefundRow>()).ToList();   // 2270
+        }
+        return result;
     }
 
     public async Task<DiscountRegisterResult> GetLabDiscountRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, string? billingType,

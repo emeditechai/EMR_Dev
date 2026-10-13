@@ -31,7 +31,8 @@ public sealed class EmrAuthorizationOptions
     /// <summary>Record every controller action on start-up (the endpoint inventory).</summary>
     public bool ScanEndpointsOnStartup { get; set; } = true;
 
-    /// <summary>Render the navigation bar from MenuMaster/PageMaster instead of the markup in _Layout.</summary>
+    /// <summary>No longer read: the navigation bar is always rendered from MenuMaster / PageMaster (the hard-coded
+    /// bar was removed from _Layout). Kept so existing appsettings files still bind.</summary>
     public bool DatabaseNavigation { get; set; }
 
     /// <summary>True when a refusal on this page blocks (Enforce, and the page's module is enforced), false while it is only audited.</summary>

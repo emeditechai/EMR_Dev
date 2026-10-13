@@ -6,7 +6,8 @@ using Microsoft.Extensions.Caching.Memory;
 namespace EMR.Web.ViewComponents;
 
 /// <summary>
-/// The navigation bar rendered from MenuMaster / PageMaster (Authorization:DatabaseNavigation).
+/// The navigation bar, rendered from MenuMaster / PageMaster for every signed-in user (the only top menu;
+/// the old hard-coded bar in _Layout was removed). A new screen appears once its page is registered.
 /// A page shows when the user may open it; a menu or nav item shows only when something beneath it
 /// does, so an empty group never renders. Hiding is a courtesy - every page is checked again on the request.
 /// </summary>

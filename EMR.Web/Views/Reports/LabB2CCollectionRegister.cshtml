@@ -166,6 +166,52 @@
         }
     </div>
 
+    <!-- 2269: cash hand-over - the receipts above are the gross collection; petty cash takes cash out of the till -->
+    <div class="row g-2 mb-2">
+        <div class="col-12 col-xl-7">
+            <div class="cr-card p-3 h-100">
+                <div class="d-flex justify-content-between align-items-baseline mb-2">
+                    <div class="cr-section-title"><i class="bi bi-cash-coin me-1"></i>Cash hand-over</div>
+                    <span class="text-muted fs-9">cash only · UPI, card and bank go straight to the bank</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-1 fs-8" id="tblCash">
+                        <thead class="table-light"><tr>
+                            <th>Person</th><th class="text-end">Cash collected</th><th class="text-end">Cash refunds paid</th>
+                            <th class="text-end">Given to petty cash</th><th class="text-end">Returned from petty cash</th><th class="text-end">Net cash to hand over</th>
+                        </tr></thead>
+                        <tbody></tbody><tfoot class="fw-bold"></tfoot>
+                    </table>
+                </div>
+                <div class="text-muted fs-9">Net cash = cash collected &minus; cash refunds &minus; cash given to petty cash (float issued or replenished) + float returned. Petty expenses are paid from the float, so they are not deducted again.</div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-5">
+            <div class="cr-card p-3 h-100">
+                <div class="cr-section-title mb-2"><i class="bi bi-wallet2 me-1"></i>Petty cash</div>
+                <div id="pettyCounters" class="mb-2"></div>
+                <div id="pettyMoves" class="fs-8"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2270: the cancellations and refunds behind "cash refunds paid" -->
+    <div class="cr-card mb-2">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
+            <div class="fw-semibold"><i class="bi bi-arrow-counterclockwise me-1 text-danger"></i>Cancellations &amp; refunds <span class="badge bg-secondary-subtle text-secondary border ms-1" id="lblRefundCount">0</span></div>
+            <div class="fs-9 text-muted" id="lblRefundTotals"></div>
+        </div>
+        <div class="tbl-scroll">
+            <table class="table table-sm table-hover align-middle mb-0 fs-8" id="tblRefunds">
+                <thead class="table-light"><tr>
+                    <th class="ps-3">Cancellation</th><th>Bill / Token</th><th>Patient</th><th>Items cancelled</th>
+                    <th class="text-end">Cancelled</th><th class="text-end">Refunded</th><th>Refund mode &amp; date</th><th>Status</th><th>Reason</th><th>By</th>
+                </tr></thead>
+                <tbody></tbody><tfoot class="fw-bold"></tfoot>
+            </table>
+        </div>
+    </div>
+
     <!-- Receipts -->
     <div class="cr-card">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
@@ -230,6 +276,7 @@
     const palette = ['#0f766e', '#2563eb', '#d97706', '#7c3aed', '#db2777', '#0891b2', '#65a30d', '#b91c1c', '#475569'];
 
     let rows = [], view = [], page = 1, sortKey = 'receiptDate', sortDir = -1, loadSeq = 0;
+    let lastData = {};   // the whole last load: the exports carry every section, not only the receipts
     let chMode = null, chDay = null, collectorsKnown = false, modesKnown = false;
 
     const pad = n => String(n).padStart(2, '0');
@@ -271,10 +318,12 @@
             if (seq !== loadSeq) return;
             if (!res || !res.success) { clearShimmer(); $('#stateError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
             const d = res.data || {};
+            lastData = d;
             // one paint each, in reading order: widgets, then the graphs, then the list
             EmrShimmer.stage([
                 () => { fillFilters(d); renderKpis(d.summary || {}); EmrShimmer.off(SK_KPIS); },
-                () => { renderModes(d.byMode || []); renderDays(d.byDay || []); renderCollectors(d.byCollector || []); EmrShimmer.off(SK_CHARTS); },
+                () => { renderModes(d.byMode || []); renderDays(d.byDay || []); renderCollectors(d.byCollector || []);
+                        renderCash(d.cashHandover || []); renderPetty(d.pettyCounters || [], d.pettyMovements || []); renderRefunds(d.refunds || []); EmrShimmer.off(SK_CHARTS); },
                 () => { $('#stateLoading').addClass('d-none').empty(); rows = d.receipts || []; page = 1; applySort(); }
             ], () => seq === loadSeq);
         })
@@ -295,6 +344,68 @@
         if (!$c.length) return;   // non-administrator: no collector filter, own collections only
         const have = new Set($c.find('option').map((_, o) => o.value).get());
         (d.byCollector || []).forEach(c => { if (c.collectedById && !have.has(String(c.collectedById))) $c.append(`<option value="${c.collectedById}">${esc(c.collectedBy)}</option>`); });
+    }
+
+    // 2269: cash hand-over per person, and the branch's petty cash (counters and movements of the period)
+    function renderCash(list) {
+        const sum = f => list.reduce((a, r) => a + (Number(r[f]) || 0), 0);
+        const net = v => `<span class="${Number(v) < 0 ? 'text-danger' : 'text-success'} fw-semibold">${money(v)}</span>`;
+        const dash = v => Number(v) ? money(v) : '<span class="text-muted">—</span>';
+        $('#tblCash tbody').html(list.length ? list.map(r => `<tr>
+            <td>${esc(r.personName)}</td><td class="text-end">${dash(r.cashCollected)}</td><td class="text-end">${Number(r.cashRefunds) ? `<a href="#tblRefunds" class="text-danger text-decoration-none" title="See the cancellations and refunds below">&minus; ${money(r.cashRefunds)}</a>` : '<span class="text-muted">—</span>'}</td>
+            <td class="text-end">${Number(r.toPettyCash) ? '&minus; ' + money(r.toPettyCash) : '<span class="text-muted">—</span>'}</td>
+            <td class="text-end">${Number(r.fromPettyCash) ? '+ ' + money(r.fromPettyCash) : '<span class="text-muted">—</span>'}</td>
+            <td class="text-end">${net(r.netCash)}</td></tr>`).join('')
+            : '<tr><td colspan="6" class="text-muted text-center py-3">No cash movement in this period.</td></tr>');
+        $('#tblCash tfoot').html(list.length > 1 ? `<tr><td>Total</td><td class="text-end">${money(sum('cashCollected'))}</td>
+            <td class="text-end">&minus; ${money(sum('cashRefunds'))}</td><td class="text-end">&minus; ${money(sum('toPettyCash'))}</td>
+            <td class="text-end">+ ${money(sum('fromPettyCash'))}</td><td class="text-end">${net(sum('netCash'))}</td></tr>` : '');
+    }
+
+    // 2270: one line per cancellation / refund of the period; cash refunds of the period make up "cash refunds paid"
+    function renderRefunds(list) {
+        $('#lblRefundCount').text(list.length);
+        const paid = list.filter(r => r.refundInPeriod), cash = paid.filter(r => r.isCashRefund);
+        const sum = (arr, f) => arr.reduce((a, r) => a + (Number(r[f]) || 0), 0);
+        $('#lblRefundTotals').html(list.length
+            ? `Refunded in this period ${money(sum(paid, 'refundAmount'))} · in cash <span class="text-danger fw-semibold">${money(sum(cash, 'refundAmount'))}</span> (in the cash hand-over)` : '');
+        const status = r => r.refundStatus === 'Refund pending'
+            ? '<span class="badge bg-warning-subtle text-warning-emphasis border">Refund pending</span>'
+            : r.refundStatus === 'Refunded earlier' ? '<span class="badge bg-light text-muted border">Refunded earlier</span>'
+            : `<span class="badge bg-danger-subtle text-danger border">Refunded${r.isCashRefund ? ' · cash' : ''}</span>`;
+        $('#tblRefunds tbody').html(list.length ? list.map(r => `<tr>
+            <td class="ps-3 text-nowrap"><span class="fw-semibold">${esc(r.cancellationNo || '')}</span>
+                <div class="text-muted fs-9">${fmtDT(r.cancellationDate)} · ${esc(r.cancellationType)}</div></td>
+            <td class="text-nowrap"><span class="fw-semibold">${esc(r.billNo || '')}</span> <span class="badge bg-light text-dark border">${esc(r.billingType)}</span>
+                <div class="text-muted fs-9">${esc(r.tokenNo || '')}</div></td>
+            <td>${esc(r.patientName || '')}<div class="text-muted fs-9">${esc(r.patientCode || '')}</div></td>
+            <td>${esc(r.itemsCancelled || '—')}</td>
+            <td class="text-end">${money(r.cancelledAmount)}</td>
+            <td class="text-end ${r.refundInPeriod ? 'text-danger fw-semibold' : 'text-muted'}">${r.refundId ? '&minus; ' + money(r.refundAmount) : '—'}</td>
+            <td class="text-nowrap">${r.refundId ? `${esc(r.refundMode || 'Not recorded')}<div class="text-muted fs-9">${fmtDT(r.refundDate)}</div>` : '—'}</td>
+            <td>${status(r)}</td>
+            <td>${esc(r.reason || '—')}</td>
+            <td class="fs-9">Cancelled: ${esc(r.cancelledBy)}${r.refundedBy ? `<br>Refunded: ${esc(r.refundedBy)}` : ''}</td></tr>`).join('')
+            : '<tr><td colspan="10" class="text-muted text-center py-3">No cancellation or refund in this period.</td></tr>');
+        $('#tblRefunds tfoot').html(list.length ? `<tr><td colspan="4" class="ps-3">Total</td><td class="text-end">${money(sum(list, 'cancelledAmount'))}</td>
+            <td class="text-end text-danger">&minus; ${money(sum(paid, 'refundAmount'))}</td><td colspan="4"></td></tr>` : '');
+    }
+
+    function renderPetty(counters, moves) {
+        $('#pettyCounters').html(counters.length ? counters.map(c => {
+            const pct = Number(c.floatAmount) ? Math.max(0, Math.min(100, Number(c.balance) * 100 / Number(c.floatAmount))) : 0;
+            return `<div class="mb-2"><div class="d-flex justify-content-between fs-8"><span class="fw-semibold">${esc(c.counterName)}</span>
+                    <span>${money(c.balance)} <span class="text-muted">of ${money(c.floatAmount)}</span></span></div>
+                <div class="progress" style="height:5px;"><div class="progress-bar ${c.isLow ? 'bg-danger' : 'bg-success'}" style="width:${pct.toFixed(0)}%"></div></div>
+                <div class="text-muted fs-9 text-end">${Number(c.toReplenish) ? money(c.toReplenish) + ' to replenish' : 'full'}${c.isLow ? ' · <span class="text-danger">low balance</span>' : ''}</div></div>`;
+        }).join('') : '<div class="text-muted fs-8">No petty cash counter at this branch.</div>');
+        $('#pettyMoves').html(moves.length ? `<div class="text-muted fs-9 mb-1">In this period</div>` + moves.map(m => {
+            const eff = Number(m.cashEffect);
+            return `<div class="d-flex justify-content-between border-top py-1 gap-2">
+                <div><span class="fw-semibold">${esc(m.movement)}</span> <span class="text-muted">${esc(m.counterName || '')} · ${fmtD(m.txnDate)}${m.voucherNo ? ' · ' + esc(m.voucherNo) : ''}</span>
+                    ${m.payeeName || m.detail ? `<div class="text-muted fs-9">${esc([m.payeeName, m.detail].filter(Boolean).join(' · '))}</div>` : ''}</div>
+                <div class="text-end text-nowrap">${money(m.amount)}<div class="fs-9 ${eff < 0 ? 'text-danger' : eff > 0 ? 'text-success' : 'text-muted'}">${eff < 0 ? 'out of the till' : eff > 0 ? 'back to the till' : 'from the float'}</div></div></div>`;
+        }).join('') : '<div class="text-muted fs-9">No petty cash movement in this period.</div>');
     }
 
     function renderKpis(s) {
@@ -372,7 +483,7 @@
 
         $('#lblCount').text(view.length);
         $('#stateEmpty').toggleClass('d-none', view.length > 0);
-        $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', view.length === 0);
+        $('#btnExcel, #btnPdf, #btnPrint').prop('disabled', view.length === 0 && !hasSections());
 
         $('#tbodyReceipts').html(slice.map((r, i) => {
             const st = statusText(r.paymentStatus);
@@ -421,25 +532,117 @@
     }
     function fileBase() { return `Daily_Collection_Register_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`; }
 
+    // every section of the page, as rows for the exports (2269 / 2270): money receipts, payment modes, cash hand-over,
+    // cancellations & refunds, petty cash movements and counters
+    const n2 = v => Number(v) || 0;
+    function hasSections() {
+        return ['cashHandover', 'refunds', 'pettyMovements', 'pettyCounters'].some(k => (lastData[k] || []).length);
+    }
+    function modeRows() { return (lastData.byMode || []).map(m => ({ 'Payment Mode': m.paymentMode, 'Receipts': m.receiptCount, 'Amount': n2(m.amount) })); }
+    function cashRows() {
+        return (lastData.cashHandover || []).map(r => ({ 'Person': r.personName, 'Cash Collected': n2(r.cashCollected), 'Cash Refunds Paid': n2(r.cashRefunds),
+            'Given to Petty Cash': n2(r.toPettyCash), 'Returned from Petty Cash': n2(r.fromPettyCash), 'Net Cash to Hand Over': n2(r.netCash) }));
+    }
+    function refundRows() {
+        return (lastData.refunds || []).map(r => ({ 'Cancellation No': r.cancellationNo, 'Cancellation Date': fmtDT(r.cancellationDate), 'Type': r.cancellationType,
+            'Bill No': r.billNo, 'Token': r.tokenNo, 'Billing': r.billingType, 'Patient': r.patientName, 'Patient ID': r.patientCode,
+            'Items Cancelled': r.itemsCancelled || '', 'Cancelled Amount': n2(r.cancelledAmount), 'Refunded': r.refundId ? n2(r.refundAmount) : '',
+            'Refund Mode': r.refundMode || '', 'Refund Date': r.refundDate ? fmtDT(r.refundDate) : '', 'Status': r.refundStatus + (r.isCashRefund && r.refundInPeriod ? ' (cash)' : ''),
+            'Reason': r.reason || '', 'Cancelled By': r.cancelledBy, 'Refunded By': r.refundedBy || '' }));
+    }
+    function pettyMoveRows() {
+        return (lastData.pettyMovements || []).map(m => ({ 'Date': fmtD(m.txnDate), 'Movement': m.movement, 'Counter': m.counterName || '', 'Voucher No': m.voucherNo || '',
+            'Amount': n2(m.amount), 'Effect on Till': n2(m.cashEffect) < 0 ? 'Out of the till' : n2(m.cashEffect) > 0 ? 'Back to the till' : 'From the float',
+            'Payee': m.payeeName || '', 'Detail': m.detail || '', 'By': m.personName }));
+    }
+    function pettyCounterRows() {
+        return (lastData.pettyCounters || []).map(c => ({ 'Counter': c.counterName, 'Float': n2(c.floatAmount), 'Balance': n2(c.balance), 'To Replenish': n2(c.toReplenish), 'Low Balance': c.isLow ? 'Yes' : '' }));
+    }
+    const sumOf = (arr, f) => arr.reduce((a, r) => a + n2(r[f]), 0);
+
     $('#btnExcel').on('click', function () {
-        const data = exportRows();
-        data.push({ 'Payment Mode': 'TOTAL', 'Amount Collected': view.reduce((a, r) => a + (r.paidAmount || 0), 0) });
-        const ws = XLSX.utils.json_to_sheet(data), wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Collection Register');
+        const wb = XLSX.utils.book_new();
+        const sheet = (name, data, total) => { if (data.length) { if (total) data.push(total); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), name); } };
+        const receipts = exportRows();
+        sheet('Money Receipts', receipts, receipts.length ? { 'Payment Mode': 'TOTAL', 'Amount Collected': view.reduce((a, r) => a + (r.paidAmount || 0), 0) } : null);
+        const modes = modeRows(); sheet('By Payment Mode', modes, { 'Payment Mode': 'TOTAL', 'Receipts': sumOf(modes, 'Receipts'), 'Amount': sumOf(modes, 'Amount') });
+        const days = (lastData.byDay || []).map(d => ({ 'Date': fmtD(d.collectionDate), 'Receipts': d.receiptCount, 'Amount': n2(d.amount) }));
+        sheet('By Day', days, { 'Date': 'TOTAL', 'Receipts': sumOf(days, 'Receipts'), 'Amount': sumOf(days, 'Amount') });
+        const coll = (lastData.byCollector || []).map(c => ({ 'Collected By': c.collectedBy, 'Receipts': c.receiptCount, 'Amount': n2(c.amount) }));
+        sheet('By Collector', coll, { 'Collected By': 'TOTAL', 'Receipts': sumOf(coll, 'Receipts'), 'Amount': sumOf(coll, 'Amount') });
+        const cash = cashRows();
+        sheet('Cash Hand-over', cash, { 'Person': 'TOTAL', 'Cash Collected': sumOf(cash, 'Cash Collected'), 'Cash Refunds Paid': sumOf(cash, 'Cash Refunds Paid'),
+            'Given to Petty Cash': sumOf(cash, 'Given to Petty Cash'), 'Returned from Petty Cash': sumOf(cash, 'Returned from Petty Cash'), 'Net Cash to Hand Over': sumOf(cash, 'Net Cash to Hand Over') });
+        const refunds = refundRows();
+        sheet('Cancellations & Refunds', refunds, { 'Cancellation No': 'TOTAL', 'Cancelled Amount': sumOf(refunds, 'Cancelled Amount'),
+            'Refunded': (lastData.refunds || []).filter(r => r.refundInPeriod).reduce((a, r) => a + n2(r.refundAmount), 0) });
+        sheet('Petty Cash Movements', pettyMoveRows(), null);
+        sheet('Petty Cash Counters', pettyCounterRows(), null);
+        if (!wb.SheetNames.length) return;
         XLSX.writeFile(wb, fileBase() + '.xlsx');
     });
 
     $('#btnPdf').on('click', function () {
         const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        const rs = v => 'Rs. ' + n2(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const base = { styles: { fontSize: 7.5, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] },
+                       footStyles: { fillColor: [241, 245, 249], textColor: 20, fontStyle: 'bold' }, margin: { left: 40, right: 40 } };
+        let y = 62;
+        // a section: its heading, then its table; a new page when the heading would sit at the bottom
+        const section = (title, head, body, foot, right) => {
+            if (!body.length) return;
+            if (y > doc.internal.pageSize.getHeight() - 80) { doc.addPage(); y = 40; }
+            doc.setFontSize(10.5); doc.setTextColor(15, 118, 110); doc.text(title, 40, y); doc.setTextColor(20);
+            const cs = {}; (right || []).forEach(c => cs[c] = { halign: 'right' });
+            doc.autoTable(Object.assign({}, base, { startY: y + 6, head: [head], body, foot: foot ? [foot] : undefined, columnStyles: cs }));
+            y = doc.lastAutoTable.finalY + 24;
+        };
         doc.setFontSize(13); doc.text('Daily Collection Register' + ($('#selBilling').val() ? ' (' + $('#selBilling').val() + ')' : ''), 40, 36);
         doc.setFontSize(9); doc.text(`${branchName ? 'Branch: ' + branchName + '   ' : ''}Period: ${$('#lblRange').text()}   Total: ${$('#kTotal').text().replace('₹', 'Rs. ')}   Receipts: ${view.length}`, 40, 52);
-        const body = view.map((r, i) => [i + 1, r.receiptNo || '', fmtDT(r.receiptDate), (r.billNo || '') + '\n' + r.billingType, r.patientName + '\n' + (r.patientCode || '') + (r.partnerName ? '\n' + r.partnerName : ''),
-            r.paymentMode + (r.paymentReference ? '\n' + r.paymentReference : ''), (r.paidAmount || 0).toFixed(2), (r.billNetAmount || 0).toFixed(2),
-            (r.billBalanceDue || 0).toFixed(2), statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Cancelled)'), r.collectedBy]);
-        doc.autoTable({ startY: 62, head: [['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Mode', 'Collected', 'Bill Net', 'Balance', 'Status', 'Collected By']],
-            body, foot: [['', '', '', '', '', 'TOTAL', view.reduce((a, r) => a + (r.paidAmount || 0), 0).toFixed(2), '', '', '', '']],
-            styles: { fontSize: 7.5, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] }, footStyles: { fillColor: [241, 245, 249], textColor: 20, fontStyle: 'bold' },
-            columnStyles: { 6: { halign: 'right' }, 7: { halign: 'right' }, 8: { halign: 'right' } } });
+
+        section('Money receipts', ['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Mode', 'Collected', 'Bill Net', 'Balance', 'Status', 'Collected By'],
+            view.map((r, i) => [i + 1, r.receiptNo || '', fmtDT(r.receiptDate), (r.billNo || '') + '\n' + r.billingType, r.patientName + '\n' + (r.patientCode || '') + (r.partnerName ? '\n' + r.partnerName : ''),
+                r.paymentMode + (r.paymentReference ? '\n' + r.paymentReference : ''), n2(r.paidAmount).toFixed(2), n2(r.billNetAmount).toFixed(2),
+                n2(r.billBalanceDue).toFixed(2), statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Cancelled)'), r.collectedBy]),
+            ['', '', '', '', '', 'TOTAL', view.reduce((a, r) => a + (r.paidAmount || 0), 0).toFixed(2), '', '', '', ''], [6, 7, 8]);
+
+        const modes = lastData.byMode || [];
+        section('Collection by payment mode', ['Payment Mode', 'Receipts', 'Amount'], modes.map(m => [m.paymentMode, m.receiptCount, rs(m.amount)]),
+            ['TOTAL', sumOf(modes, 'receiptCount'), rs(sumOf(modes, 'amount'))], [1, 2]);
+
+        const days = lastData.byDay || [];
+        section('Collection by day', ['Date', 'Receipts', 'Amount'], days.map(d => [fmtD(d.collectionDate), d.receiptCount, rs(d.amount)]),
+            ['TOTAL', sumOf(days, 'receiptCount'), rs(sumOf(days, 'amount'))], [1, 2]);
+
+        const coll = lastData.byCollector || [];
+        section('Collection by person', ['Collected By', 'Receipts', 'Amount'], coll.map(c => [c.collectedBy, c.receiptCount, rs(c.amount)]),
+            ['TOTAL', sumOf(coll, 'receiptCount'), rs(sumOf(coll, 'amount'))], [1, 2]);
+
+        const cash = lastData.cashHandover || [];
+        section('Cash hand-over (cash only: collected - cash refunds - given to petty cash + returned from petty cash)',
+            ['Person', 'Cash Collected', 'Cash Refunds Paid', 'Given to Petty Cash', 'Returned from Petty Cash', 'Net Cash to Hand Over'],
+            cash.map(r => [r.personName, rs(r.cashCollected), rs(r.cashRefunds), rs(r.toPettyCash), rs(r.fromPettyCash), rs(r.netCash)]),
+            ['TOTAL', rs(sumOf(cash, 'cashCollected')), rs(sumOf(cash, 'cashRefunds')), rs(sumOf(cash, 'toPettyCash')), rs(sumOf(cash, 'fromPettyCash')), rs(sumOf(cash, 'netCash'))],
+            [1, 2, 3, 4, 5]);
+
+        const refunds = lastData.refunds || [];
+        section('Cancellations & refunds', ['Cancellation', 'Bill / Token', 'Patient', 'Items Cancelled', 'Cancelled', 'Refunded', 'Refund Mode & Date', 'Status', 'Reason', 'By'],
+            refunds.map(r => [(r.cancellationNo || '') + '\n' + fmtDT(r.cancellationDate) + ' · ' + r.cancellationType, (r.billNo || '') + ' (' + r.billingType + ')\n' + (r.tokenNo || ''),
+                (r.patientName || '') + '\n' + (r.patientCode || ''), r.itemsCancelled || '', rs(r.cancelledAmount), r.refundId ? rs(r.refundAmount) : '-',
+                r.refundId ? (r.refundMode || 'Not recorded') + '\n' + fmtDT(r.refundDate) : '-', r.refundStatus + (r.isCashRefund && r.refundInPeriod ? ' (cash)' : ''),
+                r.reason || '', 'Cancelled: ' + r.cancelledBy + (r.refundedBy ? '\nRefunded: ' + r.refundedBy : '')]),
+            ['TOTAL', '', '', '', rs(sumOf(refunds, 'cancelledAmount')), rs(refunds.filter(r => r.refundInPeriod).reduce((a, r) => a + n2(r.refundAmount), 0)), '', '', '', ''], [4, 5]);
+
+        const moves = lastData.pettyMovements || [];
+        section('Petty cash movements (expenses are paid from the float, not from the till)', ['Date', 'Movement', 'Counter', 'Voucher No', 'Amount', 'Effect on Till', 'Payee / Detail', 'By'],
+            moves.map(m => [fmtD(m.txnDate), m.movement, m.counterName || '', m.voucherNo || '', rs(m.amount),
+                n2(m.cashEffect) < 0 ? 'Out of the till' : n2(m.cashEffect) > 0 ? 'Back to the till' : 'From the float', [m.payeeName, m.detail].filter(Boolean).join(' · '), m.personName]),
+            null, [4]);
+
+        const counters = lastData.pettyCounters || [];
+        section('Petty cash counters', ['Counter', 'Float', 'Balance', 'To Replenish', 'Low Balance'],
+            counters.map(c => [c.counterName, rs(c.floatAmount), rs(c.balance), rs(c.toReplenish), c.isLow ? 'Yes' : '']), null, [1, 2, 3]);
+
         doc.save(fileBase() + '.pdf');
     });
 
