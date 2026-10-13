@@ -107,6 +107,8 @@ public class B2CCollectionReceiptRow
     public string? PatientName { get; set; }
     public string? PhoneNumber { get; set; }
     public decimal BillNetAmount { get; set; }
+    public decimal BillGrossAmount { get; set; }      // 2271
+    public decimal BillDiscountAmount { get; set; }   // 2271
     public decimal BillTotalPaid { get; set; }
     public decimal BillBalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
@@ -145,6 +147,7 @@ public class B2CCollectionRefundRow
     public DateTime CancellationDate { get; set; }
     public string CancellationType { get; set; } = string.Empty;   // Full | Partial
     public decimal CancelledAmount { get; set; }
+    public decimal DiscountAdjusted { get; set; }     // 2271: discount taken back with the cancelled items
     public string? Reason { get; set; }
     public int? CancelledById { get; set; }
     public string CancelledBy { get; set; } = string.Empty;

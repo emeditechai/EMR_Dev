@@ -205,7 +205,7 @@
             <table class="table table-sm table-hover align-middle mb-0 fs-8" id="tblRefunds">
                 <thead class="table-light"><tr>
                     <th class="ps-3">Cancellation</th><th>Bill / Token</th><th>Patient</th><th>Items cancelled</th>
-                    <th class="text-end">Cancelled</th><th class="text-end">Refunded</th><th>Refund mode &amp; date</th><th>Status</th><th>Reason</th><th>By</th>
+                    <th class="text-end">Cancelled</th><th class="text-end">Discount taken back</th><th class="text-end">Refunded</th><th>Refund mode &amp; date</th><th>Status</th><th>Reason</th><th>By</th>
                 </tr></thead>
                 <tbody></tbody><tfoot class="fw-bold"></tfoot>
             </table>
@@ -234,6 +234,8 @@
                         <th data-sort="patientName">Patient</th>
                         <th data-sort="paymentMode">Payment Mode</th>
                         <th data-sort="paidAmount" class="text-end">Amount Collected</th>
+                        <th data-sort="billGrossAmount" class="text-end">Bill Gross</th>
+                        <th data-sort="billDiscountAmount" class="text-end">Discount</th>
                         <th data-sort="billNetAmount" class="text-end">Bill Net</th>
                         <th data-sort="billTotalPaid" class="text-end">Bill Paid</th>
                         <th data-sort="billBalanceDue" class="text-end">Balance</th>
@@ -246,6 +248,8 @@
                 <tfoot><tr>
                     <td colspan="6" class="ps-3 text-end">Total (<span id="ftCount">0</span> receipts)</td>
                     <td class="text-end amt text-success" id="ftAmount">&#8377;0.00</td>
+                    <td></td>
+                    <td class="text-end amt text-danger" id="ftDiscount" title="Discount of the bills in the list, each bill counted once"></td>
                     <td colspan="6"></td>
                 </tr></tfoot>
             </table>
@@ -381,13 +385,14 @@
             <td>${esc(r.patientName || '')}<div class="text-muted fs-9">${esc(r.patientCode || '')}</div></td>
             <td>${esc(r.itemsCancelled || '—')}</td>
             <td class="text-end">${money(r.cancelledAmount)}</td>
+            <td class="text-end ${r.discountAdjusted > 0 ? '' : 'text-muted'}">${money(r.discountAdjusted)}</td>
             <td class="text-end ${r.refundInPeriod ? 'text-danger fw-semibold' : 'text-muted'}">${r.refundId ? '&minus; ' + money(r.refundAmount) : '—'}</td>
             <td class="text-nowrap">${r.refundId ? `${esc(r.refundMode || 'Not recorded')}<div class="text-muted fs-9">${fmtDT(r.refundDate)}</div>` : '—'}</td>
             <td>${status(r)}</td>
             <td>${esc(r.reason || '—')}</td>
             <td class="fs-9">Cancelled: ${esc(r.cancelledBy)}${r.refundedBy ? `<br>Refunded: ${esc(r.refundedBy)}` : ''}</td></tr>`).join('')
-            : '<tr><td colspan="10" class="text-muted text-center py-3">No cancellation or refund in this period.</td></tr>');
-        $('#tblRefunds tfoot').html(list.length ? `<tr><td colspan="4" class="ps-3">Total</td><td class="text-end">${money(sum(list, 'cancelledAmount'))}</td>
+            : '<tr><td colspan="11" class="text-muted text-center py-3">No cancellation or refund in this period.</td></tr>');
+        $('#tblRefunds tfoot').html(list.length ? `<tr><td colspan="4" class="ps-3">Total</td><td class="text-end">${money(sum(list, 'cancelledAmount'))}</td><td class="text-end">${money(sum(list, 'discountAdjusted'))}</td>
             <td class="text-end text-danger">&minus; ${money(sum(paid, 'refundAmount'))}</td><td colspan="4"></td></tr>` : '');
     }
 
@@ -497,6 +502,8 @@
                 <td><div class="fw-semibold">${esc(r.patientName)}</div><div class="text-muted fs-9">${esc(r.patientCode)}${r.phoneNumber ? ' &middot; ' + esc(r.phoneNumber) : ''}</div>${r.partnerName ? `<div class="fs-9 text-primary"><i class="bi bi-buildings me-1"></i>${esc(r.partnerName)}</div>` : ''}</td>
                 <td><div>${esc(r.paymentMode)}</div>${r.paymentReference || r.bankName ? `<div class="text-muted fs-9">${esc([r.paymentReference, r.bankName].filter(Boolean).join(' · '))}</div>` : ''}</td>
                 <td class="text-end amt fw-bold text-success">${money(r.paidAmount)}</td>
+                <td class="text-end amt">${money(r.billGrossAmount)}</td>
+                <td class="text-end amt ${r.billDiscountAmount > 0 ? 'text-danger' : 'text-muted'}">${r.billDiscountAmount > 0 ? '&minus; ' + money(r.billDiscountAmount) : money(0)}</td>
                 <td class="text-end amt">${money(r.billNetAmount)}</td>
                 <td class="text-end amt">${money(r.billTotalPaid)}</td>
                 <td class="text-end amt ${r.billBalanceDue > 0 ? 'text-danger fw-semibold' : 'text-muted'}">${money(r.billBalanceDue)}</td>
@@ -509,6 +516,8 @@
 
         const total = view.reduce((a, r) => a + (r.paidAmount || 0), 0);
         $('#ftCount').text(view.length); $('#ftAmount').text(money(total));
+        const disc = billDiscount();
+        $('#ftDiscount').html(disc.amount > 0 ? `&minus; ${money(disc.amount)}<div class="fs-9 text-muted fw-normal">${disc.bills} bill(s)</div>` : '');
         $('#lblShowing').text(view.length ? `Showing ${start + 1}–${start + slice.length} of ${view.length}` : '');
 
         const $p = $('#pager').empty();
@@ -526,9 +535,15 @@
             '#': i + 1, 'Receipt No': r.receiptNo, 'Receipt Date': fmtDT(r.receiptDate), 'Billing': r.billingType, 'B2B Partner': r.partnerName || '', 'Bill No': r.billNo, 'Token': r.tokenNo,
             'Bill Date': fmtD(r.billDate), 'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mobile': r.phoneNumber,
             'Payment Mode': r.paymentMode, 'Reference': [r.paymentReference, r.bankName].filter(Boolean).join(' / '),
-            'Amount Collected': r.paidAmount, 'Bill Net': r.billNetAmount, 'Bill Paid': r.billTotalPaid, 'Balance': r.billBalanceDue,
+            'Amount Collected': r.paidAmount, 'Bill Gross': r.billGrossAmount, 'Discount': r.billDiscountAmount, 'Bill Net': r.billNetAmount, 'Bill Paid': r.billTotalPaid, 'Balance': r.billBalanceDue,
             'Status': statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Bill cancelled)'), 'Collected By': r.collectedBy
         }));
+    }
+    // a bill's discount once, however many receipts it has in the list
+    function billDiscount() {
+        const seen = new Set(); let amount = 0, bills = 0;
+        view.forEach(r => { if (!seen.has(r.labOrderId)) { seen.add(r.labOrderId); if (r.billDiscountAmount > 0) { amount += r.billDiscountAmount; bills++; } } });
+        return { amount, bills };
     }
     function fileBase() { return `Daily_Collection_Register_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`; }
 
@@ -546,7 +561,7 @@
     function refundRows() {
         return (lastData.refunds || []).map(r => ({ 'Cancellation No': r.cancellationNo, 'Cancellation Date': fmtDT(r.cancellationDate), 'Type': r.cancellationType,
             'Bill No': r.billNo, 'Token': r.tokenNo, 'Billing': r.billingType, 'Patient': r.patientName, 'Patient ID': r.patientCode,
-            'Items Cancelled': r.itemsCancelled || '', 'Cancelled Amount': n2(r.cancelledAmount), 'Refunded': r.refundId ? n2(r.refundAmount) : '',
+            'Items Cancelled': r.itemsCancelled || '', 'Cancelled Amount': n2(r.cancelledAmount), 'Discount Taken Back': n2(r.discountAdjusted), 'Refunded': r.refundId ? n2(r.refundAmount) : '',
             'Refund Mode': r.refundMode || '', 'Refund Date': r.refundDate ? fmtDT(r.refundDate) : '', 'Status': r.refundStatus + (r.isCashRefund && r.refundInPeriod ? ' (cash)' : ''),
             'Reason': r.reason || '', 'Cancelled By': r.cancelledBy, 'Refunded By': r.refundedBy || '' }));
     }
@@ -564,7 +579,7 @@
         const wb = XLSX.utils.book_new();
         const sheet = (name, data, total) => { if (data.length) { if (total) data.push(total); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), name); } };
         const receipts = exportRows();
-        sheet('Money Receipts', receipts, receipts.length ? { 'Payment Mode': 'TOTAL', 'Amount Collected': view.reduce((a, r) => a + (r.paidAmount || 0), 0) } : null);
+        sheet('Money Receipts', receipts, receipts.length ? { 'Payment Mode': 'TOTAL', 'Amount Collected': view.reduce((a, r) => a + (r.paidAmount || 0), 0), 'Discount': billDiscount().amount } : null);
         const modes = modeRows(); sheet('By Payment Mode', modes, { 'Payment Mode': 'TOTAL', 'Receipts': sumOf(modes, 'Receipts'), 'Amount': sumOf(modes, 'Amount') });
         const days = (lastData.byDay || []).map(d => ({ 'Date': fmtD(d.collectionDate), 'Receipts': d.receiptCount, 'Amount': n2(d.amount) }));
         sheet('By Day', days, { 'Date': 'TOTAL', 'Receipts': sumOf(days, 'Receipts'), 'Amount': sumOf(days, 'Amount') });
@@ -574,7 +589,7 @@
         sheet('Cash Hand-over', cash, { 'Person': 'TOTAL', 'Cash Collected': sumOf(cash, 'Cash Collected'), 'Cash Refunds Paid': sumOf(cash, 'Cash Refunds Paid'),
             'Given to Petty Cash': sumOf(cash, 'Given to Petty Cash'), 'Returned from Petty Cash': sumOf(cash, 'Returned from Petty Cash'), 'Net Cash to Hand Over': sumOf(cash, 'Net Cash to Hand Over') });
         const refunds = refundRows();
-        sheet('Cancellations & Refunds', refunds, { 'Cancellation No': 'TOTAL', 'Cancelled Amount': sumOf(refunds, 'Cancelled Amount'),
+        sheet('Cancellations & Refunds', refunds, { 'Cancellation No': 'TOTAL', 'Cancelled Amount': sumOf(refunds, 'Cancelled Amount'), 'Discount Taken Back': sumOf(refunds, 'Discount Taken Back'),
             'Refunded': (lastData.refunds || []).filter(r => r.refundInPeriod).reduce((a, r) => a + n2(r.refundAmount), 0) });
         sheet('Petty Cash Movements', pettyMoveRows(), null);
         sheet('Petty Cash Counters', pettyCounterRows(), null);
@@ -600,11 +615,11 @@
         doc.setFontSize(13); doc.text('Daily Collection Register' + ($('#selBilling').val() ? ' (' + $('#selBilling').val() + ')' : ''), 40, 36);
         doc.setFontSize(9); doc.text(`${branchName ? 'Branch: ' + branchName + '   ' : ''}Period: ${$('#lblRange').text()}   Total: ${$('#kTotal').text().replace('₹', 'Rs. ')}   Receipts: ${view.length}`, 40, 52);
 
-        section('Money receipts', ['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Mode', 'Collected', 'Bill Net', 'Balance', 'Status', 'Collected By'],
+        section('Money receipts', ['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Mode', 'Collected', 'Bill Gross', 'Discount', 'Bill Net', 'Balance', 'Status', 'Collected By'],
             view.map((r, i) => [i + 1, r.receiptNo || '', fmtDT(r.receiptDate), (r.billNo || '') + '\n' + r.billingType, r.patientName + '\n' + (r.patientCode || '') + (r.partnerName ? '\n' + r.partnerName : ''),
-                r.paymentMode + (r.paymentReference ? '\n' + r.paymentReference : ''), n2(r.paidAmount).toFixed(2), n2(r.billNetAmount).toFixed(2),
+                r.paymentMode + (r.paymentReference ? '\n' + r.paymentReference : ''), n2(r.paidAmount).toFixed(2), n2(r.billGrossAmount).toFixed(2), n2(r.billDiscountAmount).toFixed(2), n2(r.billNetAmount).toFixed(2),
                 n2(r.billBalanceDue).toFixed(2), statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Cancelled)'), r.collectedBy]),
-            ['', '', '', '', '', 'TOTAL', view.reduce((a, r) => a + (r.paidAmount || 0), 0).toFixed(2), '', '', '', ''], [6, 7, 8]);
+            ['', '', '', '', '', 'TOTAL', view.reduce((a, r) => a + (r.paidAmount || 0), 0).toFixed(2), '', billDiscount().amount.toFixed(2), '', '', '', ''], [6, 7, 8, 9, 10]);
 
         const modes = lastData.byMode || [];
         section('Collection by payment mode', ['Payment Mode', 'Receipts', 'Amount'], modes.map(m => [m.paymentMode, m.receiptCount, rs(m.amount)]),
@@ -626,12 +641,12 @@
             [1, 2, 3, 4, 5]);
 
         const refunds = lastData.refunds || [];
-        section('Cancellations & refunds', ['Cancellation', 'Bill / Token', 'Patient', 'Items Cancelled', 'Cancelled', 'Refunded', 'Refund Mode & Date', 'Status', 'Reason', 'By'],
+        section('Cancellations & refunds', ['Cancellation', 'Bill / Token', 'Patient', 'Items Cancelled', 'Cancelled', 'Discount Back', 'Refunded', 'Refund Mode & Date', 'Status', 'Reason', 'By'],
             refunds.map(r => [(r.cancellationNo || '') + '\n' + fmtDT(r.cancellationDate) + ' · ' + r.cancellationType, (r.billNo || '') + ' (' + r.billingType + ')\n' + (r.tokenNo || ''),
-                (r.patientName || '') + '\n' + (r.patientCode || ''), r.itemsCancelled || '', rs(r.cancelledAmount), r.refundId ? rs(r.refundAmount) : '-',
+                (r.patientName || '') + '\n' + (r.patientCode || ''), r.itemsCancelled || '', rs(r.cancelledAmount), rs(r.discountAdjusted), r.refundId ? rs(r.refundAmount) : '-',
                 r.refundId ? (r.refundMode || 'Not recorded') + '\n' + fmtDT(r.refundDate) : '-', r.refundStatus + (r.isCashRefund && r.refundInPeriod ? ' (cash)' : ''),
                 r.reason || '', 'Cancelled: ' + r.cancelledBy + (r.refundedBy ? '\nRefunded: ' + r.refundedBy : '')]),
-            ['TOTAL', '', '', '', rs(sumOf(refunds, 'cancelledAmount')), rs(refunds.filter(r => r.refundInPeriod).reduce((a, r) => a + n2(r.refundAmount), 0)), '', '', '', ''], [4, 5]);
+            ['TOTAL', '', '', '', rs(sumOf(refunds, 'cancelledAmount')), rs(sumOf(refunds, 'discountAdjusted')), rs(refunds.filter(r => r.refundInPeriod).reduce((a, r) => a + n2(r.refundAmount), 0)), '', '', '', ''], [4, 5, 6]);
 
         const moves = lastData.pettyMovements || [];
         section('Petty cash movements (expenses are paid from the float, not from the till)', ['Date', 'Movement', 'Counter', 'Voucher No', 'Amount', 'Effect on Till', 'Payee / Detail', 'By'],

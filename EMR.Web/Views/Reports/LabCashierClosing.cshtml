@@ -1,6 +1,6 @@
 @{
     ViewData["Title"] = "Cashier Day-end Closing";
-    ViewData["ReportSubtitle"] = "what each cashier collected, by payment mode, less refunds paid out: the shift hand-over";
+    ViewData["ReportSubtitle"] = "what each cashier collected, by payment mode, less refunds paid out and cash given to petty cash: the shift hand-over";
     ViewData["ReportIcon"] = "bi-cash-coin";
     ViewData["ReportAccent"] = "#15803d";
     ViewData["DateLabel"] = "receipt date";
@@ -15,9 +15,18 @@
     const TYPE = { RECEIPT: ['Receipt', 'bg-success-subtle text-success border-success-subtle'],
                    TOPUP: ['Wallet top-up', 'bg-primary-subtle text-primary border-primary-subtle'],
                    WALLET: ['Paid from wallet', 'bg-secondary-subtle text-secondary border-secondary-subtle'],
-                   REFUND: ['Refund paid', 'bg-danger-subtle text-danger border-danger-subtle'] };
+                   REFUND: ['Refund paid', 'bg-danger-subtle text-danger border-danger-subtle'],
+                   // 2273: petty cash - float out of the till / back to it; expenses are paid from the float (information)
+                   PETTYOUT: ['Petty cash out', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                   PETTYIN: ['Petty cash back', 'bg-info-subtle text-info-emphasis border-info-subtle'],
+                   PETTYEXP: ['Petty expense', 'bg-light text-dark border'] };
+    const petty = (r, h) => Number(r.PettyCash) < 0 ? `<span class="text-danger">&minus; ${h.money(-r.PettyCash)}</span>`
+        : Number(r.PettyCash) > 0 ? `<span class="text-success">+ ${h.money(r.PettyCash)}</span>`
+        : Number(r.PettyExpense) ? `<span class="text-muted" title="Paid from the petty cash float, not from the till">${h.money(r.PettyExpense)}<div class="fs-9">from the float</div></span>` : dash;
     const pillOf = (v, h) => { const x = TYPE[v] || [v, '']; return h.pill(x[0], x[1]); };
     const m0 = (v, h) => Number(v) ? h.money(v) : dash;
+    // 2272: the bill's discount on its first receipt; the discount taken back by a cancellation as a minus
+    const disc = (v, h) => Number(v) > 0 ? h.money(v) : Number(v) < 0 ? `<span class="text-danger">&minus; ${h.money(-v)}</span>` : dash;
     LabReport.init({
         report: 'cashier-closing', title: 'Cashier Day-end Closing', defaultRange: 'today',
         dataUrl: '@Url.Action("GetLabReportData", "Reports")',
@@ -30,13 +39,15 @@
         ],
         kpis: [
             { label: 'Net cash to hand over', color: '#15803d', value: (s, h) => h.money(s.NetCash),
-              sub: (s, h) => `cash ${h.money(s.Cash)} less cash refunds ${h.money(s.CashRefunds)}` },
+              sub: (s, h) => `cash ${h.money(s.Cash)} less cash refunds ${h.money(s.CashRefunds)}${Number(s.PettyOut) ? ` less given to petty cash ${h.money(s.PettyOut)}` : ''}${Number(s.PettyIn) ? ` plus returned ${h.money(s.PettyIn)}` : ''}` },
             { label: 'Total received', color: '#0f766e', value: (s, h) => h.money(s.TotalReceived),
-              sub: (s, h) => `${h.num(s.Receipts)} receipt(s)${s.FirstReceiptNo ? ` · ${h.esc(s.FirstReceiptNo)}${s.LastReceiptNo !== s.FirstReceiptNo ? ' – ' + h.esc(s.LastReceiptNo) : ''}` : ''}` },
+              sub: (s, h) => `${h.num(s.Receipts)} receipt(s)${s.FirstReceiptNo ? ` · ${h.esc(s.FirstReceiptNo)}${s.LastReceiptNo !== s.FirstReceiptNo ? ' – ' + h.esc(s.LastReceiptNo) : ''}` : ''}${Number(s.Discount) ? ` · discount ${h.money(s.Discount)}` : ''}` },
             { label: 'UPI · Card · Bank', color: '#2563eb', value: (s, h) => h.money((Number(s.Upi) || 0) + (Number(s.Card) || 0) + (Number(s.Bank) || 0)),
               sub: (s, h) => `UPI ${h.money(s.Upi)} · card ${h.money(s.Card)} · cheque / bank ${h.money(s.Bank)}` },
             { label: 'Wallet top-ups', color: '#7c3aed', value: (s, h) => h.money(s.TopUps), sub: () => 'franchise top-ups (mode not recorded)' },
             { label: 'Refunds paid out', color: '#b91c1c', value: (s, h) => h.money(s.Refunds), sub: (s, h) => `${h.num(s.RefundCount)} refund(s) · cash ${h.money(s.CashRefunds)}` },
+            { label: 'Petty cash', color: '#b45309', value: (s, h) => h.money(Number(s.PettyOut) - Number(s.PettyIn)),
+              sub: (s, h) => `given out of the till${Number(s.PettyIn) ? ` (net of ${h.money(s.PettyIn)} returned)` : ''} · expenses ${h.money(s.PettyExpense)} paid from the float` },
             { label: 'Paid from wallet', color: '#64748b', value: (s, h) => h.money(s.WalletUsed), sub: (s, h) => `${h.num(s.WalletBills)} bill(s) · no money at the counter` }
         ],
         groups: [
@@ -54,7 +65,10 @@
             { field: 'Other', label: 'Other', money: true },
             { field: 'TopUps', label: 'Top-ups', money: true },
             { field: 'TotalReceived', label: 'Total received', money: true },
+            { field: 'Discount', label: 'Discount', money: true },
             { field: 'Refunds', label: 'Refunds', money: true },
+            { field: 'PettyCash', label: 'Petty cash (till)', money: true },
+            { field: 'PettyExpense', label: 'Petty expenses', money: true },
             { field: 'NetCash', label: 'Net cash', money: true },
             { field: 'WalletUsed', label: 'Paid from wallet', money: true },
             { field: 'ReceiptRange', label: 'Receipt range', total: 'none', fmt: (v, h) => v ? `<span class="font-monospace fs-9">${h.esc(v)}</span>` : dash }
@@ -68,12 +82,15 @@
             { label: 'Patient / partner', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PartyName || '')}</div><div class="text-muted fs-9">${h.esc(r.PartyCode || '')}</div>`, text: r => `${r.PartyName || ''} (${r.PartyCode || ''})` },
             { label: 'Mode', html: (r, h) => h.esc(r.ModeName), text: r => r.ModeName },
             { label: 'Reference', html: (r, h) => r.Reference ? `<span class="fs-9">${h.esc(r.Reference)}</span>` : dash, text: r => r.Reference || '' },
+            { label: 'Discount', cls: 'text-end amt', sum: 'Discount', html: (r, h) => disc(r.Discount, h), text: r => Number(r.Discount) || 0 },
             { label: 'Received', cls: 'text-end amt', sum: 'Received', html: (r, h) => m0(r.Received, h), text: r => Number(r.Received) || 0 },
             { label: 'Refunded', cls: 'text-end amt', sum: 'Refunded', html: (r, h) => Number(r.Refunded) ? `<span class="text-danger">${h.money(r.Refunded)}</span>` : dash, text: r => Number(r.Refunded) || 0 },
+            { label: 'Petty cash', cls: 'text-end amt', sum: 'PettyCash', html: (r, h) => petty(r, h),
+              text: r => Number(r.PettyCash) || (Number(r.PettyExpense) ? `${Number(r.PettyExpense).toFixed(2)} (from the float)` : 0) },
             { label: 'Paid from wallet', cls: 'text-end amt', sum: 'WalletUsed', html: (r, h) => m0(r.WalletUsed, h), text: r => Number(r.WalletUsed) || 0 },
             { label: 'Cashier', html: (r, h) => h.esc(r.Cashier), text: r => r.Cashier }
         ],
-        rowClass: r => r.EntryType === 'REFUND' ? 'row-muted' : ''
+        rowClass: r => r.EntryType === 'REFUND' || String(r.EntryType).startsWith('PETTY') ? 'row-muted' : ''
     });
 })();
 </script>
