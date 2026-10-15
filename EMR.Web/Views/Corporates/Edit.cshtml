@@ -25,6 +25,7 @@
                 <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-pencil-square me-2"></i>Edit Corporate Master (#@Model.Corporate_ID)</h6>
             </div>
             <div class="card-body p-4">
+                @if (ViewBag.ApprovalOpen is EMR.Web.Services.OpenApprovalRequest approvalOpen) { <partial name="_ApprovalBanner" model="approvalOpen" /> }
                 <form asp-action="Edit" asp-route-id="@Model.Corporate_ID" method="post" id="corporateEditForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="Corporate_ID" />

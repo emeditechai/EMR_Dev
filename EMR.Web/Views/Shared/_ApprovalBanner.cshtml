@@ -1,0 +1,37 @@
+@model EMR.Web.Services.OpenApprovalRequest?
+@* The record's open approval request (SQLScripts/2277), shown at the top of the Edit page. *@
+@if (Model is not null)
+{
+    if (Model.Status == "S")
+    {
+        <div class="alert alert-danger d-flex gap-2 align-items-start shadow-sm">
+            <i class="bi bi-arrow-return-left fs-5"></i>
+            <div>
+                <div class="fw-semibold">Sent back by @Model.Actioned_By_Name on @Model.Actioned_Date?.ToString("dd-MMM-yyyy HH:mm")</div>
+                <div>@Model.Remarks</div>
+                <div class="small mt-1">
+                    @(Model.IsPendingCreate
+                        ? "Correct the details and save: the record goes back for approval. It stays inactive until approved."
+                        : "The record still has its earlier details. Save again to send a corrected change for approval.")
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning d-flex gap-2 align-items-start shadow-sm">
+            <i class="bi bi-hourglass-split fs-5"></i>
+            <div>
+                <div class="fw-semibold">
+                    @(Model.IsPendingCreate ? "New record awaiting approval" : "A change is awaiting approval")
+                    - submitted by @Model.Requested_By_Name on @Model.Requested_Date.ToString("dd-MMM-yyyy HH:mm")
+                </div>
+                <div class="small">
+                    @(Model.IsPendingCreate
+                        ? "It stays inactive (not offered in rates or billing) until approved. Saving again replaces the submission."
+                        : "This page shows the current, approved details. Saving again replaces the submitted change.")
+                </div>
+            </div>
+        </div>
+    }
+}

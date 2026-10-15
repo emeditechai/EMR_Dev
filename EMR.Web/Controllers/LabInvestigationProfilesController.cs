@@ -15,7 +15,8 @@ public class LabInvestigationProfilesController(
     ILabInvestigationProfileApiClient profileApiClient,
     ILabInvestigationApiClient investigationApiClient,
     ILabMasterDashboardService dashboardService,
-    IAuditLogService auditLogService) : Controller
+    IAuditLogService auditLogService,
+    IMasterApprovalService approvals) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(int? profileType = null, bool? status = null, string? search = null)
@@ -26,6 +27,7 @@ public class LabInvestigationProfilesController(
         {
             var profiles = (await profileApiClient.GetListAsync(profileType, status, search, companyId)).ToList();
             var dashboard = await dashboardService.GetDashboardAsync(companyId, "LabInvestigationProfiles");
+            ViewBag.ApprovalStates = await approvals.GetOpenStatesAsync(companyId, ApprovalModules.Package);
 
             var model = new LabInvestigationProfileIndexViewModel
             {
@@ -134,18 +136,35 @@ public class LabInvestigationProfilesController(
                 Details = details
             };
 
+            // under approval the profile / package is saved inactive (not offered in billing) until approved
+            var matrix = await approvals.FindMatrixAsync(req.CompanyId, ApprovalModules.Package, User.GetCurrentBranchId() ?? 1);
+            if (matrix is not null) req.Status = false;
+
             var newId = await profileApiClient.SaveAsync(req);
 
             var typeName = model.Profile_Type == 2 ? "Package" : "Profile";
+            if (matrix is not null)
+            {
+                req.Status = model.Status;
+                await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Package, Matrix = matrix, CompanyId = req.CompanyId, BranchId = User.GetCurrentBranchId() ?? 1,
+                    EntityId = newId, EntityName = $"{typeName}: {model.Profile_Name}", ActionType = "CREATE", RequestedActive = model.Status,
+                    NewValues = req, UserId = User.GetUserId()
+                });
+            }
+
             await auditLogService.LogAsync(
                 "Create Lab Investigation Profile",
                 "Create",
-                $"Created {typeName} '{model.Profile_Name}' with ID #{newId}",
+                $"Created {typeName} '{model.Profile_Name}' with ID #{newId}{(matrix is null ? "" : " (awaiting approval)")}",
                 User.GetUserId(),
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = $"{typeName} '{model.Profile_Name}' saved successfully.";
+            TempData["SuccessMessage"] = matrix is null
+                ? $"{typeName} '{model.Profile_Name}' saved successfully."
+                : $"{typeName} '{model.Profile_Name}' saved and sent for approval. It becomes available in billing once approved.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -207,6 +226,10 @@ public class LabInvestigationProfilesController(
                 Status = item.Header.Status,
                 DetailsJson = JsonSerializer.Serialize(detailRows)
             };
+
+            var open = await approvals.GetOpenAsync(ApprovalModules.Package, id);
+            if (open is { IsPendingCreate: true, Requested_Active: bool wanted }) model.Status = wanted;
+            ViewBag.ApprovalOpen = open;
 
             await PopulateFormOptionsAsync(model);
             return View(model);
@@ -287,9 +310,56 @@ public class LabInvestigationProfilesController(
                 Details = details
             };
 
-            await profileApiClient.SaveAsync(req);
-
             var typeName = model.Profile_Type == 2 ? "Package" : "Profile";
+            var branchId = User.GetCurrentBranchId() ?? 1;
+            var open = await approvals.GetOpenAsync(ApprovalModules.Package, id);
+            var matrix = await approvals.FindMatrixAsync(model.CompanyId, ApprovalModules.Package, branchId);
+
+            if (matrix is not null && open is { IsPendingCreate: true })
+            {
+                // not approved yet: stays inactive and goes back for approval with these values
+                req.Status = false;
+                await profileApiClient.SaveAsync(req);
+                req.Status = model.Status;
+                await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Package, Matrix = matrix, CompanyId = model.CompanyId, BranchId = branchId,
+                    EntityId = id, EntityName = $"{typeName}: {model.Profile_Name}", ActionType = "CREATE", RequestedActive = model.Status,
+                    NewValues = req, UserId = User.GetUserId()
+                });
+                TempData["SuccessMessage"] = $"{typeName} '{model.Profile_Name}' saved and sent for approval again.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (matrix is not null)
+            {
+                // an approved profile / package is billed on its current details until the change is approved
+                var current = await profileApiClient.GetByIdAsync(id);
+                LabInvestigationProfileSaveRequestModel? old = null;
+                if (current is not null)
+                {
+                    old = JsonSerializer.Deserialize<LabInvestigationProfileSaveRequestModel>(JsonSerializer.Serialize(current.Header))!;
+                    old.UserId = req.UserId;
+                    old.Details = current.Details.OrderBy(d => d.Sequence)
+                        .Select(d => new LabInvestigationProfileDetailSaveModel { Detail_ID = d.Detail_ID, Test_ID = d.Test_ID, Sequence = d.Sequence }).ToList();
+                }
+                req.Details = req.Details.OrderBy(d => d.Sequence).ToList();
+                var requestId = await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Package, Matrix = matrix, CompanyId = model.CompanyId, BranchId = branchId,
+                    EntityId = id, EntityName = $"{typeName}: {model.Profile_Name}", ActionType = "UPDATE",
+                    OldValues = old, NewValues = req, UserId = User.GetUserId()
+                });
+                TempData["SuccessMessage"] = requestId == 0
+                    ? "Nothing was changed, so nothing was sent for approval."
+                    : $"The change to {typeName.ToLower()} '{model.Profile_Name}' was sent for approval. Billing uses the current details until it is approved.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            await profileApiClient.SaveAsync(req);
+            if (open is { IsPendingCreate: true })
+                await approvals.CloseAsync(ApprovalModules.Package, id, User.GetUserId(), "Approval no longer configured");
+
             await auditLogService.LogAsync(
                 "Update Lab Investigation Profile",
                 "Edit",
@@ -339,6 +409,11 @@ public class LabInvestigationProfilesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleStatus(int id, bool status)
     {
+        if (await approvals.GetOpenAsync(ApprovalModules.Package, id) is { IsPendingCreate: true })
+        {
+            TempData["ErrorMessage"] = "This profile / package is awaiting approval. It becomes active once approved.";
+            return RedirectToAction(nameof(Index));
+        }
         try
         {
             var req = new LabInvestigationProfileToggleStatusRequestModel
@@ -375,6 +450,7 @@ public class LabInvestigationProfilesController(
         try
         {
             await profileApiClient.DeleteAsync(id);
+            await approvals.CloseAsync(ApprovalModules.Package, id, User.GetUserId(), "Record deleted");
 
             await auditLogService.LogAsync(
                 "Delete Lab Investigation Profile",

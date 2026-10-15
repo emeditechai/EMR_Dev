@@ -133,7 +133,7 @@
                     </td>
                     <td>
                         <div class="fw-semibold text-dark">
-                            <i class="bi bi-briefcase text-primary me-1"></i>@item.Corporate_Name
+                            <i class="bi bi-briefcase text-primary me-1"></i>@item.Corporate_Name<partial name="_ApprovalBadge" model="@((ViewBag.ApprovalStates as Dictionary<int, string>)?.GetValueOrDefault(item.Corporate_ID) ?? "")" />
                         </div>
                         @if (!string.IsNullOrWhiteSpace(item.Address))
                         {

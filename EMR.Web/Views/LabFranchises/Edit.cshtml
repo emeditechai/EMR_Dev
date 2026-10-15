@@ -79,6 +79,7 @@
         <input type="hidden" asp-for="Credit_ID" />
         <input type="hidden" asp-for="Agreement_Doc_Path" />
         <input type="hidden" asp-for="Status" />
+        @if (ViewBag.ApprovalOpen is EMR.Web.Services.OpenApprovalRequest approvalOpen) { <partial name="_ApprovalBanner" model="approvalOpen" /> }
         <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm mb-4" role="alert"></div>
 
         <div class="tab-content" id="wizardTabContent">

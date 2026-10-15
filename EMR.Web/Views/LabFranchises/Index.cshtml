@@ -191,7 +191,7 @@
                                 <tr>
                                     <td class="ps-3 fw-bold text-primary">@item.Franchise_Code</td>
                                     <td>
-                                        <div class="fw-semibold text-dark">@item.Franchise_Name</div>
+                                        <div class="fw-semibold text-dark">@item.Franchise_Name<partial name="_ApprovalBadge" model="@((ViewBag.ApprovalStates as Dictionary<int, string>)?.GetValueOrDefault(item.Franchise_ID) ?? "")" /></div>
                                     </td>
                                     <td>
                                         <div><i class="bi bi-telephone text-muted me-1"></i>@item.Mobile_No</div>

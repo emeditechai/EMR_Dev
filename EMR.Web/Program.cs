@@ -27,6 +27,8 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IMasterApprovalService, MasterApprovalService>();
+builder.Services.AddScoped<ILoginCredentialsMailer, LoginCredentialsMailer>();
 
 // Geography Masters (Dapper)
 builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();

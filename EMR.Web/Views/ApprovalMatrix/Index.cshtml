@@ -1,0 +1,252 @@
+@model List<EMR.Web.Controllers.ApprovalMatrixController.MatrixRow>
+@{
+    ViewData["Title"] = "Approval Matrix";
+    var modules = (List<(string Code, string Name)>)ViewBag.Modules;
+    var branches = (List<(int Id, string Name, bool IsHO)>)ViewBag.Branches;
+}
+
+<style>
+    .am-approvers { max-height: 260px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .25rem .5rem; background: #fff; }
+    .am-approvers .form-check { padding: .35rem .25rem .35rem 1.9rem; border-bottom: 1px dashed #eef2f7; margin: 0; }
+    .am-approvers .form-check:last-child { border-bottom: 0; }
+    .am-chip { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 2rem; padding: .1rem .55rem; font-size: .74rem; margin: 0 .2rem .2rem 0; }
+    tr.am-row { cursor: pointer; }
+    tr.am-row.table-active td { background: #eff6ff; }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Settings</li>
+                <li class="breadcrumb-item active" aria-current="page">Approval Matrix</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-ui-checks-grid me-2"></i>Approval Matrix</h4>
+        <div class="text-muted small mt-1">
+            Put a master under approval. New records stay inactive, and changes to approved records wait, until an approver approves them on
+            <a asp-controller="ApprovalDashboard" asp-action="Index">Utility &gt; Approval Dashboard</a>. Modules without a set-up save as before.
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-4 col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold d-flex justify-content-between align-items-center">
+                    <span id="amFormTitle"><i class="bi bi-plus-circle me-1 text-primary"></i>New approval set-up</span>
+                    <button type="button" class="btn btn-sm btn-link text-decoration-none d-none" id="amReset">Clear</button>
+                </div>
+                <div class="card-body">
+                    <form id="amForm" autocomplete="off">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="matrixId" id="amMatrixId" value="" />
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Module <span class="text-danger">*</span></label>
+                            <select class="form-select" name="moduleCode" id="amModule" required>
+                                <option value="">-- Select module --</option>
+                                @foreach (var m in modules)
+                                {
+                                    <option value="@m.Code">@m.Name</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold d-block">Approval level <span class="text-danger">*</span></label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="scope" id="amScopeC" value="C" checked>
+                                <label class="btn btn-outline-primary" for="amScopeC"><i class="bi bi-buildings me-1"></i>Company-wise</label>
+                                <input type="radio" class="btn-check" name="scope" id="amScopeB" value="B">
+                                <label class="btn btn-outline-primary" for="amScopeB"><i class="bi bi-geo-alt me-1"></i>Branch-wise</label>
+                            </div>
+                            <div class="form-text" id="amScopeHint">Approved on the dashboard of the head-office branch.</div>
+                        </div>
+
+                        <div class="mb-3 d-none" id="amBranchWrap">
+                            <label class="form-label small fw-semibold">Branch <span class="text-danger">*</span></label>
+                            <select class="form-select" name="branchId" id="amBranch">
+                                <option value="">-- Select branch --</option>
+                                @foreach (var b in branches)
+                                {
+                                    <option value="@b.Id">@b.Name@(b.IsHO ? " - HO" : "")</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold d-flex justify-content-between">
+                                <span>Approvers <span class="text-danger">*</span></span>
+                                <span class="text-muted fw-normal" id="amApproverCount"></span>
+                            </label>
+                            <div class="am-approvers" id="amApprovers"><div class="text-muted small p-2">Loading…</div></div>
+                            <div class="form-text">Active system users with a Manager role. Doctors, franchise and corporate logins are never listed. Any one approver can approve.</div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100" id="amSave"><i class="bi bi-check2-circle me-1"></i>Save</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-8 col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-semibold"><i class="bi bi-list-check me-1 text-primary"></i>Modules under approval</div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small text-uppercase text-muted">
+                            <tr><th>Module</th><th>Level</th><th>Approvers</th><th class="text-center">Pending</th><th class="text-end"></th></tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-inbox fs-3 d-block mb-1"></i>No module is under approval. Masters save without approval.</td></tr>
+                            }
+                            @foreach (var r in Model)
+                            {
+                                <tr class="am-row" data-id="@r.Matrix_ID" data-module="@r.Module_Code" data-scope="@r.Scope" data-branch="@r.Branch_ID" data-approvers="@r.ApproverIds">
+                                    <td class="fw-semibold">@r.Module_Name<div class="small text-muted fw-normal">Updated @r.UpdatedOn.ToString("dd-MMM-yyyy HH:mm")</div></td>
+                                    <td>
+                                        @if (r.Scope == "C")
+                                        {
+                                            <span class="badge bg-primary-subtle text-primary-emphasis"><i class="bi bi-buildings me-1"></i>Company-wise (HO)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-geo-alt me-1"></i>@r.BranchName</span>
+                                        }
+                                    </td>
+                                    <td>@foreach (var n in (r.ApproverNames ?? "").Split(", ", StringSplitOptions.RemoveEmptyEntries)) { <span class="am-chip">@n</span> }</td>
+                                    <td class="text-center">@if (r.PendingCount > 0) { <span class="badge bg-warning text-dark">@r.PendingCount</span> } else { <span class="text-muted">0</span> }</td>
+                                    <td class="text-end text-nowrap">
+                                        <button type="button" class="btn btn-sm btn-outline-primary am-edit"><i class="bi bi-pencil"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger am-remove" data-name="@r.Module_Name"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="small text-muted mt-2">
+                <i class="bi bi-info-circle me-1"></i>A module may have a company-wise set-up and branch-wise ones: a branch-wise set-up is used for records of its branch,
+                the company-wise one for all other branches.
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const form = document.getElementById('amForm');
+    const token = () => form.querySelector('input[name="__RequestVerificationToken"]').value;
+    const box = document.getElementById('amApprovers');
+    const branchWrap = document.getElementById('amBranchWrap');
+    const branchSel = document.getElementById('amBranch');
+    let keep = [];   // approvers to tick once the list is loaded (editing)
+
+    const scope = () => form.querySelector('input[name="scope"]:checked').value;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    function countTicked() {
+        const n = box.querySelectorAll('input:checked').length;
+        document.getElementById('amApproverCount').textContent = n ? n + ' selected' : '';
+    }
+
+    async function loadApprovers() {
+        const ticked = keep.length ? keep : [...box.querySelectorAll('input:checked')].map(i => i.value);
+        keep = [];
+        if (scope() === 'B' && !branchSel.value) { box.innerHTML = '<div class="text-muted small p-2">Choose the branch first.</div>'; countTicked(); return; }
+        box.innerHTML = '<div class="text-muted small p-2">Loading…</div>';
+        const qs = scope() === 'B' ? '?branchId=' + encodeURIComponent(branchSel.value) : '';
+        try {
+            const users = await (await fetch('@Url.Action("Approvers")' + qs)).json();
+            if (!users.length) {
+                box.innerHTML = '<div class="text-danger small p-2"><i class="bi bi-exclamation-circle me-1"></i>No active system user with a Manager role'
+                    + (scope() === 'B' ? ' works in this branch' : '') + '. Give the Manager role to a user first (Settings &gt; Users).</div>';
+            } else {
+                box.innerHTML = users.map(u => `
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="approverIds" value="${u.Id}" id="ap_${u.Id}" ${ticked.includes(String(u.Id)) ? 'checked' : ''}>
+                        <label class="form-check-label w-100" for="ap_${u.Id}">${esc(u.Name)}
+                            <span class="d-block small text-muted">${esc(u.Username)} · ${esc(u.Roles)}</span></label>
+                    </div>`).join('');
+            }
+        } catch { box.innerHTML = '<div class="text-danger small p-2">Could not load the approvers.</div>'; }
+        countTicked();
+    }
+
+    function syncScope() {
+        const b = scope() === 'B';
+        branchWrap.classList.toggle('d-none', !b);
+        branchSel.required = b;
+        document.getElementById('amScopeHint').textContent = b
+            ? 'Approved on the dashboard of the chosen branch, for records of that branch.'
+            : 'Approved on the dashboard of the head-office branch.';
+        loadApprovers();
+    }
+
+    function reset() {
+        form.reset();
+        document.getElementById('amMatrixId').value = '';
+        document.getElementById('amFormTitle').innerHTML = '<i class="bi bi-plus-circle me-1 text-primary"></i>New approval set-up';
+        document.getElementById('amReset').classList.add('d-none');
+        document.querySelectorAll('tr.am-row').forEach(r => r.classList.remove('table-active'));
+        syncScope();
+    }
+
+    form.querySelectorAll('input[name="scope"]').forEach(r => r.addEventListener('change', syncScope));
+    branchSel.addEventListener('change', loadApprovers);
+    box.addEventListener('change', countTicked);
+    document.getElementById('amReset').addEventListener('click', reset);
+
+    document.querySelectorAll('.am-edit').forEach(btn => btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const tr = btn.closest('tr');
+        document.querySelectorAll('tr.am-row').forEach(r => r.classList.toggle('table-active', r === tr));
+        document.getElementById('amMatrixId').value = tr.dataset.id;
+        document.getElementById('amModule').value = tr.dataset.module;
+        document.getElementById(tr.dataset.scope === 'B' ? 'amScopeB' : 'amScopeC').checked = true;
+        branchSel.value = tr.dataset.branch || '';
+        keep = (tr.dataset.approvers || '').split(',').filter(Boolean);
+        document.getElementById('amFormTitle').innerHTML = '<i class="bi bi-pencil-square me-1 text-primary"></i>Edit approval set-up';
+        document.getElementById('amReset').classList.remove('d-none');
+        syncScope();
+    }));
+
+    document.querySelectorAll('.am-remove').forEach(btn => btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const tr = btn.closest('tr');
+        const ok = await Swal.fire({
+            icon: 'warning', title: 'Remove approval?', showCancelButton: true, confirmButtonText: 'Remove', confirmButtonColor: '#dc3545',
+            text: btn.dataset.name + ' will save without approval' + (tr.dataset.scope === 'B' ? ' in this branch' : '') + '.'
+        });
+        if (!ok.isConfirmed) return;
+        const body = new FormData();
+        body.append('matrixId', tr.dataset.id);
+        body.append('__RequestVerificationToken', token());
+        const res = await (await fetch('@Url.Action("Remove")', { method: 'POST', body })).json();
+        await Swal.fire({ icon: res.success ? 'success' : 'error', text: res.message });
+        if (res.success) location.reload();
+    }));
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!form.reportValidity()) return;
+        if (!box.querySelector('input:checked')) { Swal.fire({ icon: 'warning', text: 'Choose at least one approver.' }); return; }
+        const btn = document.getElementById('amSave');
+        btn.disabled = true;
+        try {
+            const res = await (await fetch('@Url.Action("Save")', { method: 'POST', body: new FormData(form) })).json();
+            await Swal.fire({ icon: res.success ? 'success' : 'error', text: res.message });
+            if (res.success) location.reload();
+        } catch { Swal.fire({ icon: 'error', text: 'Could not save. Please try again.' }); }
+        finally { btn.disabled = false; }
+    });
+
+    syncScope();
+})();
+</script>
+}

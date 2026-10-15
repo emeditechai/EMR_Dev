@@ -20,8 +20,8 @@ public class LabFranchisesController(
     IWebHostEnvironment environment,
     IAuditLogService auditLogService,
     IPasswordHasherService passwordHasherService,
-    IEmailService emailService,
-    ILogger<LabFranchisesController> logger) : Controller
+    IMasterApprovalService approvals,
+    ILoginCredentialsMailer credentialsMailer) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(
@@ -45,6 +45,7 @@ public class LabFranchisesController(
             )).ToList();
 
             var branches = await GetBranchOptionsAsync(companyId, parentBranchId);
+            ViewBag.ApprovalStates = await approvals.GetOpenStatesAsync(companyId, ApprovalModules.Franchise);
 
             var model = new LabFranchiseIndexViewModel
             {
@@ -160,9 +161,24 @@ public class LabFranchisesController(
                 UserId = User.GetUserId()
             };
 
+            // under approval the franchise is saved inactive (not offered in B2B rates or billing) until approved
+            var matrix = await approvals.FindMatrixAsync(companyId, ApprovalModules.Franchise, model.Parent_Branch_ID);
+            if (matrix is not null) req.IsActive = false;
+
             var newId = await franchiseApiClient.CreateAsync(req);
 
-            var loginNote = await CreateLinkedUserAsync(model, newId, companyId);
+            var loginNote = await CreateLinkedUserAsync(model, newId, companyId, activeNow: matrix is null);
+
+            if (matrix is not null)
+            {
+                req.IsActive = model.IsActive;
+                await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Franchise, Matrix = matrix, CompanyId = companyId, BranchId = model.Parent_Branch_ID,
+                    EntityId = newId, EntityName = model.Franchise_Name.Trim(), ActionType = "CREATE", RequestedActive = model.IsActive,
+                    NewValues = req, UserId = User.GetUserId()
+                });
+            }
 
             await auditLogService.LogAsync(
                 "Create Lab Franchise",
@@ -172,7 +188,9 @@ public class LabFranchisesController(
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = "Lab Franchise created successfully.";
+            TempData["SuccessMessage"] = matrix is null
+                ? "Lab Franchise created successfully."
+                : "Lab Franchise saved and sent for approval. It becomes active for B2B rates and billing, and its login is enabled, once approved.";
             if (loginNote != null) TempData["Warning"] = loginNote;   // the login / credentials email did not go through
             return RedirectToAction(nameof(Index));
         }
@@ -247,6 +265,10 @@ public class LabFranchisesController(
                 CreditFacilityTypeOptions = GetCreditFacilityTypeOptions(item.Credit_Facility_Type)
             };
 
+            var open = await approvals.GetOpenAsync(ApprovalModules.Franchise, id);
+            if (open is { IsPendingCreate: true, Requested_Active: bool wanted }) model.IsActive = wanted;
+            ViewBag.ApprovalOpen = open;
+
             return View(model);
         }
         catch (HttpRequestException)
@@ -312,7 +334,50 @@ public class LabFranchisesController(
                 UserId = User.GetUserId()
             };
 
+            var open = await approvals.GetOpenAsync(ApprovalModules.Franchise, model.Franchise_ID);
+            var matrix = await approvals.FindMatrixAsync(companyId, ApprovalModules.Franchise, model.Parent_Branch_ID);
+
+            if (matrix is not null && open is { IsPendingCreate: true })
+            {
+                // not approved yet: the record stays inactive and goes back for approval with these values
+                req.IsActive = false;
+                await franchiseApiClient.UpdateAsync(req);
+                req.IsActive = model.IsActive;
+                await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Franchise, Matrix = matrix, CompanyId = companyId, BranchId = model.Parent_Branch_ID,
+                    EntityId = model.Franchise_ID, EntityName = req.Franchise_Name, ActionType = "CREATE", RequestedActive = model.IsActive,
+                    NewValues = req, UserId = User.GetUserId()
+                });
+                TempData["SuccessMessage"] = "Lab Franchise saved and sent for approval again.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (matrix is not null)
+            {
+                // an approved franchise keeps working on its current values until the change is approved
+                var current = await franchiseApiClient.GetByIdAsync(model.Franchise_ID);
+                var old = current is null ? null : CopyAs<LabFranchiseUpdateRequestModel>(current);
+                if (old is not null) old.UserId = req.UserId;
+                var requestId = await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Franchise, Matrix = matrix, CompanyId = companyId, BranchId = model.Parent_Branch_ID,
+                    EntityId = model.Franchise_ID, EntityName = req.Franchise_Name, ActionType = "UPDATE",
+                    OldValues = old, NewValues = req, UserId = User.GetUserId()
+                });
+                TempData["SuccessMessage"] = requestId == 0
+                    ? "Nothing was changed, so nothing was sent for approval."
+                    : "The change was sent for approval. The franchise keeps its current details until it is approved.";
+                return RedirectToAction(nameof(Index));
+            }
+
             await franchiseApiClient.UpdateAsync(req);
+            if (open is { IsPendingCreate: true })
+            {
+                // the approval for this module was switched off while the franchise was waiting: it is live now
+                await approvals.CloseAsync(ApprovalModules.Franchise, model.Franchise_ID, User.GetUserId(), "Approval no longer configured");
+                await ActivateLinkedLoginAsync(model.Franchise_ID);
+            }
 
             await auditLogService.LogAsync(
                 "Update Lab Franchise",
@@ -366,6 +431,11 @@ public class LabFranchisesController(
     public async Task<IActionResult> ToggleStatus(int id, bool isActive)
     {
         var branchId = User.GetCurrentBranchId() ?? 1;
+        if (await approvals.GetOpenAsync(ApprovalModules.Franchise, id) is { IsPendingCreate: true })
+        {
+            TempData["ErrorMessage"] = "This franchise is awaiting approval. It becomes active once approved.";
+            return RedirectToAction(nameof(Index));
+        }
         try
         {
             var req = new LabFranchiseToggleStatusRequestModel
@@ -483,6 +553,7 @@ public class LabFranchisesController(
         try
         {
             await franchiseApiClient.DeleteAsync(id);
+            await approvals.CloseAsync(ApprovalModules.Franchise, id, User.GetUserId(), "Record deleted");
 
             await auditLogService.LogAsync(
                 "Delete Lab Franchise",
@@ -554,8 +625,6 @@ public class LabFranchisesController(
         return $"/uploads/franchise_docs/{uniqueFileName}";
     }
 
-    /// <summary>Creates the franchise's login and emails its details. Returns null when all went through, otherwise
-    /// what the user creating the franchise must know (no login made / the email could not be sent).</summary>
     /// <summary>A Prepaid (Wallet) franchise has no credit terms: whatever was posted for them is dropped.</summary>
     private void ApplyPrepaidRules(LabFranchiseWizardViewModel model)
     {
@@ -576,14 +645,17 @@ public class LabFranchisesController(
             ModelState.Remove(key);
     }
 
-    private async Task<string?> CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId)
+    /// <summary>Creates the franchise's login and emails its details. Returns null when all went through, otherwise
+    /// what the user creating the franchise must know (no login made / the email could not be sent).
+    /// A franchise under approval gets a disabled login: it is enabled, and its details mailed, on approval.</summary>
+    private async Task<string?> CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId, bool activeNow)
     {
         var email = model.Email.Trim();
 
         if (await dbContext.Users.AnyAsync(u => u.Username == email))
             return $"No login was created for this franchise: a user with the username {email} already exists.";
 
-        var defaultPassword = "Welcome@123";
+        var defaultPassword = LoginCredentialsMailer.DefaultPassword;
         var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);
 
         var newUser = new Models.Entities.User
@@ -597,7 +669,7 @@ public class LabFranchisesController(
             FirstName       = model.Franchise_Name,
             PhoneNumber     = model.Mobile_No,
             Phone           = model.Mobile_No,
-            IsActive        = true,
+            IsActive        = activeNow,
             UserType        = Models.Entities.UserTypes.Franchise,
             ReferenceUserId = franchiseId,
             MustChangePassword  = true,
@@ -641,46 +713,24 @@ public class LabFranchisesController(
             CreatedDate  = DateTime.Now
         });
         await dbContext.SaveChangesAsync();
+        if (!activeNow) return null;
 
-        var (sent, reason) = await SendCredentialsEmailAsync(branchId, model.Franchise_Name, email, defaultPassword);
+        var (sent, reason) = await credentialsMailer.SendAsync(branchId, User.GetCurrentBranchId(), model.Franchise_Name, email, defaultPassword,
+            $"{Request.Scheme}://{Request.Host}");
         return sent ? null
             : $"The franchise login {email} was created, but its login details could not be emailed ({reason}). Please share them with the franchise.";
     }
 
-    /// <summary>The login details mail: sent with the parent branch's mail settings, or else the settings of the branch
-    /// the user creating the franchise is working in (a new branch often has no mail settings of its own).</summary>
-    private async Task<(bool Sent, string Reason)> SendCredentialsEmailAsync(int branchId, string name, string email, string password)
+    /// <summary>A franchise that went live without an approval: its login (made disabled) is enabled.</summary>
+    private async Task ActivateLinkedLoginAsync(int franchiseId)
     {
-        var baseUrl = await emailService.GetApplicationBaseUrlAsync(branchId) ?? $"{Request.Scheme}://{Request.Host}";
-        var loginUrl = $"{baseUrl}/Account/Login";
-        Func<string?, string?> enc = System.Net.WebUtility.HtmlEncode;
-        var htmlBody = $@"
-            <h3>Welcome to eClinicPlus+</h3>
-            <p>Dear <strong>{enc(name)}</strong>,</p>
-            <p>Your account has been created. Here are your login details:</p>
-            <table style='border-collapse:collapse;'>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>User ID</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>Email</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>Password</td><td style='padding:4px 12px;'>{password}</td></tr>
-            </table>
-            <p>Please change your password after your first login.</p>
-            <p><a href='{loginUrl}'>Click here to login</a></p>
-            <br/><p>Regards,<br/>eClinicPlus+ Team</p>";
-
-        const string subject = "eClinicPlus+ — Your Login Credentials";
-        try
-        {
-            var result = await emailService.SendEmailAsync(branchId, email, subject, htmlBody);
-            var ownBranch = User.GetCurrentBranchId();
-            if (!result.Success && ownBranch is int fallback && fallback != branchId)
-                result = await emailService.SendEmailAsync(fallback, email, subject, htmlBody);
-            if (!result.Success) logger.LogWarning("Franchise login email to {Email} not sent: {Reason}", email, result.Message);
-            return (result.Success, result.Message);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Franchise login email to {Email} not sent", email);
-            return (false, "the mail server could not be reached");
-        }
+        var login = await dbContext.Users.FirstOrDefaultAsync(u => u.UserType == Models.Entities.UserTypes.Franchise && u.ReferenceUserId == franchiseId);
+        if (login is null || login.IsActive) return;
+        login.IsActive = true;
+        login.LastModifiedDate = DateTime.Now;
+        await dbContext.SaveChangesAsync();
     }
+
+    private static T? CopyAs<T>(object source) =>
+        System.Text.Json.JsonSerializer.Deserialize<T>(System.Text.Json.JsonSerializer.Serialize(source, source.GetType()));
 }
