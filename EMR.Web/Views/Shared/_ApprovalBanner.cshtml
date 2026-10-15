@@ -28,10 +28,21 @@
                 </div>
                 <div class="small">
                     @(Model.IsPendingCreate
-                        ? "It stays inactive (not offered in rates or billing) until approved. Saving again replaces the submission."
-                        : "This page shows the current, approved details. Saving again replaces the submitted change.")
+                        ? "It stays inactive (not offered in rates or billing) until approved."
+                        : "This page shows the current, approved details.")
+                    It cannot be edited until the approver approves it or sends it back.
                 </div>
             </div>
         </div>
+        <script>
+            // read-only while waiting: fields and the save button of the master's edit form are switched off
+            document.addEventListener('DOMContentLoaded', function () {
+                document.querySelectorAll('#franchiseWizardEditForm, #corporateEditForm, #profileForm').forEach(function (form) {
+                    form.querySelectorAll('input:not([type=hidden]), select, textarea').forEach(function (el) { el.disabled = true; });
+                    form.querySelectorAll('button[type=submit], input[type=submit], button:not([type])').forEach(function (b) { b.disabled = true; b.classList.add('d-none'); });
+                    form.addEventListener('submit', function (e) { e.preventDefault(); });
+                });
+            });
+        </script>
     }
 }

@@ -245,6 +245,13 @@ public class LabInvestigationProfilesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(int id, LabInvestigationProfileFormViewModel model)
     {
+        // a record waiting for approval cannot be changed until the approver acts (a sent-back one can)
+        if (await approvals.GetOpenAsync(ApprovalModules.Package, id) is { Status: "P" })
+        {
+            TempData["ErrorMessage"] = "This profile / package is awaiting approval and cannot be edited until the approver approves it or sends it back.";
+            return RedirectToAction(nameof(Index));
+        }
+
         if (id != model.Profile_ID)
             return BadRequest();
 

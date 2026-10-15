@@ -282,6 +282,13 @@ public class LabFranchisesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(int id, LabFranchiseWizardViewModel model)
     {
+        // a record waiting for approval cannot be changed until the approver acts (a sent-back one can)
+        if (await approvals.GetOpenAsync(ApprovalModules.Franchise, id) is { Status: "P" })
+        {
+            TempData["ErrorMessage"] = "This franchise is awaiting approval and cannot be edited until the approver approves it or sends it back.";
+            return RedirectToAction(nameof(Index));
+        }
+
         ApplyPrepaidRules(model);
         var companyId = User.GetCompanyId();
 

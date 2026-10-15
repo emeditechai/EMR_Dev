@@ -219,6 +219,13 @@ public class CorporatesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(int id, CorporateFormViewModel model)
     {
+        // a record waiting for approval cannot be changed until the approver acts (a sent-back one can)
+        if (await approvals.GetOpenAsync(ApprovalModules.Corporate, id) is { Status: "P" })
+        {
+            TempData["Error"] = "This corporate is awaiting approval and cannot be edited until the approver approves it or sends it back.";
+            return RedirectToAction(nameof(Index));
+        }
+
         var companyId = User.GetCompanyId();
         var branchId = User.GetCurrentBranchId() ?? model.Branch_ID ?? 1;
         model.Corporate_ID = id;
