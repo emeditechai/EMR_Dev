@@ -61,7 +61,7 @@ public interface IMasterApprovalService
     /// Returns 0 when an UPDATE changes nothing.</summary>
     Task<int> SubmitAsync(ApprovalSubmission submission);
 
-    /// <summary>The open request of a record, if any (newest).</summary>
+    /// <summary>The record's newest request, when it is still pending or was sent back.</summary>
     Task<OpenApprovalRequest?> GetOpenAsync(string moduleCode, int entityId);
 
     /// <summary>Records of a module that have an open request: id -> "P" / "S", with "N" for a new record
@@ -108,6 +108,7 @@ public class MasterApprovalService(IDbConnectionFactory db) : IMasterApprovalSer
         ["Profile_TAT_Hours"] = "TAT (Hours)",
         ["Profile_NABL_Accredited"] = "NABL Accredited",
         ["IsReportHeaderRequired"] = "Report Header Required",
+        ["PreprintedBarcode"] = "Preprinted Barcode",
         ["IsNotificationRequired"] = "Notification Required",
         ["Agreement_Doc_Path"] = "Agreement Document"
     };
@@ -147,11 +148,11 @@ public class MasterApprovalService(IDbConnectionFactory db) : IMasterApprovalSer
         con.Open();
         using var tx = con.BeginTransaction();
 
-        // the record's earlier open submission is replaced by this one
+        // a submission still waiting is replaced by this one (a sent-back one stays as it was, for the record)
         await con.ExecuteAsync(
             @"UPDATE dbo.ApprovalRequest SET Status = 'X', Actioned_By = @UserId, Actioned_Date = GETDATE(),
-                     Remarks = ISNULL(Remarks + N' | ', N'') + N'Replaced by a newer submission'
-               WHERE Module_Code = @ModuleCode AND Entity_ID = @EntityId AND Status IN ('P', 'S')",
+                     Remarks = N'Replaced by a newer submission'
+               WHERE Module_Code = @ModuleCode AND Entity_ID = @EntityId AND Status = 'P'",
             new { s.UserId, s.ModuleCode, s.EntityId }, tx);
 
         var id = await con.ExecuteScalarAsync<int>(
@@ -194,8 +195,9 @@ public class MasterApprovalService(IDbConnectionFactory db) : IMasterApprovalSer
                 FROM dbo.ApprovalRequest r
                 LEFT JOIN dbo.Users rb ON rb.Id = r.Requested_By
                 LEFT JOIN dbo.Users ab ON ab.Id = r.Actioned_By
-               WHERE r.Module_Code = @moduleCode AND r.Entity_ID = @entityId AND r.Status IN ('P', 'S')
-               ORDER BY r.Request_ID DESC",
+               WHERE r.Request_ID = (SELECT MAX(x.Request_ID) FROM dbo.ApprovalRequest x
+                                      WHERE x.Module_Code = @moduleCode AND x.Entity_ID = @entityId AND x.Status <> 'X')
+                 AND r.Status IN ('P', 'S')",
             new { moduleCode, entityId });
     }
 
@@ -207,7 +209,7 @@ public class MasterApprovalService(IDbConnectionFactory db) : IMasterApprovalSer
                 FROM dbo.ApprovalRequest r
                WHERE r.CompanyId = @companyId AND r.Module_Code = @moduleCode AND r.Status IN ('P', 'S')
                  AND r.Request_ID = (SELECT MAX(x.Request_ID) FROM dbo.ApprovalRequest x
-                                      WHERE x.Module_Code = r.Module_Code AND x.Entity_ID = r.Entity_ID AND x.Status IN ('P', 'S'))",
+                                      WHERE x.Module_Code = r.Module_Code AND x.Entity_ID = r.Entity_ID AND x.Status <> 'X')",
             new { companyId, moduleCode });
         return rows.ToDictionary(r => r.Entity_ID, r => r.Status + (r.Action_Type == "CREATE" ? "N" : "C"));
     }
