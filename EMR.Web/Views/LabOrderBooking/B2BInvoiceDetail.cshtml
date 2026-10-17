@@ -8,8 +8,8 @@
     int testCount = Model.TestLines != null && Model.TestLines.Any() ? Model.TestLines.Count : items.Sum(i => i.Tests?.Count > 0 ? i.Tests.Count : 1);
     var periodFrom = items.Any() ? items.Min(i => i.OrderDate) : (DateTime?)null;
     var periodTo = items.Any() ? items.Max(i => i.OrderDate) : (DateTime?)null;
-    var statusText = Model.Status == "P" ? "Paid" : Model.Status == "R" ? "Partially Paid" : "Unpaid";
-    var statusCls = Model.Status == "P" ? "st-paid" : Model.Status == "R" ? "st-partial" : "st-unpaid";
+    var statusText = Model.Status == "C" ? "Cancelled" : Model.Status == "P" ? "Paid" : Model.Status == "R" ? "Partially Paid" : "Unpaid";
+    var statusCls = Model.Status == "C" ? "st-unpaid" : Model.Status == "P" ? "st-paid" : Model.Status == "R" ? "st-partial" : "st-unpaid";
     var partnerTypeText = Model.PartnerType == "C" ? "Corporate" : "Franchise";
     decimal taxable = Model.TotalAmount - Model.DiscountAmount;
     decimal balance = Math.Max(0, Model.BalanceAmount);
@@ -120,7 +120,7 @@
             <i class="bi bi-arrow-left me-1"></i> Back to Invoices List
         </a>
         <div class="d-flex gap-2">
-            @if (Model.Status != "P")
+            @if (Model.Status != "P" && Model.Status != "C")
             {
                 <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@Model.PartnerType&agentId=@Model.PartnerId" asp-permission="LAB.LABORDERBOOKING.B2BSETTLEMENT:SETTLE" asp-permission-mode="hide" class="btn btn-success btn-sm px-3 fw-bold">
                     <i class="bi bi-wallet2 me-1"></i> Settle Payment

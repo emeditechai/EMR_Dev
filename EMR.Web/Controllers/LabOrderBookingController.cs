@@ -3847,6 +3847,45 @@ namespace EMR.Web.Controllers
             }
         }
 
+        public sealed class CancelB2BInvoiceRequest { public int InvoiceId { get; set; } public string? Reason { get; set; } }
+
+        /// <summary>B2B Invoices > Actions > Cancel (SQLScripts/2281): an unpaid invoice is cancelled with a reason, its bills
+        /// become un-invoiced again. Permission: LAB.LABORDERBOOKING.B2BINVOICES : CANCEL; the procedure checks the rules.</summary>
+        [HttpPost]
+        public async Task<IActionResult> CancelB2BInvoice([FromBody] CancelB2BInvoiceRequest request)
+        {
+            if (!await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BINVOICES", EMR.Shared.Security.PermissionControls.Cancel))
+                return Json(new { success = false, error = "You do not have permission to cancel invoices." });
+            if (request == null || request.InvoiceId <= 0) return Json(new { success = false, error = "Invoice not found." });
+            if (string.IsNullOrWhiteSpace(request.Reason)) return Json(new { success = false, error = "Enter the reason for cancelling the invoice." });
+            try
+            {
+                var con = dbContext.Database.GetDbConnection();
+                var r = await Dapper.SqlMapper.QueryFirstAsync<(int InvoiceId, string InvoiceNo, int BillsReleased)>(con, "dbo.usp_B2B_CancelInvoice",
+                    new { request.InvoiceId, Reason = request.Reason.Trim(), UserId = User.GetUserId(), FranchiseId = User.GetFranchiseId() },
+                    commandType: System.Data.CommandType.StoredProcedure);
+                await auditLogService.LogActivityAsync(
+                    eventType: "B2B Invoicing",
+                    actionName: "LAB.B2BInvoiceCancelled",
+                    description: $"B2B Invoice {r.InvoiceNo} cancelled ({r.BillsReleased} bill(s) released for re-invoicing). Reason: {request.Reason.Trim()}",
+                    userId: User.GetUserId(),
+                    branchId: User.GetCurrentBranchId(),
+                    moduleCode: "LAB",
+                    referenceNo: r.InvoiceNo,
+                    referenceId: r.InvoiceId);
+                return Json(new { success = true, message = $"Invoice {r.InvoiceNo} cancelled. {r.BillsReleased} bill(s) can be invoiced again." });
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number >= 50000)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "B2B invoice {InvoiceId} cancel failed", request.InvoiceId);
+                return Json(new { success = false, error = "The invoice could not be cancelled. Please try again." });
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> GenerateInvoice([FromBody] GenerateInvoiceRequestDto request)
         {

@@ -396,7 +396,7 @@
                     <div class="d-flex gap-1 align-items-center">
                         <div class="input-group flex-fill" style="min-width: 0;">
                             <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
-                                   min="0" max="150" placeholder="00" title="Years (0-150)" />
+                                   min="0" max="110" placeholder="00" title="Years (0-110)" />
                             <span class="input-group-text px-2 small text-muted bg-light fw-medium">Year</span>
                         </div>
                         <div class="input-group flex-fill" style="min-width: 0;">
@@ -1901,11 +1901,11 @@
                     return;
                 }
 
-                // Validate Years <= 150
-                if (y > 150 || y < 0) {
+                // Validate Years <= 110 (maximum age)
+                if (y > 110 || y < 0) {
                     yearsInput?.classList.add('is-invalid');
                     if (feedbackEl) {
-                        feedbackEl.textContent = 'Years must be between 0 and 150.';
+                        feedbackEl.textContent = 'Age cannot be more than 110 years (0 - 110).';
                         feedbackEl.classList.remove('d-none');
                     }
                     isUpdating = false;
@@ -2151,10 +2151,10 @@
                 this.classList.add('was-validated');
                 return;
             }
-            if (y > 150 || y < 0) {
+            if (y > 110 || y < 0) {
                 yInp?.classList.add('is-invalid');
                 yInp?.focus();
-                if (feedback) { feedback.textContent = 'Years must be between 0 and 150.'; feedback.classList.remove('d-none'); }
+                if (feedback) { feedback.textContent = 'Age cannot be more than 110 years (0 - 110).'; feedback.classList.remove('d-none'); }
                 this.classList.add('was-validated');
                 return;
             }
@@ -2413,4 +2413,26 @@
 
     })();
     </script>
+<script>
+    // Age limit 110 years: the date of birth cannot be more than 110 years ago (picker limit + a check on a typed date)
+    (function () {
+        var dob = document.getElementById('DateOfBirth');
+        if (!dob) return;
+        var oldest = new Date(); oldest.setFullYear(oldest.getFullYear() - 110);
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        dob.min = oldest.getFullYear() + '-' + pad(oldest.getMonth() + 1) + '-' + pad(oldest.getDate());
+        dob.addEventListener('change', function () {
+            if (dob.value && dob.value < dob.min) {
+                dob.classList.add('is-invalid');
+                var fb = document.getElementById('ageValidationFeedback');
+                if (fb) { fb.textContent = 'Age cannot be more than 110 years: check the date of birth.'; fb.classList.remove('d-none'); }
+                if (window.Swal) Swal.fire({ icon: 'warning', title: 'Invalid Date of Birth', text: 'Age cannot be more than 110 years.' });
+                dob.value = '';
+                ['AgeYears', 'AgeMonths', 'AgeDays'].forEach(function (id) { var e = document.getElementById(id); if (e) e.value = ''; });
+                dob.focus();
+            }
+        });
+    })();
+</script>
+
 }

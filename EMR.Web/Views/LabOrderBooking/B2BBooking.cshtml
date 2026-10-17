@@ -574,7 +574,7 @@
                     <div class="d-flex gap-1 align-items-center">
                         <div class="input-group flex-fill" style="min-width: 0;">
                             <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
-                                   min="0" max="150" placeholder="00" title="Years (0-150)" />
+                                   min="0" max="110" placeholder="00" title="Years (0-110)" />
                             <span class="input-group-text px-2 small text-muted bg-light fw-medium">Year</span>
                         </div>
                         <div class="input-group flex-fill" style="min-width: 0;">
@@ -1647,14 +1647,40 @@
                 await openSearchModal(url);
             });
 
-            // ── Demographics change triggers test reload ──
-            $('#ddlGender').on('change', function() {
-                loadInvestigations();
-            });
 
-            $('#AgeYears').on('change blur', function() {
+            // ── Patient gender / age decide which tests, profiles and packages can be billed (their Applicable Gender,
+            //    Age Operator and Applicable Age). Watched rather than tied to events, so it also follows values filled in
+            //    by code: an existing patient picked, age worked out from the date of birth, gender from the salutation.
+            //    The list reloads, and only the tests already on the bill that no longer apply are taken off (named).
+            var _demoKey = ($('#ddlGender').val() || '') + '|' + ($('#AgeYears').val() || '');
+            function onDemographicsChanged() {
+                var k = ($('#ddlGender').val() || '') + '|' + ($('#AgeYears').val() || '');
+                if (k === _demoKey) return;
+                _demoKey = k;
+                pruneForDemographics();
                 loadInvestigations();
-            });
+            }
+            function pruneForDemographics() {
+                if (!lineItems || lineItems.length === 0) return;
+                var gender = $('#ddlGender').val() || '', age = $('#AgeYears').val() || '';
+                var url = '/LabOrderBooking/GetAvailableInvestigations?x=1' + (currentAgentId > 0 ? '&rateType=' + (currentAgentType === 'C' ? 'Corporate' : 'Franchise') + '&agentId=' + currentAgentId : '');
+                if (gender) url += '&gender=' + encodeURIComponent(gender);
+                if (age) url += '&ageInYears=' + encodeURIComponent(age);
+                $.get(url, function (res) {
+                    if (!res || !res.isSuccess || !res.data) return;
+                    var ok = new Set(res.data.map(x => ((x.isPackage === true || x.isPackage === 'true') ? 'P_' : 'I_') + x.investigationId));
+                    var gone = lineItems.filter(it => !ok.has(((it.itemType || it.type) + '_' + it.id)));
+                    if (gone.length === 0) return;
+                    lineItems = lineItems.filter(it => ok.has(((it.itemType || it.type) + '_' + it.id)));
+                    renderTable();
+                    Swal.fire({ icon: 'info', title: 'Not applicable for this patient',
+                        html: 'Removed because of the patient\'s gender / age:<br><b>' + gone.map(it => $('<div>').text(it.testName || it.name || '').html()).join('<br>') + '</b>',
+                        confirmButtonColor: '#0d6efd' });
+                });
+            }
+            $('#ddlGender').on('change', onDemographicsChanged);
+            $('#AgeYears').on('change blur input', onDemographicsChanged);
+            setInterval(onDemographicsChanged, 700);
 
             // ── Initial load of investigations ──
             loadInvestigations();
@@ -1765,12 +1791,12 @@
 
                 // Age Validation
                 var yVal = parseInt($('#AgeYears').val(), 10);
-                if (isNaN(yVal) || yVal < 0 || yVal > 150) {
+                if (isNaN(yVal) || yVal < 0 || yVal > 110) {
                     e.preventDefault();
                     Swal.fire({
                         icon: 'warning',
                         title: 'Age Required',
-                        text: 'Please enter a valid Age (0-150 years).',
+                        text: 'Please enter a valid Age (0 - 110 years).',
                         confirmButtonColor: '#0d6efd'
                     });
                     $('#AgeYears').focus();
@@ -2213,11 +2239,11 @@
                     return;
                 }
 
-                // Validate Years <= 150
-                if (y > 150 || y < 0) {
+                // Validate Years <= 110 (maximum age)
+                if (y > 110 || y < 0) {
                     yearsInput?.classList.add('is-invalid');
                     if (feedbackEl) {
-                        feedbackEl.textContent = 'Years must be between 0 and 150.';
+                        feedbackEl.textContent = 'Age cannot be more than 110 years (0 - 110).';
                         feedbackEl.classList.remove('d-none');
                     }
                     isUpdating = false;
@@ -3527,4 +3553,26 @@
             }
         }
     </script>
+<script>
+    // Age limit 110 years: the date of birth cannot be more than 110 years ago (picker limit + a check on a typed date)
+    (function () {
+        var dob = document.getElementById('DateOfBirth');
+        if (!dob) return;
+        var oldest = new Date(); oldest.setFullYear(oldest.getFullYear() - 110);
+        var pad = function (n) { return String(n).padStart(2, '0'); };
+        dob.min = oldest.getFullYear() + '-' + pad(oldest.getMonth() + 1) + '-' + pad(oldest.getDate());
+        dob.addEventListener('change', function () {
+            if (dob.value && dob.value < dob.min) {
+                dob.classList.add('is-invalid');
+                var fb = document.getElementById('ageValidationFeedback');
+                if (fb) { fb.textContent = 'Age cannot be more than 110 years: check the date of birth.'; fb.classList.remove('d-none'); }
+                if (window.Swal) Swal.fire({ icon: 'warning', title: 'Invalid Date of Birth', text: 'Age cannot be more than 110 years.' });
+                dob.value = '';
+                ['AgeYears', 'AgeMonths', 'AgeDays'].forEach(function (id) { var e = document.getElementById(id); if (e) e.value = ''; });
+                dob.focus();
+            }
+        });
+    })();
+</script>
+
 }

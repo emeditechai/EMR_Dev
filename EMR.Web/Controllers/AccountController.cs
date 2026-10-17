@@ -711,10 +711,19 @@ public class AccountController(
         {
             var svc = HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IDayClosingService>();
             var pending = (await svc.GetPendingAsync(userId, branchId)).Where(p => p.BusinessDate < DateTime.Today).ToList();
-            if (pending.Count == 0) return;
-            var text = string.Join("; ", pending.GroupBy(p => p.Module == "PETTY" ? "Petty cash (close in OPD or LAB)" : p.Module)
-                .Select(g => $"{g.Key}: {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"));
-            TempData["Warning"] = $"Cash not closed for earlier days - {text}. Use OPD / LAB Day Closing.";
+            if (pending.Count == 0) { await svc.ClearPendingNoticesIfDoneAsync(userId); return; }
+            // per branch: a day closing belongs to the branch the cash was taken at, so the branch is always named
+            var text = string.Join("; ", pending.GroupBy(p => p.BranchName ?? $"Branch {p.BranchId}").Select(b =>
+                $"{b.Key} - " + string.Join(", ", b.GroupBy(p => p.Module == "PETTY" ? "petty cash (close in OPD or LAB)" : p.Module)
+                    .Select(g => $"{g.Key} {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"))));
+            var otherBranch = pending.Any(p => p.BranchId != branchId);
+            TempData["Warning"] = $"Cash not closed for earlier days: {text}." +
+                (otherBranch ? " Switch to that branch and use OPD / LAB Day Closing there." : " Use OPD / LAB Day Closing.");
+            // one current reminder: the older days' reminders are replaced by today's
+            using (var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection())
+                await Dapper.SqlMapper.ExecuteAsync(con, @"UPDATE dbo.UserNotification SET IsDismissed = 1, DismissedOn = SYSDATETIME()
+                    WHERE UserId = @userId AND Category = 'DAY_CLOSING' AND EventKey LIKE 'DAY_CLOSING_PENDING:%' AND EventKey <> @today AND IsDismissed = 0",
+                    new { userId, today = $"DAY_CLOSING_PENDING:{userId}:{DateTime.Today:yyyyMMdd}" });
             var notes = HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Notifications.INotificationService>();
             var opd = pending.Any(p => p.Module is "OPD" or "PETTY");
             await notes.NotifyUsersAsync([userId], "DAY_CLOSING", "WARNING", "Day closing pending",

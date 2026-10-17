@@ -12,6 +12,13 @@
     .mc-results .mc-item { padding:.45rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; }
     .mc-results .mc-item:hover { background:#f1f5f9; }
     .mc-results .mc-none { padding:.6rem .75rem; color:#64748b; font-size:.875rem; }
+    #npPhoneList { position:absolute; z-index:1060; left:0; right:0; top:100%; margin-top:2px; max-height:280px; overflow:auto; background:#fff; border:1px solid #dee2e6;
+                   border-radius:.5rem; box-shadow:0 .5rem 1.25rem rgba(15,23,42,.15); display:none; }
+    #npPhoneList .np-hd { padding:.4rem .75rem; font-size:.7rem; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:#64748b; background:#f8fafc; border-bottom:1px solid #eef2f7; }
+    #npPhoneList .np-it { padding:.5rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; gap:.6rem; align-items:center; }
+    #npPhoneList .np-it:hover, #npPhoneList .np-it.active { background:#eff6ff; }
+    #npPhoneList .np-av { width:32px; height:32px; border-radius:50%; background:#e0e7ff; color:#3730a3; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.8rem; flex-shrink:0; }
+    .np-locked .form-control, .np-locked .form-select { background-color:#f8fafc !important; }
 </style>
 
 <form asp-action="Issue" method="post" id="issueForm" autocomplete="off">
@@ -29,7 +36,13 @@
                     }
 
                     <div class="position-relative" id="primarySearchBox">
-                        <label class="form-label required">Head of family</label>
+                        <div class="d-flex justify-content-between align-items-end">
+                            <label class="form-label required">Head of family</label>
+                            <button type="button" class="btn btn-sm btn-outline-primary mb-2" id="btnNewPatient"
+                                    asp-permission="MASTER.MEMBERSHIPCARDS:REGISTER_PATIENT" asp-permission-mode="hide">
+                                <i class="bi bi-person-plus me-1"></i>Register new patient
+                            </button>
+                        </div>
                         <div class="input-group">
                             <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
                             <input type="text" class="form-control mc-search" id="primarySearch" placeholder="Type the head's patient code, name or mobile number..." />
@@ -130,6 +143,97 @@
     </div>
 </form>
 
+
+@* ── Register a new patient (common Patient Master, relation Self) - SQLScripts/2282 ── *@
+<div class="modal fade" id="newPatientModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <form class="modal-content border-0 shadow-lg" id="npForm" autocomplete="off" novalidate>
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ExistingPatientId" id="npExisting" value="" />
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-plus me-2 text-primary"></i>Register New Patient</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body px-4">
+                <div id="npExistingBanner" class="d-none mb-3"></div>
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="rounded-3 bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width:38px;height:38px;"><i class="bi bi-person-vcard"></i></span>
+                    <div><div class="fw-bold">Patient Demography</div><div class="small text-muted">Basic personal, contact and address information</div></div>
+                    <span class="badge bg-danger ms-auto">* Required fields</span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4"><label class="form-label fw-semibold required">Phone Number</label>
+                        <div class="position-relative">
+                            <div class="input-group"><span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
+                                <input class="form-control" name="PhoneNumber" id="npPhone" maxlength="10" inputmode="numeric" placeholder="10-digit mobile" required /></div>
+                            <div id="npPhoneList"></div>
+                        </div></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold required">Relation</label>
+                        <select class="form-select bg-light" disabled title="A card holder (head of family) is always registered as Self"><option selected>Self</option></select></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">Profile Picture <span class="fw-normal text-muted">(JPG / PNG / GIF)</span></label>
+                        <input type="file" class="form-control" name="profilePictureFile" accept=".jpg,.jpeg,.png,.gif" /></div>
+
+                    <div class="col-md-2"><label class="form-label fw-semibold">Title</label>
+                        <select class="form-select" name="Salutation" id="npSal"><option value="">--</option><option>Mr.</option><option>Mrs.</option><option>Master</option><option>Ms.</option><option>Dr.</option></select></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold required">First Name</label><input class="form-control" name="FirstName" maxlength="100" placeholder="Enter First Name" required /></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">Middle Name</label><input class="form-control" name="MiddleName" maxlength="100" placeholder="Optional" /></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold required">Last Name</label><input class="form-control" name="LastName" maxlength="100" placeholder="Enter Last Name" required /></div>
+
+                    <div class="col-md-2"><label class="form-label fw-semibold">Secondary Number</label>
+                        <div class="input-group"><span class="input-group-text"><i class="bi bi-telephone"></i></span><input class="form-control" name="SecondaryPhoneNumber" maxlength="15" inputmode="numeric" placeholder="Optional" /></div></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">Email ID</label>
+                        <div class="input-group"><span class="input-group-text"><i class="bi bi-envelope"></i></span><input type="email" class="form-control text-lowercase" name="EmailId" maxlength="150" placeholder="optional" /></div></div>
+                    <div class="col-md-2"><label class="form-label fw-semibold required">Gender</label>
+                        <select class="form-select" name="Gender" id="npGender" required><option value="">-- Select --</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+                    <div class="col-md-2"><label class="form-label fw-semibold">Date of Birth</label><input type="date" class="form-control" name="DateOfBirth" id="npDob" /></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold required">Age</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control px-1 text-center" name="AgeYears" id="npAgeY" min="0" max="110" placeholder="00" /><span class="input-group-text px-1 small">Yr</span>
+                            <input type="number" class="form-control px-1 text-center" name="AgeMonths" id="npAgeM" min="0" max="11" placeholder="00" /><span class="input-group-text px-1 small">Mo</span>
+                            <input type="number" class="form-control px-1 text-center" name="AgeDays" id="npAgeD" min="0" max="30" placeholder="00" /><span class="input-group-text px-1 small">Dy</span>
+                        </div></div>
+
+                    <div class="col-md-4"><label class="form-label fw-semibold">Religion</label><select class="form-select" name="ReligionId" id="npReligion"></select></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">Blood Group</label>
+                        <select class="form-select" name="BloodGroup"><option value="">-- Select --</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Unknown</option></select></div>
+                    <div class="col-md-5"><label class="form-label fw-semibold">Guardian / Relative Name</label><input class="form-control" name="GuardianName" maxlength="150" placeholder="Optional" /></div>
+
+                    <div class="col-md-3"><label class="form-label fw-semibold">Country</label><select class="form-select np-geo" name="CountryId" data-next="state" id="npCountry"></select></div>
+                    <div class="col-md-3"><label class="form-label fw-semibold">State</label><select class="form-select np-geo" name="StateId" data-next="district" id="npState"></select></div>
+                    <div class="col-md-2"><label class="form-label fw-semibold">District</label><select class="form-select np-geo" name="DistrictId" data-next="city" id="npDistrict"></select></div>
+                    <div class="col-md-2"><label class="form-label fw-semibold">City</label><select class="form-select np-geo" name="CityId" data-next="area" id="npCity"></select></div>
+                    <div class="col-md-2"><label class="form-label fw-semibold">Area</label><select class="form-select" name="AreaId" id="npArea"></select></div>
+                    <div class="col-12"><label class="form-label fw-semibold">Address</label><input class="form-control" name="Address" maxlength="500" placeholder="Enter full address (optional)" /></div>
+
+                    <div class="col-12">
+                        <div class="border border-dashed rounded-3 p-3 bg-light" style="border-style:dashed !important;">
+                            <div class="fw-semibold mb-2">Identification Details <span class="fw-normal text-muted">(Optional)</span></div>
+                            <div class="row g-3">
+                                <div class="col-md-4"><label class="form-label fw-semibold">ID Type</label><select class="form-select" name="IdentificationTypeId" id="npIdType"></select></div>
+                                <div class="col-md-4"><label class="form-label fw-semibold">ID Number</label><input class="form-control" name="IdentificationNumber" maxlength="50" placeholder="Enter identification number" /></div>
+                                <div class="col-md-4"><label class="form-label fw-semibold">Upload ID Document <span class="fw-normal text-muted">(PDF / JPG / JPEG / PNG)</span></label>
+                                    <input type="file" class="form-control" name="identificationFile" accept=".pdf,.jpg,.jpeg,.png" /></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4"><label class="form-label fw-semibold">Marital Status</label><select class="form-select" name="MaritalStatusId" id="npMarital"></select></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">Occupation</label><select class="form-select" name="OccupationId" id="npOccupation"></select></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold">Language</label><select class="form-select" name="LanguageId" id="npLanguage"></select></div>
+                    <div class="col-md-6"><label class="form-label fw-semibold">Known Allergies</label><input class="form-control" name="KnownAllergies" maxlength="500" placeholder="Optional" /></div>
+                    <div class="col-md-6"><label class="form-label fw-semibold">Remarks</label><input class="form-control" name="Remarks" maxlength="500" placeholder="Optional" /></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary me-auto d-none" id="npClearExisting"><i class="bi bi-arrow-counterclockwise me-1"></i>Clear &amp; register new</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success px-4 d-none" id="npUseExisting"><i class="bi bi-person-check me-1"></i>Select for this card</button>
+                <button type="submit" class="btn btn-primary px-4" id="npSave"><i class="bi bi-check2-circle me-1"></i>Register &amp; select</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @section Scripts {
     <script>
         (function () {
@@ -158,7 +262,8 @@
                 timer = setTimeout(function () {
                     $.getJSON(searchUrl, { term: term }).done(function (rows) {
                         $list.empty();
-                        if (!rows.length) $list.append('<div class="mc-none">No head of family matches. The patient must be registered with relation Self.</div>');
+                        if (!rows.length) $list.append('<div class="mc-none">No head of family matches. The patient must be registered with relation Self.' +
+                            ($('#btnNewPatient').length ? ' <a href="#" class="np-open fw-semibold">Register a new patient</a>' : '') + '</div>');
                         rows.forEach(function (p) {
                             var $item = $('<div class="mc-item">').data('patient', p);
                             $item.append('<div class="fw-semibold">' + esc(p.patientName) + '</div>');
@@ -254,6 +359,213 @@
                 $('#paymentBox').toggle(total > 0).data('total', total);
                 $('#refBox').toggle(total > 0 && $('#PaymentMethodId option:selected').data('ref') == 1);
             }
+
+
+            // ── Register a new patient (2282) ──
+            var npLoaded = false;
+            function fill($s, rows, first) {
+                $s.empty().append('<option value="">' + (first || '-- Select --') + '</option>');
+                (rows || []).forEach(function (r) { $s.append(new Option(r.name, r.id)); });
+            }
+            function loadGeo(level, parentId, $target, selectId) {
+                var chain = { state: ['#npState', '#npDistrict', '#npCity', '#npArea'], district: ['#npDistrict', '#npCity', '#npArea'], city: ['#npCity', '#npArea'], area: ['#npArea'] }[level];
+                chain.forEach(function (sel) { fill($(sel), []); });
+                if (!parentId) return $.Deferred().resolve().promise();
+                return $.getJSON('@Url.Action("NewPatientGeo")', { level: level, parentId: parentId }).done(function (rows) {
+                    fill($target, rows);
+                    if (selectId) $target.val(String(selectId));
+                });
+            }
+            $(document).on('change', '.np-geo', function () {
+                var next = $(this).data('next');
+                loadGeo(next, $(this).val(), $({ state: '#npState', district: '#npDistrict', city: '#npCity', area: '#npArea' }[next]));
+            });
+            function openNewPatient(prefill) {
+                var $f = $('#npForm');
+                $f[0].reset(); $f.find('.is-invalid').removeClass('is-invalid');
+                if (prefill) { if (/^\d{10}$/.test(prefill)) $('#npPhone').val(prefill); else $f.find('[name=FirstName]').val(prefill); }
+                var show = function () { bootstrap.Modal.getOrCreateInstance(document.getElementById('newPatientModal')).show(); };
+                if (npLoaded) return show();
+                $.getJSON('@Url.Action("NewPatientLookups")').done(function (d) {
+                    fill($('#npCountry'), d.countries); fill($('#npReligion'), d.religions); fill($('#npMarital'), d.maritalStatuses);
+                    fill($('#npOccupation'), d.occupations); fill($('#npLanguage'), d.languages); fill($('#npIdType'), d.idTypes);
+                    if (d.defaultCountryId) { $('#npCountry').val(String(d.defaultCountryId)); loadGeo('state', d.defaultCountryId, $('#npState'), d.defaultStateId).done(function () {
+                        if (d.defaultStateId) loadGeo('district', d.defaultStateId, $('#npDistrict')); }); }
+                    npLoaded = true; show();
+                }).fail(function () { warn('The registration form could not be loaded.'); });
+            }
+            $('#btnNewPatient').on('click', function () { openNewPatient(); });
+            $(document).on('click', '.np-open', function (e) { e.preventDefault(); $('.mc-results').hide(); openNewPatient($('#primarySearch').val().trim()); });
+            // salutation suggests the gender, as in OPD registration
+            $('#npSal').on('change', function () {
+                var g = { 'Mr.': 'Male', 'Master': 'Male', 'Mrs.': 'Female', 'Ms.': 'Female' }[$(this).val()];
+                if (g) $('#npGender').val(g);
+            });
+            // no browser autofill / history list on this form: Chrome ignores autocomplete="off", but not "one-time-code"
+            $('#npForm').find('input:not([type=hidden]):not([type=file]), textarea').attr('autocomplete', 'one-time-code');
+            $('#npForm').find('select').attr('autocomplete', 'off');
+
+            // ── Mobile number: patients already registered on it (as OPD registration) ──
+            var npTimer = null, npRows = [];
+            function npInitials(n) { return (n || '?').replace(/^(Mr|Mrs|Ms|Dr|Master)\.?\s+/i, '').split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase(); }
+            $('#npPhone').on('input', function () {
+                this.value = this.value.replace(/\D/g, '').slice(0, 10);
+                var phone = this.value, $l = $('#npPhoneList');
+                clearTimeout(npTimer);
+                if (phone.length < 3 || $('#npExisting').val()) { $l.hide().empty(); return; }
+                npTimer = setTimeout(function () {
+                    $.getJSON('@Url.Action("NewPatientPhoneSearch")', { phone: phone }).done(function (rows) {
+                        npRows = rows || [];
+                        $l.empty();
+                        if (!npRows.length) { $l.hide(); return; }
+                        $l.append('<div class="np-hd"><i class="bi bi-people me-1"></i>Already registered on this number</div>');
+                        npRows.forEach(function (r, k) {
+                            var sub = [r.patientCode, r.phoneNumber, r.gender, r.age != null ? r.age + ' yrs' : null, r.relationName].filter(Boolean).join(' · ');
+                            $l.append('<div class="np-it" data-k="' + k + '"><div class="np-av">' + esc(npInitials(r.fullName)) + '</div><div class="flex-grow-1"><div class="fw-semibold">' +
+                                esc(r.fullName) + '</div><div class="small text-muted">' + esc(sub) + '</div></div>' +
+                                (r.relationName === 'Self' ? '<span class="badge bg-primary-subtle text-primary border">Head of family</span>' : '') + '</div>');
+                        });
+                        $l.show();
+                    });
+                }, 250);
+            });
+            $(document).on('click', function (e) { if (!$(e.target).closest('#npPhone, #npPhoneList').length) $('#npPhoneList').hide(); });
+            $('#npPhoneList').on('click', '.np-it', function () {
+                var r = npRows[$(this).data('k')];
+                $('#npPhoneList').hide();
+                $.getJSON('@Url.Action("NewPatientExisting")', { id: r.patientId }).done(function (res) {
+                    if (res && res.success) showExisting(res.patient); else warn((res && res.error) || 'Patient not found.');
+                });
+            });
+
+            var npExistingPatient = null;
+            function setVal(name, v) { $('#npForm').find('[name=' + name + ']').val(v == null ? '' : String(v)); }
+            function showExisting(p) {
+                npExistingPatient = p;
+                var $f = $('#npForm');
+                $('#npExisting').val(p.patientId);
+                ['Salutation', 'FirstName', 'MiddleName', 'LastName', 'Gender', 'PhoneNumber', 'SecondaryPhoneNumber', 'EmailId', 'GuardianName', 'Address',
+                 'ReligionId', 'MaritalStatusId', 'OccupationId', 'LanguageId', 'BloodGroup', 'IdentificationTypeId', 'IdentificationNumber', 'KnownAllergies', 'Remarks']
+                    .forEach(function (n) { setVal(n, p[n.charAt(0).toLowerCase() + n.slice(1)]); });
+                if (p.dateOfBirth) { $('#npDob').val(p.dateOfBirth.substring(0, 10)).trigger('change'); }
+                // address: country > state > district > city > area, each level loaded before the next is set
+                setVal('CountryId', p.countryId);
+                loadGeo('state', p.countryId, $('#npState'), p.stateId)
+                    .then(function () { return loadGeo('district', p.stateId, $('#npDistrict'), p.districtId); })
+                    .then(function () { return loadGeo('city', p.districtId, $('#npCity'), p.cityId); })
+                    .then(function () { return loadGeo('area', p.cityId, $('#npArea'), p.areaId); });
+                $f.addClass('np-locked').find('input:not([type=hidden]), select, textarea').prop('disabled', true);
+                var name = [p.salutation, p.firstName, p.middleName, p.lastName].filter(Boolean).join(' ');
+                $('#npExistingBanner').removeClass('d-none').html(
+                    '<div class="alert alert-warning d-flex gap-3 align-items-start mb-0 border-warning-subtle" role="alert">' +
+                    '<i class="bi bi-shield-exclamation fs-4 text-warning"></i><div>' +
+                    '<div class="fw-bold">Patient already registered - ' + esc(name) + ' (' + esc(p.patientCode) + ')</div>' +
+                    '<div class="small">A new patient cannot be created here for an existing patient. ' +
+                    (p.isSelf ? 'Use <b>Select for this card</b> to issue the membership card to this patient, or go back to the Issue Membership Card screen.'
+                              : 'This patient is registered as <b>' + esc(p.relationName || 'a family member') + '</b>; a card is issued to the head of family (Self) of this mobile number - select the head of family on the Issue Membership Card screen.') +
+                    '</div></div></div>');
+                $('#npSave').addClass('d-none');
+                $('#npClearExisting').removeClass('d-none');
+                $('#npUseExisting').toggleClass('d-none', !p.isSelf);
+                $('#newPatientModal .modal-body').scrollTop(0);
+            }
+            function clearExisting() {
+                npExistingPatient = null;
+                var $f = $('#npForm');
+                $f.removeClass('np-locked').find('input:not([type=hidden]), select, textarea').prop('disabled', false);
+                $f[0].reset(); $('#npExisting').val('');
+                $('#npExistingBanner').addClass('d-none').empty();
+                $('#npSave').removeClass('d-none'); $('#npClearExisting, #npUseExisting').addClass('d-none');
+                $('#npPhone').focus();
+            }
+            $('#npClearExisting').on('click', clearExisting);
+            $('#npUseExisting').on('click', function () {
+                var p = npExistingPatient; if (!p) return;
+                bootstrap.Modal.getInstance(document.getElementById('newPatientModal')).hide();
+                primary = { patientId: p.patientId, patientCode: p.patientCode, patientName: [p.salutation, p.firstName, p.middleName, p.lastName].filter(Boolean).join(' '),
+                            phoneNumber: p.phoneNumber, gender: p.gender, age: $('#npAgeY').val() ? parseInt($('#npAgeY').val(), 10) : null };
+                members = []; family = []; autoPick = true; render();
+                $.getJSON(familyUrl, { patientId: primary.patientId }).done(function (r) { family = r || []; render(); });
+            });
+            $('#newPatientModal').on('hidden.bs.modal', function () { if (npExistingPatient) clearExisting(); });
+
+            // salutation suggests the gender, as in OPD registration
+            $('#npSal').on('change', function () {
+                var g = { 'Mr.': 'Male', 'Master': 'Male', 'Mrs.': 'Female', 'Ms.': 'Female' }[$(this).val()];
+                if (g) $('#npGender').val(g);
+            });
+            // no browser autofill list on this form (Chrome ignores autocomplete="off": a field-unique value is needed)
+            $('#npForm').find('input, select, textarea').each(function (i) { $(this).attr('autocomplete', 'np-' + i + '-' + Date.now()); });
+
+            // a mobile number already registered: show that patient and offer to use it (no second registration)
+            var npPhoneChecked = '';
+            $('#npPhone').on('input', function () {
+                this.value = this.value.replace(/\D/g, '').slice(0, 10);
+                var phone = this.value;
+                if (phone.length !== 10 || phone === npPhoneChecked) return;
+                npPhoneChecked = phone;
+                $.getJSON(searchUrl, { term: phone }).done(function (rows) {
+                    var hit = (rows || []).filter(function (p) { return (p.phoneNumber || '').replace(/\D/g, '').slice(-10) === phone; })[0];
+                    if (!hit) return;
+                    Swal.fire({
+                        icon: 'info', title: 'Already registered',
+                        html: 'This mobile number belongs to <b>' + esc(hit.patientName) + '</b> (' + esc(hit.patientCode) + ')' +
+                              (hit.activeCardNo ? '<br><span class="text-warning-emphasis">already on card ' + esc(hit.activeCardNo) + '</span>' : '') + '.',
+                        showCancelButton: true, confirmButtonText: 'Use this patient', cancelButtonText: 'Change number'
+                    }).then(function (x) {
+                        if (x.isConfirmed) {
+                            bootstrap.Modal.getInstance(document.getElementById('newPatientModal')).hide();
+                            primary = hit; members = []; family = []; autoPick = true; render();
+                            $.getJSON(familyUrl, { patientId: primary.patientId }).done(function (r) { family = r || []; render(); });
+                        } else {
+                            $('#npPhone').val('').focus(); npPhoneChecked = '';
+                        }
+                    });
+                });
+            });
+            // date of birth <-> age (years / months / days), as OPD registration
+            $('#npDob').on('change', function () {
+                if (!this.value) return;
+                var b = new Date(this.value), t = new Date();
+                if (b > t) return;
+                var y = t.getFullYear() - b.getFullYear(), m = t.getMonth() - b.getMonth(), d = t.getDate() - b.getDate();
+                if (d < 0) { m--; d += new Date(t.getFullYear(), t.getMonth(), 0).getDate(); }
+                if (m < 0) { y--; m += 12; }
+                $('#npAgeY').val(y); $('#npAgeM').val(m); $('#npAgeD').val(d);
+            });
+            $('#npAgeY, #npAgeM, #npAgeD').on('input', function () {
+                var y = parseInt($('#npAgeY').val() || '0', 10), m = parseInt($('#npAgeM').val() || '0', 10), d = parseInt($('#npAgeD').val() || '0', 10);
+                if (isNaN(y) || isNaN(m) || isNaN(d)) return;
+                var b = new Date(); b.setFullYear(b.getFullYear() - y); b.setMonth(b.getMonth() - m); b.setDate(b.getDate() - d);
+                var pad = function (n) { return String(n).padStart(2, '0'); };
+                $('#npDob').val(b.getFullYear() + '-' + pad(b.getMonth() + 1) + '-' + pad(b.getDate()));
+            });
+            $('#npForm').on('submit', function (e) {
+                e.preventDefault();
+                if ($('#npExisting').val()) return warn('This patient is already registered. A new patient cannot be created here - use Select for this card, or go back to the Issue Membership Card screen.');
+                var $f = $(this), bad = [];
+                $f.find('.is-invalid').removeClass('is-invalid');
+                var need = function (name, msg) { var $i = $f.find('[name=' + name + ']'); if (!$.trim($i.val())) { $i.addClass('is-invalid'); bad.push(msg); } };
+                need('FirstName', 'first name'); need('LastName', 'last name'); need('Gender', 'gender');
+                if (!/^[6-9]\d{9}$/.test($('#npPhone').val())) { $('#npPhone').addClass('is-invalid'); bad.push('a valid 10-digit mobile number'); }
+                var age = parseInt($('#npAgeY').val(), 10), dob = $('#npDob').val();
+                if (!dob && isNaN(age)) { $('#npDob, #npAgeY').addClass('is-invalid'); bad.push('date of birth or age'); }
+                if (!isNaN(age) && (age < 0 || age > 110)) { $('#npAgeY').addClass('is-invalid'); bad.push('age between 0 and 110 years'); }
+                var em = $f.find('[name=EmailId]').val().trim();
+                if (em && !/^[^@@\s]+@@[^@@\s]+\.[^@@\s]+$/.test(em)) { $f.find('[name=EmailId]').addClass('is-invalid'); bad.push('a valid e-mail'); }
+                if (dob && new Date(dob) > new Date()) { $('#npDob').addClass('is-invalid'); bad.push('a date of birth not in the future'); }
+                if (bad.length) return warn('Enter ' + bad.join(', ') + '.');
+                $('#npSave').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Registering...');
+                $.ajax({ url: '@Url.Action("RegisterPatient")', method: 'POST', data: new FormData($f[0]), processData: false, contentType: false }).done(function (res) {
+                    if (!res || !res.success) return warn((res && res.error) || 'The patient could not be registered.');
+                    bootstrap.Modal.getInstance(document.getElementById('newPatientModal')).hide();
+                    primary = res.patient; members = []; family = []; autoPick = true;
+                    $('#primarySearch').val(''); render();
+                    $.getJSON(familyUrl, { patientId: primary.patientId }).done(function (rows) { family = rows || []; render(); });
+                    Swal.fire({ icon: 'success', title: 'Patient registered', text: res.patient.patientName + ' (' + res.patient.patientCode + ') is selected as the head of family. Choose the plan and issue the card.', timer: 3500, showConfirmButton: false });
+                }).fail(function () { warn('Server error. Please try again.'); })
+                  .always(function () { $('#npSave').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i>Register &amp; select'); });
+            });
 
             $('#PlanId, #ValidFrom, #PaymentMethodId').on('change', render);
 

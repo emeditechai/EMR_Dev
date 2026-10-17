@@ -27,6 +27,8 @@ public interface IDayClosingService
     Task<bool> BlocksBillingAsync(int branchId);
     /// <summary>Hospital Settings of the branch: a user may verify their own closing.</summary>
     Task<bool> AllowsSelfVerifyAsync(int branchId);
+    /// <summary>Clears the user's "Day closing pending" bell notifications once nothing is pending any more.</summary>
+    Task<int> ClearPendingNoticesIfDoneAsync(int userId);
 }
 
 public sealed class DayClosingService(IDbConnectionFactory db) : IDayClosingService
@@ -118,6 +120,16 @@ public sealed class DayClosingService(IDbConnectionFactory db) : IDayClosingServ
     {
         using var con = db.CreateConnection();
         return (await con.QueryAsync<DayClosingRow>("dbo.usp_CashClosing_MyList", new { BranchId = branchId, UserId = userId, Module = module }, commandType: Sp)).ToList();
+    }
+
+    public async Task<int> ClearPendingNoticesIfDoneAsync(int userId)
+    {
+        var stillOpen = (await GetPendingAsync(userId, null)).Any(p => p.BusinessDate < DateTime.Today);
+        if (stillOpen) return 0;
+        using var con = db.CreateConnection();
+        return await con.ExecuteAsync(@"
+            UPDATE dbo.UserNotification SET IsDismissed = 1, DismissedOn = SYSDATETIME(), IsRead = 1, ReadOn = ISNULL(ReadOn, SYSDATETIME())
+            WHERE UserId = @userId AND Category = 'DAY_CLOSING' AND EventKey LIKE 'DAY_CLOSING_PENDING:%' AND IsDismissed = 0", new { userId });
     }
 
     public async Task<bool> AllowsSelfVerifyAsync(int branchId)

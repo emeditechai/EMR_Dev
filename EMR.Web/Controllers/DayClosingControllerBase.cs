@@ -79,6 +79,7 @@ public abstract class DayClosingControllerBase(IDayClosingService closings, INot
                 Url.Action("Verify", new { date = form.BusinessDate.ToString("yyyy-MM-dd") }), "CASH", r.CashClosingId,
                 $"DAY_CLOSING_SUBMIT:{r.CashClosingId}:{DateTime.Now:yyyyMMddHHmmss}", branchId, UserId);
 
+            await closings.ClearPendingNoticesIfDoneAsync(UserId);   // the last open day closed: its old reminders go
             return Json(new { success = true, r.CashClosingId, r.ClosingNo, r.Difference, message = $"{ModuleTitle} day closing {r.ClosingNo} submitted for verification." });
         }
         catch (Exception ex)
