@@ -406,6 +406,95 @@ public class PatientDetailsViewModel
     public List<PatientVisitHistoryItem> VisitHistory { get; set; } = [];
     public List<EMR.Web.ApiClients.Models.VitalRow> VitalHistory { get; set; } = [];
     public List<PatientLabOrderHistoryItem> LabOrderHistory { get; set; } = [];
+
+    // Everything else linked to the patient
+    public string? RelationName { get; set; }
+    public string? RegisteredBranchName { get; set; }
+    public string? RegisteredByName { get; set; }
+    public string? ReferralDoctorName { get; set; }
+    public List<PatientFamilyItem> Family { get; set; } = [];
+    public List<PatientMembershipCardItem> MembershipCards { get; set; } = [];
+    public List<PatientCardMemberItem> CardMembers { get; set; } = [];
+    public List<PatientPointsItem> PointsLedger { get; set; } = [];
+    public List<PatientBillingSummaryItem> BillingSummary { get; set; } = [];
+
+    /// <summary>The card shown first: an active one, else the newest.</summary>
+    public PatientMembershipCardItem? CurrentCard =>
+        MembershipCards.FirstOrDefault(c => c.EffectiveStatus == "Active") ?? MembershipCards.FirstOrDefault();
+}
+
+/// <summary>A patient registered on the same mobile number (family / dependents, by relation).</summary>
+public class PatientFamilyItem
+{
+    public int PatientId { get; set; }
+    public string? PatientCode { get; set; }
+    public string FullName { get; set; } = "";
+    public string? Gender { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public int? RelationId { get; set; }
+    public string? RelationName { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsSelf => RelationId == 1;
+}
+
+public class PatientMembershipCardItem
+{
+    public int CardId { get; set; }
+    public string CardNo { get; set; } = "";
+    public string? PlanName { get; set; }
+    public string? PlanType { get; set; }
+    public string Status { get; set; } = "";
+    public DateTime ValidFrom { get; set; }
+    public DateTime ValidTo { get; set; }
+    public decimal PointsBalance { get; set; }
+    public decimal PointValue { get; set; }
+    public int MaxMembers { get; set; }
+    public decimal FeeAmount { get; set; }
+    public string? ReceiptNo { get; set; }
+    public string? IssueBranchName { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public bool IsPrimary { get; set; }
+    public string? MemberRelation { get; set; }
+    public int PrimaryPatientId { get; set; }
+    public string? PrimaryName { get; set; }
+    public string? PrimaryCode { get; set; }
+    public bool MemberActive { get; set; }
+
+    /// <summary>Active / Expired / Blocked / Cancelled / Renewed - expiry comes from ValidTo.</summary>
+    public string EffectiveStatus => Status == "Active" && ValidTo.Date < DateTime.Today ? "Expired" : Status;
+}
+
+public class PatientCardMemberItem
+{
+    public int CardId { get; set; }
+    public int PatientId { get; set; }
+    public string? PatientCode { get; set; }
+    public string FullName { get; set; } = "";
+    public string? Relation { get; set; }
+    public bool IsPrimary { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class PatientPointsItem
+{
+    public DateTime CreatedDate { get; set; }
+    public string? CardNo { get; set; }
+    public string TxnType { get; set; } = "";
+    public decimal Points { get; set; }
+    public decimal? Amount { get; set; }
+    public decimal BalanceAfter { get; set; }
+    public string? ReceiptNo { get; set; }
+    public string? Narration { get; set; }
+    public string? PatientName { get; set; }
+}
+
+public class PatientBillingSummaryItem
+{
+    public string ModuleCode { get; set; } = "";
+    public int Bills { get; set; }
+    public decimal NetAmount { get; set; }
+    public decimal Paid { get; set; }
+    public decimal Due { get; set; }
 }
 
 public class PatientLabOrderHistoryItem

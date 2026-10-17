@@ -1,333 +1,506 @@
 @{
     ViewData["Title"] = "Patient Register";
+    var canAll = ViewBag.CanSeeAllBranches == true;
+    var branchName = (string?)ViewBag.BranchName ?? "This branch";
 }
 @* Excel / PDF libraries are fetched on the first export click, not with the page *@
 <script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
 
 <style>
-    .kpi-card {
-        border-radius: 12px;
-        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-        border: none;
-        overflow: hidden;
-    }
-    .kpi-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
-    }
-    .kpi-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-    }
-    .bg-gradient-primary { background: linear-gradient(135deg, #4e73df 0%, #224abe 100%); color: white; }
-    .bg-gradient-info { background: linear-gradient(135deg, #36b9cc 0%, #258391 100%); color: white; }
-    .bg-gradient-pink { background: linear-gradient(135deg, #e83e8c 0%, #b82b6c 100%); color: white; }
-    .bg-gradient-warning { background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%); color: white; }
-    
-    .filter-panel {
-        background: #fff;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-        padding: 1.25rem;
-        border: 1px solid rgba(0,0,0,0.05);
-    }
-    
-    .table-custom {
-        border-collapse: separate;
-        border-spacing: 0;
-        width: 100%;
-    }
-    .table-custom thead th {
-        background: #f8f9fc;
-        color: #5a5c69;
-        font-weight: 600;
-        text-transform: uppercase;
-        font-size: 0.75rem;
-        letter-spacing: 0.5px;
-        padding: 12px 15px;
-        border-bottom: 2px solid #e3e6f0;
-    }
-    .table-custom tbody tr {
-        transition: all 0.2s;
-    }
-    .table-custom tbody tr:hover {
-        background-color: #f1f3f9;
-    }
-    .table-custom tbody td {
-        padding: 12px 15px;
-        vertical-align: middle;
-        border-bottom: 1px solid #e3e6f0;
-        font-size: 0.85rem;
-    }
+    .pr-filter { background:#fff; border:1px solid #e9eef5; border-radius:.75rem; padding:1rem 1.1rem; }
+    .pr-filter .form-label { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:.25rem; }
+    .pr-quick .btn { font-size:.75rem; padding:.15rem .55rem; }
+    .pr-kpi { background:#fff; border:1px solid #e9eef5; border-radius:.75rem; padding:.8rem 1rem; height:100%; }
+    .pr-kpi .lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .pr-kpi .val { font-size:1.45rem; font-weight:700; color:#0f172a; font-variant-numeric:tabular-nums; line-height:1.2; }
+    .pr-kpi .sub { font-size:.75rem; color:#64748b; }
+    .pr-kpi .ic { width:34px; height:34px; border-radius:.6rem; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+    .pr-card { background:#fff; border:1px solid #e9eef5; border-radius:.75rem; }
+    .pr-card > .hd { padding:.7rem 1rem; border-bottom:1px solid #eef2f7; font-weight:700; font-size:.85rem; display:flex; align-items:center; justify-content:space-between; gap:.5rem; flex-wrap:wrap; }
+    .pr-bar { height:8px; border-radius:4px; background:#e0e7ff; overflow:hidden; }
+    .pr-bar > span { display:block; height:100%; background:#4f46e5; }
+    #prTable { font-size:.8rem; }
+    #prTable thead th { background:#f8fafc; color:#475569; font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
+    #prTable thead th.nosort { cursor:default; }
+    #prTable thead th .si { opacity:.35; font-size:.65rem; }
+    #prTable thead th.sorted .si { opacity:1; color:#4f46e5; }
+    #prTable td { vertical-align:middle; }
+    #prTable .num { text-align:right; font-variant-numeric:tabular-nums; }
+    .pr-wrap { max-height:62vh; overflow:auto; }
+    .pr-pill { font-size:.68rem; font-weight:600; padding:.15rem .5rem; border-radius:999px; white-space:nowrap; }
 </style>
 
-<div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800 fw-bold"><i class="bi bi-people-fill text-primary me-2"></i>Patient Register Dashboard</h1>
-    <div class="d-flex gap-2" id="exportButtons" style="display: none !important;">
-        <button class="btn btn-sm btn-outline-success shadow-sm" onclick="exportToExcel()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Export Excel</button>
-        <button class="btn btn-sm btn-outline-danger shadow-sm" onclick="exportToPdf()"><i class="bi bi-file-earmark-pdf-fill me-1"></i>Export PDF</button>
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+        <h1 class="h4 mb-0 fw-bold text-dark"><i class="bi bi-person-lines-fill text-primary me-2"></i>Patient Register</h1>
+        <small class="text-muted">Patients registered in the period, with family, membership and visit details.</small>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-success" id="btnExcel" onclick="exportToExcel()" disabled><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+        <button class="btn btn-sm btn-outline-danger" id="btnPdf" onclick="exportToPdf()" disabled><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
     </div>
 </div>
 
-<!-- KPI Cards Row -->
-<div class="row mb-4">
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Patients</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiTotal">0</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-primary shadow-sm"><i class="bi bi-people"></i></div>
-                    </div>
-                </div>
+<!-- Filters -->
+<div class="pr-filter mb-3">
+    <form id="prForm" class="row g-2 align-items-end" autocomplete="off">
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">From Date</label>
+            <input type="date" class="form-control form-control-sm" id="fromDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">To Date</label>
+            <input type="date" class="form-control form-control-sm" id="toDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+        </div>
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">Branch</label>
+            <select class="form-select form-select-sm" id="branch" @(canAll ? "" : "disabled")>
+                <option value="0">@branchName</option>
+                @if (canAll) { <option value="1">All branches</option> }
+            </select>
+        </div>
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">Family Position</label>
+            <select class="form-select form-select-sm" id="scope">
+                <option value="ALL">All patients</option>
+                <option value="HEAD">Head of family (Self)</option>
+                <option value="DEP">Dependents only</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">Gender</label>
+            <select class="form-select form-select-sm" id="gender">
+                <option value="">All</option><option>Male</option><option>Female</option><option value="Other">Other / not set</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">Age Group</label>
+            <select class="form-select form-select-sm" id="ageGroup">
+                <option value="">All ages</option>
+                <option value="0-12">Child (0–12)</option>
+                <option value="13-17">Teen (13–17)</option>
+                <option value="18-59">Adult (18–59)</option>
+                <option value="60-">Senior (60+)</option>
+                <option value="custom">Custom…</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-3 col-xl-2 d-none" id="ageCustom">
+            <label class="form-label">Age From – To (years)</label>
+            <div class="input-group input-group-sm">
+                <input type="number" min="0" max="110" class="form-control" id="ageFrom" placeholder="From" />
+                <input type="number" min="0" max="110" class="form-control" id="ageTo" placeholder="To" />
             </div>
         </div>
-    </div>
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Male Patients</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiMale">0</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-info shadow-sm"><i class="bi bi-gender-male"></i></div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">Membership</label>
+            <select class="form-select form-select-sm" id="membership">
+                <option value="">All</option><option value="Y">With active card</option><option value="N">Without card</option>
+            </select>
         </div>
-    </div>
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-pink text-uppercase mb-1" style="color: #e83e8c;">Female Patients</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiFemale">0</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-pink shadow-sm"><i class="bi bi-gender-female"></i></div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-6 col-md-3 col-xl-2">
+            <label class="form-label">Status</label>
+            <select class="form-select form-select-sm" id="status">
+                <option value="A">Active</option><option value="I">Inactive</option><option value="">All</option>
+            </select>
         </div>
-    </div>
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card kpi-card shadow-sm h-100">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Other / Unknown</div>
-                        <div class="h4 mb-0 fw-bold text-dark" id="kpiOther">0</div>
-                    </div>
-                    <div class="col-auto">
-                        <div class="kpi-icon bg-gradient-warning shadow-sm"><i class="bi bi-gender-ambiguous"></i></div>
-                    </div>
-                </div>
-            </div>
+        <div class="col-12 col-md-6 col-xl-3">
+            <label class="form-label">Search</label>
+            <input type="text" class="form-control form-control-sm" id="search" placeholder="Name, patient code or mobile" />
         </div>
-    </div>
-</div>
-
-<!-- Filter Panel -->
-<div class="filter-panel mb-4">
-    <form id="filterForm" class="row g-3 align-items-end">
-        <div class="col-md-3">
-            <label class="form-label text-muted small fw-bold text-uppercase">From Date</label>
-            <input type="date" class="form-control form-control-sm" id="fromDate" name="fromDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+        <div class="col-12 col-xl d-flex gap-2 justify-content-xl-end">
+            <button type="button" class="btn btn-sm btn-light border" id="btnReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+            <button type="submit" class="btn btn-sm btn-primary px-4" id="btnGo"><i class="bi bi-search me-1"></i>Generate</button>
         </div>
-        <div class="col-md-3">
-            <label class="form-label text-muted small fw-bold text-uppercase">To Date</label>
-            <input type="date" class="form-control form-control-sm" id="toDate" name="toDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
-        </div>
-        <div class="col-md-4">
-            <label class="form-label text-muted small fw-bold text-uppercase d-block">Report Scope</label>
-            <div class="btn-group w-100" role="group">
-                <input type="radio" class="btn-check" name="reportType" id="typeAll" value="all" checked>
-                <label class="btn btn-outline-primary btn-sm" for="typeAll">All Patients</label>
-
-                <input type="radio" class="btn-check" name="reportType" id="typeDependent" value="dependent">
-                <label class="btn btn-outline-primary btn-sm" for="typeDependent">Dependent Only</label>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <button type="button" class="btn btn-primary btn-sm w-100 shadow-sm" id="btnSearch">
-                <i class="bi bi-search me-1"></i> Generate
-            </button>
+        <div class="col-12 pr-quick d-flex flex-wrap gap-1 align-items-center">
+            <span class="text-muted small me-1">Quick:</span>
+            <button type="button" class="btn btn-light border" data-range="today">Today</button>
+            <button type="button" class="btn btn-light border" data-range="yesterday">Yesterday</button>
+            <button type="button" class="btn btn-light border" data-range="week">This week</button>
+            <button type="button" class="btn btn-light border" data-range="month">This month</button>
+            <button type="button" class="btn btn-light border" data-range="lastmonth">Last month</button>
+            <button type="button" class="btn btn-light border" data-range="90">Last 90 days</button>
         </div>
     </form>
 </div>
 
-<!-- Data Table Card -->
-<div class="card shadow-sm border-0 mb-4" style="border-radius: 12px; overflow: hidden;">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table-custom" id="reportTable">
-                <thead id="tableHead">
-                    <!-- Dynamic Headers -->
-                </thead>
-                <tbody id="tableBody">
-                    <tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox fs-1 text-light mb-3 d-block"></i>Please click generate to load data.</td></tr>
-                </tbody>
-            </table>
+<!-- Summary -->
+<div class="row g-3 mb-3" id="kpis">
+    <div class="col-6 col-md-4 col-xl-2"><div class="pr-kpi"><div class="d-flex justify-content-between"><div class="lbl">Registered</div><div class="ic bg-primary-subtle text-primary"><i class="bi bi-people"></i></div></div>
+        <div class="val" id="kTotal">0</div><div class="sub" id="kTotalSub">in the period</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pr-kpi"><div class="d-flex justify-content-between"><div class="lbl">Heads / Dependents</div><div class="ic bg-info-subtle text-info"><i class="bi bi-diagram-3"></i></div></div>
+        <div class="val" id="kFamily">0 / 0</div><div class="sub" id="kFamilySub">families</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pr-kpi"><div class="d-flex justify-content-between"><div class="lbl">Male / Female</div><div class="ic bg-danger-subtle text-danger"><i class="bi bi-gender-ambiguous"></i></div></div>
+        <div class="val" id="kGender">0 / 0</div><div class="sub" id="kGenderSub">other / not set 0</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pr-kpi"><div class="d-flex justify-content-between"><div class="lbl">Children / Seniors</div><div class="ic bg-warning-subtle text-warning"><i class="bi bi-person-arms-up"></i></div></div>
+        <div class="val" id="kAge">0 / 0</div><div class="sub" id="kAgeSub">under 18 / 60 and above</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pr-kpi"><div class="d-flex justify-content-between"><div class="lbl">Card Holders</div><div class="ic bg-success-subtle text-success"><i class="bi bi-credit-card-2-front"></i></div></div>
+        <div class="val" id="kCard">0</div><div class="sub" id="kCardSub">0% with an active card</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pr-kpi"><div class="d-flex justify-content-between"><div class="lbl">Visited</div><div class="ic bg-secondary-subtle text-secondary"><i class="bi bi-hospital"></i></div></div>
+        <div class="val" id="kVisit">0</div><div class="sub" id="kVisitSub">0 not visited yet</div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="pr-card h-100">
+            <div class="hd"><span><i class="bi bi-calendar3 me-2 text-primary"></i>Registrations by Day</span><span class="text-muted small fw-normal" id="dayNote"></span></div>
+            <div class="p-3" id="byDay" style="max-height:230px; overflow:auto;"><div class="text-muted small text-center py-3">Generate the report to see the trend.</div></div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="pr-card h-100">
+            <div class="hd"><span><i class="bi bi-grid-3x3 me-2 text-primary"></i>Age Group × Gender</span></div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 small" id="ageTable">
+                    <thead class="table-light"><tr><th>Age group</th><th class="text-end">Male</th><th class="text-end">Female</th><th class="text-end">Other</th><th class="text-end">Total</th></tr></thead>
+                    <tbody><tr><td colspan="5" class="text-muted text-center py-3">—</td></tr></tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
+<!-- Register -->
+<div class="pr-card mb-4">
+    <div class="hd">
+        <span><i class="bi bi-table me-2 text-primary"></i>Register <span class="text-muted fw-normal" id="countNote"></span></span>
+        <div class="d-flex gap-2 align-items-center">
+            <input type="text" class="form-control form-control-sm" id="quick" placeholder="Filter these rows…" style="width:220px" autocomplete="off" />
+            <select class="form-select form-select-sm" id="pageSize" style="width:auto">
+                <option value="25">25 rows</option><option value="50" selected>50 rows</option><option value="100">100 rows</option><option value="0">All rows</option>
+            </select>
+        </div>
+    </div>
+    <div class="pr-wrap">
+        <table class="table table-hover mb-0" id="prTable">
+            <thead>
+                <tr>
+                    <th class="nosort">#</th>
+                    <th data-k="registrationDate">Registered <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="patientName">Patient <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="ageYears">Gender / Age <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="phoneNumber">Mobile <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="relationName">Relation / Head of Family <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="familyCount" class="text-end">Family <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="cityName">Location <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="cardNo">Membership <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="opdVisits" class="text-end">OPD <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="labBills" class="text-end">LAB <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="lastVisit">Last Visit <i class="bi bi-arrow-down-up si"></i></th>
+                    <th data-k="branchName">Branch / By <i class="bi bi-arrow-down-up si"></i></th>
+                </tr>
+            </thead>
+            <tbody id="prBody">
+                <tr><td colspan="13" class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Loading today's registrations…</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top small flex-wrap gap-2">
+        <span class="text-muted" id="pageInfo"></span>
+        <div class="btn-group btn-group-sm" id="pager"></div>
+    </div>
+</div>
+
 <script>
-    let currentData = [];
-    let isDependentView = false;
+    (function () {
+        var data = [], view = [], sortKey = 'registrationDate', sortDir = -1, page = 1, lastFilter = null;
+        var companyName = @Html.Raw(System.Text.Json.JsonSerializer.Serialize((string?)ViewBag.CompanyName ?? ""));
+        var branchLabel = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(branchName));
 
-    document.getElementById('btnSearch').addEventListener('click', function() {
-        const fromDate = document.getElementById('fromDate').value;
-        const toDate = document.getElementById('toDate').value;
-        isDependentView = document.getElementById('typeDependent').checked;
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function d(v) { return v ? new Date(v) : null; }
+        function fmtDate(v) { var x = d(v); return x ? x.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''; }
+        function fmtTime(v) { var x = d(v); return x ? x.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''; }
+        function iso(x) { return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); }
+        function gKey(g) { return g === 'Male' ? 'M' : g === 'Female' ? 'F' : 'O'; }
+        function locText(r) { return [r.areaName, r.cityName, r.districtName].filter(Boolean).join(', '); }
+        function cardTone(s) { return s === 'Active' ? 'success' : s === 'Expired' ? 'warning' : s === 'Blocked' ? 'danger' : 'secondary'; }
 
-        const btn = this;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading...';
-        btn.disabled = true;
-
-        fetch(`/Reports/GetPatientRegisterData?fromDate=${fromDate}&toDate=${toDate}&dependentOnly=${isDependentView}`)
-            .then(res => res.json())
-            .then(res => {
-                if(res.success) {
-                    currentData = res.data;
-                    renderTable();
-                    updateKPIs();
-                    document.getElementById('exportButtons').style.display = currentData.length > 0 ? 'flex' : 'none';
-                } else {
-                    Swal.fire('Error', res.message || 'Failed to fetch report data', 'error');
+        // ── filters ──
+        document.getElementById('ageGroup').addEventListener('change', function () {
+            document.getElementById('ageCustom').classList.toggle('d-none', this.value !== 'custom');
+        });
+        document.querySelectorAll('[data-range]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var t = new Date(); t.setHours(0, 0, 0, 0);
+                var f = new Date(t), e = new Date(t);
+                switch (b.dataset.range) {
+                    case 'yesterday': f.setDate(t.getDate() - 1); e = new Date(f); break;
+                    case 'week': f.setDate(t.getDate() - ((t.getDay() + 6) % 7)); break;
+                    case 'month': f = new Date(t.getFullYear(), t.getMonth(), 1); break;
+                    case 'lastmonth': f = new Date(t.getFullYear(), t.getMonth() - 1, 1); e = new Date(t.getFullYear(), t.getMonth(), 0); break;
+                    case '90': f.setDate(t.getDate() - 89); break;
                 }
-            })
-            .catch(err => {
-                console.error(err);
-                Swal.fire('Error', 'Failed to fetch report.', 'error');
-            })
-            .finally(() => {
-                btn.innerHTML = '<i class="bi bi-search me-1"></i> Generate';
-                btn.disabled = false;
+                document.getElementById('fromDate').value = iso(f);
+                document.getElementById('toDate').value = iso(e);
+                load();
             });
-    });
+        });
+        document.getElementById('btnReset').addEventListener('click', function () {
+            document.getElementById('prForm').reset();
+            var t = iso(new Date());
+            document.getElementById('fromDate').value = t; document.getElementById('toDate').value = t;
+            document.getElementById('ageCustom').classList.add('d-none');
+            load();
+        });
+        document.getElementById('prForm').addEventListener('submit', function (e) { e.preventDefault(); load(); });
 
-    function updateKPIs() {
-        let total = currentData ? currentData.length : 0;
-        let maleCount = 0;
-        let femaleCount = 0;
-        let otherCount = 0;
+        function filters() {
+            var ag = document.getElementById('ageGroup').value, af = '', at = '';
+            if (ag === 'custom') { af = document.getElementById('ageFrom').value; at = document.getElementById('ageTo').value; }
+            else if (ag) { var p = ag.split('-'); af = p[0]; at = p[1] || ''; }
+            return {
+                fromDate: document.getElementById('fromDate').value,
+                toDate: document.getElementById('toDate').value,
+                allBranches: document.getElementById('branch').value === '1',
+                scope: document.getElementById('scope').value,
+                gender: document.getElementById('gender').value,
+                ageFrom: af, ageTo: at,
+                membership: document.getElementById('membership').value,
+                status: document.getElementById('status').value,
+                search: document.getElementById('search').value.trim()
+            };
+        }
+        function describe(f) {
+            var s = [];
+            var opt = function (id) { var el = document.getElementById(id); return el.options[el.selectedIndex].text; };
+            s.push('Period: ' + fmtDate(f.fromDate) + ' to ' + fmtDate(f.toDate));
+            s.push('Branch: ' + (f.allBranches ? 'All branches' : branchLabel));
+            if (f.scope !== 'ALL') s.push(opt('scope'));
+            if (f.gender) s.push('Gender: ' + opt('gender'));
+            if (f.ageFrom || f.ageTo) s.push('Age: ' + (f.ageFrom || 0) + (f.ageTo ? '–' + f.ageTo : '+') + ' yrs');
+            if (f.membership) s.push(opt('membership'));
+            s.push('Status: ' + opt('status'));
+            if (f.search) s.push('Search: "' + f.search + '"');
+            return s.join('  |  ');
+        }
 
-        if (currentData) {
-            currentData.forEach(r => {
-                let g = (r.gender || '').toLowerCase();
-                if (g === 'male' || g === 'm') maleCount++;
-                else if (g === 'female' || g === 'f') femaleCount++;
-                else otherCount++;
+        function load() {
+            var f = filters();
+            if (!f.fromDate || !f.toDate) return Swal.fire('Select dates', 'Choose both From and To dates.', 'warning');
+            if (f.toDate < f.fromDate) return Swal.fire('Check dates', 'To Date cannot be before From Date.', 'warning');
+            var btn = document.getElementById('btnGo');
+            btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Loading';
+            var qs = new URLSearchParams(f).toString();
+            fetch('@Url.Action("GetPatientRegisterReport", "Reports")?' + qs)
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res.success) { Swal.fire('Patient Register', res.message || 'The report could not be loaded.', 'error'); return; }
+                    data = res.data || []; lastFilter = f; page = 1;
+                    document.getElementById('quick').value = '';
+                    summarise(); apply();
+                    document.getElementById('btnExcel').disabled = document.getElementById('btnPdf').disabled = data.length === 0;
+                })
+                .catch(function () { Swal.fire('Patient Register', 'The report could not be loaded.', 'error'); })
+                .finally(function () { btn.disabled = false; btn.innerHTML = '<i class="bi bi-search me-1"></i>Generate'; });
+        }
+
+        // ── summary ──
+        function pct(a, b) { return b ? Math.round(a * 100 / b) : 0; }
+        function summarise() {
+            var n = data.length, heads = 0, deps = 0, m = 0, fe = 0, o = 0, kids = 0, sen = 0, card = 0, visited = 0, days = {};
+            var bands = [['Child (0–12)', 0, 12], ['Teen (13–17)', 13, 17], ['Adult (18–59)', 18, 59], ['Senior (60+)', 60, 999], ['Age not recorded', null, null]];
+            var grid = bands.map(function () { return { M: 0, F: 0, O: 0 }; });
+            data.forEach(function (r) {
+                if (r.isHead) heads++; else deps++;
+                var g = gKey(r.gender); if (g === 'M') m++; else if (g === 'F') fe++; else o++;
+                if (r.ageYears != null && r.ageYears < 18) kids++;
+                if (r.ageYears != null && r.ageYears >= 60) sen++;
+                if (r.cardStatus === 'Active') card++;
+                if (r.opdVisits + r.labBills > 0) visited++;
+                var k = iso(new Date(r.registrationDate)); days[k] = (days[k] || 0) + 1;
+                var bi = r.ageYears == null ? 4 : bands.findIndex(function (b, i) { return i < 4 && r.ageYears >= b[1] && r.ageYears <= b[2]; });
+                grid[bi < 0 ? 4 : bi][g]++;
             });
+            var set = function (id, v) { document.getElementById(id).textContent = v; };
+            set('kTotal', n); set('kTotalSub', describePeriod());
+            set('kFamily', heads + ' / ' + deps); set('kFamilySub', heads + ' new famil' + (heads === 1 ? 'y' : 'ies'));
+            set('kGender', m + ' / ' + fe); set('kGenderSub', 'other / not set ' + o);
+            set('kAge', kids + ' / ' + sen); set('kAgeSub', 'under 18 / 60 and above');
+            set('kCard', card); set('kCardSub', pct(card, n) + '% with an active card');
+            set('kVisit', visited); set('kVisitSub', (n - visited) + ' not visited yet');
+
+            var keys = Object.keys(days).sort(), max = Math.max.apply(null, keys.map(function (k) { return days[k]; }).concat([1]));
+            document.getElementById('dayNote').textContent = keys.length ? keys.length + ' day' + (keys.length === 1 ? '' : 's') + ', avg ' + (n / keys.length).toFixed(1) + '/day' : '';
+            document.getElementById('byDay').innerHTML = keys.length ? keys.reverse().map(function (k) {
+                return '<div class="d-flex align-items-center gap-2 mb-2 small"><span class="text-muted" style="width:92px">' + fmtDate(k) + '</span>' +
+                    '<div class="pr-bar flex-grow-1"><span style="width:' + (days[k] * 100 / max) + '%"></span></div><span class="fw-semibold text-end" style="width:32px">' + days[k] + '</span></div>';
+            }).join('') : '<div class="text-muted small text-center py-3">No registrations in this period.</div>';
+
+            var rows = bands.map(function (b, i) {
+                var g = grid[i], t = g.M + g.F + g.O;
+                if (i === 4 && t === 0) return '';
+                return '<tr><td>' + b[0] + '</td><td class="text-end">' + g.M + '</td><td class="text-end">' + g.F + '</td><td class="text-end">' + g.O + '</td><td class="text-end fw-semibold">' + t + '</td></tr>';
+            }).join('');
+            document.querySelector('#ageTable tbody').innerHTML = rows +
+                '<tr class="table-light fw-bold"><td>Total</td><td class="text-end">' + m + '</td><td class="text-end">' + fe + '</td><td class="text-end">' + o + '</td><td class="text-end">' + n + '</td></tr>';
+        }
+        function describePeriod() {
+            if (!lastFilter) return '';
+            return lastFilter.fromDate === lastFilter.toDate ? 'on ' + fmtDate(lastFilter.fromDate) : fmtDate(lastFilter.fromDate) + ' – ' + fmtDate(lastFilter.toDate);
         }
 
-        document.getElementById('kpiTotal').innerText = total;
-        document.getElementById('kpiMale').innerText = maleCount;
-        document.getElementById('kpiFemale').innerText = femaleCount;
-        document.getElementById('kpiOther').innerText = otherCount;
-    }
+        // ── table ──
+        document.querySelectorAll('#prTable thead th[data-k]').forEach(function (th) {
+            th.addEventListener('click', function () {
+                var k = th.dataset.k;
+                sortDir = sortKey === k ? -sortDir : 1; sortKey = k; apply();
+            });
+        });
+        document.getElementById('quick').addEventListener('input', function () { page = 1; apply(); });
+        document.getElementById('pageSize').addEventListener('change', function () { page = 1; render(); });
 
-    function renderTable() {
-        const thead = document.getElementById('tableHead');
-        const tbody = document.getElementById('tableBody');
-        
-        let headHtml = '';
-        if(isDependentView) {
-            headHtml = `<tr>
-                <th>Date</th>
-                <th>Code</th>
-                <th>Patient Name</th>
-                <th>Gender</th>
-                <th class="text-center">Age</th>
-                <th>Phone No</th>
-                <th>Relation</th>
-                <th>Parent (Self)</th>
-            </tr>`;
-        } else {
-            headHtml = `<tr>
-                <th>Date</th>
-                <th>Code</th>
-                <th>Patient Name</th>
-                <th>Gender</th>
-                <th class="text-center">Age</th>
-                <th>Phone No</th>
-            </tr>`;
-        }
-        thead.innerHTML = headHtml;
-
-        if(!currentData || currentData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox fs-1 text-light mb-3 d-block"></i>No records found for the selected date range.</td></tr>`;
-            return;
+        function apply() {
+            var q = document.getElementById('quick').value.trim().toLowerCase();
+            view = data.filter(function (r) {
+                if (!q) return true;
+                return [r.patientName, r.patientCode, r.phoneNumber, r.relationName, r.headName, r.cardNo, locText(r), r.branchName, r.registeredBy]
+                    .join(' ').toLowerCase().indexOf(q) >= 0;
+            });
+            view.sort(function (a, b) {
+                var x = a[sortKey], y = b[sortKey];
+                if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+                if (typeof x === 'string') return x.localeCompare(y) * sortDir;
+                return (x > y ? 1 : x < y ? -1 : 0) * sortDir;
+            });
+            document.querySelectorAll('#prTable thead th[data-k]').forEach(function (th) {
+                th.classList.toggle('sorted', th.dataset.k === sortKey);
+                th.querySelector('.si').className = 'bi si ' + (th.dataset.k === sortKey ? (sortDir > 0 ? 'bi-sort-up' : 'bi-sort-down') : 'bi-arrow-down-up');
+            });
+            render();
         }
 
-        let bodyHtml = '';
-        currentData.forEach(r => {
-            let genderIcon = '';
-            let g = (r.gender || '').toLowerCase();
-            if(g === 'male' || g === 'm') genderIcon = '<i class="bi bi-gender-male text-info me-1"></i>';
-            else if(g === 'female' || g === 'f') genderIcon = '<i class="bi bi-gender-female text-danger me-1"></i>';
+        function render() {
+            var size = parseInt(document.getElementById('pageSize').value, 10) || view.length || 1;
+            var pages = Math.max(1, Math.ceil(view.length / size));
+            if (page > pages) page = pages;
+            var start = (page - 1) * size, slice = view.slice(start, start + size);
+            document.getElementById('countNote').textContent = '(' + view.length + (view.length !== data.length ? ' of ' + data.length : '') + ')';
 
-            if(isDependentView) {
-                bodyHtml += `<tr>
-                    <td>${new Date(r.registrationDate).toLocaleDateString('en-GB')}</td>
-                    <td class="fw-medium text-dark">${r.patientCode}</td>
-                    <td class="fw-bold text-primary">${r.patientName}</td>
-                    <td>${genderIcon}${r.gender || '—'}</td>
-                    <td class="text-center">${r.age !== null ? r.age : '—'}</td>
-                    <td>${r.phoneNumber || '—'}</td>
-                    <td><span class="badge bg-light text-secondary border">${r.relationName || 'Dependent'}</span></td>
-                    <td class="text-secondary">${r.parentName || '—'}</td>
-                </tr>`;
+            var body = document.getElementById('prBody');
+            if (!view.length) {
+                body.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>' +
+                    (data.length ? 'No row matches the filter.' : 'No patient was registered with these filters.') + '</td></tr>';
             } else {
-                bodyHtml += `<tr>
-                    <td>${new Date(r.registrationDate).toLocaleDateString('en-GB')}</td>
-                    <td class="fw-medium text-dark">${r.patientCode}</td>
-                    <td class="fw-bold text-primary">${r.patientName}</td>
-                    <td>${genderIcon}${r.gender || '—'}</td>
-                    <td class="text-center">${r.age !== null ? r.age : '—'}</td>
-                    <td>${r.phoneNumber || '—'}</td>
-                </tr>`;
+                body.innerHTML = slice.map(function (r, i) {
+                    var gIcon = r.gender === 'Male' ? 'bi-gender-male text-info' : r.gender === 'Female' ? 'bi-gender-female text-danger' : 'bi-gender-ambiguous text-muted';
+                    var rel = r.isHead
+                        ? '<span class="pr-pill bg-primary-subtle text-primary">Head (Self)</span>'
+                        : '<span class="pr-pill bg-light text-dark border">' + esc(r.relationName || 'Not set') + '</span>' +
+                          (r.headPatientId ? '<div class="small mt-1"><a href="/OPD/Details/' + r.headPatientId + '" target="_blank" class="text-decoration-none">' + esc(r.headName) + '</a> <span class="text-muted">' + esc(r.headCode) + '</span></div>'
+                                           : '<div class="small text-muted mt-1">no head on this mobile</div>');
+                    var card = r.cardNo
+                        ? '<span class="font-monospace">' + esc(r.cardNo) + '</span><div><span class="pr-pill bg-' + cardTone(r.cardStatus) + '-subtle text-' + cardTone(r.cardStatus) + '">' + esc(r.cardStatus) + '</span> <span class="text-muted small">' + esc(r.planName || '') + '</span></div>'
+                        : '<span class="text-muted">—</span>';
+                    return '<tr class="' + (r.isActive ? '' : 'opacity-50') + '">' +
+                        '<td class="text-muted">' + (start + i + 1) + '</td>' +
+                        '<td class="text-nowrap">' + fmtDate(r.registrationDate) + '<div class="text-muted small">' + fmtTime(r.registrationDate) + '</div></td>' +
+                        '<td><a href="/OPD/Details/' + r.patientId + '" target="_blank" class="fw-semibold text-decoration-none">' + esc(r.patientName) + '</a>' +
+                            '<div class="text-muted small font-monospace">' + esc(r.patientCode) + (r.isActive ? '' : ' · inactive') + '</div></td>' +
+                        '<td class="text-nowrap"><i class="bi ' + gIcon + ' me-1"></i>' + esc(r.gender || '—') + '<div class="text-muted small">' + (r.ageYears != null ? r.ageYears + ' yrs' : 'age not set') + '</div></td>' +
+                        '<td class="text-nowrap">' + esc(r.phoneNumber || '—') + (r.emailId ? '<div class="text-muted small text-truncate" style="max-width:170px" title="' + esc(r.emailId) + '">' + esc(r.emailId) + '</div>' : '') + '</td>' +
+                        '<td>' + rel + '</td>' +
+                        '<td class="num">' + (r.familyCount ? r.familyCount + 1 : 1) + '</td>' +
+                        '<td>' + (esc(locText(r)) || '<span class="text-muted">—</span>') + (r.stateName ? '<div class="text-muted small">' + esc(r.stateName) + '</div>' : '') + '</td>' +
+                        '<td>' + card + '</td>' +
+                        '<td class="num">' + r.opdVisits + '</td>' +
+                        '<td class="num">' + r.labBills + '</td>' +
+                        '<td class="text-nowrap">' + (r.lastVisit ? fmtDate(r.lastVisit) : '<span class="text-muted">Not yet</span>') + '</td>' +
+                        '<td>' + esc(r.branchName || '—') + '<div class="text-muted small">' + esc(r.registeredBy || '') + '</div></td>' +
+                        '</tr>';
+                }).join('');
             }
-        });
-        tbody.innerHTML = bodyHtml;
-    }
 
-    function exportToExcel() {
-        const table = document.getElementById("reportTable");
-        const wb = XLSX.utils.table_to_book(table, {sheet: "Patient Register"});
-        XLSX.writeFile(wb, `Patient_Register_${new Date().getTime()}.xlsx`);
-    }
+            document.getElementById('pageInfo').textContent = view.length ? 'Showing ' + (start + 1) + '–' + Math.min(start + size, view.length) + ' of ' + view.length : '';
+            var pager = document.getElementById('pager'); pager.innerHTML = '';
+            if (pages > 1) {
+                var add = function (label, p, dis, act) {
+                    var b = document.createElement('button'); b.type = 'button';
+                    b.className = 'btn ' + (act ? 'btn-primary' : 'btn-outline-secondary'); b.innerHTML = label; b.disabled = dis;
+                    b.addEventListener('click', function () { page = p; render(); }); pager.appendChild(b);
+                };
+                add('<i class="bi bi-chevron-left"></i>', page - 1, page === 1);
+                for (var p = Math.max(1, page - 2); p <= Math.min(pages, page + 2); p++) add(String(p), p, false, p === page);
+                add('<i class="bi bi-chevron-right"></i>', page + 1, page === pages);
+            }
+        }
 
-    function exportToPdf() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('landscape');
-        
-        doc.text("Patient Register Dashboard Report", 14, 15);
-        doc.setFontSize(10);
-        doc.text(`Date Range: ${document.getElementById('fromDate').value} to ${document.getElementById('toDate').value}`, 14, 22);
-        
-        doc.autoTable({
-            html: '#reportTable',
-            startY: 28,
-            theme: 'grid',
-            styles: { fontSize: 9 },
-            headStyles: { fillColor: [41, 128, 185] }
-        });
-        
-        doc.save(`Patient_Register_${new Date().getTime()}.pdf`);
-    }
+        // ── export: every row of the current view, every column ──
+        var cols = [
+            ['S.No', function (r, i) { return i + 1; }],
+            ['Registration Date', function (r) { return fmtDate(r.registrationDate) + ' ' + fmtTime(r.registrationDate); }],
+            ['Patient Code', function (r) { return r.patientCode; }],
+            ['Patient Name', function (r) { return r.patientName; }],
+            ['Gender', function (r) { return r.gender || ''; }],
+            ['Age (yrs)', function (r) { return r.ageYears != null ? r.ageYears : ''; }],
+            ['Date of Birth', function (r) { return fmtDate(r.dateOfBirth); }],
+            ['Mobile', function (r) { return r.phoneNumber || ''; }],
+            ['Email', function (r) { return r.emailId || ''; }],
+            ['Blood Group', function (r) { return r.bloodGroup || ''; }],
+            ['Relation', function (r) { return r.isHead ? 'Self (Head)' : (r.relationName || ''); }],
+            ['Head of Family', function (r) { return r.isHead ? '' : (r.headName ? r.headName + ' (' + r.headCode + ')' : ''); }],
+            ['Family Size', function (r) { return (r.familyCount || 0) + 1; }],
+            ['Address', function (r) { return r.address || ''; }],
+            ['Area / City / District', function (r) { return locText(r); }],
+            ['State', function (r) { return r.stateName || ''; }],
+            ['Membership Card', function (r) { return r.cardNo ? r.cardNo + ' (' + r.cardStatus + ')' : ''; }],
+            ['Plan', function (r) { return r.planName || ''; }],
+            ['OPD Visits', function (r) { return r.opdVisits; }],
+            ['LAB Bills', function (r) { return r.labBills; }],
+            ['Last Visit', function (r) { return fmtDate(r.lastVisit); }],
+            ['Referred By', function (r) { return r.referralDoctor || ''; }],
+            ['Branch', function (r) { return r.branchName || ''; }],
+            ['Registered By', function (r) { return r.registeredBy || ''; }],
+            ['Status', function (r) { return r.isActive ? 'Active' : 'Inactive'; }]
+        ];
+        function stamp() { var x = new Date(); return iso(x).replace(/-/g, '') + '_' + String(x.getHours()).padStart(2, '0') + String(x.getMinutes()).padStart(2, '0'); }
 
-    EmrExportLibs.guard('[onclick="exportToExcel()"]', 'excel'); EmrExportLibs.guard('[onclick="exportToPdf()"]', 'pdf');
+        window.exportToExcel = function () {
+            if (!view.length) return;
+            var aoa = [[companyName || 'Patient Register'], ['Patient Register'], [describe(lastFilter)], ['Generated ' + new Date().toLocaleString('en-GB')], []];
+            aoa.push(cols.map(function (c) { return c[0]; }));
+            view.forEach(function (r, i) { aoa.push(cols.map(function (c) { return c[1](r, i); })); });
+            aoa.push([]);
+            aoa.push(['Total patients', view.length]);
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = cols.map(function (c) { return { wch: Math.max(10, c[0].length + 2) }; });
+            ws['!cols'][3] = { wch: 28 }; ws['!cols'][8] = { wch: 26 }; ws['!cols'][11] = { wch: 30 }; ws['!cols'][13] = { wch: 30 }; ws['!cols'][14] = { wch: 28 };
+            var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Patient Register');
+            XLSX.writeFile(wb, 'Patient_Register_' + stamp() + '.xlsx');
+        };
+
+        window.exportToPdf = function () {
+            if (!view.length) return;
+            var doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            var W = doc.internal.pageSize.getWidth();
+            doc.setFontSize(13); doc.setFont(undefined, 'bold'); doc.text(companyName || 'Patient Register', 14, 13);
+            doc.setFontSize(11); doc.text('Patient Register', 14, 19);
+            doc.setFont(undefined, 'normal'); doc.setFontSize(8);
+            doc.text(doc.splitTextToSize(describe(lastFilter), W - 28), 14, 24);
+            var heads = 0, card = 0, visited = 0;
+            view.forEach(function (r) { if (r.isHead) heads++; if (r.cardStatus === 'Active') card++; if (r.opdVisits + r.labBills > 0) visited++; });
+            doc.text('Patients: ' + view.length + '   Heads: ' + heads + '   Dependents: ' + (view.length - heads) + '   Active cards: ' + card + '   Visited: ' + visited, 14, 32);
+            var pc = ['S.No', 'Registration Date', 'Patient Code', 'Patient Name', 'Gender', 'Age (yrs)', 'Mobile', 'Relation', 'Head of Family',
+                      'Area / City / District', 'Membership Card', 'OPD Visits', 'LAB Bills', 'Last Visit', 'Branch', 'Registered By'];
+            var pick = pc.map(function (h) { return cols.find(function (c) { return c[0] === h; }); });
+            doc.autoTable({
+                startY: 35, theme: 'grid',
+                head: [['#', 'Registered', 'Code', 'Patient', 'Gender', 'Age', 'Mobile', 'Relation', 'Head of Family', 'Location', 'Card', 'OPD', 'LAB', 'Last Visit', 'Branch', 'By']],
+                body: view.map(function (r, i) { return pick.map(function (c) { return c[1](r, i); }); }),
+                styles: { fontSize: 6.8, cellPadding: 1.2, overflow: 'linebreak' },
+                headStyles: { fillColor: [79, 70, 229], fontSize: 7 },
+                columnStyles: { 0: { cellWidth: 8 }, 5: { halign: 'right' }, 11: { halign: 'right' }, 12: { halign: 'right' } },
+                didDrawPage: function () {
+                    var H = doc.internal.pageSize.getHeight();
+                    doc.setFontSize(7); doc.setTextColor(120);
+                    doc.text('Generated ' + new Date().toLocaleString('en-GB'), 14, H - 6);
+                    doc.text('Page ' + doc.internal.getNumberOfPages(), W - 14, H - 6, { align: 'right' });
+                    doc.setTextColor(0);
+                }
+            });
+            doc.save('Patient_Register_' + stamp() + '.pdf');
+        };
+
+        EmrExportLibs.guard('#btnExcel', 'excel'); EmrExportLibs.guard('#btnPdf', 'pdf');
+        load();
+    })();
 </script>

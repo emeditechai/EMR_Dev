@@ -6,6 +6,7 @@ using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using EMR.Web.Services.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -25,6 +26,8 @@ public class ApprovalDashboardController(
     ILabInvestigationProfileApiClient profileApiClient,
     ILoginCredentialsMailer credentialsMailer,
     IAuditLogService auditLogService,
+    IMasterApprovalService approvals,
+    INotificationService notifications,
     ILogger<ApprovalDashboardController> logger) : Controller
 {
     private const string VisibleSql = @"
@@ -162,6 +165,14 @@ public class ApprovalDashboardController(
         await auditLogService.LogAsync("Approval Dashboard", "Approve",
             $"Approved {r.Action_Type.ToLower()} of {r.Module_Name} '{r.Entity_Name}' #{r.Entity_ID} [Request #{id}]",
             User.GetUserId(), User.GetCurrentBranchId() ?? 1);
+
+        await approvals.ClearNoticesAsync([id]);
+        var who = User.GetDisplayName();
+        await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "INFO",
+            $"{r.Module_Name} approved · {r.Entity_Name}",
+            $"{who} approved your " + (r.Action_Type == "CREATE" ? "new" : "change to") + $" {r.Module_Name} '{r.Entity_Name}'" +
+            (r.Action_Type == "CREATE" ? "; it is now active." : "; it is now in effect.") + (Trim(remarks) is string rm ? $" Remarks: {rm}" : ""),
+            MasterApprovalService.DashboardLink, MasterApprovalService.NotifyRef, id, $"APPROVAL_DONE:{id}", r.Branch_ID, User.GetUserId());
         return Json(new { success = true, message = "Approved. " + (note ?? "The change is now in effect.") });
     }
 
@@ -187,6 +198,13 @@ public class ApprovalDashboardController(
         await auditLogService.LogAsync("Approval Dashboard", "SendBack",
             $"Sent back {r.Action_Type.ToLower()} of {r.Module_Name} '{r.Entity_Name}' #{r.Entity_ID} [Request #{id}]: {reason}",
             User.GetUserId(), User.GetCurrentBranchId() ?? 1);
+
+        await approvals.ClearNoticesAsync([id]);
+        var who = User.GetDisplayName();
+        await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "WARNING",
+            $"{r.Module_Name} sent back · {r.Entity_Name}",
+            $"{who} sent back your " + (r.Action_Type == "CREATE" ? "new" : "change to") + $" {r.Module_Name} '{r.Entity_Name}': {reason}. Correct it and submit again.",
+            MasterApprovalService.DashboardLink, MasterApprovalService.NotifyRef, id, $"APPROVAL_DONE:{id}", r.Branch_ID, User.GetUserId());
         return Json(new
         {
             success = true,

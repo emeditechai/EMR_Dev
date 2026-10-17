@@ -11,7 +11,40 @@
     // Edit opens Patient Registration: Patient Master > Edit patient (script 2208) and that screen are both needed
     var canEdit = await PermissionGuard.ShowsAsync(Context, "MASTER.OPD", "EDIT")
                   && await PermissionGuard.ShowsAsync(Context, "OPD.PATIENTREGISTRATION", "VIEW");
+    var canOpenCard = await PermissionGuard.ShowsAsync(Context, "MASTER.MEMBERSHIPCARDS", "VIEW");
+
+    var card = Model.CurrentCard;
+    var cardMembers = card == null ? new List<EMR.Web.Models.ViewModels.PatientCardMemberItem>() : Model.CardMembers.Where(m => m.CardId == card.CardId).ToList();
+    var otherCards = Model.MembershipCards.Where(c => card == null || c.CardId != card.CardId).ToList();
+    string CardTone(string s) => s switch { "Active" => "success", "Expired" => "warning", "Blocked" => "danger", "Cancelled" => "secondary", _ => "secondary" };
+    var isHead = p.RelationId == 1;
+    var headOfFamily = isHead ? null : Model.Family.FirstOrDefault(f => f.IsSelf);
+    var opd = Model.BillingSummary.FirstOrDefault(b => b.ModuleCode == "OPD");
+    var lab = Model.BillingSummary.FirstOrDefault(b => b.ModuleCode == "LAB");
+    var totalBilled = Model.BillingSummary.Sum(b => b.NetAmount);
+    var totalPaid = Model.BillingSummary.Sum(b => b.Paid);
+    var totalDue = Model.BillingSummary.Sum(b => b.Due);
+    var lastVisit = new[] { Model.VisitHistory.Select(v => (DateTime?)v.VisitDate).FirstOrDefault(), Model.LabOrderHistory?.Select(l => (DateTime?)l.OrderDate).FirstOrDefault() }
+                    .Where(d => d.HasValue).Select(d => d!.Value).DefaultIfEmpty().Max();
+    string TxnLabel(string t) => t switch { "ISSUE" => "Card issued", "EARN" => "Earned", "REDEEM" => "Redeemed", "REVERSE" => "Reversed", "RESTORE" => "Restored", "DISCOUNT" => "Member discount", "STATUS" => "Status change", _ => t };
 }
+
+<style>
+    .pp-kpi { border:1px solid #e9eef5; border-radius:.75rem; background:#fff; padding:.75rem 1rem; height:100%; }
+    .pp-kpi .lbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:600; }
+    .pp-kpi .val { font-size:1.15rem; font-weight:700; color:#0f172a; font-variant-numeric:tabular-nums; }
+    .pp-kpi .sub { font-size:.75rem; color:#64748b; }
+    .pp-mcard { border-radius:.9rem; color:#fff; padding:1.1rem 1.25rem; position:relative; overflow:hidden;
+                background:linear-gradient(135deg,#1e3a8a 0%,#4f46e5 55%,#7c3aed 100%); }
+    .pp-mcard.is-off { background:linear-gradient(135deg,#475569 0%,#64748b 100%); }
+    .pp-mcard::after { content:""; position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:rgba(255,255,255,.08); }
+    .pp-mcard .no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.12em; font-size:1.15rem; font-weight:700; }
+    .pp-mcard .k { font-size:.65rem; text-transform:uppercase; letter-spacing:.08em; opacity:.75; }
+    .pp-mcard .v { font-weight:600; font-variant-numeric:tabular-nums; }
+    .pp-av { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.75rem; flex-shrink:0; background:#e0e7ff; color:#3730a3; }
+    .pp-row { display:flex; gap:.65rem; align-items:center; padding:.6rem 0; border-bottom:1px solid #f1f5f9; }
+    .pp-row:last-child { border-bottom:0; }
+</style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -31,6 +64,30 @@
             <i class="bi bi-x-lg me-1"></i>Close Tab
         </button>
     </div>
+</div>
+
+<!-- At a glance -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2"><div class="pp-kpi"><div class="lbl"><i class="bi bi-hospital me-1"></i>OPD Visits</div>
+        <div class="val">@Model.VisitHistory.Count</div><div class="sub">@(opd == null ? "No bills" : $"₹ {opd.NetAmount:N2} billed")</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pp-kpi"><div class="lbl"><i class="bi bi-droplet-half me-1"></i>LAB Bills</div>
+        <div class="val">@(Model.LabOrderHistory?.Count ?? 0)</div><div class="sub">@(lab == null ? "No bills" : $"₹ {lab.NetAmount:N2} billed")</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pp-kpi"><div class="lbl"><i class="bi bi-receipt me-1"></i>Total Billed</div>
+        <div class="val">₹ @totalBilled.ToString("N2")</div><div class="sub">Paid ₹ @totalPaid.ToString("N2")</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pp-kpi" style="@(totalDue > 0 ? "border-color:#fecaca;background:#fff7f7" : "")"><div class="lbl"><i class="bi bi-exclamation-circle me-1"></i>Outstanding</div>
+        <div class="val @(totalDue > 0 ? "text-danger" : "text-success")">₹ @totalDue.ToString("N2")</div><div class="sub">@(totalDue > 0 ? "Due to collect" : "Nothing due")</div></div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pp-kpi"><div class="lbl"><i class="bi bi-credit-card-2-front me-1"></i>Membership</div>
+        @if (card != null)
+        {
+            <div class="val">@card.CardNo</div><div class="sub"><span class="text-@CardTone(card.EffectiveStatus) fw-semibold">@card.EffectiveStatus</span> · @card.PointsBalance.ToString("0.##") pts</div>
+        }
+        else
+        {
+            <div class="val text-muted">—</div><div class="sub">No card</div>
+        }
+    </div></div>
+    <div class="col-6 col-md-4 col-xl-2"><div class="pp-kpi"><div class="lbl"><i class="bi bi-people me-1"></i>Family</div>
+        <div class="val">@(Model.Family.Count + 1)</div><div class="sub">@(Model.Family.Count == 0 ? "Only this patient" : $"on {p.PhoneNumber}")</div></div></div>
 </div>
 
 <div class="row g-4">
@@ -77,6 +134,15 @@
                         <span class="badge bg-danger px-3 py-1.5 rounded-pill"><i class="bi bi-droplet-fill me-1"></i>@p.BloodGroup</span>
                     }
                 </div>
+                <div class="d-flex justify-content-center gap-2 flex-wrap mt-2">
+                    <span class="badge bg-white text-primary px-3 py-1.5 rounded-pill">
+                        <i class="bi bi-diagram-3 me-1"></i>@(isHead ? "Head of family" : (Model.RelationName ?? "Relation not set"))
+                    </span>
+                    @if (card != null)
+                    {
+                        <span class="badge bg-warning text-dark px-3 py-1.5 rounded-pill"><i class="bi bi-credit-card-2-front me-1"></i>@card.CardNo · @card.EffectiveStatus</span>
+                    }
+                </div>
             </div>
             <div class="card-body p-0 border-top">
                 <div class="list-group list-group-flush small">
@@ -102,6 +168,20 @@
                         <span class="text-muted"><i class="bi bi-calendar-event-fill me-2 text-primary"></i>Registration Date</span>
                         <span class="fw-semibold text-dark">@p.CreatedDate.ToString("dd MMM yyyy, HH:mm")</span>
                     </div>
+                    @if (Model.RegisteredBranchName != null || Model.RegisteredByName != null)
+                    {
+                        <div class="list-group-item d-flex justify-content-between py-3 px-4 gap-3">
+                            <span class="text-muted text-nowrap"><i class="bi bi-building me-2 text-primary"></i>Registered At</span>
+                            <span class="fw-semibold text-dark text-end">@(Model.RegisteredBranchName ?? "--")@(Model.RegisteredByName == null ? "" : $" · by {Model.RegisteredByName}")</span>
+                        </div>
+                    }
+                    @if (Model.ReferralDoctorName != null)
+                    {
+                        <div class="list-group-item d-flex justify-content-between py-3 px-4">
+                            <span class="text-muted"><i class="bi bi-person-badge me-2 text-primary"></i>Referred By</span>
+                            <span class="fw-semibold text-dark">@Model.ReferralDoctorName</span>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -147,6 +227,131 @@
             </div>
         </div>
 
+
+        <!-- Membership Card -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold text-dark text-uppercase mb-0" style="letter-spacing:.05em">
+                        <i class="bi bi-credit-card-2-front text-primary me-2"></i>Membership Card
+                    </h6>
+                    @if (card != null && canOpenCard)
+                    {
+                        <a href="/MembershipCards/Details/@card.CardId" target="_blank" class="btn btn-sm btn-outline-primary py-0 px-2">Open <i class="bi bi-box-arrow-up-right ms-1"></i></a>
+                    }
+                </div>
+                @if (card == null)
+                {
+                    <div class="text-center text-muted py-3 small">
+                        <i class="bi bi-credit-card d-block fs-3 opacity-50 mb-1"></i>No membership card is assigned to this patient.
+                    </div>
+                }
+                else
+                {
+                    <div class="pp-mcard mb-3 @(card.EffectiveStatus == "Active" ? "" : "is-off")">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <div class="k">@(card.PlanType ?? "Plan")</div>
+                                <div class="fw-bold">@card.PlanName</div>
+                            </div>
+                            <span class="badge bg-white text-@CardTone(card.EffectiveStatus)">@card.EffectiveStatus</span>
+                        </div>
+                        <div class="no my-2">@card.CardNo</div>
+                        <div class="d-flex justify-content-between gap-2">
+                            <div><div class="k">Valid</div><div class="v small">@card.ValidFrom.ToString("dd MMM yy") – @card.ValidTo.ToString("dd MMM yy")</div></div>
+                            <div class="text-end"><div class="k">Points</div><div class="v">@card.PointsBalance.ToString("0.##")</div></div>
+                        </div>
+                    </div>
+                    <div class="small">
+                        <div class="d-flex justify-content-between py-1"><span class="text-muted">Card holder</span>
+                            <span class="fw-semibold text-end">
+                                @if (card.IsPrimary) { <span>This patient (Self)</span> }
+                                else { <a href="/OPD/Details/@card.PrimaryPatientId" class="text-decoration-none">@card.PrimaryName</a> <span class="text-muted">(@card.PrimaryCode)</span> }
+                            </span></div>
+                        @if (!card.IsPrimary)
+                        {
+                            <div class="d-flex justify-content-between py-1"><span class="text-muted">Covered as</span><span class="fw-semibold">@card.MemberRelation@(card.MemberActive ? "" : " (removed)")</span></div>
+                        }
+                        <div class="d-flex justify-content-between py-1"><span class="text-muted">Points value</span><span class="fw-semibold">₹ @((card.PointsBalance * card.PointValue).ToString("N2"))</span></div>
+                        <div class="d-flex justify-content-between py-1"><span class="text-muted">Issued at</span><span class="fw-semibold text-end">@(card.IssueBranchName ?? "--") · @card.CreatedDate.ToString("dd MMM yyyy")</span></div>
+                        <div class="d-flex justify-content-between py-1"><span class="text-muted">Card fee</span><span class="fw-semibold">₹ @card.FeeAmount.ToString("N2")@(string.IsNullOrEmpty(card.ReceiptNo) ? "" : $" · {card.ReceiptNo}")</span></div>
+                    </div>
+
+                    <div class="mt-3">
+                        <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em">Members on this card (@cardMembers.Count(m => m.IsActive)@(card.MaxMembers > 0 ? $" of {card.MaxMembers}" : ""))</div>
+                        @foreach (var m in cardMembers)
+                        {
+                            <div class="pp-row @(m.IsActive ? "" : "opacity-50")">
+                                <div class="pp-av">@string.Concat(m.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => !w.EndsWith(".")).Take(2).Select(w => char.ToUpper(w[0])))</div>
+                                <div class="flex-grow-1 small">
+                                    @if (m.PatientId == p.PatientId) { <span class="fw-semibold">@m.FullName</span> <span class="badge bg-primary-subtle text-primary ms-1">This patient</span> }
+                                    else { <a href="/OPD/Details/@m.PatientId" class="fw-semibold text-decoration-none">@m.FullName</a> }
+                                    <div class="text-muted">@m.PatientCode</div>
+                                </div>
+                                <span class="badge @(m.IsPrimary ? "bg-primary" : "bg-light text-dark border")">@(m.IsPrimary ? "Primary" : m.Relation)@(m.IsActive ? "" : " · removed")</span>
+                            </div>
+                        }
+                    </div>
+
+                    @if (otherCards.Any())
+                    {
+                        <div class="mt-3">
+                            <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em">Earlier / other cards</div>
+                            @foreach (var c in otherCards)
+                            {
+                                <div class="d-flex justify-content-between align-items-center small py-1 border-bottom">
+                                    <span>
+                                        @if (canOpenCard) { <a href="/MembershipCards/Details/@c.CardId" target="_blank" class="font-monospace text-decoration-none">@c.CardNo</a> }
+                                        else { <span class="font-monospace">@c.CardNo</span> }
+                                        <span class="text-muted">· @c.PlanName · till @c.ValidTo.ToString("dd MMM yy")</span>
+                                    </span>
+                                    <span class="badge bg-@CardTone(c.EffectiveStatus)-subtle text-@CardTone(c.EffectiveStatus)">@c.EffectiveStatus</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Family & Dependents -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-dark text-uppercase mb-1" style="letter-spacing:.05em">
+                    <i class="bi bi-people-fill text-primary me-2"></i>Family &amp; Dependents
+                </h6>
+                <div class="text-muted small mb-2">Patients registered on mobile <span class="fw-semibold">@(string.IsNullOrWhiteSpace(p.PhoneNumber) ? "--" : p.PhoneNumber)</span>, by relation to the head of family.</div>
+                @if (!isHead)
+                {
+                    <div class="alert alert-light border small py-2 mb-2">
+                        This patient is registered as <b>@(Model.RelationName ?? "a family member")</b>
+                        @if (headOfFamily != null) { <span>of <a href="/OPD/Details/@headOfFamily.PatientId" class="fw-semibold text-decoration-none">@headOfFamily.FullName</a>.</span> }
+                        else { <span>; no head of family (Self) is registered on this number.</span> }
+                    </div>
+                }
+                @if (!Model.Family.Any())
+                {
+                    <div class="text-center text-muted py-3 small"><i class="bi bi-person d-block fs-3 opacity-50 mb-1"></i>No other patient is registered on this mobile number.</div>
+                }
+                else
+                {
+                    @foreach (var f in Model.Family)
+                    {
+                        var fAge = EMR.Web.Utils.AgeCalculator.FormatAgePattern(f.DateOfBirth);
+                        var onCard = card != null && cardMembers.Any(m => m.PatientId == f.PatientId && m.IsActive);
+                        <div class="pp-row @(f.IsActive ? "" : "opacity-50")">
+                            <div class="pp-av" style="@(f.IsSelf ? "background:#dbeafe;color:#1d4ed8" : "")">@string.Concat(f.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => !w.EndsWith(".")).Take(2).Select(w => char.ToUpper(w[0])))</div>
+                            <div class="flex-grow-1 small">
+                                <a href="/OPD/Details/@f.PatientId" class="fw-semibold text-decoration-none">@f.FullName</a>
+                                @if (onCard) { <i class="bi bi-credit-card-2-front text-warning ms-1" title="Member of @card!.CardNo"></i> }
+                                <div class="text-muted">@f.PatientCode@(string.IsNullOrEmpty(f.Gender) ? "" : $" · {f.Gender}")@(string.IsNullOrEmpty(fAge) ? "" : $" · {fAge}")@(f.IsActive ? "" : " · inactive")</div>
+                            </div>
+                            <span class="badge @(f.IsSelf ? "bg-primary" : "bg-light text-dark border")">@(f.IsSelf ? "Head (Self)" : (f.RelationName ?? "—"))</span>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
     </div>
 
     <!-- Right Column: Full Details, Visits, and Vitals -->
@@ -184,7 +389,11 @@
                         <span class="fw-semibold text-dark fs-6">@(Model.LanguageName ?? "--")</span>
                     </div>
                     <div class="col-sm-6 border-bottom pb-2">
-                        <span class="text-muted d-block mb-1">Guardian Name / Relation</span>
+                        <span class="text-muted d-block mb-1">Relation to Head of Family</span>
+                        <span class="fw-semibold text-dark fs-6">@(isHead ? "Self (head of family)" : (Model.RelationName ?? "--"))</span>
+                    </div>
+                    <div class="col-sm-6 border-bottom pb-2">
+                        <span class="text-muted d-block mb-1">Guardian Name</span>
                         <span class="fw-semibold text-dark fs-6">
                             @if (!string.IsNullOrEmpty(p.GuardianName))
                             {
@@ -268,6 +477,11 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link fw-bold text-dark border-bottom border-3" id="laborders-tab" data-bs-toggle="tab" data-bs-target="#laborders-pane" type="button" role="tab" aria-controls="laborders-pane" aria-selected="false">
                             <i class="bi bi-droplet-half me-2 text-info"></i>LAB TESTs (@(Model.LabOrderHistory?.Count ?? 0))
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link fw-bold text-dark border-bottom border-3" id="points-tab" data-bs-toggle="tab" data-bs-target="#points-pane" type="button" role="tab" aria-controls="points-pane" aria-selected="false">
+                            <i class="bi bi-stars me-2 text-warning"></i>Membership Points (@Model.PointsLedger.Count)
                         </button>
                     </li>
                 </ul>
@@ -587,6 +801,42 @@
                         <div class="text-center py-5">
                             <i class="bi bi-droplet-half text-muted display-6 mb-3 d-block opacity-50"></i>
                             <p class="text-muted mb-0">No lab test history found for this patient.</p>
+                        </div>
+                    }
+                </div>
+
+                <!-- Membership Points Tab Pane -->
+                <div class="tab-pane fade" id="points-pane" role="tabpanel" aria-labelledby="points-tab" tabindex="0">
+                    @if (Model.PointsLedger.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle small mb-0 border-top">
+                                <thead class="table-light text-muted" style="font-size: 0.75rem;">
+                                    <tr><th>Date</th><th>Card</th><th>Transaction</th><th>Member</th><th>Receipt / Bill</th><th class="text-end">Points</th><th class="text-end">Balance</th><th>Narration</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var lp in Model.PointsLedger)
+                                    {
+                                        <tr>
+                                            <td class="text-nowrap">@lp.CreatedDate.ToString("dd MMM yyyy, HH:mm")</td>
+                                            <td class="font-monospace text-secondary">@lp.CardNo</td>
+                                            <td>@TxnLabel(lp.TxnType)</td>
+                                            <td>@(string.IsNullOrWhiteSpace(lp.PatientName) ? "--" : lp.PatientName)</td>
+                                            <td class="font-monospace">@(lp.ReceiptNo ?? "--")</td>
+                                            <td class="text-end fw-semibold @(lp.Points > 0 ? "text-success" : lp.Points < 0 ? "text-danger" : "")">@(lp.Points > 0 ? "+" : "")@lp.Points.ToString("0.##")</td>
+                                            <td class="text-end">@lp.BalanceAfter.ToString("0.##")</td>
+                                            <td class="text-muted">@lp.Narration</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-stars text-muted display-6 mb-3 d-block opacity-50"></i>
+                            <p class="text-muted mb-0">@(card == null ? "No membership card, so no points history." : "No points transactions on this card yet.")</p>
                         </div>
                     }
                 </div>

@@ -21,7 +21,7 @@
     var pollTimer = null;
     var listeners = [];          // the View all page listens for new / changed notifications
 
-    var ICONS = { DISCOUNT_APPROVAL: 'bi-percent' };
+    var ICONS = { DISCOUNT_APPROVAL: 'bi-percent', MASTER_APPROVAL: 'bi-patch-check' };
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {

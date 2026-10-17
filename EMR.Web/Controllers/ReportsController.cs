@@ -51,9 +51,55 @@ public class ReportsController : Controller
     }
 
     [HttpGet]
-    public IActionResult PatientRegister()
+    public async Task<IActionResult> PatientRegister()
     {
+        var branchId = User.GetCurrentBranchId() ?? 0;
+        using var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection();
+        ViewBag.BranchName = await Dapper.SqlMapper.ExecuteScalarAsync<string?>(con,
+            "SELECT BranchName FROM dbo.Branchmaster WHERE BranchID = @branchId", new { branchId });
+        ViewBag.CompanyName = User.GetCompanyName();
+        ViewBag.CanSeeAllBranches = CanSeeAllCollections();
         return View();
+    }
+
+    /// <summary>Reports > Patient Register (SQLScripts/2283 usp_Report_PatientRegister). The current branch; every
+    /// branch of the company only for an Administrator / super admin.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetPatientRegisterReport(DateTime? fromDate, DateTime? toDate, bool allBranches = false,
+        string? scope = null, string? gender = null, int? ageFrom = null, int? ageTo = null, string? membership = null,
+        string? status = "A", string? search = null)
+    {
+        var from = (fromDate ?? DateTime.Today).Date;
+        var to = (toDate ?? DateTime.Today).Date;
+        if (to < from) return Json(new { success = false, message = "To Date cannot be before From Date." });
+        if ((to - from).TotalDays > 366) return Json(new { success = false, message = "Choose a period of at most one year." });
+        if (ageFrom is < 0 || ageTo is < 0 || (ageFrom.HasValue && ageTo.HasValue && ageTo < ageFrom))
+            return Json(new { success = false, message = "Check the age range." });
+
+        int? branchId = allBranches && CanSeeAllCollections() ? null : User.GetCurrentBranchId() ?? 0;
+        try
+        {
+            using var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection();
+            var rows = await Dapper.SqlMapper.QueryAsync<PatientRegisterRow>(con, "dbo.usp_Report_PatientRegister", new
+            {
+                CompanyId = User.GetCompanyId(),
+                BranchId = branchId,
+                FromDate = from,
+                ToDate = to,
+                Scope = scope is "HEAD" or "DEP" ? scope : "ALL",
+                Gender = gender is "Male" or "Female" or "Other" ? gender : null,
+                AgeFrom = ageFrom,
+                AgeTo = ageTo,
+                Membership = membership is "Y" or "N" ? membership : null,
+                Status = status is "A" or "I" ? status : null,
+                Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim()
+            }, commandType: System.Data.CommandType.StoredProcedure, commandTimeout: 90);
+            return Json(new { success = true, data = rows });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 2812)
+        {
+            return Json(new { success = false, message = "Run SQLScripts/2283_patient_register_report.sql on this database first." });
+        }
     }
 
     [HttpGet]
@@ -486,4 +532,43 @@ public class ReportsController : Controller
             return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
         return Content("{\"success\":true,\"scope\":\"" + (seeAll ? "ALL" : "SELF") + "\",\"data\":" + result.Data + "}", "application/json");
     }
+}
+
+/// <summary>A row of dbo.usp_Report_PatientRegister (SQLScripts/2283).</summary>
+public class PatientRegisterRow
+{
+    public int PatientId { get; set; }
+    public string? PatientCode { get; set; }
+    public DateTime RegistrationDate { get; set; }
+    public string? PatientName { get; set; }
+    public string? Gender { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public int? AgeYears { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? SecondaryPhoneNumber { get; set; }
+    public string? EmailId { get; set; }
+    public string? BloodGroup { get; set; }
+    public int? RelationId { get; set; }
+    public string? RelationName { get; set; }
+    public bool IsHead { get; set; }
+    public int? HeadPatientId { get; set; }
+    public string? HeadCode { get; set; }
+    public string? HeadName { get; set; }
+    public int FamilyCount { get; set; }
+    public string? Address { get; set; }
+    public string? AreaName { get; set; }
+    public string? CityName { get; set; }
+    public string? DistrictName { get; set; }
+    public string? StateName { get; set; }
+    public string? BranchName { get; set; }
+    public string? RegisteredBy { get; set; }
+    public string? ReferralDoctor { get; set; }
+    public int? CardId { get; set; }
+    public string? CardNo { get; set; }
+    public string? PlanName { get; set; }
+    public string? CardStatus { get; set; }
+    public int OpdVisits { get; set; }
+    public int LabBills { get; set; }
+    public DateTime? LastVisit { get; set; }
+    public bool IsActive { get; set; }
 }

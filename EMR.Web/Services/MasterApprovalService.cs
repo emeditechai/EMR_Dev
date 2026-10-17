@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Dapper;
 using EMR.Web.Data;
+using EMR.Web.Services.Notifications;
 
 namespace EMR.Web.Services;
 
@@ -73,10 +74,17 @@ public interface IMasterApprovalService
 
     /// <summary>Closes the record's open request without acting on it (record deleted, approval switched off).</summary>
     Task CloseAsync(string moduleCode, int entityId, int userId, string reason);
+
+    /// <summary>Marks the approvers' "awaiting approval" bell items of these requests as read.</summary>
+    Task ClearNoticesAsync(IReadOnlyCollection<int> requestIds);
 }
 
-public class MasterApprovalService(IDbConnectionFactory db) : IMasterApprovalService
+public class MasterApprovalService(IDbConnectionFactory db, INotificationService notifications) : IMasterApprovalService
 {
+    public const string NotifyCategory = "MASTER_APPROVAL";
+    public const string NotifyRef = "APPROVAL";
+    public const string DashboardLink = "/ApprovalDashboard/Index";
+
     // never shown or compared: who saved it, keys, and form helpers
     private static readonly HashSet<string> Hidden = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -148,6 +156,10 @@ public class MasterApprovalService(IDbConnectionFactory db) : IMasterApprovalSer
         con.Open();
         using var tx = con.BeginTransaction();
 
+        var replaced = (await con.QueryAsync<int>(
+            "SELECT Request_ID FROM dbo.ApprovalRequest WHERE Module_Code = @ModuleCode AND Entity_ID = @EntityId AND Status = 'P'",
+            new { s.ModuleCode, s.EntityId }, tx)).ToList();
+
         // a submission still waiting is replaced by this one (a sent-back one stays as it was, for the record)
         await con.ExecuteAsync(
             @"UPDATE dbo.ApprovalRequest SET Status = 'X', Actioned_By = @UserId, Actioned_Date = GETDATE(),
@@ -172,12 +184,69 @@ public class MasterApprovalService(IDbConnectionFactory db) : IMasterApprovalSer
             }, tx);
 
         tx.Commit();
+
+        await ClearNoticesAsync(replaced);
+        await NotifyApproversAsync(id, s);
         return id;
+    }
+
+    /// <summary>Bell + live push to every approver named in the matrix (not the maker). Never fails the save.</summary>
+    private async Task NotifyApproversAsync(int requestId, ApprovalSubmission s)
+    {
+        try
+        {
+            using var con = db.CreateConnection();
+            var info = await con.QueryFirstOrDefaultAsync<(string? Module_Name, string? Maker, string? BranchName)>(
+                @"SELECT (SELECT Module_Name FROM dbo.ApprovalModule WHERE Module_Code = @ModuleCode),
+                         (SELECT COALESCE(NULLIF(FullName, ''), Username) FROM dbo.Users WHERE Id = @UserId),
+                         (SELECT BranchName FROM dbo.BranchMaster WHERE BranchID = @BranchId)",
+                new { s.ModuleCode, s.UserId, s.BranchId });
+            var approvers = (await con.QueryAsync<int>(
+                "SELECT UserId FROM dbo.ApprovalMatrixApprover WHERE Matrix_ID = @Matrix_ID", new { s.Matrix.Matrix_ID }))
+                .Where(u => u != s.UserId).ToList();
+            if (approvers.Count == 0) return;
+
+            var module = info.Module_Name ?? s.ModuleCode;
+            var maker = info.Maker ?? "A user";
+            var what = s.ActionType == "CREATE" ? "new" : "change to";
+            var where = s.Matrix.Scope == 'C' ? "Approve it on the Approval Dashboard of the head-office branch." : $"Approve it on the Approval Dashboard of {info.BranchName ?? "the branch"}.";
+            await notifications.NotifyUsersAsync(approvers, NotifyCategory, "INFO",
+                $"{module} awaiting approval · {s.EntityName}",
+                $"{maker} submitted a {what} {module} '{s.EntityName}'" + (info.BranchName is null ? "" : $" ({info.BranchName})") + $" for your approval. {where}",
+                DashboardLink, NotifyRef, requestId, $"APPROVAL_SUBMIT:{requestId}", s.BranchId, s.UserId);
+        }
+        catch (Exception)
+        {
+            // a notification must never fail the save it reports (NotifyUsersAsync logs its own failures)
+        }
+    }
+
+    /// <summary>Marks the approvers' bell items of these requests as read once the request is acted on or replaced.</summary>
+    public async Task ClearNoticesAsync(IReadOnlyCollection<int> requestIds)
+    {
+        if (requestIds.Count == 0) return;
+        try
+        {
+            using var con = db.CreateConnection();
+            await con.ExecuteAsync(
+                @"UPDATE dbo.UserNotification SET IsRead = 1, ReadOn = SYSDATETIME()
+                   WHERE RefModule = @NotifyRef AND Category = @NotifyCategory AND IsRead = 0 AND EventKey LIKE 'APPROVAL_SUBMIT:%'
+                     AND RefId IN @ids",
+                new { NotifyRef, NotifyCategory, ids = requestIds.Select(i => (long)i).ToArray() });
+        }
+        catch (Exception)
+        {
+            // housekeeping only
+        }
     }
 
     public async Task CloseAsync(string moduleCode, int entityId, int userId, string reason)
     {
         using var con = db.CreateConnection();
+        var open = (await con.QueryAsync<int>(
+            "SELECT Request_ID FROM dbo.ApprovalRequest WHERE Module_Code = @moduleCode AND Entity_ID = @entityId AND Status = 'P'",
+            new { moduleCode, entityId })).ToList();
+        await ClearNoticesAsync(open);
         await con.ExecuteAsync(
             @"UPDATE dbo.ApprovalRequest SET Status = 'X', Actioned_By = @userId, Actioned_Date = GETDATE(),
                      Remarks = ISNULL(Remarks + N' | ', N'') + @reason
