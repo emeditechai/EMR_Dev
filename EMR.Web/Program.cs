@@ -50,6 +50,10 @@ builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IHandwritingRecognizer, EMR.Web.Services.PrescriptionAssist.HandwritingRecognizer>();
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine, EMR.Web.Services.PrescriptionAssist.TesseractOcrEngine>();
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher, EMR.Web.Services.PrescriptionAssist.PrescriptionTestMatcher>();
+// ID document assist: OCR (same engine) + ML.NET document-type classifier + number validation (SQLScripts/2284)
+builder.Services.AddSingleton<EMR.Web.Services.IdDocumentAssist.IIdDocumentReader, EMR.Web.Services.IdDocumentAssist.IdDocumentReader>();
+// Hospital Settings > LAB > Enable AI Features at Billing (per branch, SQLScripts/2286)
+builder.Services.AddScoped<EMR.Web.Services.IAiBillingFeatures, EMR.Web.Services.AiBillingFeatures>();
 
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 

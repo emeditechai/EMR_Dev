@@ -1,0 +1,411 @@
+@* ID document assist (SQLScripts/2284): after an ID document is chosen, the server reads it (OCR on this server, ML.NET
+   document type, number format / check digit) and the page fills ID Type and ID Number. The user can change them,
+   or Undo. Shown only with the ID_AI_ASSIST control; without it the upload works exactly as before. *@
+@{
+    // the booking page this is on: its own ID_AI_ASSIST control and endpoint (B2C by default; B2B passes its own)
+    var idAiPage = ViewData["IdAiPage"] as string ?? "LAB.LABORDERBOOKING.B2CBOOKING";
+    var idAiAction = ViewData["IdAiAction"] as string ?? "IdDocumentAssist";
+}
+<span id="idAiAllowed" class="d-none" asp-permission="@(idAiPage + ":ID_AI_ASSIST")" asp-permission-mode="hide"></span>
+<style>
+    .id-ai-zone { position:relative; border:1px dashed #a5b4fc; border-radius:.6rem; padding:.45rem .6rem;
+                  background:linear-gradient(135deg,#eef2ff 0%,#f5f3ff 55%,#fdf4ff 100%); transition:border-color .15s, box-shadow .15s; }
+    .id-ai-zone.drag { border-color:#6366f1; box-shadow:0 0 0 .25rem rgba(99,102,241,.18); }
+    .id-ai-zone .id-ai-head { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; margin-bottom:.3rem; line-height:1.2; }
+    .id-ai-badge { display:inline-flex; align-items:center; gap:.2rem; font-size:.62rem; font-weight:800; letter-spacing:.06em; color:#fff;
+                   padding:.1rem .4rem; border-radius:999px; background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899); box-shadow:0 2px 8px rgba(168,85,247,.35); }
+    .id-ai-title { font-weight:700; color:#312e81; font-size:.8rem; }
+    .id-ai-sub { font-size:.7rem; color:#6b7280; margin-left:auto; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%; }
+    .id-ai-zone input[type=file] { background:#fff; }
+    #idAiPreview { border-color:#c7d2fe; color:#4338ca; background:#fff; }
+    #idAiPreview:hover:not(:disabled) { background:#eef2ff; }
+    #idAiViewer .modal-body { background:#0f172a; min-height:60vh; display:flex; align-items:center; justify-content:center; padding:0; }
+    #idAiViewer img { max-width:100%; max-height:78vh; object-fit:contain; }
+    #idAiViewer iframe { width:100%; height:78vh; border:0; background:#fff; }
+    .id-ai-progress { height:3px; border-radius:2px; overflow:hidden; background:#e0e7ff; margin-top:.35rem; display:none; }
+    .id-ai-progress > span { display:block; height:100%; width:35%; border-radius:2px; background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899);
+                             animation:idAiSlide 1.1s ease-in-out infinite; }
+    @@keyframes idAiSlide { 0% { margin-left:-35%; } 100% { margin-left:100%; } }
+    .id-ai-result { margin-top:.35rem; border-radius:.45rem; padding:.3rem .5rem; font-size:.75rem; background:#fff; border:1px solid #e2e8f0; display:none; line-height:1.35; }
+    .id-ai-result.ok { border-color:#86efac; background:#f0fdf4; }
+    .id-ai-result.warn { border-color:#fcd34d; background:#fffbeb; }
+    .id-ai-result.err { border-color:#fca5a5; background:#fef2f2; }
+    .id-ai-result .doc { font-weight:700; color:#0f172a; }
+    .id-ai-result .no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; letter-spacing:.04em; }
+    .id-ai-conf { height:4px; border-radius:2px; background:#e2e8f0; overflow:hidden; width:42px; display:inline-block; vertical-align:middle; }
+    .id-ai-conf > span { display:block; height:100%; background:#22c55e; }
+    .id-ai-filled { animation:idAiPulse 1.6s ease-out 2; border-color:#22c55e !important; }
+    .id-ai-filled + .select2 .select2-selection { animation:idAiPulse 1.6s ease-out 2; border-color:#22c55e !important; }
+    /* AI document verification (on Save) */
+    #idVerify .modal-content { border:0; border-radius:1rem; overflow:hidden; box-shadow:0 1.5rem 3rem rgba(15,23,42,.25); }
+    #idVerify .iv-head { background:linear-gradient(120deg,#4338ca 0%,#7c3aed 55%,#c026d3 100%); color:#fff; padding:1rem 1.25rem; }
+    #idVerify .iv-head .iv-ic { width:42px; height:42px; border-radius:.8rem; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; font-size:1.3rem; }
+    #idVerify .iv-score { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.35); border-radius:999px; padding:.25rem .7rem; font-size:.78rem; font-weight:700; white-space:nowrap; }
+    #idVerify .iv-row { border:1px solid #e2e8f0; border-radius:.75rem; padding:.65rem .8rem; margin-bottom:.6rem; background:#fff; }
+    #idVerify .iv-row.bad { border-color:#fcd34d; background:#fffdf5; }
+    #idVerify .iv-row.ok { background:#f8fafc; }
+    #idVerify .iv-label { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#475569; }
+    #idVerify .iv-chip { font-size:.68rem; font-weight:700; border-radius:999px; padding:.12rem .5rem; }
+    #idVerify .iv-chip.ok { background:#dcfce7; color:#166534; } #idVerify .iv-chip.bad { background:#fef3c7; color:#92400e; } #idVerify .iv-chip.miss { background:#e0e7ff; color:#3730a3; }
+    #idVerify .iv-opts { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-top:.5rem; }
+    #idVerify .iv-opt { border:1.5px solid #e2e8f0; border-radius:.6rem; padding:.45rem .6rem; cursor:pointer; transition:border-color .12s, box-shadow .12s; position:relative; }
+    #idVerify .iv-opt .t { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+    #idVerify .iv-opt .v { font-weight:600; color:#0f172a; font-size:.86rem; word-break:break-word; }
+    #idVerify .iv-opt.sel { border-color:#6366f1; box-shadow:0 0 0 .2rem rgba(99,102,241,.15); background:#f5f3ff; }
+    #idVerify .iv-opt.sel::after { content:"\F26A"; font-family:bootstrap-icons; position:absolute; top:.35rem; right:.5rem; color:#6366f1; }
+    #idVerify .iv-opt.dis { cursor:not-allowed; opacity:.6; background:#f8fafc; }
+    #idVerify .iv-foot { background:#f8fafc; border-top:1px solid #eef2f7; }
+    #idVerify .btn-ai { background:linear-gradient(90deg,#4f46e5,#9333ea); color:#fff; border:0; }
+    #idVerify .btn-ai:hover { filter:brightness(1.07); color:#fff; }
+    @@media (max-width:576px) { #idVerify .iv-opts { grid-template-columns:1fr; } }
+    @@keyframes idAiPulse { 0% { box-shadow:0 0 0 0 rgba(34,197,94,.55); } 100% { box-shadow:0 0 0 .55rem rgba(34,197,94,0); } }
+</style>
+<script>
+    (function () {
+        var $file = $('#idFileUpload'), $type = $('#ddlIdType'), $no = $('#IdentificationNumber');
+        if (!$file.length || !document.getElementById('idAiAllowed')) return;
+
+        // ── the AI scan panel around the existing upload (same input, same form field) ──
+        var $col = $file.closest('[class*="col-"]');
+        $col.find('label.form-label').first().addClass('d-none');
+        var $zone = $('<div class="id-ai-zone" id="idAiZone"></div>');
+        $file.before($zone);
+        var idleText = 'Upload or drop - fills ID Type & Number';
+        $zone.attr('title', 'Aadhaar, PAN, Voter ID, Passport, Driving Licence or Ration Card - PDF / JPG / PNG. Read on this server only, never sent outside.');
+        $zone.append(
+            '<div class="id-ai-head"><span class="id-ai-badge"><i class="bi bi-stars"></i>AI</span>' +
+            '<span class="id-ai-title">Smart ID Scan</span><span class="id-ai-sub">' + idleText + '</span></div>');
+        $file.addClass('form-control-sm');
+        var $group = $('<div class="input-group input-group-sm"></div>').appendTo($zone);
+        $group.append($file).append('<button type="button" class="btn" id="idAiPreview" title="Preview the document" disabled><i class="bi bi-eye"></i></button>');
+
+        // ── preview: the chosen file (from the browser, not uploaded yet) or the one already saved on the patient ──
+        var previewUrl = null;
+        $('body').append(
+            '<div class="modal fade" id="idAiViewer" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content">' +
+            '<div class="modal-header py-2"><h6 class="modal-title fw-bold"><i class="bi bi-person-vcard me-2 text-primary"></i><span id="idAiViewerTitle">ID Document</span></h6>' +
+            '<a class="btn btn-sm btn-outline-secondary ms-auto me-2" id="idAiViewerOpen" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>Open in new tab</a>' +
+            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>' +
+            '<div class="modal-body"></div></div></div></div>');
+        function savedPath() { return ($('input[name="IdentificationFilePath"]').first().val() || '').trim(); }
+        function refreshPreview() {
+            var f = $file[0].files && $file[0].files[0];
+            $('#idAiPreview').prop('disabled', !f && !savedPath())
+                .attr('title', f ? 'Preview ' + f.name : savedPath() ? 'Preview the saved document' : 'Choose a document to preview');
+        }
+        $('#idAiPreview').on('click', function () {
+            var f = $file[0].files && $file[0].files[0], url, name, isPdf;
+            if (f) {
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                previewUrl = URL.createObjectURL(f); url = previewUrl; name = f.name; isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+            } else {
+                url = savedPath(); if (!url) return;
+                name = 'Saved ID document'; isPdf = /\.pdf$/i.test(url);
+            }
+            $('#idAiViewerTitle').text(name);
+            $('#idAiViewerOpen').attr('href', url);
+            $('#idAiViewer .modal-body').html(isPdf ? '<iframe title="ID document"></iframe>' : '<img alt="ID document" />');
+            $('#idAiViewer .modal-body').children().attr('src', url);
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('idAiViewer')).show();
+        });
+        $('#idAiViewer').on('hidden.bs.modal', function () { $(this).find('.modal-body').empty(); });
+        $file.on('change', refreshPreview);
+        $('input[name="IdentificationFilePath"]').on('change', refreshPreview);
+        $zone.on('mouseenter focusin', refreshPreview);   // a patient loaded later brings their saved document
+        refreshPreview();
+        var $progress = $('<div class="id-ai-progress"><span></span></div>').appendTo($zone);
+        var $result = $('<div class="id-ai-result" role="status" aria-live="polite"></div>').appendTo($zone);
+        // the existing "View uploaded file" link and validation message stay below the panel
+
+        var seq = 0, undo = null, docPerson = null;
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function show(kind, html) { $progress.hide(); $result.attr('class', 'id-ai-result ' + (kind || '')).html(html).show(); }
+        function busy(on) { $progress.toggle(on); if (on) $result.hide(); }
+        function setType(id) { $type.val(id == null ? '' : String(id)).trigger('change'); }
+        function flash($el) { $el.removeClass('id-ai-filled'); void $el[0].offsetWidth; $el.addClass('id-ai-filled'); setTimeout(function () { $el.removeClass('id-ai-filled'); }, 3400); }
+
+        // drag & drop onto the panel
+        $zone.on('dragover dragenter', function (e) { e.preventDefault(); $zone.addClass('drag'); })
+             .on('dragleave dragend', function () { $zone.removeClass('drag'); })
+             .on('drop', function (e) {
+                 e.preventDefault(); $zone.removeClass('drag');
+                 var files = e.originalEvent.dataTransfer && e.originalEvent.dataTransfer.files;
+                 if (!files || !files.length) return;
+                 var dt = new DataTransfer(); dt.items.add(files[0]);
+                 $file[0].files = dt.files; $file.trigger('change');
+             });
+
+        $result.on('click', '.id-ai-undo', function (e) {
+            e.preventDefault();
+            if (!undo) return;
+            setType(undo.type); $no.val(undo.no).trigger('input');
+            undo = null;
+            show('', '<i class="bi bi-arrow-counterclockwise me-1"></i>Restored the earlier ID Type and ID Number.');
+        });
+
+        $file.on('change', function () {
+            var f = this.files && this.files[0], my = ++seq;
+            docPerson = null;
+            if (!f) { busy(false); $result.hide(); return; }
+            var ext = (f.name.split('.').pop() || '').toLowerCase();
+            if (['pdf', 'jpg', 'jpeg', 'png'].indexOf(ext) < 0) { busy(false); $result.hide(); return; }
+
+            busy(true);
+            $zone.find('.id-ai-sub').html('<i class="bi bi-cpu me-1"></i>Reading ' + esc(f.name) + '…');
+            var fd = new FormData();
+            fd.append('document', f);
+            fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').first().val() || '');
+            fetch('@Url.Action(idAiAction, "LabOrderBooking")', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+                .then(function (res) {
+                    if (my !== seq) return;                       // another file was chosen meanwhile
+                    $zone.find('.id-ai-sub').text(idleText);
+                    if (!res.success) { show('err', '<i class="bi bi-exclamation-circle me-1 text-danger"></i>' + esc(res.message)); return; }
+                    if (!res.recognised) { show('warn', '<i class="bi bi-question-circle me-1 text-warning"></i>' + esc(res.message)); return; }
+
+                    // Aadhaar / passport holder details: checked against the entered details when the bill is saved
+                    docPerson = res.person && /aadha|passport/i.test(res.documentType || '')
+                        ? $.extend({}, res.person, { documentType: res.documentType, number: res.number }) : null;
+                    var prev = { type: $type.val(), no: $no.val() };
+                    var apply = function () {
+                        undo = prev;
+                        if (res.identificationTypeId) { setType(res.identificationTypeId); flash($type); }
+                        if (res.number) { $no.val(res.number).trigger('input'); flash($no); }
+                        var pct = Math.round((res.confidence || 0) * 100);
+                        var undoLink = '<a href="#" class="id-ai-undo ms-auto">Undo</a>';
+                        var conf = '<span class="text-muted" title="AI confidence"><span class="id-ai-conf"><span style="width:' + pct + '%;' + (pct < 70 ? 'background:#f59e0b' : '') + '"></span></span> ' + pct + '%</span>';
+                        var line = function (icon, body) {
+                            return '<div class="d-flex align-items-center gap-2 flex-wrap"><i class="bi ' + icon + '"></i><span class="doc">' + esc(res.documentType) + '</span>' + body + conf + undoLink + '</div>';
+                        };
+                        if (res.number) {
+                            show(res.verified ? 'ok' : 'warn', line(res.verified ? 'bi-patch-check-fill text-success' : 'bi-exclamation-triangle text-warning',
+                                '<span class="no">' + esc(res.number) + '</span>') +
+                                '<div class="text-muted" style="font-size:.68rem">' + (res.verified ? 'Verified format · ' : '') + 'filled - check against the document' + (docPerson ? ' · <i class="bi bi-shield-check"></i> name, age, gender &amp; address are verified on Save' : '') + '</div>');
+                        } else if (res.masked) {
+                            show('warn', line('bi-eye-slash text-warning', '<span class="text-muted">masked copy</span>') +
+                                '<div class="text-muted" style="font-size:.68rem">Only the last 4 digits are printed - enter the full number.</div>');
+                        } else {
+                            show('warn', line('bi-exclamation-triangle text-warning', '<span class="text-muted">number not readable</span>') +
+                                '<div class="text-muted" style="font-size:.68rem">Enter the number in ID Number.</div>');
+                        }
+                        if (!res.identificationTypeId)
+                            show('warn', line('bi-exclamation-triangle text-warning', '') +
+                                '<div class="text-muted" style="font-size:.68rem">Not in the ID Type list - select the ID Type yourself.</div>');
+                    };
+
+                    // never overwrite a number the user typed without asking
+                    var typed = (prev.no || '').replace(/\s/g, ''), found = (res.number || '').replace(/\s/g, '');
+                    if (typed && found && typed.toUpperCase() !== found.toUpperCase()) {
+                        Swal.fire({
+                            icon: 'question', title: 'Replace the ID Number?',
+                            html: 'The document shows <b>' + esc(res.documentType) + '</b> <span class="font-monospace">' + esc(res.number) + '</span>,<br/>but <span class="font-monospace">' + esc(prev.no) + '</span> is entered.',
+                            showCancelButton: true, confirmButtonText: 'Use the document', cancelButtonText: 'Keep mine'
+                        }).then(function (c) {
+                            if (c.isConfirmed) apply();
+                            else show('', '<i class="bi bi-info-circle me-1"></i>Kept the entered number. The document shows ' + esc(res.documentType) + ' <span class="font-monospace">' + esc(res.number) + '</span>.');
+                        });
+                    } else apply();
+                })
+                .catch(function () {
+                    if (my !== seq) return;
+                    $zone.find('.id-ai-sub').text(idleText);
+                    show('err', '<i class="bi bi-exclamation-circle me-1 text-danger"></i>The document could not be read. Enter the ID details yourself.');
+                });
+        });
+
+        // ═══ AI document verification on Save ═══════════════════════════════════════════════════════════════
+        // Before the bill is saved (ahead of the page's own save handlers), the entered name, age / date of birth,
+        // gender and address are compared with the scanned Aadhaar / passport. On a difference the user chooses,
+        // per field, what is kept; then the normal save continues untouched.
+        var form = $file.closest('form')[0], verifiedSig = null, pendingSubmitter = null;
+        var SAL = /^(MR|MRS|MS|MISS|DR|MASTER|SHRI|SMT|KUMARI|BABY|MAST)$/;
+        function letters(s) { return String(s || '').toUpperCase().replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim(); }
+        function tokens(s) { return letters(s).split(' ').filter(function (w) { return w.length >= 2 && !SAL.test(w); }); }
+        function lev(a, b) {
+            var m = a.length, n = b.length, d = [], i, j;
+            for (i = 0; i <= m; i++) d[i] = [i];
+            for (j = 0; j <= n; j++) d[0][j] = j;
+            for (i = 1; i <= m; i++) for (j = 1; j <= n; j++)
+                d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            return d[m][n];
+        }
+        function allowed(w) { return w.length >= 5 ? 1 : 0; }   // one OCR slip in a longer word
+        // is the word printed somewhere in the text (approximate substring, Sellers)?
+        function inText(word, text) {
+            var k = allowed(word), m = word.length, prev = [], cur, i, j;
+            for (i = 0; i <= m; i++) prev[i] = i;
+            for (j = 1; j <= text.length; j++) {
+                cur = [0];
+                for (i = 1; i <= m; i++) cur[i] = Math.min(prev[i] + 1, cur[i - 1] + 1, prev[i - 1] + (word[i - 1] === text[j - 1] ? 0 : 1));
+                if (cur[m] <= k) return true;
+                prev = cur;
+            }
+            return false;
+        }
+        function sameWord(a, b) { return lev(a, b) <= Math.min(allowed(a), allowed(b)) || a === b; }
+        function val(name) { return ($(form).find('[name="' + name + '"]').first().val() || '').trim(); }
+        function ageFrom(iso) {
+            var d = new Date(iso + 'T00:00:00'), n = new Date(), y = n.getFullYear() - d.getFullYear();
+            if (n.getMonth() < d.getMonth() || (n.getMonth() === d.getMonth() && n.getDate() < d.getDate())) y--;
+            return y;
+        }
+        function fmtDate(iso) { var p = (iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+        function pin(s) { var m = String(s || '').match(/(?:^|\D)(\d{6})(?!\d)/); return m ? m[1] : null; }
+
+        function entered() {
+            return {
+                first: val('FirstName'), middle: val('MiddleName'), last: val('LastName'),
+                dob: $('#DateOfBirth').val() || '', age: parseInt($('#AgeYears').val(), 10) || 0,
+                gender: $('#ddlGender').val() || '', address: val('Address')
+            };
+        }
+        function signature() { var e = entered(); return JSON.stringify([e, docPerson && docPerson.number, docPerson && docPerson.nameText && docPerson.nameText.length]); }
+
+        function compare() {
+            var e = entered(), d = docPerson, rows = [];
+            // name: every entered word must be printed on the document; a cleanly read document name must be the entered one
+            var et = tokens([e.first, e.middle, e.last].join(' ')), text = d.nameText || '';
+            var missingWords = et.filter(function (w) { return !inText(w, text); });
+            var dt = tokens(d.fullName), extra = dt.filter(function (w) { return !et.some(function (x) { return sameWord(x, w); }); });
+            var enteredName = [e.first, e.middle, e.last].filter(Boolean).join(' ');
+            if (et.length) rows.push({
+                key: 'name', icon: 'bi-person-badge', label: 'Name',
+                status: missingWords.length || extra.length ? 'bad' : 'ok',
+                note: missingWords.length ? '"' + missingWords.join(' ') + '" is not on the document' : extra.length ? 'The document also has "' + extra.join(' ') + '"' : '',
+                entered: enteredName, doc: d.fullName || null,
+                docNote: d.fullName ? null : (missingWords.length ? 'Name could not be read exactly from the document' : null)
+            });
+            // date of birth / age
+            if (d.dateOfBirth) {
+                var docAge = ageFrom(d.dateOfBirth), has = !!e.dob || e.age > 0;
+                var okDob = e.dob ? e.dob === d.dateOfBirth : e.age === docAge;
+                rows.push({ key: 'dob', icon: 'bi-calendar-heart', label: 'Date of Birth / Age', status: !has ? 'miss' : okDob ? 'ok' : 'bad',
+                    entered: has ? (e.dob ? fmtDate(e.dob) + ' (' + e.age + ' yrs)' : e.age + ' yrs') : '',
+                    doc: fmtDate(d.dateOfBirth) + ' (' + docAge + ' yrs)' });
+            } else if (d.yearOfBirth) {
+                var yAge = new Date().getFullYear() - d.yearOfBirth;
+                rows.push({ key: 'dob', icon: 'bi-calendar-heart', label: 'Age', status: e.age <= 0 ? 'miss' : Math.abs(e.age - yAge) <= 1 ? 'ok' : 'bad',
+                    entered: e.age > 0 ? e.age + ' yrs' : '', doc: 'Born ' + d.yearOfBirth + ' (~' + yAge + ' yrs)' });
+            }
+            if (d.gender) rows.push({ key: 'gender', icon: 'bi-gender-ambiguous', label: 'Gender',
+                status: !e.gender ? 'miss' : e.gender.toLowerCase() === d.gender.toLowerCase() ? 'ok' : 'bad', entered: e.gender, doc: d.gender });
+            if (d.address) {
+                var st = 'ok';
+                if (!e.address) st = 'miss';
+                else {
+                    var pe = pin(e.address), pd = pin(d.address);
+                    if (pe && pd) st = pe === pd ? 'ok' : 'bad';
+                    else {
+                        var ew = tokens(e.address).filter(function (w) { return w.length >= 3; }), dw = tokens(d.address);
+                        var hit = ew.filter(function (w) { return dw.some(function (x) { return sameWord(w, x); }); }).length;
+                        st = ew.length && hit / ew.length >= 0.5 ? 'ok' : 'bad';
+                    }
+                }
+                rows.push({ key: 'address', icon: 'bi-geo-alt', label: 'Address', status: st, entered: e.address, doc: d.address });
+            }
+            return rows;
+        }
+
+        function apply(row) {
+            var d = docPerson;
+            if (row.key === 'name' && d.fullName) {
+                $(form).find('[name="FirstName"]').val(d.firstName || '').trigger('input');
+                $(form).find('[name="MiddleName"]').val(d.middleName || '').trigger('input');
+                $(form).find('[name="LastName"]').val(d.lastName || '').trigger('input');
+            } else if (row.key === 'dob') {
+                var dob = document.getElementById('DateOfBirth');
+                if (d.dateOfBirth && dob) { dob.value = d.dateOfBirth; dob.dispatchEvent(new Event('input', { bubbles: true })); dob.dispatchEvent(new Event('change', { bubbles: true })); }
+                else if (d.yearOfBirth) {
+                    if (dob) dob.value = '';
+                    $('#AgeYears').val(new Date().getFullYear() - d.yearOfBirth).trigger('input').trigger('change');
+                    $('#AgeMonths, #AgeDays').val(0).trigger('input');
+                }
+            } else if (row.key === 'gender') {
+                $('#ddlGender').val(d.gender).trigger('change');
+                var sal = $('#ddlSalutation').val() || '';
+                if (d.gender === 'Female' && /^Mr\.?$/i.test(sal)) $('#ddlSalutation').val('Ms.').trigger('change.select2');
+                if (d.gender === 'Male' && /^(Mrs|Ms|Miss)\.?$/i.test(sal)) $('#ddlSalutation').val('Mr.').trigger('change.select2');
+            } else if (row.key === 'address') {
+                $('#Address').val(d.address).trigger('input').trigger('change');
+            }
+        }
+
+        $('body').append(
+            '<div class="modal fade" id="idVerify" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">' +
+            '<div class="iv-head d-flex align-items-center gap-3"><div class="iv-ic"><i class="bi bi-stars"></i></div>' +
+            '<div class="flex-grow-1"><div class="fw-bold fs-6">AI Document Verification</div><div class="small opacity-75" id="ivSub"></div></div>' +
+            '<span class="iv-score" id="ivScore"></span></div>' +
+            '<div class="modal-body p-3" id="ivBody"></div>' +
+            '<div class="modal-footer iv-foot d-flex flex-wrap gap-2">' +
+            '<button type="button" class="btn btn-link text-secondary me-auto px-0" data-bs-dismiss="modal"><i class="bi bi-pencil-square me-1"></i>Review the form</button>' +
+            '<button type="button" class="btn btn-outline-secondary" id="ivKeep">Continue as entered</button>' +
+            '<button type="button" class="btn btn-outline-primary" id="ivAllDoc"><i class="bi bi-file-earmark-check me-1"></i>Use document for all</button>' +
+            '<button type="button" class="btn btn-ai px-4" id="ivApply"><i class="bi bi-check2-circle me-1"></i>Apply &amp; Save</button>' +
+            '</div></div></div></div>');
+
+        var ivRows = [];
+        function chip(s) { return s === 'ok' ? '<span class="iv-chip ok"><i class="bi bi-check-lg me-1"></i>Matches</span>'
+                                : s === 'miss' ? '<span class="iv-chip miss"><i class="bi bi-plus-lg me-1"></i>Not entered</span>'
+                                : '<span class="iv-chip bad"><i class="bi bi-exclamation-triangle me-1"></i>Different</span>'; }
+        function renderVerify() {
+            var ok = ivRows.filter(function (r) { return r.status === 'ok'; }).length;
+            $('#ivSub').html('Entered details compared with the uploaded <b>' + esc(docPerson.documentType) + '</b>' + (docPerson.number ? ' <span class="font-monospace">' + esc(docPerson.number) + '</span>' : ''));
+            $('#ivScore').html('<i class="bi bi-shield-check me-1"></i>' + ok + ' of ' + ivRows.length + ' match');
+            $('#ivBody').html(ivRows.map(function (r, i) {
+                var head = '<div class="d-flex align-items-center gap-2"><i class="bi ' + r.icon + ' text-primary"></i><span class="iv-label">' + r.label + '</span>' + chip(r.status) +
+                           (r.note ? '<span class="small text-muted ms-1">' + esc(r.note) + '</span>' : '') + '</div>';
+                if (r.status === 'ok')
+                    return '<div class="iv-row ok">' + head + '<div class="small text-dark mt-1">' + esc(r.entered || r.doc) + '</div></div>';
+                var canDoc = !!r.doc;
+                return '<div class="iv-row bad" data-i="' + i + '">' + head + '<div class="iv-opts">' +
+                    '<div class="iv-opt' + (r.choice === 'entered' ? ' sel' : '') + '" data-c="entered"><div class="t"><i class="bi bi-keyboard me-1"></i>As entered</div><div class="v">' + (r.entered ? esc(r.entered) : '<span class="text-muted fw-normal">— not entered —</span>') + '</div></div>' +
+                    '<div class="iv-opt' + (r.choice === 'doc' ? ' sel' : '') + (canDoc ? '' : ' dis') + '" data-c="doc"><div class="t"><i class="bi bi-stars me-1"></i>From document</div><div class="v">' +
+                        (canDoc ? esc(r.doc) : '<span class="text-muted fw-normal">' + esc(r.docNote || 'Not readable on the document') + '</span>') + '</div></div>' +
+                    '</div></div>';
+            }).join(''));
+        }
+        $('#ivBody').on('click', '.iv-opt', function () {
+            if ($(this).hasClass('dis')) return;
+            ivRows[$(this).closest('.iv-row').data('i')].choice = $(this).data('c');
+            renderVerify();
+        });
+        function finish(mode) {
+            ivRows.forEach(function (r) {
+                if (r.status === 'ok' || !r.doc) return;
+                if (mode === 'doc' || (mode === 'choice' && r.choice === 'doc')) apply(r);
+            });
+            var used = ivRows.filter(function (r) { return r.status !== 'ok' && r.doc && (mode === 'doc' || (mode === 'choice' && r.choice === 'doc')); }).map(function (r) { return r.label; });
+            show(used.length ? 'ok' : '', '<i class="bi bi-shield-check me-1 text-success"></i>Verified with the document' +
+                (used.length ? ' - used the document for: ' + esc(used.join(', ')) : ' - kept the entered details') + '.');
+            bootstrap.Modal.getInstance(document.getElementById('idVerify')).hide();
+            // the dates / age recalculate on change: give them a moment, then save through the page's normal flow
+            setTimeout(function () {
+                verifiedSig = signature();
+                if (form.requestSubmit) form.requestSubmit(pendingSubmitter && document.body.contains(pendingSubmitter) ? pendingSubmitter : undefined);
+                else $(pendingSubmitter || $(form).find('[type=submit]').first()).trigger('click');
+            }, 250);
+        }
+        $('#ivKeep').on('click', function () { finish('entered'); });
+        $('#ivAllDoc').on('click', function () { finish('doc'); });
+        $('#ivApply').on('click', function () { finish('choice'); });
+
+        // ahead of every other submit handler of the form (capture phase on the document)
+        document.addEventListener('submit', function (e) {
+            if (e.target !== form || !docPerson) return;
+            var sig = signature();
+            if (sig === verifiedSig) return;                     // already checked with these exact values
+            ivRows = compare();
+            var issues = ivRows.filter(function (r) { return r.status !== 'ok'; });
+            if (!issues.length) {
+                verifiedSig = sig;
+                show('ok', '<i class="bi bi-shield-check me-1 text-success"></i><b>Verified</b> - name, age, gender and address match the ' + esc(docPerson.documentType) + '.');
+                return;                                          // all match: the save goes on
+            }
+            e.preventDefault(); e.stopImmediatePropagation();
+            pendingSubmitter = e.submitter || null;
+            issues.forEach(function (r) { r.choice = r.doc ? 'doc' : 'entered'; });
+            renderVerify();
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('idVerify')).show();
+        }, true);
+    })();
+</script>

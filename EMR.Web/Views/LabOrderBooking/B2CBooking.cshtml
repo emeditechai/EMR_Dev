@@ -1,4 +1,6 @@
 @inject Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> PrescriptionAssistOptions
+@inject EMR.Web.Services.IAiBillingFeatures AiBillingFeatures
+@{ var aiBilling = await AiBillingFeatures.IsEnabledAsync(Context); }
 @model EMR.Web.Models.ViewModels.LabOrderBookingViewModel
 @{
     ViewData["Title"] = "LAB Order Booking/Registration - B2C";
@@ -761,7 +763,7 @@
                         <button type="button" id="btnComplianceUpload" class="btn btn-sm btn-outline-primary ms-2 py-0 px-2" disabled title="No compliance documents are required for the tests currently added">
                             <i class="bi bi-file-earmark-arrow-up"></i>
                         </button>
-                        @if (PrescriptionAssistOptions.CurrentValue.Enabled)
+                        @if (aiBilling)
                         {
                             <button type="button" id="btnRxAssist" asp-permission="LAB.LABORDERBOOKING.B2CBOOKING:AI_ASSIST"
                                     class="btn btn-sm btn-rx-ai ms-1 py-0 px-2" title="AI assist: upload a prescription and get the tests it asks for">
@@ -2051,7 +2053,13 @@
                         method: 'POST',
                         body: formData
                     });
-                    var result = await res.json();
+                    // a server error / database timeout answers with an error page, not JSON: say so plainly
+                    var rawText = await res.text(), result;
+                    try { result = JSON.parse(rawText); }
+                    catch (parseErr) {
+                        throw new Error('The server could not complete the save (HTTP ' + res.status + (/timeout/i.test(rawText) ? ', database timeout' : '') +
+                            '). Please wait a moment and click Collect again - check the LAB order list first if you are unsure whether it was saved.');
+                    }
 
                     if (!result.success) {
                         throw new Error(result.error || 'Failed to save booking');
@@ -4320,8 +4328,9 @@
 </script>
 
 
-    @if (PrescriptionAssistOptions.CurrentValue.Enabled)
+    @if (aiBilling)
     {
         <partial name="_PrescriptionAssist" />
+        <partial name="_IdDocumentAssist" />
     }
 }

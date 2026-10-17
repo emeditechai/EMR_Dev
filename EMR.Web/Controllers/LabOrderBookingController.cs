@@ -1742,60 +1742,46 @@ namespace EMR.Web.Controllers
         {
             var branchId = User.GetCurrentBranchId();
 
-            model.RelationOptions = await dbContext.RelationMasters
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.SortOrder).ThenBy(x => x.RelationName)
-                .Select(x => new SelectListItem(x.RelationName, x.RelationId.ToString()))
-                .ToListAsync();
+            // the three catalogue lists come from the API: asked for now, in parallel with the database below
+            var departmentsTask = labOrderApiClient.GetDepartmentsAsync();
+            var categoriesTask = labOrderApiClient.GetCategoriesAsync();
+            var subCategoriesTask = labOrderApiClient.GetSubCategoriesAsync();
 
-            model.IdentificationTypeOptions = await dbContext.IdentificationTypeMasters
-                .Where(i => i.IsActive)
-                .OrderBy(i => i.IdentificationTypeName)
-                .Select(i => new SelectListItem(i.IdentificationTypeName, i.IdentificationTypeId.ToString()))
-                .ToListAsync();
-
-            model.ReligionOptions = await dbContext.ReligionMasters
-                .Where(r => r.IsActive)
-                .OrderBy(r => r.ReligionName)
-                .Select(r => new SelectListItem(r.ReligionName, r.ReligionId.ToString()))
-                .ToListAsync();
-
-            model.OccupationOptions = await dbContext.OccupationMasters
-                .Where(o => o.IsActive)
-                .OrderBy(o => o.OccupationName)
-                .Select(o => new SelectListItem(o.OccupationName, o.OccupationId.ToString()))
-                .ToListAsync();
-
-            model.MaritalStatusOptions = await dbContext.MaritalStatusMasters
-                .Where(m => m.IsActive)
-                .OrderBy(m => m.StatusName)
-                .Select(m => new SelectListItem(m.StatusName, m.MaritalStatusId.ToString()))
-                .ToListAsync();
-
-            model.LanguageOptions = await dbContext.LanguageMasters
-                .Where(l => l.IsActive)
-                .OrderBy(l => l.LanguageName)
-                .Select(l => new SelectListItem(l.LanguageName, l.LanguageId.ToString()))
-                .ToListAsync();
-
-            // Referral doctor = Doctor Master doctors assigned to a LAB-type department (script 2127)
+            // every master list of the form in ONE database round trip (was one round trip per list); same filters and order
             var refCon = dbContext.Database.GetDbConnection();
             if (refCon.State != System.Data.ConnectionState.Open)
                 await refCon.OpenAsync();
-            var referralDoctors = await refCon.QueryAsync<(int DoctorId, string DoctorName, string? SpecialityName, string? DepartmentNames)>(
-                "dbo.usp_Lab_GetReferralDoctors",
-                new { CompanyId = User.GetCompanyId(), BranchId = branchId },
-                commandType: System.Data.CommandType.StoredProcedure);
-            model.ReferralDoctorOptions = referralDoctors
-                .Select(r => new SelectListItem(
-                    string.IsNullOrWhiteSpace(r.DepartmentNames) ? r.DoctorName : $"{r.DoctorName} ({r.DepartmentNames})",
-                    r.DoctorId.ToString()))
-                .ToList();
-
-            var countries = await countryService.GetActiveAsync();
-            model.CountryOptions = countries
-                .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString()))
-                .ToList();
+            using (var lists = await refCon.QueryMultipleAsync(@"
+                SELECT RelationName AS Text, CONVERT(varchar(11), RelationId) AS Value FROM dbo.RelationMaster WHERE IsActive = 1 ORDER BY SortOrder, RelationName;
+                SELECT IdentificationTypeName AS Text, CONVERT(varchar(11), IdentificationTypeId) AS Value FROM dbo.IdentificationTypeMaster WHERE IsActive = 1 ORDER BY IdentificationTypeName;
+                SELECT ReligionName AS Text, CONVERT(varchar(11), ReligionId) AS Value FROM dbo.ReligionMaster WHERE IsActive = 1 ORDER BY ReligionName;
+                SELECT OccupationName AS Text, CONVERT(varchar(11), OccupationId) AS Value FROM dbo.OccupationMaster WHERE IsActive = 1 ORDER BY OccupationName;
+                SELECT StatusName AS Text, CONVERT(varchar(11), MaritalStatusId) AS Value FROM dbo.MaritalStatusMaster WHERE IsActive = 1 ORDER BY StatusName;
+                SELECT LanguageName AS Text, CONVERT(varchar(11), LanguageId) AS Value FROM dbo.LanguageMaster WHERE IsActive = 1 ORDER BY LanguageName;
+                SELECT CountryName AS Text, CONVERT(varchar(11), CountryId) AS Value FROM dbo.CountryMaster WHERE IsActive = 1 ORDER BY CountryName;
+                SELECT COALESCE(FullName, Username) AS Text, CONVERT(varchar(11), Id) AS Value FROM dbo.Users WHERE IsPathologist = 1 AND IsActive = 1 ORDER BY COALESCE(FullName, Username);
+                -- Referral doctor = Doctor Master doctors assigned to a LAB-type department (script 2127)
+                EXEC dbo.usp_Lab_GetReferralDoctors @CompanyId = @CompanyId, @BranchId = @BranchId;",
+                new { CompanyId = User.GetCompanyId(), BranchId = branchId }))
+            {
+                async Task<List<SelectListItem>> Next() =>
+                    (await lists.ReadAsync<(string Text, string Value)>()).Select(x => new SelectListItem(x.Text, x.Value)).ToList();
+                model.RelationOptions = await Next();
+                model.IdentificationTypeOptions = await Next();
+                model.ReligionOptions = await Next();
+                model.OccupationOptions = await Next();
+                model.MaritalStatusOptions = await Next();
+                model.LanguageOptions = await Next();
+                model.CountryOptions = await Next();
+                model.PhlebotomistOptions = (await lists.ReadAsync<(string Text, string Value)>())
+                    .Select(x => new SelectListItem { Value = x.Value, Text = x.Text }).ToList();
+                var referralDoctors = await lists.ReadAsync<(int DoctorId, string DoctorName, string? SpecialityName, string? DepartmentNames)>();
+                model.ReferralDoctorOptions = referralDoctors
+                    .Select(r => new SelectListItem(
+                        string.IsNullOrWhiteSpace(r.DepartmentNames) ? r.DoctorName : $"{r.DoctorName} ({r.DepartmentNames})",
+                        r.DoctorId.ToString()))
+                    .ToList();
+            }
 
             if (model.CountryId.HasValue)
             {
@@ -1832,26 +1818,20 @@ namespace EMR.Web.Controllers
                     .Select(a => new SelectListItem(a.AreaName, a.AreaId.ToString()))
                     .ToList();
             }
-            var departments = await labOrderApiClient.GetDepartmentsAsync();
+            var departments = await departmentsTask;
             model.DepartmentOptions = departments
                 .Select(x => new SelectListItem { Value = x.DepartmentId.ToString(), Text = x.DepartmentName })
                 .ToList();
 
-            var categories = await labOrderApiClient.GetCategoriesAsync();
+            var categories = await categoriesTask;
             model.CategoryOptions = categories
                 .Select(x => new SelectListItem { Value = x.CategoryId.ToString(), Text = x.CategoryName })
                 .ToList();
 
-            var subCategories = await labOrderApiClient.GetSubCategoriesAsync();
+            var subCategories = await subCategoriesTask;
             model.SubCategoryOptions = subCategories
                 .Select(x => new SelectListItem { Value = x.SubCategoryId.ToString(), Text = x.SubCategoryName })
                 .ToList();
-
-            model.PhlebotomistOptions = await dbContext.Users
-                .Where(u => u.IsPathologist && u.IsActive)
-                .OrderBy(u => u.FullName ?? u.Username)
-                .Select(u => new SelectListItem { Value = u.Id.ToString(), Text = u.FullName ?? u.Username })
-                .ToListAsync();
 
             if (model.IsB2B)
             {
@@ -1909,7 +1889,8 @@ namespace EMR.Web.Controllers
             CancellationToken ct)
         {
             var o = assistOptions.CurrentValue;
-            if (!o.Enabled) return Json(new { success = false, message = "AI assist is switched off." });
+            if (!o.Enabled || !await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IAiBillingFeatures>().IsEnabledAsync(HttpContext))
+                return Json(new { success = false, message = "AI features are switched off for this branch (Hospital Settings > LAB > Enable AI Features at Billing)." });
             if (prescription is null || prescription.Length == 0) return Json(new { success = false, message = "Choose a prescription image first." });
             if (prescription.Length > o.MaxFileSizeMb * 1024L * 1024L)
                 return Json(new { success = false, message = $"The image is larger than {o.MaxFileSizeMb} MB. Use a smaller photo." });
@@ -1954,6 +1935,111 @@ namespace EMR.Web.Controllers
             {
                 logger.LogError(ex, "Prescription assist failed");
                 return Json(new { success = false, message = "The prescription could not be read. Try a clearer photo, or add the tests from the search box." });
+            }
+        }
+
+        private static readonly string[] IdDocumentTypes = [".jpg", ".jpeg", ".png", ".pdf"];
+
+        /// <summary>
+        /// ID document assist (SQLScripts/2284): reads the uploaded ID document with OCR on this server (nothing is stored
+        /// or sent anywhere), recognises its type (ML.NET) and number (each document's format and check digit) and returns
+        /// the matching ID Type of the master. The page fills ID Type / ID Number; the user can change them.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(20_000_000)]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "ID_AI_ASSIST")]
+        public Task<IActionResult> IdDocumentAssist(IFormFile? document,
+            [FromServices] Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
+            [FromServices] EMR.Web.Services.IdDocumentAssist.IIdDocumentReader reader,
+            CancellationToken ct) => ReadIdDocumentAsync(document, assistOptions, reader, "B2C", ct);
+
+        /// <summary>The same ID document assist on B2B booking (SQLScripts/2285), under that page's own control.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(20_000_000)]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2BBOOKING", "ID_AI_ASSIST")]
+        public Task<IActionResult> B2BIdDocumentAssist(IFormFile? document,
+            [FromServices] Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
+            [FromServices] EMR.Web.Services.IdDocumentAssist.IIdDocumentReader reader,
+            CancellationToken ct) => ReadIdDocumentAsync(document, assistOptions, reader, "B2B", ct);
+
+        private async Task<IActionResult> ReadIdDocumentAsync(IFormFile? document,
+            Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
+            EMR.Web.Services.IdDocumentAssist.IIdDocumentReader reader, string screen, CancellationToken ct)
+        {
+            var o = assistOptions.CurrentValue;
+            if (!o.Enabled || !await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IAiBillingFeatures>().IsEnabledAsync(HttpContext))
+                return Json(new { success = false, message = "AI features are switched off for this branch (Hospital Settings > LAB > Enable AI Features at Billing)." });
+            if (document is null || document.Length == 0) return Json(new { success = false, message = "Choose the ID document first." });
+            if (document.Length > o.MaxFileSizeMb * 1024L * 1024L)
+                return Json(new { success = false, message = $"The file is larger than {o.MaxFileSizeMb} MB." });
+            var ext = Path.GetExtension(document.FileName ?? string.Empty).ToLowerInvariant();
+            if (!IdDocumentTypes.Contains(ext) || !LooksLikeImage(document))
+                return Json(new { success = false, message = "Upload a photo, scan or PDF of the ID document (JPG, PNG or PDF)." });
+
+            try
+            {
+                EMR.Web.Services.IdDocumentAssist.IdDocumentReading r;
+                await using (var stream = document.OpenReadStream())
+                    r = await reader.ReadAsync(stream, ext, ct);
+
+                if (r.Kind == EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Unknown)
+                    return Json(new { success = true, recognised = false, message = "This does not look like a supported ID document (Aadhaar, PAN, Voter ID, Passport, Driving Licence, Ration Card). Select the ID Type and enter the number yourself." });
+
+                var pattern = r.Kind switch
+                {
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Aadhaar => "aadha?ar",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Pan => @"\bpan\b",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.VoterId => "voter|epic|election",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Passport => "passport",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.DrivingLicence => "driving|licen[cs]e",
+                    _ => "ration"
+                };
+                var types = await dbContext.IdentificationTypeMasters.AsNoTracking().Where(x => x.IsActive)
+                    .Select(x => new { x.IdentificationTypeId, x.IdentificationTypeName }).ToListAsync(ct);
+                var type = types.FirstOrDefault(x => System.Text.RegularExpressions.Regex.IsMatch(x.IdentificationTypeName ?? "", pattern,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+                var label = r.Kind switch
+                {
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Aadhaar => "Aadhaar Card",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Pan => "PAN Card",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.VoterId => "Voter ID Card",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Passport => "Passport",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.DrivingLicence => "Driving Licence",
+                    _ => "Ration Card"
+                };
+
+                await auditLogService.LogAsync("LAB", "LAB.IdDocumentAssist",
+                    $"AI assist read an ID document ({screen} booking): {label}, number {(r.Number is null ? "not found" : r.NumberVerified ? "verified" : "found")}.");
+                return Json(new
+                {
+                    success = true,
+                    recognised = true,
+                    documentType = type?.IdentificationTypeName ?? label,
+                    identificationTypeId = type?.IdentificationTypeId,
+                    number = r.Number,
+                    verified = r.NumberVerified,
+                    masked = r.NumberMasked,
+                    confidence = r.Confidence,
+                    evidence = r.Evidence,
+                    // Aadhaar / passport holder details: the page checks them against the entered details on Save
+                    person = r.Person
+                });
+            }
+            catch (EMR.Web.Services.PrescriptionAssist.PrescriptionOcrUnavailableException ex)
+            {
+                logger.LogError(ex, "ID document assist: OCR engine unavailable");
+                return Json(new { success = false, message = "The OCR engine (Tesseract) is not available on the server. Select the ID Type and enter the number yourself." });
+            }
+            catch (TimeoutException)
+            {
+                return Json(new { success = false, message = "Reading the document took too long. Try a smaller or clearer image." });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "ID document assist failed");
+                return Json(new { success = false, message = "The document could not be read. Try a clearer photo, or enter the details yourself." });
             }
         }
 

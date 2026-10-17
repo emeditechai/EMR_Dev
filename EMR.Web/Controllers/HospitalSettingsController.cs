@@ -281,6 +281,8 @@ public class HospitalSettingsController(
             existing.LabEmailNotificationRequired = model.LabEmailNotificationRequired;
             existing.IsSampleCollectionMandatory = model.IsSampleCollectionMandatory;
             existing.BarcodeGenerateAtBilling = model.BarcodeGenerateAtBilling;
+            existing.EnableAiBillingFeatures = model.EnableAiBillingFeatures;
+            EMR.Web.Services.AiBillingFeatures.Invalidate(HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), existing.BranchId);
             existing.TokenGenerateOnDuePayment = model.TokenGenerateOnDuePayment;
             existing.LabReportEmailNotificationRequired = model.LabReportEmailNotificationRequired;
             existing.PathologistApprovalRequired = model.PathologistApprovalRequired;
@@ -355,6 +357,7 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = s.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = s.BarcodeGenerateAtBilling,
+            EnableAiBillingFeatures = s.EnableAiBillingFeatures,
             TokenGenerateOnDuePayment = s.TokenGenerateOnDuePayment,
             LabReportEmailNotificationRequired = s.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = s.PathologistApprovalRequired,
@@ -416,6 +419,7 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = m.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = m.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = m.BarcodeGenerateAtBilling,
+            EnableAiBillingFeatures = m.EnableAiBillingFeatures,
             TokenGenerateOnDuePayment = m.TokenGenerateOnDuePayment,
             LabReportEmailNotificationRequired = m.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = m.PathologistApprovalRequired,

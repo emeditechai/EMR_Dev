@@ -82,6 +82,8 @@ public class HospitalSettings
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;
+    /// <summary>LAB billing AI features (AI prescription assist, Smart ID Scan) for this branch (SQLScripts/2286). Off = billing as before.</summary>
+    public bool EnableAiBillingFeatures { get; set; } = false;
     /// <summary>When true a B2C Lab bill gets its Token No even while a payment is still due (default: only when fully paid).</summary>
     public bool TokenGenerateOnDuePayment { get; set; } = false;
     /// <summary>Email the finished LAB report to the patient (default No).</summary>
