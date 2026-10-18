@@ -22,6 +22,10 @@
         : part === 'Wallet' ? h.pill('Wallet', 'bg-primary-subtle text-primary border-primary-subtle')
         : h.pill(h.esc(part), 'bg-success-subtle text-success border-success-subtle');
     const payParts = r => String(r.PaymentMethod || 'Credit').split(' + ');
+    // test line items of a bill (5th result set, SQLScripts/2291)
+    const linesOf = (r, data) => (data?.lines || []).filter(l => l.LabOrderId === r.LabOrderId);
+    const typeTag = (t, h) => t === 'Package' ? h.pill('Package', 'bg-success-subtle text-success border-success-subtle')
+        : t === 'Profile' ? h.pill('Profile', 'bg-primary-subtle text-primary border-primary-subtle') : h.pill('Test', 'bg-light text-secondary border');
     const payHtml = (r, h) => {
         const parts = payParts(r);
         const chips = parts.map(p => payChip(p, h)).join(' ');
@@ -62,6 +66,58 @@
             { field: 'MarginAmount', label: 'Margin', money: true }, { field: 'PaidAmount', label: 'Collected', money: true }, { field: 'DueAmount', label: 'Due', money: true }
         ],
         shareOf: 'ContractAmount',
+        // Detail: every bill shows its tests as line items (open by default; Collapse All folds them)
+        expandOpen: true,
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => {
+                const ls = linesOf(r, data);
+                const t = ls.reduce((a, l) => ({ m: a.m + (l.MrpAmount || 0), c: a.c + (l.ContractAmount || 0), g: a.g + (l.MarginAmount || 0) }), { m: 0, c: 0, g: 0 });
+                return `<table class="lr-sub"><thead><tr><th>#</th><th>Test / Profile</th><th>Type</th><th>Department</th><th class="text-end">MRP</th>
+                        <th class="text-end">Contract rate</th><th class="text-end">Margin</th><th class="text-center">Urgent</th></tr></thead><tbody>` +
+                    ls.map(l => `<tr><td class="text-muted">${l.LineSeq}</td>
+                        <td><span class="fw-semibold">${h.esc(l.TestName)}</span> <span class="text-muted fs-9 font-monospace">${h.esc(l.TestCode || '')}</span></td>
+                        <td>${typeTag(l.ItemType, h)}</td><td>${h.esc(l.Department || '—')}</td>
+                        <td class="text-end amt">${h.money(l.MrpAmount)}</td><td class="text-end amt fw-semibold">${h.money(l.ContractAmount)}</td>
+                        <td class="text-end amt text-warning-emphasis">${h.money(l.MarginAmount)} <span class="text-muted fs-9">${pct(l.MarginAmount, l.MrpAmount)}</span></td>
+                        <td class="text-center">${l.IsUrgent ? '<i class="bi bi-lightning-charge-fill text-danger" title="Urgent"></i>' : ''}</td></tr>`).join('') +
+                    `</tbody><tfoot><tr><td></td><td colspan="3" class="text-end">Total (${ls.length} test${ls.length === 1 ? '' : 's'})</td>
+                        <td class="text-end amt">${h.money(t.m)}</td><td class="text-end amt">${h.money(t.c)}</td><td class="text-end amt">${h.money(t.g)}</td><td></td></tr></tfoot></table>`;
+            }
+        },
+        // Excel / PDF (Detail): a grouped register - bill date sections; each bill's number and partner / patient span its
+        // tests and misc charges; a total per bill, a subtotal per date and a grand total (MRP, contract, margin)
+        exportGrouped: (rows, data, h) => {
+            const sum = (xs, f) => xs.reduce((a, x) => a + (Number(x[f]) || 0), 0);
+            const days = [];
+            rows.forEach(r => { const d = String(r.BillDay || ''); let s = days.find(x => x.day === d); if (!s) days.push(s = { day: d, rows: [] }); s.rows.push(r); });
+            let no = 0;
+            return {
+                head: ['#', 'Bill No', 'Partner / Patient', 'Investigation', 'Code / Dept', 'MRP (₹)', 'Contract (₹)', 'Margin (₹)'], left: 3,
+                sections: days.map(s => {
+                    const tests = s.rows.reduce((a, r) => a + linesOf(r, data).filter(l => l.ItemType !== 'Misc').length, 0);
+                    return {
+                        title: `Bill date: ${h.fmtD(s.day)}  ·  ${s.rows.length} bill(s), ${tests} test(s)`,
+                        bills: s.rows.map(r => {
+                            const ls = linesOf(r, data);
+                            const lines = ls.length
+                                ? ls.map(l => [`${l.TestName}${l.ItemType && l.ItemType !== 'Test' ? ' [' + l.ItemType + ']' : ''}${l.IsUrgent ? ' · URGENT' : ''}`,
+                                               `${l.TestCode || ''}\n${l.Department || ''}`, l.MrpAmount || 0, l.ContractAmount || 0, l.MarginAmount || 0])
+                                : [[r.TestNames || '', '', r.MrpAmount || 0, r.ContractAmount || 0, r.MarginAmount || 0]];
+                            return {
+                                cells: [++no, `${r.BillNo}\n${r.TokenNo || ''}\n${h.fmtDT(r.BillDate)}${r.IsCancelled ? '\nCANCELLED' : ''}`,
+                                        `${r.PartnerName} (${r.PartnerType})\n${r.PatientName}\n${r.PatientCode}`],
+                                lines,
+                                total: { label: `Bill ${r.BillNo} total  ·  ${r.InvoiceNo || (r.IsCancelled ? 'cancelled' : 'not invoiced')}  ·  collected ${h.money(r.PaidAmount)}, due ${h.money(r.DueAmount)}`,
+                                         values: [r.MrpAmount || 0, r.ContractAmount || 0, r.MarginAmount || 0] }
+                            };
+                        }),
+                        subtotal: { label: `Subtotal for ${h.fmtD(s.day)}`, values: [sum(s.rows, 'MrpAmount'), sum(s.rows, 'ContractAmount'), sum(s.rows, 'MarginAmount')] }
+                    };
+                }),
+                grand: { label: `Grand total  ·  ${rows.length} bill(s)`, values: [sum(rows, 'MrpAmount'), sum(rows, 'ContractAmount'), sum(rows, 'MarginAmount')] }
+            };
+        },
         cols: [
             { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
             { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
