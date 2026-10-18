@@ -29,6 +29,7 @@ builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IMasterApprovalService, MasterApprovalService>();
 builder.Services.AddScoped<ILoginCredentialsMailer, LoginCredentialsMailer>();
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 
 // Geography Masters (Dapper)
 builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
@@ -168,8 +169,20 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy(EMR.Web.Controllers.LicenseController.OtpRateLimit, http =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter("otp:" + (http.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
             _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = Math.Max(1, licensingOptions.OtpSendsPerIpPer15Min), Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
+    // "Forgot password?" requests and reset submits per client address
+    o.AddPolicy(EMR.Web.Controllers.AccountController.PasswordResetRateLimit, http =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter("pwreset:" + (http.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     o.OnRejected = async (ctx, ct) =>
     {
+        if (ctx.HttpContext.Request.Path.StartsWithSegments("/Account/ForgotPassword", StringComparison.OrdinalIgnoreCase)
+            || ctx.HttpContext.Request.Path.StartsWithSegments("/Account/ResetPassword", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.HttpContext.Response.Headers.RetryAfter = "900";
+            ctx.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
+            await ctx.HttpContext.Response.WriteAsync("Too many password reset requests from this network. Wait 15 minutes and try again.", ct);
+            return;
+        }
         var isLicense = ctx.HttpContext.Request.Path.StartsWithSegments("/License", StringComparison.OrdinalIgnoreCase);
         ctx.HttpContext.Response.Headers.RetryAfter = isLicense ? "900" : "60";
         ctx.HttpContext.Response.ContentType = "text/plain; charset=utf-8";

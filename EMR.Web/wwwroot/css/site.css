@@ -717,6 +717,122 @@ body {
   color: #644098 !important;
 }
 
+/* ── Login page (scoped to .auth-login; Select Role / Select Branch keep the shared auth styles) ── */
+.auth-login { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; border-radius: 18px; }
+.auth-login .auth-left {
+  min-height: 580px; padding: 2.5rem 2.75rem; flex-direction: column; align-items: stretch; justify-content: space-between;
+}
+.auth-login .al-pattern {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    radial-gradient(circle at 85% 12%, rgba(255,255,255,0.14) 0, rgba(255,255,255,0) 38%),
+    radial-gradient(circle at 10% 95%, rgba(255,255,255,0.10) 0, rgba(255,255,255,0) 40%),
+    radial-gradient(rgba(255,255,255,0.09) 1px, transparent 1px);
+  background-size: auto, auto, 22px 22px;
+}
+.auth-login .al-top, .auth-login .al-body, .auth-login .al-foot { position: relative; z-index: 1; }
+.auth-login .al-top { display: flex; align-items: center; gap: 0.65rem; }
+.auth-login .al-mark {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.28);
+  color: #fff; font-size: 1.3rem;
+}
+.auth-login .al-mark-text { font-size: 0.78rem; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; opacity: 0.85; }
+.auth-login .auth-left-title {
+  font-size: 2.5rem; font-weight: 800; letter-spacing: -0.5px; line-height: 1.1; margin: 0 0 0.35rem;
+  /* the brand colours sit on a white plate so blue / orange / pink keep their contrast on purple */
+  display: inline-block; background: #fff; padding: 0.35rem 0.85rem 0.45rem; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(20, 6, 40, 0.25);
+}
+.auth-login .auth-left-sub { font-size: 0.8rem; letter-spacing: 2.4px; opacity: 0.85; margin: 0.9rem 0 0; }
+.auth-login .al-lead { font-size: 0.98rem; line-height: 1.6; opacity: 0.9; margin: 0.9rem 0 1.75rem; max-width: 26rem; }
+.auth-login .al-features { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.9rem; }
+.auth-login .al-features li { display: flex; align-items: center; gap: 0.85rem; }
+.auth-login .al-ico {
+  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.13); border: 1px solid rgba(255,255,255,0.2); font-size: 1.05rem;
+}
+.auth-login .al-features strong { display: block; font-size: 0.92rem; font-weight: 600; line-height: 1.3; }
+.auth-login .al-features small { display: block; font-size: 0.8rem; opacity: 0.75; line-height: 1.35; }
+.auth-login .al-foot { font-size: 0.76rem; opacity: 0.7; }
+
+.auth-login .auth-right-inner { max-width: 420px; padding: 3rem 2.5rem; }
+.auth-login .ar-brand { align-items: center; gap: 0.6rem; margin-bottom: 1.75rem; }
+.auth-login .ar-brand .al-mark { background: linear-gradient(135deg, #644098, #a8407a); border: 0; }
+.auth-login .ar-brand-name { font-size: 1.45rem; font-weight: 800; letter-spacing: -0.3px; }
+.auth-login .auth-welcome { margin-bottom: 1.75rem; }
+.auth-login .auth-right-title { font-size: 1.65rem; font-weight: 700; color: #1b1530; letter-spacing: -0.3px; margin-bottom: 0.35rem; }
+.auth-login .auth-right-sub { font-size: 0.92rem; color: #6b6880; }
+
+.auth-login .ar-alert { display: flex; gap: 0.5rem; align-items: flex-start; font-size: 0.86rem; padding: 0.65rem 0.85rem; border-radius: 10px; margin-bottom: 1.25rem; }
+.auth-login .ar-summary ul { margin: 0; padding-left: 1rem; }
+.auth-login .ar-field { margin-bottom: 1.1rem; }
+.auth-login .ar-label { display: block; font-size: 0.84rem; font-weight: 600; color: #3a3550; margin-bottom: 0.4rem; }
+.auth-login .ar-control { position: relative; }
+.auth-login .ar-lead-ico {
+  position: absolute; left: 0.9rem; top: 50%; transform: translateY(-50%);
+  color: #8c86a3; font-size: 1.05rem; pointer-events: none; transition: color 0.15s;
+}
+.auth-login .ar-input {
+  height: 46px; padding: 0 0.9rem 0 2.6rem; border: 1px solid #dcd8e6; border-radius: 10px;
+  background: #fff; font-size: 0.95rem; color: #1b1530;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.auth-login .ar-input::placeholder { color: #a9a4bb; }
+.auth-login .ar-input:hover { border-color: #c4bdd6; }
+.auth-login .ar-input:focus { border-color: #644098; box-shadow: 0 0 0 3px rgba(100, 64, 152, 0.15); }
+.auth-login .ar-control:focus-within .ar-lead-ico { color: #644098; }
+.auth-login .ar-input.input-validation-error { border-color: #dc3545; }
+.auth-login .ar-input.input-validation-error:focus { box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15); }
+.auth-login .ar-input-pw { padding-right: 2.9rem; }
+.auth-login .ar-eye {
+  position: absolute; right: 0.35rem; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent;
+  color: #8c86a3; display: inline-flex; align-items: center; justify-content: center;
+}
+.auth-login .ar-eye:hover { color: #644098; background: #f3f0f8; }
+.auth-login .ar-eye:focus-visible { outline: 2px solid #644098; outline-offset: 1px; }
+.auth-login .ar-error { display: block; font-size: 0.8rem; color: #dc3545; margin-top: 0.3rem; }
+.auth-login .ar-error:empty { display: none; }
+.auth-login .ar-caps { font-size: 0.8rem; color: #b45309; margin-top: 0.35rem; }
+.auth-login .ar-row { display: flex; justify-content: space-between; align-items: center; margin: 0.25rem 0 1.5rem; }
+.auth-login .ar-remember { font-size: 0.88rem; color: #4a4560; }
+.auth-login .form-check-input:checked { background-color: #644098; border-color: #644098; }
+.auth-login .form-check-input:focus { box-shadow: 0 0 0 3px rgba(100, 64, 152, 0.15); border-color: #644098; }
+.auth-login .auth-signin-btn { height: 48px; padding: 0 1rem; border-radius: 10px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.auth-login .auth-signin-btn:focus-visible { outline: 3px solid rgba(202, 46, 109, 0.35); outline-offset: 2px; }
+.auth-login .auth-signin-btn:disabled { opacity: 0.85; transform: none; }
+.auth-login .ar-secure {
+  display: flex; align-items: center; justify-content: center; gap: 0.45rem;
+  margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid #eeebf3;
+  font-size: 0.8rem; color: #8c86a3;
+}
+.auth-login .ar-secure i { color: #ca2e6d; }
+.auth-login .ar-link { font-size: 0.8rem; color: #644098; }
+.auth-login .ar-link:hover { color: #a8407a; }
+.auth-login .ar-link-strong { font-size: 0.86rem; font-weight: 600; color: #644098; text-decoration: none; }
+.auth-login .ar-link-strong:hover { color: #a8407a; text-decoration: underline; }
+.auth-login .ar-back { text-align: center; margin-top: 1.25rem; font-size: 0.86rem; color: #6b6880; }
+.auth-login .ar-step-ico {
+  width: 52px; height: 52px; border-radius: 14px; margin-bottom: 1.1rem;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 1.5rem;
+  background: #f1ecf8; color: #644098;
+}
+.auth-login .ar-step-ok { background: #e8f6ef; color: #1a7f4b; }
+.auth-login .ar-step-warn { background: #fdf0e1; color: #b45309; }
+.auth-login .ar-tips { list-style: none; margin: 0 0 1.5rem; padding: 0.9rem 1rem; display: grid; gap: 0.55rem;
+  background: #faf9fc; border: 1px solid #eeebf3; border-radius: 10px; font-size: 0.85rem; color: #4a4560; }
+.auth-login .ar-tips li { display: flex; gap: 0.55rem; align-items: flex-start; }
+.auth-login .ar-tips i { color: #644098; margin-top: 0.1rem; }
+.auth-login .ar-rules { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: 0.78rem; color: #8c86a3; }
+.auth-login .ar-rules li { display: inline-flex; align-items: center; gap: 0.3rem; }
+.auth-login .ar-rules li.ok { color: #1a7f4b; }
+@media (max-width: 575.98px) {
+  .auth-login .auth-right-inner { padding: 2rem 1.35rem; }
+}
+
 /* ── Role Cards (Select Role) ────────────────────────────────────── */
 /* Compact, equal-height cards in as many columns as fit; a long list scrolls inside the panel so the
    Continue button stays in view. */

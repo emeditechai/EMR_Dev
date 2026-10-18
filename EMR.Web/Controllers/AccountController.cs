@@ -26,6 +26,9 @@ public class AccountController(
     /// <summary>Sign-in attempts per client address per minute (clinics share one address, so this is generous).</summary>
     public const string SignInRateLimit = "signin";
 
+    /// <summary>"Forgot password?" requests and reset submits per client address per 15 minutes.</summary>
+    public const string PasswordResetRateLimit = "pwreset";
+
     [HttpGet]
     [Authorize]
     public IActionResult AccessDenied(string? returnUrl, string? page, string? control)
@@ -552,6 +555,89 @@ public class AccountController(
         await auditLogService.LogAsync("Auth", "ChangePassword", "Password changed by the user.", user.Id);
         TempData["Success"] = "Your password has been changed.";
         return RedirectToAction("Index", "Dashboard");
+    }
+
+    // ---- Forgot password (Login page; SQLScripts/2293) ------------------------------------------------------------------
+    // The answer is the same whether or not the account exists, and the mail is sent after the response, so neither the
+    // message nor the response time tells anyone which user names are real.
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult ForgotPassword()
+    {
+        if (User.Identity?.IsAuthenticated == true) return RedirectToAction("Index", "Dashboard");
+        return View(new ForgotPasswordViewModel());
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(PasswordResetRateLimit)]
+    public IActionResult ForgotPassword(ForgotPasswordViewModel model, [FromServices] IServiceScopeFactory scopes, [FromServices] ILogger<AccountController> logger)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var key = model.UserNameOrEmail.Trim();
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = scopes.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<IPasswordResetService>().RequestAsync(key, ip, baseUrl);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Password reset request failed");
+            }
+        });
+
+        TempData["ResetRequested"] = key;
+        return RedirectToAction(nameof(ForgotPasswordSent));
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult ForgotPasswordSent()
+    {
+        if (TempData["ResetRequested"] is not string key) return RedirectToAction(nameof(ForgotPassword));
+        ViewData["Requested"] = key;
+        return View();
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword(string? token, [FromServices] IPasswordResetService resets)
+    {
+        // the token is in the address: keep it out of the Referer of anything this page loads
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+        var userName = await resets.ValidateAsync(token);
+        if (userName is null) return View("ResetPasswordInvalid");
+        return View(new ResetPasswordViewModel { Token = token!, UserName = userName });
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(PasswordResetRateLimit)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model, [FromServices] IPasswordResetService resets)
+    {
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        var userName = await resets.ValidateAsync(model.Token);
+        if (userName is null) return View("ResetPasswordInvalid");
+        model.UserName = userName;
+        if (!ModelState.IsValid) return View(model);
+
+        if (!await resets.ResetAsync(model.Token, model.NewPassword, HttpContext.Connection.RemoteIpAddress?.ToString()))
+            return View("ResetPasswordInvalid");
+
+        TempData["AuthMessage"] = "Your password has been reset. Sign in with your new password.";
+        return RedirectToAction(nameof(Login));
     }
 
     // ---- Last branch / role (UserBranchLastLogin, script 2187) --------------------------------------------------------
