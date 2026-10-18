@@ -290,6 +290,7 @@ public class HospitalSettingsController(
             existing.CriticalValueCommunicationRequired = model.CriticalValueCommunicationRequired;
             existing.CriticalValueInformMinutes = model.CriticalValueInformMinutes;
             existing.LabB2CBillPrintHeaderRequired = model.LabB2CBillPrintHeaderRequired;
+            existing.LabBillPrintPageSize = model.LabBillPrintPageSize == "A5L" ? "A5L" : "A4";
             existing.LabB2CReportPrintHeaderRequired = model.LabB2CReportPrintHeaderRequired;
             existing.DoctorIpComputeMode = model.DoctorIpComputeMode;
             existing.MembershipCardNoPrefix = string.IsNullOrWhiteSpace(model.MembershipCardNoPrefix) ? "MC" : model.MembershipCardNoPrefix.Trim().ToUpperInvariant();
@@ -365,6 +366,7 @@ public class HospitalSettingsController(
             CriticalValueCommunicationRequired = s.CriticalValueCommunicationRequired,
             CriticalValueInformMinutes = s.CriticalValueInformMinutes,
             LabB2CBillPrintHeaderRequired = s.LabB2CBillPrintHeaderRequired,
+            LabBillPrintPageSize = s.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
             LabB2CReportPrintHeaderRequired = s.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = string.IsNullOrWhiteSpace(s.DoctorIpComputeMode) ? "Manual" : s.DoctorIpComputeMode,
             MembershipCardNoPrefix = string.IsNullOrWhiteSpace(s.MembershipCardNoPrefix) ? "MC" : s.MembershipCardNoPrefix,
@@ -427,6 +429,7 @@ public class HospitalSettingsController(
             CriticalValueCommunicationRequired = m.CriticalValueCommunicationRequired,
             CriticalValueInformMinutes = m.CriticalValueInformMinutes,
             LabB2CBillPrintHeaderRequired = m.LabB2CBillPrintHeaderRequired,
+            LabBillPrintPageSize = m.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
             LabB2CReportPrintHeaderRequired = m.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = m.DoctorIpComputeMode,
             MembershipCardNoPrefix = string.IsNullOrWhiteSpace(m.MembershipCardNoPrefix) ? "MC" : m.MembershipCardNoPrefix.Trim().ToUpperInvariant(),

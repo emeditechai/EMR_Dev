@@ -2829,6 +2829,7 @@ namespace EMR.Web.Controllers
                 // B2C: Hospital Settings > LAB > Required B2C Bill Print Header. B2B: a franchise's Report Header Required
                 // (Franchise Master); a company's B2B bill always has the header / footer.
                 ShowHeaderFooter      = detail.IsB2B ? (franchiseHeader ?? true) : (settings?.LabB2CBillPrintHeaderRequired ?? true),
+                PageSize              = settings?.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
                 // Hospital
                 HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
                 HospitalType          = settings?.HospitalType,
@@ -3605,6 +3606,7 @@ namespace EMR.Web.Controllers
                 // the e-mailed / sent bill PDF: a franchise B2B bill follows the franchise's Report Header Required;
                 // B2C and company B2B bills keep the header / footer as before
                 ShowHeaderFooter      = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId) ?? true,
+                PageSize              = settings?.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
                 HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
                 HospitalType          = settings?.HospitalType,
                 RegistrationNumber    = settings?.RegistrationNumber,

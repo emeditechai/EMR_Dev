@@ -341,9 +341,28 @@
             .page-footer { position: fixed; bottom: 5mm; }
         }
     </style>
+    @if (Model.PageSize == "A5L")
+    {
+        @* Hospital Settings > LAB > LAB Bill Print Page Size = A5 Landscape: the same layout, compact, on half an A4 sheet *@
+        <style>
+            @@page { size: A5 landscape; margin: 0; }
+            /* A5 landscape = half an A4 sheet: 210 mm wide x 148 mm high. The A4 layout is laid out 1/0.6 larger
+               (350 x 246 mm) and zoomed to 0.6, so the sheet is exactly 210 x 148 mm. */
+            body.a5l .page-wrap { zoom: 0.6; width: 350mm; min-height: 245mm; padding: 10mm 14mm 16mm 14mm; position: relative; }
+            body.a5l .letterhead-space { height: 30mm; }
+            body.a5l .a5-footer { position: absolute; left: 14mm; right: 14mm; bottom: 6mm; display: flex; justify-content: space-between;
+                                  font-size: 9px; color: #555; border-top: 1px solid #ccc; padding-top: 2mm; }
+            /* on screen: show the half-A4 sheet itself */
+            @@media screen {
+                body.a5l { background: #d1d5db; }
+                body.a5l .page-wrap { background: #fff; margin: 14mm auto; box-shadow: 0 4px 24px rgba(0,0,0,.25); }
+            }
+            @@media print { body.a5l .page-wrap { margin: 0; box-shadow: none; } }
+        </style>
+    }
     <link rel="stylesheet" href="~/css/fonts.css" />
 </head>
-<body onload="window.print()">
+<body onload="window.print()" class="@(Model.PageSize == "A5L" ? "a5l" : "")">
 
 <div class="print-actions">
     <button class="btn-print" onclick="window.print()">🖨 Print</button>
@@ -749,9 +768,14 @@
     </div>
     }
 
+    @if (Model.PageSize == "A5L" && Model.ShowHeaderFooter)
+    {
+        @* A5: the footer sits at the bottom of the half sheet *@
+        <div class="a5-footer"><span>@printDate</span><span>Page 1 of 1</span></div>
+    }
 </div>
 
-@if (Model.ShowHeaderFooter)
+@if (Model.ShowHeaderFooter && Model.PageSize != "A5L")
 {
 <!-- ══ PAGE FOOTER ══ -->
 <div class="page-footer">

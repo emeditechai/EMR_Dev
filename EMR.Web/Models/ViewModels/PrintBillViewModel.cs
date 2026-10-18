@@ -2,6 +2,9 @@ namespace EMR.Web.Models.ViewModels;
 
 public class PrintBillViewModel
 {
+    /// <summary>"A4" (default, portrait) or "A5L" (A5 landscape) - Hospital Settings > LAB > LAB Bill Print Page Size.</summary>
+    public string PageSize { get; set; } = "A4";
+
     // ── Hospital / Branch Info ────────────────────────────────────────────────
     public string? HospitalName { get; set; }
     public string? HospitalType { get; set; }

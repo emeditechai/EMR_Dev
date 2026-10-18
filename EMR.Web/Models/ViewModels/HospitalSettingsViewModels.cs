@@ -127,6 +127,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Required B2C Bill Print Header")]
     public bool LabB2CBillPrintHeaderRequired { get; set; } = true;
 
+    [Display(Name = "LAB Bill Print Page Size")]
+    public string LabBillPrintPageSize { get; set; } = "A4";
+
     [Display(Name = "Required B2C Lab Report Print Header")]
     public bool LabB2CReportPrintHeaderRequired { get; set; } = true;
 

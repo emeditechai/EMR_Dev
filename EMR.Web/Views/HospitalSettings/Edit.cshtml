@@ -563,6 +563,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-aspect-ratio"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">LAB Bill Print Page Size</div>
+                            <div class="lp-desc">A4: the LAB bill prints on a full A4 page (as before). A5 Landscape: a compact bill on half an A4 sheet. B2C and B2B bills.</div>
+                            <select class="form-select form-select-sm mt-1" asp-for="LabBillPrintPageSize">
+                                <option value="A4">A4 (portrait)</option>
+                                <option value="A5L">A5 Landscape</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Doctor IP Commission</div>

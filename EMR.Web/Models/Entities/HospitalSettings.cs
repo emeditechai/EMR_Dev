@@ -98,6 +98,8 @@ public class HospitalSettings
     public int? CriticalValueInformMinutes { get; set; }
     /// <summary>B2C LAB bill prints the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
     public bool LabB2CBillPrintHeaderRequired { get; set; } = true;
+    /// <summary>LAB bill print page (SQLScripts/2292): "A4" (portrait, as before) or "A5L" (A5 landscape - half an A4 sheet).</summary>
+    public string LabBillPrintPageSize { get; set; } = "A4";
     /// <summary>Printed B2C LAB report carries the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
     public bool LabB2CReportPrintHeaderRequired { get; set; } = true;
     /// <summary>How Doctor IP commission is computed: Manual (screen), Automatic (scheduled job) or Both.</summary>
