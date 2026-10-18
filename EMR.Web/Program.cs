@@ -54,6 +54,10 @@ builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionT
 builder.Services.AddSingleton<EMR.Web.Services.IdDocumentAssist.IIdDocumentReader, EMR.Web.Services.IdDocumentAssist.IdDocumentReader>();
 // Hospital Settings > LAB > Enable AI Features at Billing (per branch, SQLScripts/2286)
 builder.Services.AddScoped<EMR.Web.Services.IAiBillingFeatures, EMR.Web.Services.AiBillingFeatures>();
+// AI test suggestions at B2C billing: learned from past bills, kept in memory per branch (SQLScripts/2287)
+// reflex test suggestions at LAB Reporting (SQLScripts/2289)
+builder.Services.AddScoped<EMR.Web.Services.Reflex.ILabReflexService, EMR.Web.Services.Reflex.LabReflexService>();
+builder.Services.AddScoped<EMR.Web.Services.TestSuggestions.ILabTestSuggestionService, EMR.Web.Services.TestSuggestions.LabTestSuggestionService>();
 
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 

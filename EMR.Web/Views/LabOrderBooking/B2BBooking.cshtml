@@ -187,12 +187,23 @@
             color: #1a73e8 !important;
         }
 
-        #tblLineItems tbody tr {
-            transition: background-color 0.15s ease;
-        }
-        #tblLineItems tbody tr:hover {
-            background-color: #f8fafc;
-        }
+        /* selected investigations: same look as B2C booking */
+        .b2b-lines-card { border:1px solid #e2e8f0; border-radius:.75rem; overflow:hidden; background:#fff; }
+        .b2b-lines-card > .card-header { background:#fff; border-bottom:1px solid #eef2f7; padding:.6rem .9rem; }
+        #tblLineItems { font-size:.875rem; }
+        #tblLineItems thead th { background:#f8fafc; color:#64748b; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+                                 white-space:nowrap; border-bottom:1px solid #e2e8f0; padding:.55rem .75rem; vertical-align:middle; }
+        #tblLineItems tbody td { padding:.6rem .75rem; vertical-align:middle; border-color:#f1f5f9; }
+        #tblLineItems tbody tr { transition:background-color .15s ease; }
+        #tblLineItems tbody tr:hover > td { background-color:#f8fafc; }
+        #tblLineItems .col-b2b { background:#f5f8ff; }
+        #tblLineItems thead th.col-b2b { background:#e8efff; color:#1d4ed8; }
+        #tblLineItems tbody tr:hover > td.col-b2b { background:#edf2ff; }
+        #tblLineItems .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+        #tblLineItems .ln-name { font-weight:600; color:#0f172a; line-height:1.3; }
+        #tblLineItems .ln-meta { color:#64748b; font-size:.75rem; margin-top:.15rem; }
+        #tblLineItems .ln-type { font-size:.65rem; font-weight:600; vertical-align:middle; margin-left:.35rem; }
+        #tblLineItems .ln-remove { width:30px; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
     </style>
 }
 
@@ -856,20 +867,25 @@
                 </div>
             </div>
 
-            @* ── Line Items Table ── *@
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover align-middle mb-0" id="tblLineItems">
-                    <thead class="table-light">
+            @* ── Line Items: card as on B2C booking ── *@
+            <div class="b2b-lines-card mt-2">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-bold small text-dark d-flex align-items-center gap-2"><i class="bi bi-list-check text-primary fs-6"></i>Selected Investigations</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-1 small fw-semibold" id="badgeSelectedCount">0 Tests Selected</span>
+            </div>
+            <div class="table-responsive m-0">
+                <table class="table table-hover align-middle mb-0" id="tblLineItems">
+                    <thead>
                         <tr>
-                            <th style="width:40px;" class="text-center">#</th>
-                            <th style="width:110px;">Test Code</th>
-                            <th>Investigation / Profile Name</th>
-                            <th style="width:120px;">Sample Type</th>
+                            <th style="width:44px;" class="text-center">#</th>
+                            <th style="width:110px;">Code</th>
+                            <th>Test / Profile</th>
+                            <th style="width:150px;">Sample</th>
                             <th style="width:80px;">TAT</th>
-                            <th style="width:130px;" class="text-end">Standard MRP (₹)</th>
-                            <th style="width:130px;" class="text-end bg-primary-subtle text-primary">B2B Rate (₹)</th>
+                            <th style="width:110px;" class="num">MRP (₹)</th>
+                            <th style="width:120px;" class="num col-b2b">B2B Rate (₹)</th>
                             <th style="width:70px;" class="text-center">Urgent</th>
-                            <th style="width:50px;" class="text-center">Action</th>
+                            <th style="width:56px;" class="text-center"></th>
                         </tr>
                     </thead>
                     <tbody id="tblLineItemsBody">
@@ -883,24 +899,18 @@
                 </table>
             </div>
 
-            @* ── Totals Footer ── *@
-            <div class="row justify-content-end mt-3 g-2">
-                <div class="col-12 col-md-8 col-lg-6">
-                    <div class="p-3 bg-light rounded-3 border d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div>
-                            <span class="badge bg-secondary" id="badgeSelectedCount">0 Tests Selected</span>
-                            <div class="text-muted small mt-1">
-                                Standard MRP Total: <strong id="lblStandardTotal" class="font-monospace text-dark">₹ 0.00</strong>
-                            </div>
-                        </div>
-                        <div class="text-end">
-                            <span class="fw-bold text-dark text-uppercase small">B2B Test Total:</span>
-                            <div class="bg-success-subtle border border-success-subtle rounded-3 px-3 py-1">
-                                <span class="fs-5 fw-bold text-success font-monospace" id="lblB2BTotalAmount">₹ 0.00</span>
-                            </div>
-                        </div>
+            @* ── Totals: card footer ── *@
+            <div class="card-footer bg-white py-2 px-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="text-muted small">
+                    <i class="bi bi-tag text-primary me-1"></i>Standard MRP total: <strong id="lblStandardTotal" class="font-monospace text-dark">₹ 0.00</strong>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-secondary text-uppercase small" style="letter-spacing:.5px;">B2B Test Total:</span>
+                    <div class="bg-success-subtle border border-success-subtle rounded-3 px-3 py-1">
+                        <span class="fs-5 fw-bold text-success font-monospace" id="lblB2BTotalAmount">₹ 0.00</span>
                     </div>
                 </div>
+            </div>
             </div>
             <span asp-validation-for="LineItemsJson" class="text-danger fw-bold small"></span>
             <partial name="_LabMiscChargesPicker" model="@("B2B")" />
@@ -3545,31 +3555,31 @@
                 b2bTotal += b2b;
 
                 var typeBadge = item.isPackage
-                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-box me-1"></i>Package</span>'
+                    ? '<span class="badge ln-type bg-success-subtle text-success border border-success-subtle"><i class="bi bi-box me-1"></i>Package</span>'
                     : (item.isProfile
-                        ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-layers me-1"></i>Profile</span>'
-                        : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>');
+                        ? '<span class="badge ln-type bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-layers me-1"></i>Profile</span>'
+                        : '<span class="badge ln-type bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>');
 
-                var sampleBadge = item.sampleType ? `<span class="badge bg-light text-dark border">${item.sampleType}</span>` : '<span class="text-muted">--</span>';
-                var tatBadge = item.tat ? `<span class="badge bg-light text-secondary border">${item.tat} hrs</span>` : '<span class="text-muted">--</span>';
+                var sampleCell = item.sampleType ? `<span class="small text-dark">${item.sampleType}</span>` : '<span class="text-muted">—</span>';
+                var tatCell = item.tat ? `<span class="small text-secondary text-nowrap"><i class="bi bi-clock me-1"></i>${item.tat} hrs</span>` : '<span class="text-muted">—</span>';
 
                 var rowHtml = `
                     <tr>
                         <td class="text-center text-muted fw-semibold">${idx + 1}</td>
                         <td><span class="badge bg-light text-primary font-monospace border px-2 py-1">${item.code}</span></td>
                         <td>
-                            <div class="fw-semibold text-dark">${item.name} ${typeBadge}</div>
-                            ${item.method ? `<small class="text-muted">Method: ${item.method}</small>` : ''}
+                            <div class="ln-name">${item.name}${typeBadge}</div>
+                            ${item.method ? `<div class="ln-meta">${item.method}</div>` : ''}
                         </td>
-                        <td>${sampleBadge}</td>
-                        <td>${tatBadge}</td>
-                        <td class="text-end font-monospace text-muted">₹ ${mrp.toFixed(2)}</td>
-                        <td class="text-end font-monospace fw-bold text-primary bg-primary-subtle">₹ ${b2b.toFixed(2)}</td>
+                        <td>${sampleCell}</td>
+                        <td>${tatCell}</td>
+                        <td class="num font-monospace text-muted">${mrp.toFixed(2)}</td>
+                        <td class="num col-b2b font-monospace fw-bold text-primary">${b2b.toFixed(2)}</td>
                         <td class="text-center">
                             <input type="checkbox" class="form-check-input" ${item.isUrgent ? 'checked' : ''} onchange="toggleUrgent(${idx}, this.checked)" />
                         </td>
                         <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeLineItem(${idx})" title="Remove">
+                            <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-circle ln-remove" onclick="removeLineItem(${idx})" title="Remove">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>

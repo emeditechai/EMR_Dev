@@ -235,6 +235,7 @@
                 <div class="col-6 col-md-2">
                     <label class="lr-label" for="selDateFilterType">Filter By Date</label>
                     <select id="selDateFilterType" class="form-select form-select-sm">
+                        <option value="CollectionDate" selected="@(Model.DateFilterType == "CollectionDate")">Sample Collection DateTime</option>
                         <option value="BookingDate" selected="@(Model.DateFilterType == "BookingDate")">Booking Date Time</option>
                         <option value="OrderDate" selected="@(Model.DateFilterType == "OrderDate")">Order / Bill Date</option>
                     </select>

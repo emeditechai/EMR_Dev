@@ -1,0 +1,58 @@
+@* Reflex tests the pathologist advised for this patient (SQLScripts/2289), shown on B2C booking when the patient is loaded,
+   for the front desk to offer. Rendered only when Hospital Settings > Enable AI Features at Billing is Yes. Read only:
+   "Add" goes through addInvestigationOption() - the page's own checks apply; once the test is billed the advice
+   disappears by itself (a later bill carries it). The patient-loading code of the page is not touched: the hidden
+   PatientId field is watched. *@
+<style>
+    #reflexAdvised { border:1px solid #86efac; background:#f0fdf4; border-radius:.75rem; padding:.5rem .75rem; margin-bottom:.6rem; display:none; font-size:.82rem; }
+    #reflexAdvised .ra-head { display:flex; align-items:center; gap:.45rem; font-weight:700; color:#14532d; margin-bottom:.25rem; }
+    #reflexAdvised .ra-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; padding:.3rem 0; border-top:1px dashed #bbf7d0; }
+    #reflexAdvised .ra-row:first-of-type { border-top:0; }
+    #reflexAdvised .ra-why { color:#475569; font-size:.74rem; }
+</style>
+<script>
+    $(function () { setTimeout(initReflexAdvised, 0); });
+    function initReflexAdvised() {
+        var $card = $('#tblLineItems').closest('.card');
+        if (!$card.length || typeof window.addInvestigationOption !== 'function') return;
+        var $box = $('<div id="reflexAdvised" aria-live="polite"></div>').insertBefore($card);
+        var lastPatient = null, items = [];
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function day(d) { var x = d ? new Date(d) : null; return x ? x.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : ''; }
+        function inOrder(id) { return (window.getOrderItemKeys ? window.getOrderItemKeys() : []).indexOf('I_' + id) >= 0; }
+
+        function render() {
+            var show = items.filter(function (i) { return !inOrder(i.suggestTestId); });
+            if (!show.length) { $box.hide().empty(); return; }
+            $box.html('<div class="ra-head"><i class="bi bi-clipboard2-pulse"></i>Follow-up tests advised by the lab for this patient</div>' +
+                show.map(function (i) {
+                    var bookable = $('#ddlInvestigations option[value="I_' + i.suggestTestId + '"]').length > 0;
+                    return '<div class="ra-row"><span><b>' + esc(i.suggestTestName) + '</b> <span class="text-muted font-monospace small">' + esc(i.suggestTestCode) + '</span></span>' +
+                        '<span class="ra-why">' + esc(i.triggerTestName) + ' ' + esc(i.triggerValue || '') + ' on ' + esc(i.billNo || 'an earlier bill') + ' · ' + day(i.advisedOn) +
+                        (i.advisedBy ? ' · advised by ' + esc(i.advisedBy) : '') + (i.reason ? ' — ' + esc(i.reason) : '') + '</span>' +
+                        (bookable ? '<button type="button" class="btn btn-sm btn-success py-0 px-2 ms-auto ra-add" data-id="' + i.suggestTestId + '"><i class="bi bi-plus-lg me-1"></i>Add</button>'
+                                  : '<span class="ms-auto small text-muted">not bookable for this patient here</span>') + '</div>';
+                }).join('')).show();
+        }
+
+        function check() {
+            var pid = parseInt($('#PatientId').val(), 10) || 0;
+            if (pid === lastPatient) { if (items.length) render(); return; }
+            lastPatient = pid; items = [];
+            if (!pid) { render(); return; }
+            fetch('@Url.Action("ReflexAdvised", "LabOrderBooking")?patientId=' + pid, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (res) { if (pid === lastPatient) { items = (res && res.success && res.items) || []; render(); } })
+                .catch(function () { });
+        }
+
+        $box.on('click', '.ra-add', async function () {
+            var $b = $(this).prop('disabled', true);
+            try { await window.addInvestigationOption('I_' + $b.data('id'), { keepClosed: true }); }
+            finally { $b.prop('disabled', false); render(); }
+        });
+        setInterval(check, 1200);   // the loaded patient changes without an event
+        check();
+    }
+</script>

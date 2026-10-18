@@ -1,5 +1,6 @@
 @model EMR.Web.Models.ViewModels.LabReportingEntryPageViewModel
 @inject EMR.Shared.Security.IActionPermissionGuard PermissionGuard
+@inject EMR.Web.Services.IAiBillingFeatures AiBillingFeatures
 @{
     // The reporting screen using this page: Lab Report Entry (defaults) or Microbiology Report Entry.
     var screen = Model.Screen ?? EMR.Web.Models.ViewModels.LabReportingScreen.Numeric;
@@ -2857,4 +2858,11 @@
     <partial name="_LabAuditHistoryScripts" />
 
     <partial name="_LabReportPrintScripts" />
+
+    @* reflex test suggestions: numeric reporting only, AI features switched on (SQLScripts/2289) *@
+    @if (screen.Controller == "LabReporting" && await AiBillingFeatures.IsEnabledAsync(Context))
+    {
+        @Html.AntiForgeryToken()
+        <partial name="_ReflexSuggestions" model="@d.LabOrderId" />
+    }
 }

@@ -42,7 +42,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> Index(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -88,7 +88,7 @@ namespace EMR.Web.Controllers
                 BranchId = branchId,
                 FromDate = effectiveFrom,
                 ToDate = effectiveTo,
-                DateFilterType = dateFilterType ?? "BookingDate",
+                DateFilterType = dateFilterType ?? "CollectionDate",
                 StatusFilter = statusFilter ?? "All",
                 Search = search,
                 DepartmentId = departmentId,
@@ -349,7 +349,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetHeadersJson(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -414,6 +414,44 @@ namespace EMR.Web.Controllers
                 detail = detail,
                 statuses = statuses
             });
+        }
+
+        // ── Reflex test suggestions (SQLScripts/2289; AI features switch) ─────────────────────────────────
+        /// <summary>Follow-up tests the order's entered results call for, per Master > Lab Master > Reflex Rules.</summary>
+        [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
+        [EMR.Shared.Security.RequiresPermission("LAB.LABREPORTING", "REFLEX")]
+        public async Task<IActionResult> ReflexSuggestions(int labOrderId,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.Reflex.ILabReflexService reflex)
+        {
+            if (labOrderId <= 0 || !await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false, enabled = false });
+            try
+            {
+                return Json(new { success = true, enabled = true, items = await reflex.GetSuggestionsAsync(User.GetCompanyId(), labOrderId) });
+            }
+            catch (Exception)
+            {
+                return Json(new { success = false, enabled = true });   // reporting goes on without suggestions
+            }
+        }
+
+        /// <summary>Advise (A) or dismiss (D) a reflex suggestion. A recommendation only: bill, order and report are unchanged.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [EMR.Web.Filters.LabReportingAccess]
+        [EMR.Shared.Security.RequiresPermission("LAB.LABREPORTING", "REFLEX")]
+        public async Task<IActionResult> ReflexAction(int labOrderId, int ruleId, string? status, string? note,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.Reflex.ILabReflexService reflex)
+        {
+            if (labOrderId <= 0 || ruleId <= 0 || status is not ("A" or "D")) return Json(new { success = false, message = "Invalid request." });
+            if (!await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false, message = "AI features are switched off for this branch." });
+            var error = await reflex.RecordAsync(User.GetCompanyId(), CurrentBranchId(), User.GetUserId(), labOrderId, ruleId, status[0], note);
+            if (error is not null) return Json(new { success = false, message = error });
+            await auditLogService.LogAsync("LAB", "LAB.ReflexTest",
+                $"Reflex rule #{ruleId} {(status == "A" ? "advised" : "dismissed")} on lab order #{labOrderId}.");
+            return Json(new { success = true });
         }
 
         [HttpPost]

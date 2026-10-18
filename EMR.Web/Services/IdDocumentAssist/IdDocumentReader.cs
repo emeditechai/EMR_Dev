@@ -255,10 +255,12 @@ public sealed class IdDocumentReader(IPrescriptionOcrEngine ocr, ILogger<IdDocum
         return string.Join("\n", texts);
     }
 
-    /// <summary>OCR of one area of a rendered page, enlarged so its long side is about 2400 px, on white.</summary>
+    /// <summary>OCR of one area of a rendered page, enlarged (about 2000 px on its short side), on white.</summary>
     private async Task<string> ReadBitmapAsync(SkiaSharp.SKBitmap page, SkiaSharp.SKRectI area, CancellationToken ct)
     {
-        var scale = Math.Clamp(2400f / Math.Max(area.Width, area.Height), 1f, 4f);
+        // small print needs ~2000 px across the short side: a tall phone photo of a card is enlarged by its width, not its height
+        var scale = Math.Clamp(Math.Max(2400f / Math.Max(area.Width, area.Height), 2000f / Math.Min(area.Width, area.Height)), 1f, 4f);
+        if (area.Width * scale > 9000 || area.Height * scale > 9000) scale = 9000f / Math.Max(area.Width, area.Height);
         var w = (int)(area.Width * scale); var h = (int)(area.Height * scale);
         using var bmp = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(w, h, SkiaSharp.SKColorType.Rgb888x, SkiaSharp.SKAlphaType.Opaque));
         using (var canvas = new SkiaSharp.SKCanvas(bmp))
@@ -460,16 +462,29 @@ public sealed class IdDocumentReader(IPrescriptionOcrEngine ocr, ILogger<IdDocum
 
         if (full is null && kind == IdDocumentKind.Aadhaar)
         {
-            // the English name is printed on the line(s) just above the date / year of birth (or above the gender)
-            var anchor = lines.FindIndex(l => Regex.IsMatch(l, @"DOB|D\.O\.B|DATE OF BIRTH|YEAR OF BIRTH"));
-            if (anchor < 0) anchor = lines.FindIndex(l => Regex.IsMatch(l, @"\b(FEMALE|MALE)\b"));
-            // e-Aadhaar letter: "To" followed by the name
-            var to = lines.FindIndex(l => l is "TO" or "TO,");
-            var candidates = new List<int>();
-            if (anchor > 0) for (var i = anchor - 1; i >= Math.Max(0, anchor - 3); i--) candidates.Add(i);
-            if (to >= 0 && to + 1 < lines.Count) candidates.Add(to + 1);
-            foreach (var i in candidates)
-                if (LooksLikeName(lines[i])) { full = Clean(lines[i]); break; }
+            // the English name is printed a few lines above the date / year of birth or the gender (a regional-language
+            // name and a "Father:" line can sit in between), and in the letter part right after "To"
+            var windows = new List<int>();
+            for (var a = 0; a < lines.Count; a++)
+            {
+                if (Regex.IsMatch(lines[a], @"DOB|D\.O\.B|DATE OF BIRTH|YEAR OF BIRTH|\b(FEMALE|MALE)\b"))
+                    for (var i = a - 1; i >= Math.Max(0, a - 5); i--) windows.Add(i);
+                if (lines[a] is "TO" or "TO," or "TO:")
+                    for (var i = a + 1; i < Math.Min(lines.Count, a + 4); i++) windows.Add(i);
+            }
+            var found = windows
+                .Where(i => !Regex.IsMatch(lines[i], @"^(FATHER|HUSBAND|MOTHER|GUARDIAN|[CSDW]\s*/\s*O|CARE OF)\b"))
+                .Where(i => LooksLikeName(lines[i]))
+                .Select(i => Clean(lines[i]))
+                .ToList();
+            // the holder's name is printed several times (letter part, card, OCR passes); stray fragments of the
+            // regional-language text are not: pick the candidate printed most often in the whole document
+            // (a line counts when every word of the name is on it, one OCR slip allowed in words of 5+ letters)
+            var squashed = lines.Select(l => Regex.Replace(l, "[^A-Z]", "")).ToList();
+            full = found.Distinct()
+                .Select(n => (Name: n, Hits: squashed.Count(l => n.Split(' ').All(w => ApproxContains(l, w)))))
+                .OrderByDescending(x => x.Hits).ThenBy(x => found.IndexOf(x.Name))
+                .Select(x => x.Name).FirstOrDefault();
             if (full is not null)
             {
                 var w = full.Split(' ');
@@ -477,7 +492,7 @@ public sealed class IdDocumentReader(IPrescriptionOcrEngine ocr, ILogger<IdDocum
             }
         }
 
-        var address = ReadAddress(lines);
+        var address = ReadAddress(lines) ?? (full is null ? null : ReadLetterAddress(lines, full));
 
         // every letter of the document, so the page can check an entered name is printed on it even when OCR could not
         // tell which line holds the name (the passport MRZ is included with its '<' fillers removed)
@@ -487,6 +502,25 @@ public sealed class IdDocumentReader(IPrescriptionOcrEngine ocr, ILogger<IdDocum
         if (full is null && dob is null && yob is null && gender is null && address is null && nameText.Length < 10) return null;
         string? Title(string? s) => s is null ? null : System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(s.ToLowerInvariant());
         return new IdDocumentPerson(Title(full), Title(first), Title(middle), Title(last), dob, yob, gender, Title(address), source, nameText);
+    }
+
+    /// <summary>The word is in the text with at most one edit when it has 5+ letters (approximate substring, Sellers).</summary>
+    private static bool ApproxContains(string text, string word)
+    {
+        if (word.Length == 0) return true;
+        var k = word.Length >= 5 ? 1 : 0;
+        if (k == 0) return text.Contains(word);
+        var prev = new int[word.Length + 1];
+        for (var i = 0; i <= word.Length; i++) prev[i] = i;
+        foreach (var ch in text)
+        {
+            var cur = new int[word.Length + 1];
+            for (var i = 1; i <= word.Length; i++)
+                cur[i] = Math.Min(Math.Min(prev[i] + 1, cur[i - 1] + 1), prev[i - 1] + (word[i - 1] == ch ? 0 : 1));
+            if (cur[word.Length] <= k) return true;
+            prev = cur;
+        }
+        return prev[word.Length] <= k;
     }
 
     private static bool LooksLikeName(string line)
@@ -526,6 +560,31 @@ public sealed class IdDocumentReader(IPrescriptionOcrEngine ocr, ILogger<IdDocum
         a = Regex.Replace(a, @"[^A-Z0-9 ,./\-]", " ");
         a = Regex.Replace(Regex.Replace(a, @"\s+", " "), @"(\s*,\s*)+", ", ").Trim(' ', ',', '-');
         return a.Length >= 10 ? (a.Length > 300 ? a[..300] : a) : null;
+    }
+
+    /// <summary>
+    /// The e-Aadhaar / letter part prints the address without an "Address" label: the lines after the holder's name
+    /// (care-of line first) down to the line with the PIN code.
+    /// </summary>
+    private static string? ReadLetterAddress(List<string> lines, string name)
+    {
+        var key = name.Replace(" ", "");
+        var start = lines.FindIndex(l => Regex.Replace(l, "[^A-Z]", "").Contains(key));
+        while (start >= 0)
+        {
+            var parts = new List<string>();
+            for (var i = start + 1; i < lines.Count && i <= start + 9; i++)
+            {
+                if (Regex.IsMatch(lines[i], @"DOB|AADHAAR|ENROL|^\d{4} \d{4} \d{4}")) break;
+                // OCR noise at the start of a line (margin marks, rotated side text): "S KACHHARIPARA" -> "KACHHARIPARA"
+                var l = Regex.Replace(lines[i], @"^[^A-Z0-9]*(?:[A-Z]{1,2}\s+(?=[A-Z]{3}|\d)|\d\s+(?=[A-Z]))?", "").Trim();
+                // the care-of line names a person, not the place
+                if (l.Length > 0 && !Regex.IsMatch(l, @"^(?:[CSDW]\s*/\s*O|CARE OF)\b")) parts.Add(l);
+                if (Regex.IsMatch(lines[i], @"(?<!\d)\d{6}(?!\d)")) return ReadAddress(["ADDRESS:", .. parts]);
+            }
+            start = lines.FindIndex(start + 1, l => Regex.Replace(l, "[^A-Z]", "").Contains(key));
+        }
+        return null;
     }
 
     /// <summary>Passport MRZ: names from line 1, date of birth and sex from line 2 (with its check digit).</summary>

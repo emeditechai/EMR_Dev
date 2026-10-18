@@ -1938,6 +1938,75 @@ namespace EMR.Web.Controllers
             }
         }
 
+        /// <summary>
+        /// AI test suggestions for a B2C bill (SQLScripts/2287): tests usually billed with the selected ones, learned from
+        /// past B2C bills, and profiles / packages that cover several of the selected tests. Keys as the booking screen
+        /// uses them ("I_12", "P_7"). Only with Hospital Settings > Enable AI Features at Billing; suggestions only.
+        /// </summary>
+        [HttpGet]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_SUGGEST")]
+        public async Task<IActionResult> TestSuggestions(string? keys, string? gender, int? referralDoctorId,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.TestSuggestions.ILabTestSuggestionService suggestions)
+        {
+            if (!await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false, enabled = false });
+            var list = (keys ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(k => System.Text.RegularExpressions.Regex.IsMatch(k, @"^[IP]_\d{1,9}$")).Take(60).ToList();
+            var branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 0;
+            try
+            {
+                var r = await suggestions.SuggestAsync(User.GetCompanyId(), branchId, list,
+                    new EMR.Web.Services.TestSuggestions.TestSuggestionContext(gender, referralDoctorId is > 0 ? referralDoctorId : null));
+                return Json(new { success = true, enabled = true, together = r.Together, bundles = r.Bundles, learnedFromBills = r.LearnedFromBills, companyWide = r.CompanyWide });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "AI test suggestions failed");
+                return Json(new { success = false, enabled = true });   // billing goes on without suggestions
+            }
+        }
+
+        /// <summary>Follow-up tests the pathologist advised for this patient (reflex testing, SQLScripts/2289) that no
+        /// later bill carries yet - shown on B2C booking for the front desk to offer. Read only.</summary>
+        [HttpGet]
+        public async Task<IActionResult> ReflexAdvised(int patientId,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.Reflex.ILabReflexService reflex)
+        {
+            if (patientId <= 0 || !await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false });
+            try { return Json(new { success = true, items = await reflex.GetOpenAdviceAsync(User.GetCompanyId(), patientId) }); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Reflex advice not loaded");
+                return Json(new { success = false });
+            }
+        }
+
+        /// <summary>A suggestion accepted (Add / Switch) or dismissed (x): the engine learns from it (SQLScripts/2288).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_SUGGEST")]
+        public async Task<IActionResult> TestSuggestionFeedback(string? key, string? contextKey, string? kind, string? action,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.TestSuggestions.ILabTestSuggestionService suggestions)
+        {
+            static bool IsKey(string? k) => k is not null && System.Text.RegularExpressions.Regex.IsMatch(k, @"^[IP]_\d{1,9}$");
+            if (!await aiFeatures.IsEnabledAsync(HttpContext) || !IsKey(key) || (contextKey is not null && !IsKey(contextKey))
+                || kind is not ("T" or "B") || action is not ("A" or "D"))
+                return Json(new { success = false });
+            try
+            {
+                var branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 0;
+                await suggestions.RecordFeedbackAsync(User.GetCompanyId(), branchId, User.GetUserId(), key!, contextKey, kind[0], action[0]);
+                return Json(new { success = true });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "AI test suggestion feedback not saved");
+                return Json(new { success = false });
+            }
+        }
+
         private static readonly string[] IdDocumentTypes = [".jpg", ".jpeg", ".png", ".pdf"];
 
         /// <summary>

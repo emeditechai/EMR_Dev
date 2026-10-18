@@ -1,0 +1,186 @@
+@model List<EMR.Web.Controllers.LabReflexRulesController.RuleRow>
+@using EMR.Web.Controllers
+@{
+    ViewData["Title"] = "Reflex Rules";
+    var activeCount = Model.Count(r => r.IsActive);
+    var reviewCount = Model.Count(r => r.Is_Standard && !r.IsActive);
+    string Cond(LabReflexRulesController.RuleRow r) => r.Condition_Type switch
+    {
+        "BETWEEN" => $"between {r.Value1:0.##} and {r.Value2:0.##}",
+        "OUTSIDE" => $"outside {r.Value1:0.##} – {r.Value2:0.##}",
+        "TEXT" => $"contains \"{r.Text_Value}\"",
+        "FLAG_H" or "FLAG_L" or "FLAG_ABN" => LabReflexRulesController.Conditions[r.Condition_Type],
+        _ => $"{LabReflexRulesController.Conditions.GetValueOrDefault(r.Condition_Type, r.Condition_Type)} {r.Value1:0.##}"
+    };
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+    <style>
+        #rrTable { font-size:.85rem; }
+        #rrTable thead th { background:#f8fafc; color:#64748b; font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+        #rrTable td { vertical-align:middle; }
+        .rr-arrow { color:#6366f1; }
+        .rr-off td { color:#94a3b8; }
+    </style>
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                    <li class="breadcrumb-item text-muted">Lab Master</li>
+                    <li class="breadcrumb-item active" aria-current="page">Reflex Rules</li>
+                </ol>
+            </nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-signpost-split me-2"></i>Reflex Rules</h4>
+            <small class="text-muted">When a result meets a rule, LAB Reporting suggests the follow-up test to the pathologist. Advice never changes the bill or the report.</small>
+        </div>
+        <button type="button" class="btn btn-primary px-3 shadow-sm" id="btnAddRule"><i class="bi bi-plus-lg me-1"></i>Add Rule</button>
+    </div>
+
+    @if (reviewCount > 0)
+    {
+        <div class="alert alert-warning d-flex gap-2 align-items-start py-2">
+            <i class="bi bi-clipboard2-check fs-5"></i>
+            <div class="small"><b>@reviewCount standard rule(s) await review.</b> They are switched off: check each threshold against your lab's reference ranges and units, edit if needed, then switch it on.</div>
+        </div>
+    }
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <span class="fw-bold small"><i class="bi bi-list-check text-primary me-1"></i>Rules</span>
+            <span class="small text-muted">@activeCount active of @Model.Count</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="rrTable">
+                <thead>
+                    <tr><th>When the result of</th><th>is</th><th>Gender</th><th></th><th>Suggest</th><th>Reason</th><th class="text-end">Advised / Dismissed</th><th class="text-center">Active</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr><td colspan="9" class="text-center text-muted py-4">No reflex rules yet. Add one.</td></tr>
+                    }
+                    @foreach (var r in Model)
+                    {
+                        <tr class="@(r.IsActive ? "" : "rr-off")">
+                            <td><span class="fw-semibold">@r.TriggerName</span> <span class="text-muted font-monospace small">@r.TriggerCode</span>
+                                @if (r.Is_Standard) { <span class="badge bg-info-subtle text-info-emphasis border ms-1">Standard</span> }</td>
+                            <td class="text-nowrap">@Cond(r)</td>
+                            <td>@r.Gender</td>
+                            <td><i class="bi bi-arrow-right rr-arrow"></i></td>
+                            <td><span class="fw-semibold">@r.SuggestName</span> <span class="text-muted font-monospace small">@r.SuggestCode</span></td>
+                            <td class="small text-muted">@r.Reason</td>
+                            <td class="text-end font-monospace small">@r.Advised / @r.Dismissed</td>
+                            <td class="text-center">
+                                <div class="form-check form-switch d-inline-block mb-0">
+                                    <input class="form-check-input rr-toggle" type="checkbox" role="switch" data-id="@r.Rule_ID" @(r.IsActive ? "checked" : "") />
+                                </div>
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary rr-edit"
+                                        data-rule='@System.Text.Json.JsonSerializer.Serialize(new { r.Rule_ID, r.Trigger_Test_ID, trigger = r.TriggerCode + " - " + r.TriggerName, r.Condition_Type, r.Value1, r.Value2, r.Text_Value, r.Gender, r.Suggest_Test_ID, suggest = r.SuggestCode + " - " + r.SuggestName, r.Reason, r.IsActive })'>
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rrModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" id="rrForm" autocomplete="off">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="RuleId" id="rrId" value="0" />
+            <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="rrTitle">Add Reflex Rule</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12"><label class="form-label fw-semibold small">When the result of <span class="text-danger">*</span></label>
+                        <select class="form-select" name="TriggerTestId" id="rrTrigger" style="width:100%"></select></div>
+                    <div class="col-md-5"><label class="form-label fw-semibold small">is <span class="text-danger">*</span></label>
+                        <select class="form-select" name="ConditionType" id="rrCond">
+                            @foreach (var c in LabReflexRulesController.Conditions) { <option value="@c.Key">@c.Value</option> }
+                        </select></div>
+                    <div class="col-md-3 rr-v1"><label class="form-label fw-semibold small">Value</label><input type="number" step="any" class="form-control" name="Value1" id="rrV1" /></div>
+                    <div class="col-md-3 rr-v2"><label class="form-label fw-semibold small">and</label><input type="number" step="any" class="form-control" name="Value2" id="rrV2" /></div>
+                    <div class="col-md-6 rr-txt"><label class="form-label fw-semibold small">Text</label><input type="text" maxlength="100" class="form-control" name="TextValue" id="rrTxt" placeholder="e.g. Positive" /></div>
+                    <div class="col-md-4"><label class="form-label fw-semibold small">Patient gender</label>
+                        <select class="form-select" name="Gender" id="rrGender"><option>All</option><option>Male</option><option>Female</option></select></div>
+                    <div class="col-12"><label class="form-label fw-semibold small">Suggest this test <span class="text-danger">*</span></label>
+                        <select class="form-select" name="SuggestTestId" id="rrSuggest" style="width:100%"></select></div>
+                    <div class="col-12"><label class="form-label fw-semibold small">Reason (shown to the pathologist and the front desk)</label>
+                        <input type="text" maxlength="250" class="form-control" name="Reason" id="rrReason" placeholder="e.g. High TSH: check thyroxine to confirm hypothyroidism" /></div>
+                    <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="rrActive" checked /><label class="form-check-label" for="rrActive">Active</label></div></div>
+                </div>
+                <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>Numbers are compared in the unit the result is entered in. "Flagged" conditions use the High / Low / abnormal flag set at result entry.</div>
+            </div>
+            <div class="modal-footer py-2"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary px-4" id="rrSave">Save</button></div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script>
+        (function () {
+            var modal = new bootstrap.Modal(document.getElementById('rrModal'));
+            function picker(sel) {
+                $(sel).select2({ theme: 'bootstrap-5', dropdownParent: $('#rrModal'), placeholder: 'Search test code or name', minimumInputLength: 0,
+                    ajax: { url: '@Url.Action("Tests")', delay: 250, data: function (p) { return { term: p.term }; }, processResults: function (d) { return d; } } });
+            }
+            picker('#rrTrigger'); picker('#rrSuggest');
+            function setPick(sel, id, text) { $(sel).empty(); if (id) $(sel).append(new Option(text, id, true, true)); $(sel).trigger('change'); }
+            function condUi() {
+                var c = $('#rrCond').val();
+                $('.rr-v1').toggle(['GT','GTE','LT','LTE','BETWEEN','OUTSIDE'].indexOf(c) >= 0);
+                $('.rr-v2').toggle(c === 'BETWEEN' || c === 'OUTSIDE');
+                $('.rr-txt').toggle(c === 'TEXT');
+            }
+            $('#rrCond').on('change', condUi);
+
+            $('#btnAddRule').on('click', function () {
+                $('#rrForm')[0].reset(); $('#rrId').val(0); $('#rrTitle').text('Add Reflex Rule');
+                setPick('#rrTrigger'); setPick('#rrSuggest'); $('#rrActive').prop('checked', true); condUi(); modal.show();
+            });
+            $(document).on('click', '.rr-edit', function () {
+                var r = $(this).data('rule');
+                $('#rrForm')[0].reset(); $('#rrTitle').text('Edit Reflex Rule');
+                $('#rrId').val(r.Rule_ID); $('#rrCond').val(r.Condition_Type); $('#rrV1').val(r.Value1); $('#rrV2').val(r.Value2);
+                $('#rrTxt').val(r.Text_Value || ''); $('#rrGender').val(r.Gender); $('#rrReason').val(r.Reason || ''); $('#rrActive').prop('checked', !!r.IsActive);
+                setPick('#rrTrigger', r.Trigger_Test_ID, r.trigger); setPick('#rrSuggest', r.Suggest_Test_ID, r.suggest); condUi(); modal.show();
+            });
+
+            $('#rrForm').on('submit', function (e) {
+                e.preventDefault();
+                var fd = new FormData(this); fd.set('IsActive', $('#rrActive').is(':checked') ? 'true' : 'false');
+                $('#rrSave').prop('disabled', true);
+                fetch('@Url.Action("Save")', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (res.success) location.reload();
+                        else Swal.fire({ icon: 'warning', title: 'Reflex rule', text: res.message });
+                    })
+                    .finally(function () { $('#rrSave').prop('disabled', false); });
+            });
+
+            $(document).on('change', '.rr-toggle', function () {
+                var $t = $(this), on = $t.is(':checked'), fd = new FormData();
+                fd.append('id', $t.data('id')); fd.append('active', on);
+                fd.append('__RequestVerificationToken', $('#rrForm input[name="__RequestVerificationToken"]').val());
+                fetch('@Url.Action("Toggle")', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function (r) { return r.json(); })
+                    .then(function (res) {
+                        if (!res.success) { $t.prop('checked', !on); Swal.fire({ icon: 'warning', title: 'Reflex rule', text: res.message }); }
+                        else { $t.closest('tr').toggleClass('rr-off', !on); if (window.toastr) toastr.success('Rule switched ' + (on ? 'on' : 'off')); }
+                    });
+            });
+        })();
+    </script>
+}

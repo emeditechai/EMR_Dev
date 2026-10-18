@@ -123,7 +123,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> Index(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -150,7 +150,7 @@ namespace EMR.Web.Controllers
                 BranchId = branchId,
                 FromDate = effectiveFrom,
                 ToDate = effectiveTo,
-                DateFilterType = dateFilterType ?? "BookingDate",
+                DateFilterType = dateFilterType ?? "CollectionDate",
                 StatusFilter = statusFilter ?? "All",
                 Search = search,
                 DepartmentId = departmentId,
@@ -174,7 +174,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetHeadersJson(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,

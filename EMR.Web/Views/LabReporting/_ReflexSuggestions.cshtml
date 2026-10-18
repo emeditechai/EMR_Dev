@@ -1,0 +1,89 @@
+@* Reflex test suggestions on LAB Reporting > Entry (SQLScripts/2289). Rendered only on the numeric reporting screen when
+   Hospital Settings > Enable AI Features at Billing is Yes; shown only with the REFLEX control. Reads the order's SAVED
+   results (Entered / Validated / Approved) against Master > Lab Master > Reflex Rules, and refreshes after every save.
+   Advise / Dismiss only record a recommendation: the bill, the order and the printed report are not changed. *@
+@model int
+<span id="reflexAllowed" class="d-none" asp-permission="LAB.LABREPORTING:REFLEX" asp-permission-mode="hide"></span>
+<style>
+    #reflexPanel { border:1px solid #c7d2fe; border-radius:.75rem; background:linear-gradient(135deg,#f5f3ff 0%,#eef2ff 60%,#fdf4ff 100%); padding:.55rem .75rem; margin-bottom:.6rem; display:none; }
+    #reflexPanel .rf-head { display:flex; align-items:center; gap:.45rem; font-size:.8rem; margin-bottom:.35rem; flex-wrap:wrap; }
+    #reflexPanel .rf-badge { display:inline-flex; align-items:center; gap:.2rem; font-size:.62rem; font-weight:800; letter-spacing:.06em; color:#fff;
+                             padding:.1rem .4rem; border-radius:999px; background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899); }
+    #reflexPanel .rf-title { font-weight:700; color:#312e81; }
+    #reflexPanel .rf-note { color:#6b7280; font-size:.7rem; margin-left:auto; }
+    #reflexPanel .rf-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; background:#fff; border:1px solid #e2e8f0; border-radius:.55rem; padding:.4rem .6rem; margin-top:.35rem; font-size:.82rem; }
+    #reflexPanel .rf-row.adv { border-color:#86efac; background:#f0fdf4; }
+    #reflexPanel .rf-row.dis { opacity:.6; }
+    #reflexPanel .rf-trig { color:#334155; }
+    #reflexPanel .rf-val { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; }
+    #reflexPanel .rf-sug { font-weight:700; color:#1e1b4b; }
+    #reflexPanel .rf-why { color:#64748b; font-size:.72rem; flex-basis:100%; }
+    #reflexPanel .rf-actions { margin-left:auto; display:flex; gap:.35rem; }
+</style>
+<script>
+    $(function () { setTimeout(initReflex, 0); });
+    function initReflex() {
+        if (!document.getElementById('reflexAllowed')) return;
+        var labOrderId = @Model;
+        var $anchor = $('#headerActionButtons').closest('.d-flex.justify-content-between');
+        if (!$anchor.length) return;
+        var $panel = $('<div id="reflexPanel" aria-live="polite"></div>').insertBefore($anchor);
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function when(d) { var x = d ? new Date(d) : null; return x ? x.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''; }
+
+        function load() {
+            fetch('@Url.Action("ReflexSuggestions", "LabReporting")?labOrderId=' + labOrderId, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(render)
+                .catch(function () { $panel.hide(); });   // reporting goes on without suggestions
+        }
+
+        function render(res) {
+            var items = (res && res.success && res.items) || [];
+            if (!items.length) { $panel.hide().empty(); return; }
+            var open = items.filter(function (i) { return i.status === 'new'; }).length;
+            var rows = items.map(function (i) {
+                var cls = i.status === 'A' ? 'adv' : i.status === 'D' ? 'dis' : '';
+                var flag = i.triggerFlag && !/^normal$/i.test(i.triggerFlag) ? ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle">' + esc(i.triggerFlag) + '</span>' : '';
+                var actions = i.status === 'new'
+                    ? '<button type="button" class="btn btn-sm btn-success py-0 px-2 rf-act" data-rule="' + i.ruleId + '" data-status="A"><i class="bi bi-check2 me-1"></i>Advise</button>' +
+                      '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 rf-act" data-rule="' + i.ruleId + '" data-status="D">Dismiss</button>'
+                    : '<span class="small ' + (i.status === 'A' ? 'text-success fw-semibold' : 'text-muted') + '"><i class="bi ' + (i.status === 'A' ? 'bi-patch-check-fill' : 'bi-x-circle') + ' me-1"></i>' +
+                          (i.status === 'A' ? 'Advised' : 'Dismissed') + (i.actionByName ? ' by ' + esc(i.actionByName) : '') + ' · ' + when(i.actionDate) + '</span>' +
+                      '<button type="button" class="btn btn-sm btn-link py-0 px-1 rf-act" data-rule="' + i.ruleId + '" data-status="' + (i.status === 'A' ? 'D' : 'A') + '">' + (i.status === 'A' ? 'Withdraw' : 'Advise instead') + '</button>';
+                return '<div class="rf-row ' + cls + '">' +
+                    '<span class="rf-trig">' + esc(i.triggerTestName) + ' <span class="rf-val">' + esc(i.triggerValue) + '</span>' + flag + '</span>' +
+                    '<i class="bi bi-arrow-right text-primary"></i>' +
+                    '<span class="rf-sug">' + esc(i.suggestTestName) + ' <span class="text-muted fw-normal font-monospace small">' + esc(i.suggestTestCode) + '</span></span>' +
+                    '<span class="rf-actions">' + actions + '</span>' +
+                    (i.reason ? '<span class="rf-why"><i class="bi bi-info-circle me-1"></i>' + esc(i.reason) + '</span>' : '') +
+                    '</div>';
+            }).join('');
+            $panel.html('<div class="rf-head"><span class="rf-badge"><i class="bi bi-stars"></i>AI</span><span class="rf-title">Reflex test suggestions</span>' +
+                (open ? '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">' + open + ' to decide</span>' : '') +
+                '<span class="rf-note">Advice is a recommendation for the front desk - the bill and the report are not changed.</span></div>' + rows).show();
+        }
+
+        $panel.on('click', '.rf-act', function () {
+            var $b = $(this).prop('disabled', true);
+            var fd = new FormData();
+            fd.append('labOrderId', labOrderId); fd.append('ruleId', $b.data('rule')); fd.append('status', $b.data('status'));
+            fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').first().val() || '');
+            fetch('@Url.Action("ReflexAction", "LabReporting")', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (!res.success && window.toastr) toastr.warning(res.message || 'Could not save the decision.');
+                    else if (window.toastr) toastr.success($b.data('status') === 'A' ? 'Reflex test advised - the front desk will see it when the patient is billed next.' : 'Suggestion dismissed.');
+                    load();
+                })
+                .catch(function () { $b.prop('disabled', false); });
+        });
+
+        // results saved (Submit / Validate / Approve) -> check again; the page's own save code is not touched
+        $(document).ajaxSuccess(function (e, xhr, settings) {
+            if (settings && settings.url && settings.url.indexOf('SaveEntryJson') >= 0) setTimeout(load, 300);
+        });
+        load();
+    }
+</script>
