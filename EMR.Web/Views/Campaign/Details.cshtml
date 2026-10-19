@@ -1,0 +1,153 @@
+@using EMR.Web.ApiClients
+@using EMR.Web.Services.Campaigns
+@{
+    var c = (CampaignDetail)ViewBag.Campaign;
+    ViewData["Title"] = "Campaign - " + c.Name;
+}
+
+@section HeadStyles {
+<style>
+    .cd-card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; }
+    .cd-kpi { padding:.75rem 1rem; border-left:4px solid var(--k); }
+    .cd-kpi .k-label { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
+    .cd-kpi .k-val { font-size:1.45rem; font-weight:800; color:#0f172a; line-height:1.2; font-variant-numeric:tabular-nums; }
+    .cd-bar { height:10px; border-radius:5px; background:#f1f5f9; overflow:hidden; display:flex; }
+    .cd-bar span { display:block; height:100%; transition:width .4s ease; }
+    .cd-meta { font-size:.8rem; color:#475569; }
+    .cd-meta strong { color:#0f172a; }
+    .cd-table th { font-size:.66rem; text-transform:uppercase; letter-spacing:.4px; color:#64748b; font-weight:700; background:#f8fafc; position:sticky; top:0; }
+    .cd-table td { font-size:.82rem; vertical-align:middle; }
+    .st { display:inline-block; font-size:.7rem; font-weight:700; padding:.1rem .5rem; border-radius:999px; border:1px solid; }
+    .st-S { background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+    .st-F { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+    .st-P { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+    .st-X { background:#f8fafc; color:#64748b; border-color:#e2e8f0; }
+    .cd-filter .btn.active { background:#644098; border-color:#644098; color:#fff; }
+    .cd-frame { width:100%; height:520px; border:0; background:#f4f2f8; display:block; }
+</style>
+}
+
+<div class="container-fluid px-3 py-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-megaphone me-2" style="color:#644098"></i>@c.Name</h1>
+            <div class="cd-meta mt-1">
+                <span id="cdStatus" class="fw-semibold">@c.Status</span> &middot;
+                @CampaignAudiences.Name(c.AudienceType[0]) &middot; email from <strong>@c.BranchName</strong>@(string.IsNullOrWhiteSpace(c.SenderEmail) ? "" : $" ({c.SenderEmail})")
+                &middot; by @c.CreatedByName
+                @if (c.ScheduledAt is { } at) { <span>&middot; scheduled for <strong>@at.ToString("dd MMM yyyy, hh:mm tt")</strong></span> }
+            </div>
+            <div class="cd-meta">Subject: <strong>@c.Subject</strong></div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Campaigns</a>
+            <a asp-action="Create" asp-route-copy="@c.CampaignId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-copy me-1"></i>Send again</a>
+            <button type="button" class="btn btn-outline-warning btn-sm" id="cdRetry" style="display:none"><i class="bi bi-arrow-repeat me-1"></i>Retry failed</button>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="cdCancel" style="display:none"><i class="bi bi-x-circle me-1"></i>Cancel campaign</button>
+        </div>
+    </div>
+    @Html.AntiForgeryToken()
+
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-lg"><div class="cd-card cd-kpi" style="--k:#644098"><div class="k-label">Recipients</div><div class="k-val" id="kTotal">@c.Total</div></div></div>
+        <div class="col-6 col-lg"><div class="cd-card cd-kpi" style="--k:#16a34a"><div class="k-label">Sent</div><div class="k-val" id="kSent">@c.Sent</div></div></div>
+        <div class="col-6 col-lg"><div class="cd-card cd-kpi" style="--k:#4f46e5"><div class="k-label">Waiting</div><div class="k-val" id="kPending">@c.Pending</div></div></div>
+        <div class="col-6 col-lg"><div class="cd-card cd-kpi" style="--k:#dc2626"><div class="k-label">Failed</div><div class="k-val" id="kFailed">@c.Failed</div></div></div>
+        <div class="col-6 col-lg"><div class="cd-card cd-kpi" style="--k:#94a3b8"><div class="k-label">Skipped</div><div class="k-val" id="kSkipped">@c.Skipped</div></div></div>
+    </div>
+    <div class="cd-card p-3 mb-3">
+        <div class="cd-bar"><span id="bSent" style="background:#16a34a"></span><span id="bFailed" style="background:#dc2626"></span><span id="bSkipped" style="background:#cbd5e1"></span></div>
+        <div class="cd-meta mt-2" id="cdTimes"></div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-7">
+            <div class="cd-card">
+                <div class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom">
+                    <strong class="small text-uppercase text-muted">Recipients</strong>
+                    <div class="btn-group btn-group-sm cd-filter ms-2" role="group">
+                        <button type="button" class="btn btn-outline-secondary active" data-st="">All</button>
+                        <button type="button" class="btn btn-outline-secondary" data-st="S">Sent</button>
+                        <button type="button" class="btn btn-outline-secondary" data-st="P">Waiting</button>
+                        <button type="button" class="btn btn-outline-secondary" data-st="F">Failed</button>
+                        <button type="button" class="btn btn-outline-secondary" data-st="X">Skipped</button>
+                    </div>
+                    <input type="text" id="cdSearch" class="form-control form-control-sm ms-auto" style="max-width:220px" placeholder="Find name or email..." />
+                </div>
+                <div class="table-responsive" style="max-height:520px">
+                    <table class="table table-sm table-hover cd-table mb-0">
+                        <thead><tr><th class="ps-3">Name</th><th>Email</th><th>Status</th><th>Sent at</th><th>Note</th></tr></thead>
+                        <tbody id="cdRows"><tr><td colspan="5" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-5">
+            <div class="cd-card">
+                <div class="px-3 py-2 border-bottom small text-uppercase text-muted fw-bold">The email (with sample values)</div>
+                <iframe class="cd-frame" id="cdFrame" sandbox="" title="Email"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const id = @c.CampaignId;
+    const URLS = { progress: '@Url.Action("Progress")', rows: '@Url.Action("Recipients")', cancel: '@Url.Action("Cancel")', retry: '@Url.Action("RetryFailed")', preview: '@Url.Action("Preview")' };
+    const H = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const token = () => $('input[name="__RequestVerificationToken"]').val();
+    const LABEL = { S: 'Sent', F: 'Failed', P: 'Waiting', X: 'Skipped' };
+    const STATUS = { DRAFT: 'Draft', SCHEDULED: 'Scheduled', SENDING: 'Sending...', COMPLETED: 'Completed', CANCELLED: 'Cancelled' };
+    let st = '', timer = null, lastStatus = '';
+
+    function progress() {
+        $.get(URLS.progress, { id }).done(p => {
+            if (!p.success) return;
+            $('#kTotal').text(p.total); $('#kSent').text(p.sent); $('#kPending').text(p.pending); $('#kFailed').text(p.failed); $('#kSkipped').text(p.skipped);
+            const t = Math.max(p.total, 1);
+            $('#bSent').css('width', 100 * p.sent / t + '%'); $('#bFailed').css('width', 100 * p.failed / t + '%'); $('#bSkipped').css('width', 100 * p.skipped / t + '%');
+            $('#cdStatus').text(STATUS[p.status] || p.status);
+            $('#cdTimes').text([p.startedAt ? 'Started ' + p.startedAt : null, p.completedAt ? (p.status === 'CANCELLED' ? 'Cancelled ' : 'Finished ') + p.completedAt : null].filter(Boolean).join(' · '));
+            $('#cdCancel').toggle(p.status === 'SENDING' || p.status === 'SCHEDULED');
+            $('#cdRetry').toggle(p.failed > 0 && (p.status === 'COMPLETED' || p.status === 'SENDING'));
+            if (p.status !== lastStatus || p.status === 'SENDING') rows();
+            lastStatus = p.status;
+            clearTimeout(timer);
+            if (p.status === 'SENDING' || p.status === 'SCHEDULED') timer = setTimeout(progress, 4000);
+        });
+    }
+    function rows() {
+        $.get(URLS.rows, { id, status: st, search: $('#cdSearch').val().trim() }).done(r => {
+            if (!r.success) return;
+            $('#cdRows').html(r.rows.length ? r.rows.map(x => `<tr><td class="ps-3">${H(x.name)}</td><td>${H(x.email || '-')}</td>
+                <td><span class="st st-${H(x.status)}">${LABEL[x.status] || H(x.status)}</span></td><td>${H(x.sentAt || '')}</td>
+                <td class="small ${x.status === 'F' ? 'text-danger' : 'text-muted'}">${H(x.message || '')}</td></tr>`).join('')
+                : '<tr><td colspan="5" class="text-center text-muted py-4">No recipients here.</td></tr>');
+        });
+    }
+    $('.cd-filter').on('click', '.btn', function () { $('.cd-filter .btn').removeClass('active'); $(this).addClass('active'); st = this.dataset.st; rows(); });
+    let tSearch = null;
+    $('#cdSearch').on('input', () => { clearTimeout(tSearch); tSearch = setTimeout(rows, 300); });
+
+    $('#cdCancel').on('click', function () {
+        const go = () => $.post(URLS.cancel, { __RequestVerificationToken: token(), id }).done(r => { if (!r.success && r.message && window.toastr) toastr.info(r.message); progress(); });
+        if (window.Swal) Swal.fire({ title: 'Cancel this campaign?', text: 'Emails already sent cannot be recalled; the rest will not go out.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Cancel campaign', confirmButtonColor: '#dc2626', cancelButtonText: 'Keep sending' })
+            .then(r => { if (r.isConfirmed) go(); });
+        else if (confirm('Cancel this campaign?')) go();
+    });
+    $('#cdRetry').on('click', function () {
+        $.post(URLS.retry, { __RequestVerificationToken: token(), id }).done(r => { if (window.toastr) toastr[r.success ? 'success' : 'info'](r.message); progress(); });
+    });
+
+    // the email as composed (sample values)
+    $.post(URLS.preview, {
+        __RequestVerificationToken: token(), audienceType: '@c.AudienceType', subject: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(c.Subject)),
+        designJson: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(c.DesignJson)), sendBranchId: @c.BranchId
+    }).done(r => $('#cdFrame').attr('srcdoc', r.html));
+
+    progress(); rows();
+})();
+</script>
+}

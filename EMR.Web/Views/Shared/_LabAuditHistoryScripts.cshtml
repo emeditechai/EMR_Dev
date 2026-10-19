@@ -8,6 +8,7 @@
         (function () {
             let labOrderId = 0;
             const historyUrl = '@Url.Action("GetAuditHistoryJson", "LabReporting")';
+            const workflowUrl = '@Url.Action("GetOrderWorkflowJson", "LabReporting")';
             let allEvents = [];
             let activeFilter = 'All';
 
@@ -43,7 +44,14 @@
                     'LAB.ReportUnapproved':       ['Approval Withdrawn (Un-Authorized)', 'bi-unlock-fill', '#d97706', 'Reporting'],
                     'LAB.ReportReCollected':      ['Marked for Re-collection',  'bi-arrow-repeat',       '#dc2626', 'Reporting'],
                     'LAB.ReportSaved':            ['Report Saved',              'bi-floppy',             '#64748b', 'Reporting'],
-                    'LAB.ReportPrinted':          ['Report Printed',            'bi-printer-fill',       '#0891b2', 'Reporting']
+                    'LAB.ReportPrinted':          ['Report Printed',            'bi-printer-fill',       '#0891b2', 'Reporting'],
+                    'LAB.ReportEmailed':          ['Report Emailed',            'bi-envelope-check-fill', '#0891b2', 'Reporting'],
+                    'LAB.ReportWhatsAppSent':     ['Report Sent on WhatsApp',   'bi-whatsapp',           '#16a34a', 'Reporting'],
+                    'LAB.ReportEmailFailed':      ['Report Email Failed',       'bi-envelope-x-fill',    '#dc2626', 'Reporting'],
+                    'LAB.ReportEmailSkipped':     ['Report Email Skipped',      'bi-envelope-dash',      '#64748b', 'Reporting'],
+                    'LAB.ReportWhatsAppFailed':   ['Report WhatsApp Failed',    'bi-whatsapp',           '#dc2626', 'Reporting'],
+                    'LAB.ReportWhatsAppSkipped':  ['Report WhatsApp Skipped',   'bi-whatsapp',           '#64748b', 'Reporting'],
+                    'LAB.ReportSignatoriesSaved': ['Report Signatories Saved',  'bi-pen',                '#64748b', 'Reporting']
                 };
                 if (a === 'LAB.ReportUnapproved') {
                     // Re-Test (back to Submitted) and Re-Collect (sample re-drawn) are told apart by their metadata.
@@ -221,7 +229,59 @@
                 $('#auditFilterChips').html(html);
             }
 
+            // Workflow tracker: shown above the activity list; a failure only hides it (the list is unaffected)
+            function loadWorkflow() {
+                const $wf = $('#auditWorkflow');
+                if (!$wf.length) return;
+                $wf.addClass('d-none');
+                $.getJSON(workflowUrl, { labOrderId: labOrderId })
+                    .done(function (res) {
+                        if (!res || !res.success || !res.steps || !res.steps.length) { $wf.addClass('d-none'); return; }
+                        const steps = res.steps;
+                        const done = steps.filter(function (s) { return s.state === 'done'; }).length;
+                        // "now": the first stage that is not done (an issue counts as the stage to look at)
+                        const nowIdx = res.cancelled
+                            ? steps.findIndex(function (s) { return s.key === 'cancelled'; })
+                            : steps.findIndex(function (s) { return s.state !== 'done'; });
+                        const html = steps.map(function (s, i) {
+                            const cls = 's-' + s.state + (i === nowIdx && !res.cancelled ? ' s-now' : '');
+                            const icon = s.state === 'done' ? 'bi-check-lg' : s.key === 'cancelled' ? 'bi-x-lg'
+                                       : s.state === 'issue' ? 'bi-exclamation-lg' : s.state === 'skipped' ? 'bi-slash-circle' : s.icon;
+                            const meta = [s.at, s.by].filter(Boolean).map(esc).join(' &middot; ');
+                            return '<li class="wf-step ' + cls + '" title="' + esc(s.label + ': ' + s.detail) + '">'
+                                 + '<div class="wf-dot"><i class="bi ' + esc(icon) + '"></i></div>'
+                                 + '<div class="wf-label">' + esc(s.label) + '</div>'
+                                 + '<div class="wf-detail">' + esc(s.detail) + '</div>'
+                                 + (meta ? '<div class="wf-meta">' + meta + '</div>' : '')
+                                 + '</li>';
+                        }).join('');
+                        $('#wfSteps').html(html);
+                        $('#wfBar').css('width', Math.round(100 * done / steps.length) + '%');
+                        $('#wfSummary').html(res.cancelled
+                            ? '<strong class="text-danger">Bill cancelled</strong> &middot; ' + done + ' of ' + (steps.length - 1) + ' stages were done'
+                            : nowIdx < 0
+                            ? '<strong>Complete</strong> &middot; all ' + steps.length + ' stages done'
+                            : '<strong>' + done + ' of ' + steps.length + '</strong> stages done &middot; now: <strong>' + esc(steps[nowIdx].label) + '</strong>');
+                        $('#wfCancelled').toggleClass('d-none', !res.cancelled);
+                        const rw = res.rework || [];
+                        const TAG = { retest: ['Re-Test', 'rw-retest'], recollect: ['Re-Collect', 'rw-recollect'], rejected: ['Rejected', 'rw-rejected'], revised: ['Revised', 'rw-revised'], cancelled: ['Cancelled', 'rw-cancelled'] };
+                        $('#wfReworkList').html(rw.slice().reverse().map(function (r) {
+                            const t = TAG[r.kind] || ['Change', 'rw-retest'];
+                            return '<li><span class="rw-tag ' + t[1] + '">' + t[0] + '</span>'
+                                 + '<span class="rw-when">' + esc(r.at) + '</span>'
+                                 + '<span><strong>' + esc(r.title) + '</strong>' + (r.detail ? ' &middot; ' + esc(r.detail) : '') + '</span>'
+                                 + (r.by ? '<span class="rw-by">by ' + esc(r.by) + '</span>' : '') + '</li>';
+                        }).join(''));
+                        $('#wfRework').toggleClass('d-none', rw.length === 0);
+                        const reworkCount = rw.filter(function (r) { return r.kind !== 'revised' && r.kind !== 'cancelled'; }).length;
+                        if (reworkCount) $('#wfSummary').append(' <span class="wf-rework-badge"><i class="bi bi-arrow-repeat"></i> ' + reworkCount + ' rework</span>');
+                        $wf.removeClass('d-none');
+                    })
+                    .fail(function () { $wf.addClass('d-none'); });
+            }
+
             function load() {
+                loadWorkflow();
                 $('#auditError').addClass('d-none');
                 $('#auditEmpty').addClass('d-none');
                 $('#auditTimeline').empty();

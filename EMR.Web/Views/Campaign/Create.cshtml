@@ -1,0 +1,423 @@
+@{
+    bool editing = ViewBag.IsEditing as bool? ?? false;
+    ViewData["Title"] = editing ? "Edit Campaign" : "New Campaign";
+}
+
+@section HeadStyles {
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
+<style>
+    .cw-card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; margin-bottom:.9rem; }
+    .cw-head { display:flex; align-items:center; gap:.5rem; padding:.65rem 1rem; border-bottom:1px solid #eef2f7; }
+    .cw-head h2 { font-size:.82rem; font-weight:700; margin:0; color:#0f172a; text-transform:uppercase; letter-spacing:.4px; }
+    .cw-step { width:22px; height:22px; border-radius:50%; background:#f1ecf8; color:#644098; font-size:.72rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; }
+    .cw-body { padding:.9rem 1rem; }
+    .cw-label { font-size:.74rem; font-weight:700; color:#334155; margin-bottom:.25rem; display:block; }
+    .cw-help { font-size:.72rem; color:#64748b; margin-top:.25rem; }
+    .cw-aud { display:flex; gap:.6rem; align-items:center; border:1px solid #e2e8f0; border-radius:.6rem; padding:.6rem .75rem; cursor:pointer; background:#fff; height:100%; }
+    .cw-aud.active { border-color:#644098; box-shadow:0 0 0 3px rgba(100,64,152,.12); background:#faf7ff; }
+    .cw-aud i { font-size:1.4rem; color:#644098; }
+    .cw-aud .a-name { font-weight:700; font-size:.88rem; }
+    .cw-aud .a-desc { font-size:.72rem; color:#64748b; }
+    .btn-seg.active { background:#644098; border-color:#644098; color:#fff; }
+    .cw-reach { border:1px solid #e9e3f3; background:#faf7ff; border-radius:.6rem; padding:.7rem .85rem; }
+    .cw-reach .big { font-size:1.4rem; font-weight:800; color:#644098; line-height:1.1; }
+    .cw-reach .chip { display:inline-block; font-size:.7rem; border:1px solid #e2e8f0; background:#fff; border-radius:999px; padding:0 .5rem; margin:.2rem .2rem 0 0; }
+    .cw-preview { position:sticky; top:1rem; }
+    .cw-subject { font-size:.82rem; padding:.55rem .8rem; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+    .cw-subject .k { color:#64748b; font-size:.7rem; text-transform:uppercase; letter-spacing:.4px; font-weight:700; margin-right:.4rem; }
+    .cw-frame { width:100%; height:600px; border:0; background:#f4f2f8; display:block; }
+    .cw-frame.mobile { width:380px; margin:0 auto; }
+    .cw-sender { font-size:.75rem; }
+    .select2-container--bootstrap-5 .select2-selection { min-height:calc(1.5em + .75rem + 2px); }
+</style>
+}
+
+<div class="container-fluid px-3 py-2">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-megaphone me-2" style="color:#644098"></i>@(editing ? "Edit Campaign" : "New Campaign")</h1>
+            <div class="text-muted" style="font-size:.8rem">Choose who gets it, write the message, check the preview, then send now or schedule it.</div>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm flex-shrink-0"><i class="bi bi-arrow-left me-1"></i>Back to Campaigns</a>
+    </div>
+
+    <form id="cwForm" onsubmit="return false">
+        @Html.AntiForgeryToken()
+        <div class="row g-3">
+            <div class="col-12 col-xl-7">
+                <!-- 1. campaign -->
+                <div class="cw-card">
+                    <div class="cw-head"><span class="cw-step">1</span><h2>Campaign</h2></div>
+                    <div class="cw-body">
+                        <div class="row g-2">
+                            <div class="col-12 col-md-6">
+                                <label class="cw-label" for="cwName">Campaign name <span class="fw-normal text-muted">(for your list, recipients do not see it)</span></label>
+                                <input id="cwName" class="form-control" maxlength="150" placeholder="e.g. Diabetes camp - October" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="cw-label" for="cwBranch">Send from</label>
+                                <select id="cwBranch" class="form-select"></select>
+                                <div class="cw-help cw-sender" id="cwSender"></div>
+                            </div>
+                            <div class="col-12">
+                                <label class="cw-label">Channel</label>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-secondary btn-seg active"><i class="bi bi-envelope me-1"></i>Email</button>
+                                    <button type="button" class="btn btn-outline-secondary" disabled title="Coming soon"><i class="bi bi-whatsapp me-1"></i>WhatsApp <small>(soon)</small></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. recipients -->
+                <div class="cw-card">
+                    <div class="cw-head"><span class="cw-step">2</span><h2>Recipients</h2></div>
+                    <div class="cw-body">
+                        <div class="row g-2 mb-3" id="cwAudiences">
+                            <div class="col-12 col-md-4"><div class="cw-aud" data-type="P" tabindex="0" role="button"><i class="bi bi-people"></i><div><div class="a-name">Patients</div><div class="a-desc">Registered patients</div></div></div></div>
+                            <div class="col-12 col-md-4"><div class="cw-aud" data-type="U" tabindex="0" role="button"><i class="bi bi-person-badge"></i><div><div class="a-name">Users</div><div class="a-desc">Staff who sign in</div></div></div></div>
+                            <div class="col-12 col-md-4"><div class="cw-aud" data-type="D" tabindex="0" role="button"><i class="bi bi-heart-pulse"></i><div><div class="a-name">Doctors</div><div class="a-desc">Consulting and referral doctors</div></div></div></div>
+                        </div>
+                        <div class="btn-group btn-group-sm mb-3" role="group" id="cwModes">
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-mode="ALL">Everyone</button>
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-mode="FILTER"><i class="bi bi-funnel me-1"></i>A filtered group</button>
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-mode="PICK"><i class="bi bi-person-check me-1"></i>Choose people</button>
+                        </div>
+
+                        <div id="cwFilterP" class="cw-filter row g-2 mb-2">
+                            <div class="col-6 col-md-4"><label class="cw-label">Registered branch</label><select class="form-select form-select-sm f-branch"><option value="">All branches</option></select></div>
+                            <div class="col-6 col-md-2"><label class="cw-label">Gender</label><select class="form-select form-select-sm f-gender"><option value="">All</option><option>Male</option><option>Female</option></select></div>
+                            <div class="col-6 col-md-3"><label class="cw-label">Age from</label><input type="number" min="0" max="120" class="form-control form-control-sm f-agefrom" placeholder="e.g. 40" /></div>
+                            <div class="col-6 col-md-3"><label class="cw-label">Age to</label><input type="number" min="0" max="120" class="form-control form-control-sm f-ageto" placeholder="e.g. 70" /></div>
+                            <div class="col-6 col-md-3"><label class="cw-label">Visited from</label><input type="date" class="form-control form-control-sm f-visitfrom" /></div>
+                            <div class="col-6 col-md-3"><label class="cw-label">Visited to</label><input type="date" class="form-control form-control-sm f-visitto" /></div>
+                            <div class="col-6 col-md-3"><label class="cw-label">Registered from</label><input type="date" class="form-control form-control-sm f-regfrom" /></div>
+                            <div class="col-6 col-md-3"><label class="cw-label">Registered to</label><input type="date" class="form-control form-control-sm f-regto" /></div>
+                            <div class="col-12 cw-help mt-0">Visited = a LAB bill or an OPD visit in those dates.</div>
+                        </div>
+                        <div id="cwFilterU" class="cw-filter row g-2 mb-2">
+                            <div class="col-6"><label class="cw-label">Branch</label><select class="form-select form-select-sm f-branch"><option value="">All branches</option></select></div>
+                            <div class="col-6"><label class="cw-label">Role</label><select class="form-select form-select-sm f-role"><option value="">All roles</option></select></div>
+                        </div>
+                        <div id="cwFilterD" class="cw-filter row g-2 mb-2">
+                            <div class="col-6"><label class="cw-label">Speciality</label><select class="form-select form-select-sm f-speciality"><option value="">All specialities</option></select></div>
+                            <div class="col-6"><label class="cw-label">Doctor type</label><select class="form-select form-select-sm f-kind"><option value="">Consulting and referral</option><option value="C">Consulting (in-house)</option><option value="R">Referral</option></select></div>
+                        </div>
+                        <div id="cwPick" class="mb-2">
+                            <label class="cw-label" for="cwPeople">People</label>
+                            <select id="cwPeople" multiple></select>
+                            <div class="cw-help">Type a name, ID, phone or email. People without an email address cannot be picked.</div>
+                        </div>
+
+                        <div class="cw-reach mt-2" id="cwReach">
+                            <div class="d-flex align-items-center gap-3 flex-wrap">
+                                <div><div class="big" id="cwReachable">-</div><div class="cw-help mt-0">will get the email</div></div>
+                                <div class="flex-grow-1 small" id="cwReachInfo">Counting...</div>
+                            </div>
+                            <div id="cwSample" class="mt-1"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. message -->
+                <div class="cw-card">
+                    <div class="cw-head"><span class="cw-step">3</span><h2>Message</h2>
+                        <div class="ms-auto d-flex align-items-center gap-2">
+                            <select id="cwTemplate" class="form-select form-select-sm" style="min-width:220px"><option value="">Start from a template...</option></select>
+                        </div>
+                    </div>
+                    <div class="cw-body">
+                        <label class="cw-label" for="cwSubject">Subject line</label>
+                        <div class="input-group mb-3">
+                            <input id="cwSubject" class="form-control" maxlength="255" placeholder="e.g. Free diabetes check-up this Sunday" />
+                            <button type="button" class="btn ec-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="#cwSubject"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                            <ul class="dropdown-menu dropdown-menu-end ec-field-menu"></ul>
+                        </div>
+                        <partial name="_EmailComposer" />
+                    </div>
+                </div>
+
+                <!-- 4. send -->
+                <div class="cw-card">
+                    <div class="cw-head"><span class="cw-step">4</span><h2>Send</h2></div>
+                    <div class="cw-body">
+                        <div class="d-flex flex-wrap gap-3 align-items-end">
+                            <div>
+                                <div class="form-check"><input class="form-check-input" type="radio" name="cwWhen" id="cwNow" value="send" checked /><label class="form-check-label" for="cwNow">Send now</label></div>
+                                <div class="form-check"><input class="form-check-input" type="radio" name="cwWhen" id="cwLater" value="schedule" /><label class="form-check-label" for="cwLater">Schedule for</label></div>
+                            </div>
+                            <input type="datetime-local" id="cwAt" class="form-control form-control-sm" style="max-width:230px" disabled />
+                        </div>
+                        <div class="cw-help">Emails go out a few at a time in the background; you can watch progress and cancel on the results page.</div>
+                        <div class="alert alert-danger py-2 small mt-2 d-none" id="cwError"></div>
+                        <div class="d-flex justify-content-between gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-secondary" id="cwDraft"><i class="bi bi-save me-1"></i>Save as draft</button>
+                            <button type="button" class="btn text-white px-4" style="background:#644098" id="cwSend"><i class="bi bi-send me-1"></i><span>Send now</span></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- preview -->
+            <div class="col-12 col-xl-5">
+                <div class="cw-card cw-preview">
+                    <div class="cw-head"><i class="bi bi-eye" style="color:#644098"></i><h2>Preview</h2>
+                        <div class="btn-group btn-group-sm ms-auto" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-seg active" data-names="0">Sample</button>
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-names="1">Fields</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-seg active" data-device="desktop" title="Desktop"><i class="bi bi-display"></i></button>
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-device="mobile" title="Phone"><i class="bi bi-phone"></i></button>
+                        </div>
+                    </div>
+                    <div class="cw-subject"><span class="k">Subject</span><span id="cwPrevSubject">-</span></div>
+                    <div class="alert alert-warning py-1 px-2 m-2 small d-none" id="cwPrevWarn"></div>
+                    <div style="background:#f4f2f8"><iframe id="cwFrame" class="cw-frame" title="Email preview" sandbox=""></iframe></div>
+                    <div class="cw-body border-top">
+                        <label class="cw-label" for="cwTestEmail">Send a test email <span class="fw-normal text-muted">(sample values, from the chosen branch)</span></label>
+                        <div class="input-group input-group-sm">
+                            <input type="email" id="cwTestEmail" class="form-control" placeholder="name@example.com" />
+                            <button type="button" class="btn btn-outline-primary" id="cwTest"><i class="bi bi-send me-1"></i>Send test</button>
+                        </div>
+                        <div class="cw-help" id="cwTestResult"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js" asp-append-version="true"></script>
+<script src="~/lib/quill/quill.min.js" asp-append-version="true"></script>
+<script src="~/js/email-composer.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const FORM = @Html.Raw(ViewBag.Form);
+    const AUD = @Html.Raw(ViewBag.Audiences);
+    const URL = {
+        options: '@Url.Action("AudienceOptions")', count: '@Url.Action("AudienceCount")', search: '@Url.Action("AudienceSearch")',
+        preview: '@Url.Action("Preview")', test: '@Url.Action("SendTest")', save: '@Url.Action("Save")',
+        templates: '@Url.Action("TemplateList")', template: '@Url.Action("TemplateGet")'
+    };
+    const H = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const token = () => $('#cwForm input[name="__RequestVerificationToken"]').val();
+    const qs = new URLSearchParams(location.search);
+    let type = FORM.audienceType || 'P';
+    let filter = {};
+    try { filter = JSON.parse(FORM.filterJson || '{}') || {}; } catch (e) { filter = {}; }
+    let mode = filter.mode || 'ALL';
+    let options = null, asNames = false, tPrev = null, tCount = null, templateId = FORM.templateId || null, reachable = 0;
+    const aud = () => AUD.find(a => a.type === type);
+    const starterJson = t => JSON.stringify(AUD.find(a => a.type === t).starter);
+
+    let design = null;
+    try { design = FORM.designJson ? JSON.parse(FORM.designJson) : null; } catch (e) { design = null; }
+    const composer = EmailComposer.init({ fields: aud().fields, design: design || aud().starter, onChange: changed });
+
+    $('#cwName').val(FORM.name || '');
+    $('#cwSubject').val(FORM.subject || '');
+    if (FORM.scheduledAt) { $('#cwLater').prop('checked', true); $('#cwAt').prop('disabled', false).val(FORM.scheduledAt.substring(0, 16)); }
+
+    // ── 1. send from ──
+    function paintSender() {
+        const b = (options?.branches || []).find(x => String(x.id) === $('#cwBranch').val());
+        $('#cwSender').html(!b ? '' : b.senderEmail
+            ? `<i class="bi bi-envelope-check text-success me-1"></i>Sent with <strong>${H(b.senderEmail)}</strong> (this branch's mail settings)`
+            : `<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>This branch has no mail settings - set them up in Settings &rsaquo; SMTP before sending.</span>`);
+    }
+    $('#cwBranch').on('change', function () { paintSender(); changed(); });
+
+    // ── 2. audience ──
+    function selectType(t, keepDesign) {
+        const before = type;
+        type = t;
+        $('.cw-aud').removeClass('active').filter(`[data-type="${t}"]`).addClass('active');
+        $('.cw-filter').hide();
+        if (mode === 'FILTER') $('#cwFilter' + t).show();
+        if (before !== t && !keepDesign) {
+            // a message still as started fits the new audience; a written one keeps its text
+            const cur = JSON.stringify(composer.getDesign());
+            composer.setFields(aud().fields);
+            if (cur === starterJson(before)) composer.setDesign(aud().starter);
+            $('#cwPeople').val(null).trigger('change');
+            templateId = null;
+        }
+        composer.setFields(aud().fields);
+        loadTemplates();
+        count(); changed();
+    }
+    $('#cwAudiences').on('click keydown', '.cw-aud', function (e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault(); selectType(this.dataset.type);
+    });
+    function selectMode(m) {
+        mode = m;
+        $('#cwModes .btn-seg').removeClass('active').filter(`[data-mode="${m}"]`).addClass('active');
+        $('.cw-filter').hide();
+        if (m === 'FILTER') $('#cwFilter' + type).show();
+        $('#cwPick').toggle(m === 'PICK');
+        count();
+    }
+    $('#cwModes').on('click', '.btn-seg', function () { selectMode(this.dataset.mode); });
+    $('.cw-filter').on('input change', 'input, select', count);
+
+    $('#cwPeople').select2({
+        theme: 'bootstrap-5', width: '100%', placeholder: 'Search people...', closeOnSelect: false,
+        ajax: { url: URL.search, delay: 250, data: p => ({ audienceType: type, term: p.term }) }
+    }).on('change', count);
+
+    function currentFilter() {
+        const f = { mode: mode, ids: [] };
+        if (mode === 'PICK') f.ids = ($('#cwPeople').val() || []).map(Number);
+        if (mode === 'FILTER') {
+            const $p = $('#cwFilter' + type), v = sel => $p.find(sel).val() || null;
+            f.branchId = v('.f-branch') ? Number(v('.f-branch')) : null;
+            if (type === 'P') Object.assign(f, {
+                gender: v('.f-gender'), ageFrom: v('.f-agefrom') ? Number(v('.f-agefrom')) : null, ageTo: v('.f-ageto') ? Number(v('.f-ageto')) : null,
+                visitFrom: v('.f-visitfrom'), visitTo: v('.f-visitto'), registeredFrom: v('.f-regfrom'), registeredTo: v('.f-regto')
+            });
+            if (type === 'U') f.roleId = v('.f-role') ? Number(v('.f-role')) : null;
+            if (type === 'D') Object.assign(f, { specialityId: v('.f-speciality') ? Number(v('.f-speciality')) : null, doctorKind: v('.f-kind') });
+        }
+        return f;
+    }
+    function count() {
+        clearTimeout(tCount);
+        tCount = setTimeout(function () {
+            $('#cwReachInfo').text('Counting...');
+            $.post(URL.count, { __RequestVerificationToken: token(), audienceType: type, filterJson: JSON.stringify(currentFilter()) })
+                .done(r => {
+                    $('#cwReachable').text(r.reachable.toLocaleString('en-IN'));
+                    const parts = [`${r.total.toLocaleString('en-IN')} ${aud().name.toLowerCase()} selected`];
+                    if (r.noEmail) parts.push(`${r.noEmail} without an email address`);
+                    if (r.unsubscribed) parts.push(`${r.unsubscribed} unsubscribed`);
+                    if (r.sharedEmail) parts.push(`${r.sharedEmail} share an email with someone above (sent once)`);
+                    $('#cwReachInfo').html(parts.map(H).join(' &middot; '));
+                    $('#cwSample').html((r.sample || []).map(p => `<span class="chip">${H(p.name)}</span>`).join('') + (r.reachable > (r.sample || []).length ? ` <span class="cw-help">and ${r.reachable - r.sample.length} more</span>` : ''));
+                    updateSendLabel(r.reachable);
+                })
+                .fail(() => $('#cwReachInfo').text('Could not count the recipients.'));
+        }, 350);
+    }
+    function updateSendLabel(n) {
+        if (n !== undefined) reachable = n;
+        const later = $('#cwLater').is(':checked');
+        $('#cwSend span').text((later ? 'Schedule for ' : 'Send to ') + reachable.toLocaleString('en-IN') + ' ' + (reachable === 1 ? aud().single.toLowerCase() : aud().name.toLowerCase()));
+    }
+    $('input[name="cwWhen"]').on('change', function () { $('#cwAt').prop('disabled', !$('#cwLater').is(':checked')); updateSendLabel(); });
+
+    // ── 3. message: templates ──
+    function loadTemplates() {
+        $.get(URL.templates, { audienceType: type }).done(list => {
+            $('#cwTemplate').html('<option value="">Start from a template...</option>' + list.map(t => `<option value="${t.id}">${H(t.name)}</option>`).join(''));
+            if (templateId) $('#cwTemplate').val(String(templateId));
+        });
+    }
+    function useTemplate(id) {
+        $.get(URL.template, { id }).done(t => {
+            if (!t.success) return;
+            templateId = t.templateId;
+            if (t.audienceType && t.audienceType !== type) selectType(t.audienceType, true);
+            $('#cwSubject').val(t.subject);
+            try { composer.setDesign(JSON.parse(t.designJson)); } catch (e) { }
+            if (!$('#cwName').val()) $('#cwName').val(t.name);
+            $('#cwTemplate').val(String(t.templateId));
+            changed();
+        });
+    }
+    $('#cwTemplate').on('change', function () {
+        if (!this.value) return;
+        const id = this.value, go = () => useTemplate(id);
+        if (window.Swal && JSON.stringify(composer.getDesign()) !== starterJson(type))
+            Swal.fire({ title: 'Use this template?', text: 'The subject and message you wrote are replaced.', icon: 'question', showCancelButton: true, confirmButtonText: 'Use template' })
+                .then(r => { if (r.isConfirmed) go(); else $('#cwTemplate').val(''); });
+        else go();
+    });
+    $('#cwSubject').on('input', changed);
+
+    // ── preview ──
+    function payload(extra) {
+        return Object.assign({
+            __RequestVerificationToken: token(), campaignId: FORM.campaignId || 0, name: $('#cwName').val().trim(), audienceType: type,
+            templateId: templateId || '', sendBranchId: $('#cwBranch').val() || '', subject: $('#cwSubject').val(),
+            designJson: JSON.stringify(composer.getDesign()), filterJson: JSON.stringify(currentFilter())
+        }, extra || {});
+    }
+    function changed() { clearTimeout(tPrev); tPrev = setTimeout(preview, 450); }
+    function preview() {
+        $.post(URL.preview, payload({ asNames })).done(r => {
+            $('#cwPrevSubject').text(r.subject || '(no subject)');
+            $('#cwFrame').attr('srcdoc', r.html);
+            $('#cwPrevWarn').toggleClass('d-none', !r.warning).text(r.warning || '');
+        });
+    }
+    $('[data-names]').on('click', function () { $('[data-names]').removeClass('active'); $(this).addClass('active'); asNames = this.dataset.names === '1'; preview(); });
+    $('[data-device]').on('click', function () { $('[data-device]').removeClass('active'); $(this).addClass('active'); $('#cwFrame').toggleClass('mobile', this.dataset.device === 'mobile'); });
+
+    $('#cwTest').on('click', function () {
+        const $b = $(this), email = $('#cwTestEmail').val().trim();
+        if (!email) { $('#cwTestResult').html('<span class="text-danger">Enter an email address.</span>'); return; }
+        $b.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Sending...');
+        $.post(URL.test, payload({ testEmail: email }))
+            .done(r => $('#cwTestResult').html(`<span class="${r.success ? 'text-success' : 'text-danger'}">${H(r.message)}</span>`))
+            .fail(() => $('#cwTestResult').html('<span class="text-danger">The test email could not be sent.</span>'))
+            .always(() => $b.prop('disabled', false).html('<i class="bi bi-send me-1"></i>Send test'));
+    });
+
+    // ── save / send ──
+    function save(action) {
+        $('#cwError').addClass('d-none');
+        const extra = { action };
+        if (action === 'schedule') extra.scheduledAt = $('#cwAt').val();
+        const $btns = $('#cwSend, #cwDraft').prop('disabled', true);
+        $.post(URL.save, payload(extra))
+            .done(r => { if (r.success) location.href = r.url; else $('#cwError').text(r.message).removeClass('d-none'); })
+            .fail(() => $('#cwError').text('The campaign could not be saved. Please try again.').removeClass('d-none'))
+            .always(() => $btns.prop('disabled', false));
+    }
+    $('#cwDraft').on('click', () => save('draft'));
+    $('#cwSend').on('click', function () {
+        const later = $('#cwLater').is(':checked');
+        if (later && !$('#cwAt').val()) { $('#cwError').text('Choose the date and time to send.').removeClass('d-none'); return; }
+        const what = `${reachable.toLocaleString('en-IN')} ${reachable === 1 ? aud().single.toLowerCase() : aud().name.toLowerCase()}`;
+        const text = later ? `The email will go to ${what} on ${new Date($('#cwAt').val()).toLocaleString('en-IN')}.` : `The email goes to ${what} now. This cannot be undone once sent.`;
+        if (window.Swal) Swal.fire({ title: later ? 'Schedule this campaign?' : 'Send this campaign?', text, icon: 'question', showCancelButton: true, confirmButtonText: later ? 'Schedule' : 'Send now', confirmButtonColor: '#644098' })
+            .then(r => { if (r.isConfirmed) save(later ? 'schedule' : 'send'); });
+        else if (confirm(text)) save(later ? 'schedule' : 'send');
+    });
+
+    // ── start ──
+    $.get(URL.options).done(o => {
+        options = o;
+        $('#cwBranch').html(o.branches.map(b => `<option value="${b.id}">${H(b.name)}${b.isHo ? ' (Head Office)' : ''}</option>`).join(''))
+            .val(String(FORM.sendBranchId || o.currentBranchId)).prop('disabled', !o.canChooseBranch);
+        $('.f-branch').append(o.branches.map(b => `<option value="${b.id}">${H(b.name)}</option>`).join(''));
+        $('.f-role').append(o.roles.map(r => `<option value="${r.id}">${H(r.name)}</option>`).join(''));
+        $('.f-speciality').append(o.specialities.map(s => `<option value="${s.id}">${H(s.name)}</option>`).join(''));
+        // a saved draft / copy: put its filter back
+        if (mode === 'FILTER') {
+            const $p = $('#cwFilter' + type);
+            $p.find('.f-branch').val(filter.branchId || ''); $p.find('.f-gender').val(filter.gender || '');
+            $p.find('.f-agefrom').val(filter.ageFrom ?? ''); $p.find('.f-ageto').val(filter.ageTo ?? '');
+            $p.find('.f-visitfrom').val((filter.visitFrom || '').substring(0, 10)); $p.find('.f-visitto').val((filter.visitTo || '').substring(0, 10));
+            $p.find('.f-regfrom').val((filter.registeredFrom || '').substring(0, 10)); $p.find('.f-regto').val((filter.registeredTo || '').substring(0, 10));
+            $p.find('.f-role').val(filter.roleId || ''); $p.find('.f-speciality').val(filter.specialityId || ''); $p.find('.f-kind').val(filter.doctorKind || '');
+        }
+        paintSender();
+        count(); preview();
+    });
+    selectType(type, true);
+    selectMode(mode);
+    if (mode === 'PICK' && (filter.ids || []).length) {
+        filter.ids.forEach(id => $('#cwPeople').append(new Option('#' + id, id, true, true)));
+        $('#cwPeople').trigger('change');
+    }
+    if (qs.get('template')) useTemplate(qs.get('template'));
+    $(document).on('select2:open', () => setTimeout(() => document.querySelector('.select2-container--open .select2-search__field')?.focus(), 0));
+})();
+</script>
+}

@@ -31,6 +31,10 @@ builder.Services.AddScoped<IMasterApprovalService, MasterApprovalService>();
 builder.Services.AddScoped<ILoginCredentialsMailer, LoginCredentialsMailer>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR.Web.Services.Reports.LabTestWorkloadService>();
+// Utility > Campaigns (SQLScripts/2299): EMR.Api api/campaigns, and the background sender (also started at once on "Send now")
+builder.Services.AddScoped<EMR.Web.ApiClients.ICampaignApiClient, EMR.Web.ApiClients.CampaignApiClient>();
+builder.Services.AddSingleton<EMR.Web.Services.Campaigns.CampaignSenderService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EMR.Web.Services.Campaigns.CampaignSenderService>());
 
 // Geography Masters (Dapper)
 builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();

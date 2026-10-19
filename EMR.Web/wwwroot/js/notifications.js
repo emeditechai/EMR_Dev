@@ -4,6 +4,8 @@
  *    recipient, with automatic reconnect; while it is down the badge is checked every 60 seconds instead
  *  - a new notification rings the bell, shows a toast (click = open it) and, when the tab is in the background and
  *    the user allowed it, a desktop notification (permission is asked on the first click of the bell)
+ *  - a new notification plays a short tone (a more urgent one for CRITICAL), once across the user's open tabs;
+ *    the speaker button in the panel turns it off / on for this browser
  *  - read / dismissed in one tab updates the badge of the user's other tabs
  * window.EmrNotify is shared with the "View all" page (Views/Notifications/Index.cshtml).
  */
@@ -134,12 +136,87 @@
 
     function notify(kind, item) { listeners.forEach(function (fn) { try { fn(kind, item); } catch (x) { } }); }
 
+    // ── message tone ────────────────────────────────────────────────────────────────────────────────────────
+    // Made with Web Audio (no sound file). Browsers allow sound only after the user has clicked or typed on the
+    // page, so the audio is unlocked on the first such action; until then a tone is skipped silently.
+    var SOUND_KEY = 'emr-notif-sound', CLAIM_KEY = 'emr-notif-tone';
+    var audio = null;
+    var soundBtn = document.getElementById('emrBellSound');
+
+    function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (x) { return null; } }
+    function soundOn() { return store(SOUND_KEY) !== 'off'; }
+    function paintSound() {
+        if (!soundBtn) return;
+        var on = soundOn();
+        soundBtn.classList.toggle('off', !on);
+        soundBtn.innerHTML = '<i class="bi ' + (on ? 'bi-volume-up-fill' : 'bi-volume-mute-fill') + '"></i>';
+        soundBtn.title = 'Notification sound: ' + (on ? 'on' : 'off');
+        soundBtn.setAttribute('aria-label', soundBtn.title);
+        soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    function unlockAudio() {
+        try {
+            var Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            if (!audio) audio = new Ctx();
+            if (audio.state === 'suspended') audio.resume();
+        } catch (x) { }
+    }
+    ['pointerdown', 'keydown'].forEach(function (ev) { document.addEventListener(ev, unlockAudio, { capture: true, passive: true }); });
+
+    // notes: [frequency Hz, start s, length s]
+    function playTone(critical) {
+        if (!audio || audio.state !== 'running') return;
+        var notes = critical
+            ? [[988, 0, 0.14], [784, 0.17, 0.14], [988, 0.34, 0.14], [784, 0.51, 0.22]]   // urgent: four quick notes
+            : [[880, 0, 0.16], [1318.5, 0.14, 0.32]];                                   // soft two-note chime
+        var t0 = audio.currentTime + 0.02;
+        notes.forEach(function (n) {
+            var osc = audio.createOscillator(), gain = audio.createGain();
+            osc.type = critical ? 'triangle' : 'sine';
+            osc.frequency.value = n[0];
+            var start = t0 + n[1], end = start + n[2];
+            gain.gain.setValueAtTime(0.0001, start);
+            gain.gain.exponentialRampToValueAtTime(critical ? 0.22 : 0.18, start + 0.015);
+            gain.gain.exponentialRampToValueAtTime(0.0001, end);
+            osc.connect(gain).connect(audio.destination);
+            osc.start(start);
+            osc.stop(end + 0.05);
+        });
+    }
+
+    // every open tab hears about the notification: the tab on screen plays it at once, a background tab waits a
+    // moment and plays only if no other tab has claimed this notification
+    function toneFor(n) {
+        if (!soundOn() || !n) return;
+        var id = String(n.notificationId), critical = n.severity === 'CRITICAL';
+        function claim() {
+            if (store(CLAIM_KEY) === id) return;
+            store(CLAIM_KEY, id);
+            playTone(critical);
+        }
+        if (document.visibilityState === 'visible') claim();
+        else setTimeout(claim, 250 + Math.floor(Math.random() * 250));
+    }
+
+    if (soundBtn) {
+        soundBtn.addEventListener('click', function (e) {
+            e.preventDefault(); e.stopPropagation();   // keep the panel open
+            store(SOUND_KEY, soundOn() ? 'off' : 'on');
+            paintSound();
+            if (soundOn()) { unlockAudio(); setTimeout(function () { playTone(false); }, 30); }   // a sample of the tone
+        });
+        paintSound();
+    }
+    window.addEventListener('storage', function (e) { if (e.key === SOUND_KEY) paintSound(); });
+
     // ── a new notification arrives ──────────────────────────────────────────────────────────────────────────
     function arrived(n, unreadCount) {
         if (!n || n.notificationId <= lastSeenId) { if (unreadCount != null) setBadge(unreadCount); return; }
         lastSeenId = n.notificationId;
         if (unreadCount != null) setBadge(unreadCount);
         bell.classList.remove('ring'); void bell.offsetWidth; bell.classList.add('ring');
+        toneFor(n);
         if (loaded) load();
         notify('new', n);
 

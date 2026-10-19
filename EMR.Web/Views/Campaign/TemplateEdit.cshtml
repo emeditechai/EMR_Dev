@@ -1,0 +1,132 @@
+@{
+    ViewData["Title"] = "Campaign Template";
+}
+
+@section HeadStyles {
+<style>
+    .ct-card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; margin-bottom:.9rem; }
+    .ct-head { display:flex; align-items:center; gap:.5rem; padding:.65rem 1rem; border-bottom:1px solid #eef2f7; }
+    .ct-head h2 { font-size:.82rem; font-weight:700; margin:0; color:#0f172a; text-transform:uppercase; letter-spacing:.4px; }
+    .ct-body { padding:.9rem 1rem; }
+    .ct-label { font-size:.74rem; font-weight:700; color:#334155; margin-bottom:.25rem; display:block; }
+    .btn-seg.active { background:#644098; border-color:#644098; color:#fff; }
+    .ct-preview { position:sticky; top:1rem; }
+    .ct-subject { font-size:.82rem; padding:.55rem .8rem; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
+    .ct-subject .k { color:#64748b; font-size:.7rem; text-transform:uppercase; letter-spacing:.4px; font-weight:700; margin-right:.4rem; }
+    .ct-frame { width:100%; height:600px; border:0; background:#f4f2f8; display:block; }
+</style>
+}
+
+<div class="container-fluid px-3 py-2">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-collection me-2" style="color:#644098"></i>Campaign Template</h1>
+            <div class="text-muted" style="font-size:.8rem">A message you send often. Pick it in a new campaign with "Start from a template".</div>
+        </div>
+        <a href="@Url.Action("Index")#templates" class="btn btn-outline-secondary btn-sm flex-shrink-0"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    </div>
+
+    <form id="ctForm" onsubmit="return false">
+        @Html.AntiForgeryToken()
+        <div class="row g-3">
+            <div class="col-12 col-xl-7">
+                <div class="ct-card">
+                    <div class="ct-head"><h2>Template</h2>
+                        <div class="ms-auto form-check form-switch m-0"><input class="form-check-input" type="checkbox" id="ctActive" checked /><label class="form-check-label small" for="ctActive">Active</label></div>
+                    </div>
+                    <div class="ct-body">
+                        <div class="row g-2 mb-3">
+                            <div class="col-12 col-md-6"><label class="ct-label" for="ctName">Template name</label><input id="ctName" class="form-control" maxlength="150" placeholder="e.g. Health camp invitation" /></div>
+                            <div class="col-12 col-md-6"><label class="ct-label">For</label>
+                                <div class="btn-group w-100" role="group" id="ctTypes">
+                                    <button type="button" class="btn btn-outline-secondary btn-seg" data-type="P"><i class="bi bi-people me-1"></i>Patients</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-seg" data-type="U"><i class="bi bi-person-badge me-1"></i>Users</button>
+                                    <button type="button" class="btn btn-outline-secondary btn-seg" data-type="D"><i class="bi bi-heart-pulse me-1"></i>Doctors</button>
+                                </div>
+                            </div>
+                        </div>
+                        <label class="ct-label" for="ctSubject">Subject line</label>
+                        <div class="input-group mb-3">
+                            <input id="ctSubject" class="form-control" maxlength="255" placeholder="e.g. You're invited: free health camp" />
+                            <button type="button" class="btn ec-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="#ctSubject"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                            <ul class="dropdown-menu dropdown-menu-end ec-field-menu"></ul>
+                        </div>
+                        <partial name="_EmailComposer" />
+                        <div class="alert alert-danger py-2 small mt-3 d-none" id="ctError"></div>
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <a href="@Url.Action("Index")#templates" class="btn btn-outline-secondary">Cancel</a>
+                            <button type="button" class="btn text-white px-4" style="background:#644098" id="ctSave"><i class="bi bi-check-circle me-1"></i>Save Template</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-5">
+                <div class="ct-card ct-preview">
+                    <div class="ct-head"><i class="bi bi-eye" style="color:#644098"></i><h2>Preview</h2>
+                        <div class="btn-group btn-group-sm ms-auto" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-seg active" data-names="0">Sample</button>
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-names="1">Fields</button>
+                        </div>
+                    </div>
+                    <div class="ct-subject"><span class="k">Subject</span><span id="ctPrevSubject">-</span></div>
+                    <div class="alert alert-warning py-1 px-2 m-2 small d-none" id="ctPrevWarn"></div>
+                    <iframe id="ctFrame" class="ct-frame" title="Email preview" sandbox=""></iframe>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+<script src="~/lib/quill/quill.min.js" asp-append-version="true"></script>
+<script src="~/js/email-composer.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const FORM = @Html.Raw(ViewBag.Form);
+    const AUD = @Html.Raw(ViewBag.Audiences);
+    const URLS = { preview: '@Url.Action("Preview")', save: '@Url.Action("TemplateEdit")' };
+    const token = () => $('#ctForm input[name="__RequestVerificationToken"]').val();
+    let type = FORM.audienceType || 'P', asNames = false, t = null;
+    const aud = () => AUD.find(a => a.type === type);
+    let design = null;
+    try { design = FORM.designJson ? JSON.parse(FORM.designJson) : null; } catch (e) { }
+    const composer = EmailComposer.init({ fields: aud().fields, design: design || aud().starter, onChange: changed });
+
+    $('#ctName').val(FORM.name || ''); $('#ctSubject').val(FORM.subject || ''); $('#ctActive').prop('checked', FORM.isActive !== false);
+    function setType(x) {
+        const before = type; type = x;
+        $('#ctTypes .btn-seg').removeClass('active').filter(`[data-type="${x}"]`).addClass('active');
+        if (before !== x && JSON.stringify(composer.getDesign()) === JSON.stringify(AUD.find(a => a.type === before).starter)) {
+            composer.setFields(aud().fields); composer.setDesign(aud().starter);
+        } else composer.setFields(aud().fields);
+        changed();
+    }
+    $('#ctTypes').on('click', '.btn-seg', function () { setType(this.dataset.type); });
+    $('#ctSubject').on('input', changed);
+
+    function data(extra) {
+        return Object.assign({ __RequestVerificationToken: token(), templateId: FORM.templateId || 0, name: $('#ctName').val().trim(), audienceType: type,
+            subject: $('#ctSubject').val(), designJson: JSON.stringify(composer.getDesign()), isActive: $('#ctActive').is(':checked') }, extra || {});
+    }
+    function changed() { clearTimeout(t); t = setTimeout(preview, 450); }
+    function preview() {
+        $.post(URLS.preview, data({ asNames })).done(r => {
+            $('#ctPrevSubject').text(r.subject || '(no subject)');
+            $('#ctFrame').attr('srcdoc', r.html);
+            $('#ctPrevWarn').toggleClass('d-none', !r.warning).text(r.warning || '');
+        });
+    }
+    $('[data-names]').on('click', function () { $('[data-names]').removeClass('active'); $(this).addClass('active'); asNames = this.dataset.names === '1'; preview(); });
+    $('#ctSave').on('click', function () {
+        const $b = $(this).prop('disabled', true);
+        $('#ctError').addClass('d-none');
+        $.post(URLS.save, data())
+            .done(r => { if (r.success) location.href = r.url; else $('#ctError').text(r.message).removeClass('d-none'); })
+            .fail(() => $('#ctError').text('The template could not be saved.').removeClass('d-none'))
+            .always(() => $b.prop('disabled', false));
+    });
+    setType(type);
+    preview();
+})();
+</script>
+}

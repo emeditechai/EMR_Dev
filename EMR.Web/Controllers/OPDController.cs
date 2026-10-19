@@ -1205,14 +1205,15 @@ public class OPDController(
                             var hospital = await db.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == branchId);
                             var hospitalName = hospital?.HospitalName ?? "Our Hospital";
 
-                            var subject = template.Subject.Replace("{{HospitalName}}", hospitalName);
-
-                            var htmlBody = template.HtmlBody
+                            // the same fields in the subject and the body (Utility > Email Templates lets either use them)
+                            string FillPrescription(string text) => text
                                 .Replace("{{PatientName}}", $"{patient.FirstName} {patient.LastName}")
                                 .Replace("{{DoctorName}}", doctor ?? "")
-                                .Replace("{{TokenNo}}", bookingDetail.TokenNo ?? "N/A")
-                                .Replace("{{VisitDate}}", bookingDetail.VisitDate.ToString("dd-MMM-yyyy"))
+                                .Replace("{{TokenNo}}", (string)(bookingDetail.TokenNo ?? "N/A"))
+                                .Replace("{{VisitDate}}", (string)bookingDetail.VisitDate.ToString("dd-MMM-yyyy"))
                                 .Replace("{{HospitalName}}", hospitalName);
+                            var subject = FillPrescription(template.Subject);
+                            var htmlBody = FillPrescription(template.HtmlBody);
 
                             List<System.Net.Mail.Attachment> attachments = new();
                             string? tempPdfPath = null;
@@ -3075,12 +3076,12 @@ public class OPDController(
                                 var hospital = await db.HospitalSettings.FirstOrDefaultAsync(h => h.BranchId == activeBranchId);
                                 var hospitalName = hospital?.HospitalName ?? "Our Hospital";
 
-                                var subject = template.Subject.Replace("{{HospitalName}}", hospitalName);
                                 var slotTimeStr = booking.AppointmentTime.HasValue 
                                     ? DateTime.Today.Add(booking.AppointmentTime.Value).ToString("hh:mm tt") 
                                     : "N/A";
 
-                                var htmlBody = template.HtmlBody
+                                // the same fields in the subject and the body (Utility > Email Templates lets either use them)
+                                string FillBooking(string text) => text
                                     .Replace("{{PatientName}}", $"{patient?.FirstName} {patient?.LastName}")
                                     .Replace("{{DoctorName}}", doctorName ?? "")
                                     .Replace("{{TokenNo}}", booking.TokenNo ?? "Pending")
@@ -3088,6 +3089,8 @@ public class OPDController(
                                     .Replace("{{VisitDate}}", booking.VisitDate.ToString("dd-MMM-yyyy"))
                                     .Replace("{{SlotTime}}", slotTimeStr)
                                     .Replace("{{HospitalName}}", hospitalName);
+                                var subject = FillBooking(template.Subject);
+                                var htmlBody = FillBooking(template.HtmlBody);
 
                                 if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                 {

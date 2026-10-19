@@ -41,6 +41,7 @@
                                 <div class="emr-bell-head">
                                     <span class="fw-semibold">Notifications</span>
                                     <span class="emr-bell-live" id="emrBellLive" title="Live updates"></span>
+                                    <button type="button" class="emr-bell-sound" id="emrBellSound" title="Notification sound: on" aria-label="Notification sound: on" aria-pressed="true"><i class="bi bi-volume-up-fill"></i></button>
                                     <button type="button" class="btn btn-link btn-sm ms-auto p-0 text-decoration-none" id="emrBellReadAll">Mark all as read</button>
                                 </div>
                                 <div class="emr-bell-tabs">
@@ -53,9 +54,6 @@
                                 </div>
                             </div>
                         </div>
-                        <span class="emr-branch-pill" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);" title="Organization: @(User.FindFirst("CompanyName")?.Value ?? "Primary Healthcare Network")">
-                            <i class="bi bi-buildings me-1 text-info"></i>@(User.FindFirst("CompanyCode")?.Value ?? "CMP")
-                        </span>
                         <span class="emr-branch-pill"><i class="bi bi-building me-1"></i>@(User.FindFirst("BranchCode")?.Value ?? User.FindFirst("BranchName")?.Value)</span>
 
                         <div class="dropdown">

@@ -1,0 +1,90 @@
+@* Email composer markup (wwwroot/js/email-composer.js): heading, message with merge-field chips, details rows, note
+   and closing. Used by Utility > Campaigns (campaign wizard and campaign templates). *@
+<link rel="stylesheet" href="~/lib/quill/quill.snow.css" asp-append-version="true" />
+<style>
+    .ec-label { font-size:.74rem; font-weight:700; color:#334155; margin-bottom:.25rem; display:block; }
+    .ec-help { font-size:.72rem; color:#64748b; margin-top:.25rem; }
+    .ec-field-btn { border:1px solid #d9cdee; color:#644098; background:#faf7ff; font-size:.74rem; font-weight:600; white-space:nowrap; }
+    .ec-field-btn:hover { background:#f1ecf8; color:#644098; }
+    .ec-field-menu .dropdown-item { font-size:.8rem; }
+    .ec-field-menu .dropdown-item small { color:#64748b; }
+    #ecMessage { min-height:150px; font-size:.9rem; }
+    .ec-wrap .ql-toolbar.ql-snow { border-radius:.5rem .5rem 0 0; border-color:#e2e8f0; }
+    .ec-wrap .ql-container.ql-snow { border-radius:0 0 .5rem .5rem; border-color:#e2e8f0; }
+    .ql-field { display:inline-block; background:#ede9fe; color:#5b21b6; border:1px solid #ddd6fe; border-radius:4px; padding:0 5px; font-size:.82em; font-weight:600; line-height:1.5; user-select:all; }
+    .ec-row { display:grid; grid-template-columns: 1fr 1.4fr auto; gap:.4rem; align-items:center; padding:.35rem; border:1px solid #eef2f7; border-radius:.5rem; margin-bottom:.4rem; background:#fcfcfe; }
+    .ec-row .btn-icon { border:0; background:transparent; color:#64748b; padding:.15rem .3rem; border-radius:4px; }
+    .ec-row .btn-icon:hover { background:#f1f5f9; color:#0f172a; }
+    .ec-row .btn-icon.on { color:#ca2e6d; }
+    .ec-row .btn-icon.del:hover { color:#dc2626; }
+    .ec-section { border-top:1px dashed #e2e8f0; padding-top:.85rem; margin-top:.85rem; }
+    @@media (max-width: 575.98px) { .ec-row { grid-template-columns: 1fr; } }
+</style>
+<div class="ec-wrap">
+    <label class="ec-label" for="ecHeading">Heading</label>
+    <div class="input-group mb-3">
+        <input id="ecHeading" class="form-control" maxlength="150" placeholder="e.g. Free health check-up camp this Sunday" />
+        <button type="button" class="btn ec-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="#ecHeading"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+        <ul class="dropdown-menu dropdown-menu-end ec-field-menu"></ul>
+    </div>
+
+    <label class="ec-label">Message</label>
+    <div id="ecToolbar">
+        <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
+        <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
+        <span class="ql-formats"><button class="ql-link"></button><button class="ql-clean"></button></span>
+        <span class="ql-formats">
+            <span class="dropdown d-inline-block">
+                <button type="button" class="btn btn-sm ec-field-btn dropdown-toggle py-0" style="width:auto;height:auto" data-bs-toggle="dropdown" data-insert="quill"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                <ul class="dropdown-menu ec-field-menu"></ul>
+            </span>
+        </span>
+    </div>
+    <div id="ecMessage"></div>
+    <div class="ec-help">Write as in any letter. Purple chips are filled in for each person, for example <span class="ql-field">First Name</span>.</div>
+
+    <div class="ec-section">
+        <label class="ec-label">Details box <span class="fw-normal text-muted">(optional)</span></label>
+        <div id="ecRows"></div>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="ecAddRow"><i class="bi bi-plus-lg me-1"></i>Add a row</button>
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm ec-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="newrow"><i class="bi bi-plus-circle me-1"></i>Add a row for a field</button>
+                <ul class="dropdown-menu ec-field-menu"></ul>
+            </div>
+        </div>
+        <div class="ec-help">e.g. "Date → 26 Oct, 9 AM - 1 PM", "Venue → Head Office". <i class="bi bi-star-fill" style="color:#ca2e6d"></i> makes a value stand out.</div>
+    </div>
+
+    <div class="ec-section">
+        <div class="row g-2 mb-2">
+            <div class="col-12 col-md-4">
+                <label class="ec-label" for="ecNoteStyle">Note style</label>
+                <select id="ecNoteStyle" class="form-select">
+                    <option value="info">Information (purple)</option>
+                    <option value="reminder">Reminder (amber)</option>
+                    <option value="important">Important (red)</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-8">
+                <label class="ec-label" for="ecNote">Highlighted note <span class="fw-normal text-muted">(optional)</span></label>
+                <textarea id="ecNote" class="form-control" rows="2" maxlength="600" placeholder="e.g. Registration is free. Please bring your previous reports."></textarea>
+            </div>
+        </div>
+        <div class="row g-2">
+            <div class="col-12 col-md-5">
+                <label class="ec-label" for="ecClosing">Closing line</label>
+                <input id="ecClosing" class="form-control" maxlength="120" placeholder="e.g. Warm regards," />
+            </div>
+            <div class="col-12 col-md-7">
+                <label class="ec-label" for="ecSignature">Signed by</label>
+                <div class="input-group">
+                    <input id="ecSignature" class="form-control" maxlength="150" placeholder="e.g. {{HospitalName}}" />
+                    <button type="button" class="btn ec-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="#ecSignature"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                    <ul class="dropdown-menu dropdown-menu-end ec-field-menu"></ul>
+                </div>
+            </div>
+        </div>
+        <div class="ec-help">The brand header, the hospital name and the footer are added to every email automatically.</div>
+    </div>
+</div>

@@ -21,6 +21,10 @@ public class EmailTemplate
     [Required]
     public string HtmlBody { get; set; } = string.Empty;
 
+    /// <summary>The design made in the Email Templates designer (SQLScripts/2298); HtmlBody is built from it.
+    /// Null for a template kept as hand-written HTML.</summary>
+    public string? DesignJson { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public int? CreatedBy { get; set; }

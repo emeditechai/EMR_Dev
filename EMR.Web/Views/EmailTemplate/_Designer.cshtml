@@ -1,0 +1,430 @@
+@model EMR.Web.Controllers.EmailTemplateEditViewModel
+@using EMR.Web.Services
+@{
+    bool isCreate = Model.Id == 0;
+    var typesJson = System.Text.Json.JsonSerializer.Serialize(EmailTemplateDesigner.Types.Select(t => new
+    {
+        name = t.Name, description = t.Description, icon = t.Icon, subject = t.DefaultSubject,
+        fields = t.Fields.Select(f => new { code = f.Code, label = f.Label, sample = f.Sample }),
+        design = System.Text.Json.JsonSerializer.Deserialize<object>(EmailTemplateDesigner.ToJson(t.Default))
+    }));
+    var current = EmailTemplateDesigner.Find(Model.TemplateName);
+}
+
+<link rel="stylesheet" href="~/lib/quill/quill.snow.css" asp-append-version="true" />
+<style>
+    .et-wrap { --et-brand:#644098; --et-line:#e2e8f0; --et-muted:#64748b; }
+    .et-card { background:#fff; border:1px solid var(--et-line); border-radius:.75rem; margin-bottom:.9rem; }
+    .et-card-head { display:flex; align-items:center; gap:.5rem; padding:.65rem 1rem; border-bottom:1px solid #eef2f7; }
+    .et-card-head h2 { font-size:.82rem; font-weight:700; margin:0; color:#0f172a; text-transform:uppercase; letter-spacing:.4px; }
+    .et-card-head .et-step { width:22px; height:22px; border-radius:50%; background:#f1ecf8; color:var(--et-brand); font-size:.72rem; font-weight:800;
+                             display:inline-flex; align-items:center; justify-content:center; }
+    .et-card-body { padding:.9rem 1rem; }
+    .et-label { font-size:.74rem; font-weight:700; color:#334155; margin-bottom:.25rem; display:block; }
+    .et-help { font-size:.72rem; color:var(--et-muted); margin-top:.25rem; }
+    .et-type { display:flex; gap:.6rem; align-items:flex-start; border:1px solid var(--et-line); border-radius:.6rem; padding:.6rem .75rem; cursor:pointer; background:#fff; }
+    .et-type.active { border-color:var(--et-brand); box-shadow:0 0 0 3px rgba(100,64,152,.12); background:#faf7ff; }
+    .et-type i { font-size:1.3rem; color:var(--et-brand); }
+    .et-type .t-name { font-weight:700; font-size:.85rem; }
+    .et-type .t-desc { font-size:.72rem; color:var(--et-muted); }
+    .et-field-btn { border:1px solid #d9cdee; color:var(--et-brand); background:#faf7ff; font-size:.74rem; font-weight:600; white-space:nowrap; }
+    .et-field-btn:hover { background:#f1ecf8; color:var(--et-brand); }
+    .et-field-menu .dropdown-item { font-size:.8rem; }
+    .et-field-menu .dropdown-item small { color:var(--et-muted); }
+    /* message editor */
+    #etMessage { min-height:150px; font-size:.9rem; }
+    .ql-toolbar.ql-snow { border-radius:.5rem .5rem 0 0; border-color:var(--et-line); }
+    .ql-container.ql-snow { border-radius:0 0 .5rem .5rem; border-color:var(--et-line); }
+    .ql-field { display:inline-block; background:#ede9fe; color:#5b21b6; border:1px solid #ddd6fe; border-radius:4px; padding:0 5px; font-size:.82em; font-weight:600; line-height:1.5; user-select:all; }
+    /* details rows */
+    .et-row { display:grid; grid-template-columns: 1fr 1.4fr auto; gap:.4rem; align-items:center; padding:.35rem; border:1px solid #eef2f7; border-radius:.5rem; margin-bottom:.4rem; background:#fcfcfe; }
+    .et-row .btn-icon { border:0; background:transparent; color:var(--et-muted); padding:.15rem .3rem; border-radius:4px; }
+    .et-row .btn-icon:hover { background:#f1f5f9; color:#0f172a; }
+    .et-row .btn-icon.on { color:#ca2e6d; }
+    .et-row .btn-icon.del:hover { color:#dc2626; }
+    @@media (max-width: 575.98px) { .et-row { grid-template-columns: 1fr; } }
+    /* preview */
+    .et-preview { position:sticky; top:1rem; }
+    .et-subject { font-size:.82rem; padding:.55rem .8rem; background:#f8fafc; border-bottom:1px solid var(--et-line); }
+    .et-subject .k { color:var(--et-muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.4px; font-weight:700; margin-right:.4rem; }
+    .et-frame-wrap { background:#f4f2f8; display:flex; justify-content:center; }
+    .et-frame { width:100%; height:640px; border:0; background:#f4f2f8; transition:width .2s ease; }
+    .et-frame.mobile { width:380px; }
+    .btn-seg.active { background:var(--et-brand); border-color:var(--et-brand); color:#fff; }
+    .et-mode-note { font-size:.8rem; }
+    .et-wrap .validation-summary-valid { display:none; }
+</style>
+
+<div class="et-wrap">
+    <form asp-action="@(isCreate ? "Create" : "Edit")" method="post" id="etForm" novalidate>
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+        <input type="hidden" asp-for="TemplateName" id="etType" />
+        <input type="hidden" asp-for="Mode" id="etMode" />
+        <input type="hidden" asp-for="DesignJson" id="etDesignJson" />
+        <div asp-validation-summary="All" class="alert alert-danger py-2 small"></div>
+
+        <div class="row g-3">
+            <!-- ── designer ── -->
+            <div class="col-12 col-xl-7">
+                <!-- 1. email -->
+                <div class="et-card">
+                    <div class="et-card-head"><span class="et-step">1</span><h2>Email</h2>
+                        <div class="ms-auto form-check form-switch m-0">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" id="etActive" />
+                            <label class="form-check-label small" for="etActive">Send this email</label>
+                        </div>
+                    </div>
+                    <div class="et-card-body">
+                        @if (isCreate)
+                        {
+                            <span class="et-label">Which email is this?</span>
+                            <div class="row g-2 mb-3" id="etTypes">
+                                @foreach (var t in EmailTemplateDesigner.Types.Where(t => Model.AvailableTypes.Contains(t.Name)))
+                                {
+                                    <div class="col-12 col-md-6">
+                                        <div class="et-type @(t.Name == Model.TemplateName ? "active" : "")" data-type="@t.Name" role="button" tabindex="0">
+                                            <i class="bi @t.Icon"></i>
+                                            <div><div class="t-name">@t.Name</div><div class="t-desc">@t.Description</div></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <i class="bi @(current?.Icon ?? "bi-envelope") fs-4" style="color:#644098"></i>
+                                <div>
+                                    <div class="fw-bold">@Model.TemplateName</div>
+                                    <div class="et-help mt-0">@(current?.Description ?? "A custom email template.")</div>
+                                </div>
+                            </div>
+                        }
+                        <label class="et-label" for="etSubject">Subject line</label>
+                        <div class="input-group">
+                            <input asp-for="Subject" id="etSubject" class="form-control" placeholder="e.g. Booking Confirmation at {{HospitalName}}" maxlength="255" />
+                            <button type="button" class="btn et-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="#etSubject"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                            <ul class="dropdown-menu dropdown-menu-end et-field-menu"></ul>
+                        </div>
+                        <div class="et-help">What the patient sees in their inbox. Fields such as Hospital Name are filled in when the email is sent.</div>
+                    </div>
+                </div>
+
+                <!-- hand-written HTML (advanced) -->
+                <div class="et-card" id="etHtmlCard" style="display:none">
+                    <div class="et-card-head"><i class="bi bi-code-slash" style="color:#644098"></i><h2>Email body (HTML)</h2></div>
+                    <div class="et-card-body">
+                        <div class="alert alert-warning et-mode-note py-2">
+                            <i class="bi bi-info-circle me-1"></i>This template was written in HTML by hand.
+                            <button type="button" class="btn btn-sm btn-warning ms-2" id="etUseDesigner"><i class="bi bi-magic me-1"></i>Use the designer instead</button>
+                            <div class="mt-1 small">The designer starts from the standard @Model.TemplateName email; the HTML below is replaced when you save.</div>
+                        </div>
+                        <textarea asp-for="HtmlBody" id="etHtml" class="form-control font-monospace" rows="16" style="font-size:.78rem"></textarea>
+                    </div>
+                </div>
+
+                <div id="etDesigner">
+                    <!-- 2. heading + message -->
+                    <div class="et-card">
+                        <div class="et-card-head"><span class="et-step">2</span><h2>Message</h2>
+                            <button type="button" class="btn btn-sm btn-link ms-auto text-decoration-none p-0" id="etReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Start from the standard email</button>
+                        </div>
+                        <div class="et-card-body">
+                            <label class="et-label" for="etHeading">Heading</label>
+                            <div class="input-group mb-3">
+                                <input id="etHeading" class="form-control" maxlength="150" placeholder="e.g. Booking Confirmation" />
+                                <button type="button" class="btn et-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="#etHeading"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                                <ul class="dropdown-menu dropdown-menu-end et-field-menu"></ul>
+                            </div>
+                            <label class="et-label">Message</label>
+                            <div id="etToolbar">
+                                <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button></span>
+                                <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
+                                <span class="ql-formats"><button class="ql-link"></button><button class="ql-clean"></button></span>
+                                <span class="ql-formats">
+                                    <span class="dropdown d-inline-block">
+                                        <button type="button" class="btn btn-sm et-field-btn dropdown-toggle py-0" style="width:auto;height:auto" data-bs-toggle="dropdown" data-insert="quill"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                                        <ul class="dropdown-menu et-field-menu"></ul>
+                                    </span>
+                                </span>
+                            </div>
+                            <div id="etMessage"></div>
+                            <div class="et-help">Write as in any letter. Purple chips are filled in for each patient, for example <span class="ql-field">Patient Name</span>.</div>
+                        </div>
+                    </div>
+
+                    <!-- 3. details -->
+                    <div class="et-card">
+                        <div class="et-card-head"><span class="et-step">3</span><h2>Details box</h2><span class="et-help m-0 ms-1">optional</span></div>
+                        <div class="et-card-body">
+                            <div class="d-none d-sm-grid mb-1" style="grid-template-columns: 1fr 1.4fr auto; gap:.4rem; padding:0 .35rem;">
+                                <span class="et-label m-0">Label</span><span class="et-label m-0">Value</span><span class="et-label m-0" style="width:120px"></span>
+                            </div>
+                            <div id="etRows"></div>
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="etAddRow"><i class="bi bi-plus-lg me-1"></i>Add a row</button>
+                                <div class="dropdown">
+                                    <button type="button" class="btn btn-sm et-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="newrow"><i class="bi bi-plus-circle me-1"></i>Add a row for a field</button>
+                                    <ul class="dropdown-menu et-field-menu"></ul>
+                                </div>
+                            </div>
+                            <div class="et-help"><i class="bi bi-star-fill" style="color:#ca2e6d"></i> makes a value stand out (e.g. the token number). Arrows change the order.</div>
+                        </div>
+                    </div>
+
+                    <!-- 4. note + closing -->
+                    <div class="et-card">
+                        <div class="et-card-head"><span class="et-step">4</span><h2>Note &amp; closing</h2></div>
+                        <div class="et-card-body">
+                            <div class="row g-2 mb-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="et-label" for="etNoteStyle">Note style</label>
+                                    <select id="etNoteStyle" class="form-select">
+                                        <option value="info">Information (purple)</option>
+                                        <option value="reminder">Reminder (amber)</option>
+                                        <option value="important">Important (red)</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-8">
+                                    <label class="et-label" for="etNote">Highlighted note <span class="fw-normal text-muted">(optional)</span></label>
+                                    <textarea id="etNote" class="form-control" rows="2" maxlength="600" placeholder="e.g. Please arrive 15 minutes before your slot."></textarea>
+                                </div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-5">
+                                    <label class="et-label" for="etClosing">Closing line</label>
+                                    <input id="etClosing" class="form-control" maxlength="120" placeholder="e.g. Warm regards," />
+                                </div>
+                                <div class="col-12 col-md-7">
+                                    <label class="et-label" for="etSignature">Signed by</label>
+                                    <div class="input-group">
+                                        <input id="etSignature" class="form-control" maxlength="150" placeholder="e.g. {{HospitalName}} Team" />
+                                        <button type="button" class="btn et-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="#etSignature"><i class="bi bi-plus-circle me-1"></i>Insert field</button>
+                                        <ul class="dropdown-menu dropdown-menu-end et-field-menu"></ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="et-help">The brand header and the footer ("automated message") are added to every email automatically.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
+                    <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-x-lg me-1"></i>Cancel</a>
+                    <button type="submit" class="btn text-white px-4" style="background:#644098"><i class="bi bi-check-circle me-1"></i>@(isCreate ? "Create Template" : "Save Template")</button>
+                </div>
+            </div>
+
+            <!-- ── live preview ── -->
+            <div class="col-12 col-xl-5">
+                <div class="et-card et-preview">
+                    <div class="et-card-head">
+                        <i class="bi bi-eye" style="color:#644098"></i><h2>Preview</h2>
+                        <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Values">
+                            <button type="button" class="btn btn-outline-secondary btn-seg active" data-names="0" title="Show sample patient values">Sample</button>
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-names="1" title="Show where each field goes">Fields</button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group" aria-label="Device">
+                            <button type="button" class="btn btn-outline-secondary btn-seg active" data-device="desktop" title="Desktop"><i class="bi bi-display"></i></button>
+                            <button type="button" class="btn btn-outline-secondary btn-seg" data-device="mobile" title="Phone"><i class="bi bi-phone"></i></button>
+                        </div>
+                    </div>
+                    <div class="et-subject"><span class="k">Subject</span><span id="etPrevSubject">-</span></div>
+                    <div class="alert alert-warning py-1 px-2 m-2 small d-none" id="etPrevWarn"></div>
+                    <div class="et-frame-wrap"><iframe id="etFrame" class="et-frame" title="Email preview" sandbox=""></iframe></div>
+                    <div class="et-card-body border-top">
+                        <label class="et-label" for="etTestEmail">Send a test email <span class="fw-normal text-muted">(sample values, this branch's mail settings)</span></label>
+                        <div class="input-group input-group-sm">
+                            <input type="email" id="etTestEmail" class="form-control" placeholder="name@example.com" value="@(User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value)" />
+                            <button type="button" class="btn btn-outline-primary" id="etSendTest"><i class="bi bi-send me-1"></i>Send test</button>
+                        </div>
+                        <div class="et-help" id="etTestResult"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script src="~/lib/quill/quill.min.js" asp-append-version="true"></script>
+<script>
+// jQuery and Bootstrap load at the end of the page: start once they are there
+document.addEventListener('DOMContentLoaded', function () {
+    const TYPES = @Html.Raw(typesJson);
+    const URLS = { preview: '@Url.Action("Preview", "EmailTemplate")', test: '@Url.Action("SendTest", "EmailTemplate")' };
+    const $form = $('#etForm');
+    const H = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    let type = TYPES.find(t => t.name === $('#etType').val()) || null;
+    let mode = $('#etMode').val() || 'design';
+    let design = null;
+    try { design = JSON.parse($('#etDesignJson').val() || 'null'); } catch (e) { design = null; }
+    if (!design && type) design = JSON.parse(JSON.stringify(type.design));
+    design = design || { heading: '', message: '', rows: [], noteText: '', noteStyle: 'info', closing: '', signature: '' };
+    let asNames = false, timer = null;
+
+    const fields = () => (type ? type.fields : []);
+    const labelOf = code => (fields().find(f => f.code === code) || { label: code }).label;
+
+    // ── field chips in the message editor ──
+    const Embed = Quill.import('blots/embed');
+    class FieldBlot extends Embed {
+        static create(code) { const n = super.create(); n.setAttribute('data-field', code); n.setAttribute('contenteditable', 'false'); n.textContent = labelOf(code); return n; }
+        static value(node) { return node.getAttribute('data-field'); }
+    }
+    FieldBlot.blotName = 'field'; FieldBlot.tagName = 'span'; FieldBlot.className = 'ql-field';
+    Quill.register(FieldBlot);
+    const quill = new Quill('#etMessage', { theme: 'snow', modules: { toolbar: '#etToolbar' }, placeholder: 'Dear Patient Name, ...' });
+    const toChips = html => (html || '').replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/g, (m, c) => `<span class="ql-field" data-field="${H(c)}">${H(labelOf(c))}</span>`);
+    function messageHtml() {
+        const root = quill.root.cloneNode(true);
+        root.querySelectorAll('.ql-field').forEach(n => n.replaceWith(document.createTextNode('{{' + n.getAttribute('data-field') + '}}')));
+        const html = root.innerHTML;
+        return html === '<p><br></p>' ? '' : html;
+    }
+
+    // ── fill the form from the design ──
+    function rowHtml(r) {
+        return `<div class="et-row">
+            <input class="form-control form-control-sm r-label" maxlength="80" placeholder="e.g. Appointment Date" value="${H(r.label)}" />
+            <div class="input-group input-group-sm">
+                <input class="form-control r-value" maxlength="200" placeholder="Text or a field" value="${H(r.value)}" />
+                <button type="button" class="btn et-field-btn dropdown-toggle" data-bs-toggle="dropdown" data-insert="row"><i class="bi bi-plus-circle"></i></button>
+                <ul class="dropdown-menu dropdown-menu-end et-field-menu"></ul>
+            </div>
+            <div class="d-flex">
+                <button type="button" class="btn-icon r-star ${r.highlight ? 'on' : ''}" title="Make the value stand out"><i class="bi ${r.highlight ? 'bi-star-fill' : 'bi-star'}"></i></button>
+                <button type="button" class="btn-icon r-up" title="Move up"><i class="bi bi-arrow-up"></i></button>
+                <button type="button" class="btn-icon r-down" title="Move down"><i class="bi bi-arrow-down"></i></button>
+                <button type="button" class="btn-icon del r-del" title="Remove"><i class="bi bi-trash"></i></button>
+            </div></div>`;
+    }
+    function load() {
+        $('#etHeading').val(design.heading || '');
+        quill.setContents([]);
+        quill.clipboard.dangerouslyPasteHTML(toChips(design.message || ''));
+        $('#etRows').html((design.rows || []).map(rowHtml).join(''));
+        $('#etNote').val(design.noteText || '');
+        $('#etNoteStyle').val(design.noteStyle || 'info');
+        $('#etClosing').val(design.closing || '');
+        $('#etSignature').val(design.signature || '');
+        fillMenus();
+    }
+    function collect() {
+        design = {
+            heading: $('#etHeading').val().trim(),
+            message: messageHtml(),
+            rows: $('#etRows .et-row').map(function () {
+                return { label: $(this).find('.r-label').val().trim(), value: $(this).find('.r-value').val().trim(), highlight: $(this).find('.r-star').hasClass('on') };
+            }).get().filter(r => r.label || r.value),
+            noteText: $('#etNote').val().trim(), noteStyle: $('#etNoteStyle').val(),
+            closing: $('#etClosing').val().trim(), signature: $('#etSignature').val().trim()
+        };
+        $('#etDesignJson').val(JSON.stringify(design));
+    }
+
+    // ── "Insert field" menus ──
+    function fillMenus() {
+        const items = fields().map(f => `<li><a class="dropdown-item" href="#" data-code="${H(f.code)}">${H(f.label)} <small>e.g. ${H(f.sample)}</small></a></li>`).join('');
+        $('.et-field-menu').html(items || '<li><span class="dropdown-item-text small text-muted">No fields for this email</span></li>');
+    }
+    function insertAtCursor(input, text) {
+        const s = input.selectionStart ?? input.value.length, e = input.selectionEnd ?? s;
+        input.value = input.value.slice(0, s) + text + input.value.slice(e);
+        input.focus(); input.setSelectionRange(s + text.length, s + text.length);
+    }
+    let lastRange = null;
+    quill.on('selection-change', r => { if (r) lastRange = r; });
+    $(document).on('click', '.et-field-menu .dropdown-item[data-code]', function (e) {
+        e.preventDefault();
+        const code = this.dataset.code, target = $(this).closest('.et-field-menu').prev('[data-insert]').data('insert');
+        if (target === 'quill') {
+            const at = (lastRange || quill.getSelection() || { index: quill.getLength() - 1 }).index;
+            quill.insertEmbed(at, 'field', code, 'user'); quill.insertText(at + 1, ' ', 'user'); quill.setSelection(at + 2, 0);
+        } else if (target === 'newrow') {
+            $('#etRows').append(rowHtml({ label: labelOf(code), value: '{{' + code + '}}', highlight: false })); fillMenus();
+        } else if (target === 'row') {
+            insertAtCursor($(this).closest('.input-group').find('.r-value')[0], '{{' + code + '}}');
+        } else {
+            insertAtCursor($(target)[0], '{{' + code + '}}');
+        }
+        changed();
+    });
+
+    // ── rows ──
+    $('#etAddRow').on('click', () => { $('#etRows').append(rowHtml({ label: '', value: '', highlight: false })); fillMenus(); $('#etRows .r-label').last().focus(); changed(); });
+    $('#etRows').on('click', '.r-del', function () { $(this).closest('.et-row').remove(); changed(); })
+        .on('click', '.r-up', function () { const r = $(this).closest('.et-row'); r.prev('.et-row').before(r); changed(); })
+        .on('click', '.r-down', function () { const r = $(this).closest('.et-row'); r.next('.et-row').after(r); changed(); })
+        .on('click', '.r-star', function () { $(this).toggleClass('on').find('i').toggleClass('bi-star bi-star-fill'); changed(); });
+
+    // ── preview ──
+    function changed() { clearTimeout(timer); timer = setTimeout(preview, 450); }
+    function formData(extra) {
+        if (mode === 'design') collect();
+        $('#etMode').val(mode);
+        return $form.serialize() + '&' + $.param(extra || {});
+    }
+    function preview() {
+        if (!type) return;
+        $.post(URLS.preview, formData({ asNames: asNames }))
+            .done(res => {
+                if (!res.success) return;
+                $('#etPrevSubject').text(res.subject || '(no subject)');
+                $('#etFrame').attr('srcdoc', res.html);
+                $('#etPrevWarn').toggleClass('d-none', !res.warning).text(res.warning || '');
+            });
+    }
+    $form.on('input change', 'input, textarea, select', changed);
+    quill.on('text-change', changed);
+    $('[data-names]').on('click', function () { $('[data-names]').removeClass('active'); $(this).addClass('active'); asNames = this.dataset.names === '1'; preview(); });
+    $('[data-device]').on('click', function () { $('[data-device]').removeClass('active'); $(this).addClass('active'); $('#etFrame').toggleClass('mobile', this.dataset.device === 'mobile'); });
+
+    // ── test email ──
+    $('#etSendTest').on('click', function () {
+        const $b = $(this), email = $('#etTestEmail').val().trim();
+        if (!email) { $('#etTestResult').html('<span class="text-danger">Enter an email address.</span>'); return; }
+        $b.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Sending...');
+        $.post(URLS.test, formData({ testEmail: email }))
+            .done(res => $('#etTestResult').html(`<span class="${res.success ? 'text-success' : 'text-danger'}">${H(res.message)}</span>`))
+            .fail(() => $('#etTestResult').html('<span class="text-danger">The test email could not be sent.</span>'))
+            .always(() => $b.prop('disabled', false).html('<i class="bi bi-send me-1"></i>Send test'));
+    });
+
+    // ── email type (new template) ──
+    $('#etTypes').on('click keydown', '.et-type', function (e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        type = TYPES.find(t => t.name === this.dataset.type);
+        $('.et-type').removeClass('active'); $(this).addClass('active');
+        $('#etType').val(type.name);
+        $('#etSubject').val(type.subject);
+        design = JSON.parse(JSON.stringify(type.design));
+        load(); preview();
+    });
+
+    // ── start again from the standard email / leave hand-written HTML ──
+    function useStandard() { design = JSON.parse(JSON.stringify(type.design)); load(); changed(); }
+    $('#etReset').on('click', function () {
+        if (!type) return;
+        if (window.Swal) Swal.fire({ title: 'Start from the standard email?', text: 'Your changes to the message, details, note and closing are replaced.', icon: 'question', showCancelButton: true, confirmButtonText: 'Yes, start again' })
+            .then(r => { if (r.isConfirmed) useStandard(); });
+        else useStandard();
+    });
+    function setMode(m) {
+        mode = m; $('#etMode').val(m);
+        $('#etDesigner').toggle(m === 'design');
+        $('#etHtmlCard').toggle(m === 'html');
+        $('#etReset').toggle(m === 'design');
+    }
+    $('#etUseDesigner').on('click', function () { if (!type) return; setMode('design'); useStandard(); });
+    $('#etHtml').on('input', changed);
+
+    $form.on('submit', function () { if (mode === 'design') collect(); $('#etMode').val(mode); });
+
+    if (!type) { $('#etUseDesigner').hide(); }
+    setMode(mode);
+    load();
+    preview();
+});
+</script>

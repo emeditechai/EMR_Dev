@@ -46,6 +46,55 @@
         .audit-tests-table td { vertical-align: middle; }
         .audit-val-old { color: #94a3b8; text-decoration: line-through; }
         .audit-legacy-note { font-size: .7rem; color: #94a3b8; font-style: italic; margin-top: 4px; }
+
+        /* ── Workflow tracker: the bill's journey from booking to report delivery ── */
+        .wf-wrap { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 10px 14px 12px; }
+        .wf-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+        .wf-title { font-size: .72rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: #475569; }
+        .wf-progress { flex: 1; min-width: 120px; max-width: 260px; height: 6px; border-radius: 3px; background: #eef2f7; overflow: hidden; }
+        .wf-progress > span { display: block; height: 100%; background: linear-gradient(90deg, #4f46e5, #16a34a); }
+        .wf-summary { font-size: .74rem; color: #475569; }
+        .wf-summary strong { color: #0f172a; }
+        .wf-steps { display: flex; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
+        .wf-step { position: relative; flex: 1 1 0; min-width: 118px; padding: 0 6px; text-align: center; }
+        .wf-step::before { content: ""; position: absolute; top: 15px; left: calc(-50% + 18px); right: calc(50% + 18px); height: 3px; background: #e2e8f0; border-radius: 2px; }
+        .wf-step:first-child::before { display: none; }
+        .wf-step.s-done::before, .wf-step.s-current::before, .wf-step.s-issue::before { background: #86efac; }
+        .wf-dot { position: relative; z-index: 1; width: 32px; height: 32px; margin: 0 auto 5px; border-radius: 50%; display: flex; align-items: center;
+                  justify-content: center; font-size: .9rem; border: 2px solid #cbd5e1; background: #fff; color: #94a3b8; }
+        .wf-step.s-done .wf-dot { background: #16a34a; border-color: #16a34a; color: #fff; }
+        .wf-step.s-current .wf-dot { background: #fff; border-color: #4f46e5; color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, .15); }
+        .wf-step.s-issue .wf-dot { background: #fff; border-color: #dc2626; color: #dc2626; box-shadow: 0 0 0 4px rgba(220, 38, 38, .12); }
+        .wf-step.s-now.s-pending .wf-dot { border-color: #4f46e5; color: #4f46e5; box-shadow: 0 0 0 4px rgba(79, 70, 229, .15); }
+        .wf-step.s-now.s-pending .wf-label { color: #0f172a; }
+        .wf-step.s-now.s-pending .wf-detail { color: #4338ca; font-weight: 600; }
+        .wf-step.s-now .wf-dot { animation: wfPulse 1.6s ease-in-out infinite; }
+        @@keyframes wfPulse { 50% { box-shadow: 0 0 0 7px rgba(79, 70, 229, .08); } }
+        @@media (prefers-reduced-motion: reduce) { .wf-step.s-now .wf-dot { animation: none; } }
+        .wf-label { font-size: .74rem; font-weight: 700; color: #0f172a; line-height: 1.2; }
+        .wf-step.s-pending .wf-label { color: #94a3b8; }
+        .wf-step.s-skipped .wf-dot { border-style: dashed; color: #cbd5e1; }
+        .wf-step.s-skipped .wf-label, .wf-step.s-skipped .wf-detail { color: #94a3b8; }
+        .wf-detail { font-size: .68rem; color: #475569; line-height: 1.25; margin-top: 2px; }
+        .wf-step.s-issue .wf-detail { color: #b91c1c; font-weight: 600; }
+        .wf-step.s-current .wf-detail { color: #4338ca; font-weight: 600; }
+        .wf-step.s-pending .wf-detail { color: #94a3b8; }
+        .wf-meta { font-size: .64rem; color: #94a3b8; line-height: 1.25; margin-top: 2px; }
+        .wf-cancelled { font-size: .74rem; }
+        /* rework: re-test, re-collect, rejection, revised report */
+        .wf-rework { margin-top: 10px; border: 1px solid #fde68a; background: #fffbeb; border-radius: .5rem; padding: 6px 10px; }
+        .wf-rework-title { font-size: .68rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: #92400e; margin-bottom: 4px; }
+        .wf-rework-list { list-style: none; margin: 0; padding: 0; max-height: 132px; overflow-y: auto; }
+        .wf-rework-list li { display: flex; gap: 8px; align-items: baseline; font-size: .74rem; color: #334155; padding: 2px 0; flex-wrap: wrap; }
+        .wf-rework-list .rw-tag { font-size: .64rem; font-weight: 700; border-radius: 999px; padding: 0 7px; border: 1px solid; white-space: nowrap; }
+        .rw-retest { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+        .rw-recollect { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+        .rw-rejected { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+        .rw-revised { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+        .rw-cancelled { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+        .wf-rework-list .rw-when { color: #64748b; white-space: nowrap; }
+        .wf-rework-list .rw-by { color: #64748b; }
+        .wf-rework-badge { font-size: .66rem; font-weight: 700; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 999px; padding: 0 8px; }
 </style>
 
 <!-- Audit History Modal (Bill / Order activity trail) -->
@@ -69,6 +118,21 @@
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
                 <button type="button" class="btn-close fs-9" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <!-- Workflow: every stage of the bill from booking to report delivery (filled by _LabAuditHistoryScripts) -->
+            <div class="wf-wrap d-none" id="auditWorkflow">
+                <div class="wf-head">
+                    <i class="bi bi-diagram-3 text-primary"></i>
+                    <span class="wf-title">Workflow</span>
+                    <div class="wf-progress" aria-hidden="true"><span id="wfBar" style="width:0%"></span></div>
+                    <span class="wf-summary" id="wfSummary"></span>
+                </div>
+                <div class="alert alert-danger py-1 px-2 mb-2 wf-cancelled d-none" id="wfCancelled"><i class="bi bi-x-octagon me-1"></i>This bill was cancelled.</div>
+                <ol class="wf-steps" id="wfSteps"></ol>
+                <div class="wf-rework d-none" id="wfRework">
+                    <div class="wf-rework-title"><i class="bi bi-arrow-repeat me-1"></i>Rework history - re-test, re-collection, rejection, revised report, cancellation</div>
+                    <ul class="wf-rework-list" id="wfReworkList"></ul>
+                </div>
             </div>
             <div class="px-3 pt-2 pb-1 border-bottom bg-white">
                 <div class="d-flex flex-wrap gap-1.5" id="auditFilterChips"></div>

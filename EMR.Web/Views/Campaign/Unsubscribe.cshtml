@@ -1,0 +1,40 @@
+@{
+    Layout = "_AuthLayout";
+    ViewData["Title"] = "Unsubscribe";
+    var email = ViewBag.Email as string;
+    var done = ViewBag.Done as bool? ?? false;
+}
+@* The link in patients' campaign emails (Utility > Campaigns, SQLScripts/2299). Opens without signing in; nothing
+   changes until the patient confirms, so mail scanners that open links cannot unsubscribe anyone. *@
+<div class="auth-card auth-login" style="max-width:560px">
+    <div class="auth-right" style="border-radius:18px">
+        <div class="auth-right-inner" style="max-width:460px">
+            <div class="ar-brand d-flex">
+                <span class="al-mark" style="background:linear-gradient(135deg,#644098,#a8407a);border:0;color:#fff"><i class="bi bi-plus-lg"></i></span>
+                <span class="ar-brand-name"><span class="brand-eclinic">eCare360</span><span class="brand-plus">Plus</span><span class="brand-plussign">+</span></span>
+            </div>
+            @if (email is null)
+            {
+                <div class="ar-step-ico ar-step-warn"><i class="bi bi-link-45deg"></i></div>
+                <h2 class="auth-right-title">This link is not valid</h2>
+                <p class="auth-right-sub">Use the Unsubscribe link from a recent email, or contact the hospital.</p>
+            }
+            else if (done)
+            {
+                <div class="ar-step-ico ar-step-ok"><i class="bi bi-envelope-check"></i></div>
+                <h2 class="auth-right-title">You are unsubscribed</h2>
+                <p class="auth-right-sub"><strong>@email</strong> will no longer receive campaign emails from the hospital. You will still get emails about your own visits, bills and reports.</p>
+            }
+            else
+            {
+                <div class="ar-step-ico"><i class="bi bi-envelope-dash"></i></div>
+                <h2 class="auth-right-title">Unsubscribe from campaign emails?</h2>
+                <p class="auth-right-sub">Stop campaign emails (news, health camps, offers) to <strong>@email</strong>. Emails about your own visits, bills and reports continue.</p>
+                <form method="post" asp-action="Unsubscribe" asp-route-id="@ViewBag.Token" class="mt-3">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn auth-signin-btn w-100"><i class="bi bi-envelope-dash me-2"></i>Yes, unsubscribe me</button>
+                </form>
+            }
+        </div>
+    </div>
+</div>
