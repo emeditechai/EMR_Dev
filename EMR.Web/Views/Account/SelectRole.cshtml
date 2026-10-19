@@ -209,5 +209,50 @@
             showRoleSummary(name);
             document.getElementById('continueBtn').disabled = false;
         }
+
+        // Keyboard: Enter continues with the chosen role (Enter on a role card picks that role first);
+        // arrow keys move between the role cards. Other buttons and links keep their own Enter.
+        (function () {
+            const form = document.getElementById('roleForm');
+            const btn = document.getElementById('continueBtn');
+            const cards = () => Array.from(document.querySelectorAll('.role-card'));
+            let sent = false;
+
+            function submitRole() {
+                if (sent || !document.getElementById('selectedRoleInput').value) return;
+                sent = true;
+                if (form.requestSubmit) form.requestSubmit(btn); else form.submit();
+            }
+
+            document.addEventListener('keydown', function (e) {
+                const card = e.target?.closest ? e.target.closest('.role-card') : null;
+                if (e.key === 'Enter' && !e.isComposing && !e.repeat) {
+                    if (card) { e.preventDefault(); selectRole(card.getAttribute('title'), card); submitRole(); return; }
+                    if (e.target?.closest && e.target.closest('button, a, textarea')) return;
+                    e.preventDefault();
+                    submitRole();
+                    return;
+                }
+                if (['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(e.key)) {
+                    const list = cards();
+                    if (!list.length) return;
+                    const current = card ?? document.querySelector('.role-card.selected');
+                    if (!card && e.target?.closest && e.target.closest('button:not(.role-card), a, input, select, textarea')) return;
+                    e.preventDefault();
+                    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1;
+                    const i = current ? list.indexOf(current) : -1;
+                    const next = list[(i + step + list.length) % list.length];
+                    selectRole(next.getAttribute('title'), next);
+                    next.focus();
+                }
+            });
+
+            form.addEventListener('submit', function () {
+                sent = true;
+                setTimeout(() => { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Please wait...'; }, 0);
+            });
+
+            (document.querySelector('.role-card.selected') ?? cards()[0])?.focus({ preventScroll: true });
+        })();
     </script>
 }

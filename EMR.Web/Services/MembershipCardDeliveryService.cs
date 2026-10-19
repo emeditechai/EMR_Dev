@@ -140,10 +140,15 @@ public class MembershipCardDeliveryService(
             if (string.IsNullOrWhiteSpace(card.EmailId))
                 return new(channel, "Skipped", "The primary member has no email address.");
 
-            string body = $"<p>{WebUtility.HtmlEncode(message).Replace("\n", "<br/>")}</p>"
-                        + $"<p style=\"color:#475569;font-size:13px\">Card No: <b>{WebUtility.HtmlEncode(card.CardNo)}</b><br/>"
-                        + $"Plan: {WebUtility.HtmlEncode(card.PlanName)}<br/>"
-                        + $"Valid: {card.ValidFrom:dd MMM yyyy} to {card.ValidToText}</p>";
+            string body = EmailLayout.Wrap(
+                EmailLayout.P(WebUtility.HtmlEncode(message).Replace("\n", "<br/>"))
+                + EmailLayout.Details(
+                    ("Card No", WebUtility.HtmlEncode(card.CardNo)),
+                    ("Plan", WebUtility.HtmlEncode(card.PlanName)),
+                    ("Valid", WebUtility.HtmlEncode($"{card.ValidFrom:dd MMM yyyy} to {card.ValidToText}")))
+                + EmailLayout.P("Your membership card is attached to this email as a PDF.", muted: true),
+                heading: "Your membership card",
+                organisation: hospitalName);
 
             using var stream = new MemoryStream(pdf);
             using var attachment = new Attachment(stream, fileName, "application/pdf");

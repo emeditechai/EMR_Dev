@@ -682,47 +682,7 @@ namespace EMR.Web.Controllers
                                 if (hs != null && hs.LabEmailNotificationRequired)
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
-                                    string body = $@"
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset=""utf-8"">
-<title>Your Lab Bill</title>
-<style>
-  body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }}
-  .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }}
-  .header {{ background-color: #4a6ee0; color: #ffffff; padding: 20px; text-align: center; }}
-  .header h1 {{ margin: 0; font-size: 24px; }}
-  .content {{ padding: 30px; color: #333333; line-height: 1.6; }}
-  .greeting {{ font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }}
-  .info-box {{ background-color: #f8f9fa; border-left: 4px solid #4a6ee0; padding: 15px; margin: 20px 0; border-radius: 4px; }}
-  .info-box p {{ margin: 5px 0; }}
-  .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; color: #777777; font-size: 14px; border-top: 1px solid #eeeeee; }}
-</style>
-</head>
-<body>
-<div class=""container"">
-  <div class=""header"">
-    <h1>{hs.HospitalName}</h1>
-  </div>
-  <div class=""content"">
-    <div class=""greeting"">Dear {patientNameStr},</div>
-    <p>Thank you for choosing <strong>{hs.HospitalName}</strong> for your healthcare needs.</p>
-    <div class=""info-box"">
-      <p><strong>Bill No:</strong> {savedBillNo}</p>
-      <p><strong>Date:</strong> {DateTime.Now:dd MMM yyyy}</p>
-    </div>
-    <p>Please find your detailed lab order bill attached to this email as a PDF document.</p>
-    <p>If you have any questions or require further assistance, please do not hesitate to contact us.</p>
-    <p>Wishing you the best of health,<br/><br/><strong>The {hs.HospitalName} Team</strong></p>
-  </div>
-  <div class=""footer"">
-    &copy; {DateTime.Now.Year} {hs.HospitalName}. All rights reserved.<br>
-    {hs.Address}
-  </div>
-</div>
-</body>
-</html>";
+                                    string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -1568,47 +1528,7 @@ namespace EMR.Web.Controllers
                                 else if (hs != null && hs.LabEmailNotificationRequired)
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
-                                    string body = $@"
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset=""utf-8"">
-<title>Your Lab Bill</title>
-<style>
-  body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }}
-  .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }}
-  .header {{ background-color: #4a6ee0; color: #ffffff; padding: 20px; text-align: center; }}
-  .header h1 {{ margin: 0; font-size: 24px; }}
-  .content {{ padding: 30px; color: #333333; line-height: 1.6; }}
-  .greeting {{ font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }}
-  .info-box {{ background-color: #f8f9fa; border-left: 4px solid #4a6ee0; padding: 15px; margin: 20px 0; border-radius: 4px; }}
-  .info-box p {{ margin: 5px 0; }}
-  .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; color: #777777; font-size: 14px; border-top: 1px solid #eeeeee; }}
-</style>
-</head>
-<body>
-<div class=""container"">
-  <div class=""header"">
-    <h1>{hs.HospitalName}</h1>
-  </div>
-  <div class=""content"">
-    <div class=""greeting"">Dear {patientNameStr},</div>
-    <p>Thank you for choosing <strong>{hs.HospitalName}</strong> for your healthcare needs.</p>
-    <div class=""info-box"">
-      <p><strong>Bill No:</strong> {savedBillNo}</p>
-      <p><strong>Date:</strong> {DateTime.Now:dd MMM yyyy}</p>
-    </div>
-    <p>Please find your detailed lab order bill attached to this email as a PDF document.</p>
-    <p>If you have any questions or require further assistance, please do not hesitate to contact us.</p>
-    <p>Wishing you the best of health,<br/><br/><strong>The {hs.HospitalName} Team</strong></p>
-  </div>
-  <div class=""footer"">
-    &copy; {DateTime.Now.Year} {hs.HospitalName}. All rights reserved.<br>
-    {hs.Address}
-  </div>
-</div>
-</body>
-</html>";
+                                    string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -2648,9 +2568,12 @@ namespace EMR.Web.Controllers
                 {
                     var (ok, _) = await HttpContext.RequestServices.GetRequiredService<IEmailService>()
                         .SendEmailAsync(branchId, email!, $"OTP to redeem membership points - card {cardNo}",
-                            $"<p>Dear {System.Net.WebUtility.HtmlEncode(name)},</p><p>Your OTP to redeem <strong>{request.Points:0} points</strong> " +
-                            $"(Rs {value:0.00}) on membership card <strong>{System.Net.WebUtility.HtmlEncode(cardNo)}</strong> is:</p>" +
-                            $"<p style=\"font-size:24px;font-weight:bold;letter-spacing:4px\">{code}</p><p>It is valid for 10 minutes. Do not share it with anyone except the billing counter.</p>");
+                            EmailLayout.Wrap(
+                                EmailLayout.Greeting(name ?? "Member")
+                                + EmailLayout.P($"Your OTP to redeem <strong>{request.Points:0} points</strong> (Rs {value:0.00}) on membership card <strong>{System.Net.WebUtility.HtmlEncode(cardNo)}</strong> is:")
+                                + $"<p style=\"margin:20px 0;text-align:center;\"><span style=\"display:inline-block;font-size:28px;font-weight:800;letter-spacing:8px;color:{EmailLayout.Purple};background:#f5f1fa;border:1px dashed {EmailLayout.Purple};border-radius:8px;padding:10px 22px;\">{code}</span></p>"
+                                + EmailLayout.Callout("It is valid for 10 minutes. Do not share it with anyone except the billing counter.", "warn"),
+                                heading: "Your membership OTP"));
                     if (ok) channels.Add("e-mail");
                 }
                 catch (Exception ex) { logger.LogWarning(ex, "Membership OTP e-mail failed for card {CardNo}", cardNo); }
@@ -4212,5 +4135,26 @@ namespace EMR.Web.Controllers
         public string Postcode { get; set; } = "";
         public string Country { get; set; } = "";
         public int Score { get; set; }
+    }
+
+    /// <summary>The "your lab bill" email (bill PDF attached), in the common email layout.</summary>
+    internal static class LabBillEmail
+    {
+        public static string Body(string? hospitalName, string? patientName, string? billNo, string? address)
+        {
+            static string H(string? v) => System.Net.WebUtility.HtmlEncode(v ?? string.Empty);
+            var hospital = string.IsNullOrWhiteSpace(hospitalName) ? "our hospital" : hospitalName.Trim();
+            return EmailLayout.Wrap(
+                EmailLayout.Greeting(patientName ?? "Patient")
+                + EmailLayout.P($"Thank you for choosing <strong>{H(hospital)}</strong> for your healthcare needs.")
+                + EmailLayout.Details(("Bill No", H(billNo)), ("Date", DateTime.Now.ToString("dd MMM yyyy")))
+                + EmailLayout.P("Please find your detailed lab order bill attached to this email as a PDF document.")
+                + EmailLayout.P("If you have any questions or require further assistance, please do not hesitate to contact us.")
+                + EmailLayout.P($"Wishing you the best of health,<br/><strong>The {H(hospital)} Team</strong>"),
+                heading: "Your lab bill",
+                organisation: hospital,
+                footerHtml: $"&copy; {DateTime.Now.Year} {H(hospital)}. All rights reserved."
+                            + (string.IsNullOrWhiteSpace(address) ? "" : $"<br/>{H(address)}"));
+        }
     }
 }

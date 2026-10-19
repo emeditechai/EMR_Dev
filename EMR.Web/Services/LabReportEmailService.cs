@@ -248,51 +248,35 @@ public class LabReportEmailService(
         static string H(string? v) => WebUtility.HtmlEncode(v ?? string.Empty);
 
         var testRows = string.Join("", tests.Select(t =>
-            $"<tr><td style=\"padding:6px 0;border-bottom:1px solid #eef2f6;color:#1f2937;font-size:14px;\">&#10003;&nbsp; {H(t)}</td></tr>"));
+            $"<tr><td style=\"padding:6px 0;border-bottom:1px solid #eeebf3;color:#1b1530;font-size:14px;\"><span style=\"color:#644098;\">&#10003;</span>&nbsp; {H(t)}</td></tr>"));
         var contact = string.Join(" &nbsp;|&nbsp; ", new[]
         {
             string.IsNullOrWhiteSpace(s?.ContactNumber1) ? null : $"Phone: {H(s!.ContactNumber1)}",
             string.IsNullOrWhiteSpace(s?.EmailAddress) ? null : $"Email: {H(s!.EmailAddress)}",
-            string.IsNullOrWhiteSpace(s?.Website) ? null : $"<a href=\"{H(s!.Website)}\" style=\"color:#0f766e;\">{H(s!.Website)}</a>"
+            string.IsNullOrWhiteSpace(s?.Website) ? null : $"<a href=\"{H(s!.Website)}\" style=\"color:#644098;\">{H(s!.Website)}</a>"
         }.Where(x => x != null));
         var revisedNote = isRevised
-            ? "<p style=\"margin:0 0 16px;padding:10px 14px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;font-size:13px;\">This is a <strong>revised</strong> report and replaces the one sent earlier for this bill.</p>"
+            ? EmailLayout.Callout("This is a <strong>revised</strong> report and replaces the one sent earlier for this bill.", "warn")
             : "";
 
-        return $@"<!DOCTYPE html>
-<html><head><meta charset=""utf-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Your Lab Report</title></head>
-<body style=""margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Arial,Helvetica,sans-serif;"">
-<table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""background:#f1f5f9;padding:24px 12px;"">
-<tr><td align=""center"">
-<table role=""presentation"" width=""600"" cellpadding=""0"" cellspacing=""0"" style=""max-width:600px;width:100%;background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,.08);"">
-  <tr><td style=""background:#0f766e;padding:22px 28px;color:#ffffff;"">
-    <div style=""font-size:20px;font-weight:700;"">{H(hospital)}</div>
-    <div style=""font-size:13px;opacity:.9;margin-top:2px;"">Department of Laboratory Medicine</div>
-  </td></tr>
-  <tr><td style=""padding:28px;"">
-    <p style=""margin:0 0 14px;font-size:16px;color:#0f172a;"">Dear <strong>{H(state.PatientName)}</strong>,</p>
-    {revisedNote}
-    <p style=""margin:0 0 16px;font-size:14px;line-height:1.6;color:#334155;"">Your laboratory test report is ready. It has been reviewed and approved, and a copy is attached to this email as a PDF document.</p>
-    <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;margin:0 0 18px;"">
-      <tr><td style=""padding:14px 18px;font-size:14px;color:#334155;line-height:1.8;"">
-        <strong>Bill No:</strong> {H(state.BillNo)}<br>
-        {(string.IsNullOrWhiteSpace(state.TokenNo) ? "" : $"<strong>Token No:</strong> {H(state.TokenNo)}<br>")}
-        <strong>Report approved on:</strong> {state.FinalApprovedOn:dd MMM yyyy, hh:mm tt}<br>
-        <strong>Tests reported:</strong> {tests.Count}
-      </td></tr>
-    </table>
-    {(tests.Count == 0 ? "" : $@"<div style=""font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#64748b;margin:0 0 4px;"">Investigations</div>
-    <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""margin:0 0 18px;"">{testRows}</table>")}
-    <p style=""margin:0 0 16px;font-size:14px;line-height:1.6;color:#334155;"">Please share this report with your doctor, who will interpret the results in the context of your health. If you have any questions, feel free to contact us.</p>
-    <p style=""margin:0;font-size:14px;color:#334155;"">Wishing you good health,<br><strong>{H(hospital)}</strong></p>
-  </td></tr>
-  <tr><td style=""background:#f8fafc;border-top:1px solid #e2e8f0;padding:16px 28px;font-size:12px;color:#64748b;line-height:1.6;"">
-    {(string.IsNullOrWhiteSpace(s?.Address) ? "" : $"{H(s!.Address)}<br>")}
-    {(contact.Length == 0 ? "" : contact + "<br>")}
-    <span style=""color:#94a3b8;"">This email and its attachment contain confidential medical information meant only for the addressee. If you received it by mistake, please delete it and let us know. This is an automated message - please do not reply to this email.</span>
-  </td></tr>
-</table>
-</td></tr></table>
-</body></html>";
+        var content =
+            EmailLayout.Greeting(state.PatientName)
+            + revisedNote
+            + EmailLayout.P("Your laboratory test report is ready. It has been reviewed and approved, and a copy is attached to this email as a PDF document.")
+            + EmailLayout.Details(
+                ("Bill No", H(state.BillNo)),
+                ("Token No", H(state.TokenNo)),
+                ("Report approved on", state.FinalApprovedOn?.ToString("dd MMM yyyy, hh:mm tt") ?? ""),
+                ("Tests reported", tests.Count.ToString()))
+            + (tests.Count == 0 ? "" : $@"<div style=""font-size:12px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#6b6880;margin:0 0 4px;"">Investigations</div>
+    <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""margin:0 0 18px;"">{testRows}</table>")
+            + EmailLayout.P("Please share this report with your doctor, who will interpret the results in the context of your health. If you have any questions, feel free to contact us.")
+            + EmailLayout.P($"Wishing you good health,<br><strong>{H(hospital)}</strong>");
+
+        var footer = (string.IsNullOrWhiteSpace(s?.Address) ? "" : $"{H(s!.Address)}<br>")
+                   + (contact.Length == 0 ? "" : contact + "<br>")
+                   + "This email and its attachment contain confidential medical information meant only for the addressee. If you received it by mistake, please delete it and let us know.";
+
+        return EmailLayout.Wrap(content, heading: "Your lab report is ready", organisation: hospital, footerHtml: footer);
     }
 }

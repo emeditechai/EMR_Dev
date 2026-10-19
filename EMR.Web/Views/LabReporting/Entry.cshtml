@@ -6,6 +6,8 @@
     var screen = Model.Screen ?? EMR.Web.Models.ViewModels.LabReportingScreen.Numeric;
     ViewData["Title"] = (screen.MixedTypes ? "Microbiology " : "") + $"Report Entry - {Model.Detail.PatientName} ({Model.Detail.TokenNo})";
     ViewData["MixedReporting"] = screen.MixedTypes;
+    // delta check trend popup (last 5 results): Lab Report Entry only
+    ViewData["DeltaTrend"] = screen.Controller == "LabReporting" && !screen.MixedTypes;
     ViewData["PicklistOptions"] = Model.PicklistOptions;
     ViewData["DescriptiveDefaults"] = Model.DescriptiveDefaults;
     ViewData["ReportPrintController"] = screen.Controller;
@@ -1500,8 +1502,7 @@
 <div class="sticky-action-bar">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center gap-3 fs-8 text-muted">
-            <span><i class="bi bi-info-circle text-primary me-1"></i>All entries are stored in <code>dbo.labentrydetails</code>.</span>
-            <span>&bull;</span>
+            <i class="bi bi-ui-checks text-primary"></i>
             <span id="counterEntered" class="fw-semibold text-dark">0 / @(d.Items?.Count ?? 0) Values Filled</span>
         </div>
         <div class="d-flex align-items-center gap-2" id="footerActionButtons">
@@ -2858,6 +2859,11 @@
     <partial name="_LabAuditHistoryScripts" />
 
     <partial name="_LabReportPrintScripts" />
+
+    @if (ViewData["DeltaTrend"] as bool? == true)
+    {
+        <partial name="_DeltaTrendPopup" />
+    }
 
     @* reflex test suggestions: numeric reporting only, AI features switched on (SQLScripts/2289) *@
     @if (screen.Controller == "LabReporting" && await AiBillingFeatures.IsEnabledAsync(Context))

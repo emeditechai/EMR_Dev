@@ -215,50 +215,30 @@ public sealed class PasswordResetService(
         return at <= 2 ? "***" + email[Math.Max(0, at)..] : email[..2] + new string('*', Math.Min(6, at - 2)) + email[at..];
     }
 
-    private static string Shell(string heading, string inner) => $@"
-<div style=""background:#f4f2f8;padding:24px 12px;font-family:Segoe UI,Arial,sans-serif;"">
-  <table role=""presentation"" width=""100%"" style=""max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;border-collapse:collapse;"">
-    <tr><td style=""background:linear-gradient(135deg,#4a2d75,#644098 50%,#a8407a);background-color:#644098;padding:20px 28px;"">
-      <span style=""display:inline-block;background:#ffffff;border-radius:8px;padding:4px 10px;font-size:20px;font-weight:800;"">
-        <span style=""color:#1a6efd;"">eCare360</span><span style=""color:#f59e0b;"">Plus</span><span style=""color:#ec4899;"">+</span>
-      </span>
-    </td></tr>
-    <tr><td style=""padding:28px;color:#1b1530;font-size:14px;line-height:1.6;"">
-      <h2 style=""margin:0 0 16px;font-size:20px;color:#1b1530;"">{heading}</h2>
-      {inner}
-    </td></tr>
-    <tr><td style=""padding:14px 28px;background:#faf9fc;color:#8c86a3;font-size:12px;border-top:1px solid #eeebf3;"">
-      This is an automated message from eCare360Plus+. Please do not reply to this email.
-    </td></tr>
-  </table>
-</div>";
-
     private static string ResetMail(string name, string userName, string link)
     {
         Func<string?, string?> enc = System.Net.WebUtility.HtmlEncode;
-        return Shell("Reset your password", $@"
-      <p style=""margin:0 0 12px;"">Dear {enc(name)},</p>
-      <p style=""margin:0 0 12px;"">We received a request to reset the password of your eCare360Plus+ account <strong>{enc(userName)}</strong>.
-         Click the button below to choose a new password.</p>
-      <p style=""margin:24px 0;text-align:center;"">
-        <a href=""{enc(link)}"" style=""display:inline-block;background:#ca2e6d;color:#ffffff;text-decoration:none;font-weight:600;padding:12px 28px;border-radius:8px;"">Reset Password</a>
-      </p>
-      <p style=""margin:0 0 12px;"">This link can be used once and expires in <strong>{LinkMinutes} minutes</strong>.</p>
-      <p style=""margin:0 0 12px;color:#6b6880;font-size:13px;"">If the button does not work, copy this address into your browser:<br/>
-         <span style=""word-break:break-all;color:#644098;"">{enc(link)}</span></p>
-      <p style=""margin:16px 0 0;color:#6b6880;font-size:13px;"">If you did not ask to reset your password, you can ignore this email - your password stays the same.</p>
-      <p style=""margin:20px 0 0;"">Regards,<br/>eCare360Plus+ Team</p>");
+        return EmailLayout.Wrap(
+            EmailLayout.Greeting(name)
+            + EmailLayout.P($"We received a request to reset the password of your eCare360Plus+ account <strong>{enc(userName)}</strong>. Click the button below to choose a new password.")
+            + EmailLayout.Button("Reset Password", link)
+            + EmailLayout.P($"This link can be used once and expires in <strong>{LinkMinutes} minutes</strong>.")
+            + EmailLayout.P($"If the button does not work, copy this address into your browser:<br/><span style=\"word-break:break-all;color:{EmailLayout.Purple};\">{enc(link)}</span>", muted: true)
+            + EmailLayout.Callout("If you did not ask to reset your password, you can ignore this email - your password stays the same.")
+            + EmailLayout.SignOff("eCare360Plus+ Team"),
+            heading: "Reset your password");
     }
 
     private static string ChangedMail(string name, string userName, string? ip)
     {
         Func<string?, string?> enc = System.Net.WebUtility.HtmlEncode;
-        return Shell("Your password was changed", $@"
-      <p style=""margin:0 0 12px;"">Dear {enc(name)},</p>
-      <p style=""margin:0 0 12px;"">The password of your eCare360Plus+ account <strong>{enc(userName)}</strong> was changed on
-         <strong>{DateTime.Now:dd-MMM-yyyy hh:mm tt}</strong> using a password reset link{(string.IsNullOrEmpty(ip) ? "" : $" (from address {enc(ip)})")}.</p>
-      <p style=""margin:0 0 12px;"">If you made this change, no action is needed.</p>
-      <p style=""margin:0 0 12px;color:#b42318;""><strong>If you did not make this change</strong>, contact your system administrator immediately.</p>
-      <p style=""margin:20px 0 0;"">Regards,<br/>eCare360Plus+ Team</p>");
+        return EmailLayout.Wrap(
+            EmailLayout.Greeting(name)
+            + EmailLayout.P($"The password of your eCare360Plus+ account <strong>{enc(userName)}</strong> was changed using a password reset link.")
+            + EmailLayout.Details(("Changed on", DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt")), ("From address", enc(ip) ?? ""))
+            + EmailLayout.P("If you made this change, no action is needed.")
+            + EmailLayout.Callout("<strong>If you did not make this change</strong>, contact your system administrator immediately.", "danger")
+            + EmailLayout.SignOff("eCare360Plus+ Team"),
+            heading: "Your password was changed");
     }
 }

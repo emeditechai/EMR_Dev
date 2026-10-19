@@ -26,7 +26,7 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
             await SendViaSmtpAsync(config.SmtpHost, config.SmtpPort, config.UseSsl,
                 config.SenderEmail, config.SenderDisplayName ?? config.SenderEmail,
                 config.Username, decryptedPassword,
-                recipientEmail, subject, body);
+                recipientEmail, subject, EmailLayout.EnsureBranded(body), isHtml: true);
 
             // Update last test result
             config.LastTestedDate = DateTime.Now;
@@ -108,7 +108,7 @@ public class EmailService(ApplicationDbContext dbContext, IDataProtectionProvide
             await SendViaSmtpAsync(config.SmtpHost, config.SmtpPort, config.UseSsl,
                 config.SenderEmail, config.SenderDisplayName ?? config.SenderEmail,
                 config.Username, decryptedPassword,
-                recipientEmail, subject, htmlBody, isHtml: true, attachments: attachments);
+                recipientEmail, subject, EmailLayout.EnsureBranded(htmlBody), isHtml: true, attachments: attachments);
 
             dbContext.EmailLogs.Add(new EmailLog
             {

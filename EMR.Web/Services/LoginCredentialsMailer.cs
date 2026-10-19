@@ -20,20 +20,16 @@ public class LoginCredentialsMailer(IEmailService emailService, ILogger<LoginCre
             var baseUrl = await emailService.GetApplicationBaseUrlAsync(branchId) ?? defaultBaseUrl;
             var loginUrl = $"{baseUrl}/Account/Login";
             Func<string?, string?> enc = System.Net.WebUtility.HtmlEncode;
-            var htmlBody = $@"
-            <h3>Welcome to eClinicPlus+</h3>
-            <p>Dear <strong>{enc(name)}</strong>,</p>
-            <p>Your account has been created. Here are your login details:</p>
-            <table style='border-collapse:collapse;'>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>User ID</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>Email</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>Password</td><td style='padding:4px 12px;'>{enc(password)}</td></tr>
-            </table>
-            <p>Please change your password after your first login.</p>
-            <p><a href='{loginUrl}'>Click here to login</a></p>
-            <br/><p>Regards,<br/>eClinicPlus+ Team</p>";
+            var htmlBody = EmailLayout.Wrap(
+                EmailLayout.Greeting(name)
+                + EmailLayout.P("Your eCare360Plus+ account has been created. Here are your login details:")
+                + EmailLayout.Details(("User ID", enc(email) ?? ""), ("Email", enc(email) ?? ""), ("Password", enc(password) ?? ""))
+                + EmailLayout.Callout("For your security, please change this password after your first login.", "warn")
+                + EmailLayout.Button("Sign In", loginUrl)
+                + EmailLayout.SignOff("eCare360Plus+ Team"),
+                heading: "Welcome to eCare360Plus+");
 
-            const string subject = "eClinicPlus+ — Your Login Credentials";
+            const string subject = "eCare360Plus+ - Your Login Credentials";
             var result = await emailService.SendEmailAsync(branchId, email, subject, htmlBody);
             if (!result.Success && fallbackBranchId is int fallback && fallback != branchId)
                 result = await emailService.SendEmailAsync(fallback, email, subject, htmlBody);

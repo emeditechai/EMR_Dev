@@ -1,0 +1,53 @@
+@* Lab Reporting / Image Report Entry / Microbiology Report Entry list pages: the Department, Category and Sub Category
+   filters become type-to-search dropdowns (Select2). The page's own code keeps filling, cascading and reading these
+   <select> elements exactly as before; this only puts a search box on top and keeps its display in step. *@
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
+<style>
+    .fas-wrap .select2-container--bootstrap-5 .select2-selection { min-height: calc(1.5em + .5rem + 2px); font-size: .875rem; }
+    .fas-wrap .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered { line-height: 1.5; }
+    .select2-container--bootstrap-5 .select2-dropdown.fas-dropdown { font-size: .875rem; }
+    .select2-container--bootstrap-5 .fas-dropdown .select2-results__option--highlighted { background-color: #4f46e5; color: #fff; }
+    .select2-container--bootstrap-5 .fas-dropdown .select2-search__field:focus { border-color: #4f46e5; box-shadow: 0 0 0 .2rem rgba(79, 70, 229, .15); }
+</style>
+<script src="~/lib/select2/dist/js/select2.min.js" asp-append-version="true"></script>
+<script>
+    $(function () {
+        if (!$.fn.select2) return;   // the plain dropdowns keep working
+        const ids = ['#ddlDepartment', '#ddlCategory', '#ddlSubCategory'];
+
+        ids.forEach(function (id) {
+            const $s = $(id);
+            if (!$s.length) return;
+            $s.parent().addClass('fas-wrap');
+            const placeholder = $s.data('placeholder') || $s.find('option[value=""]').first().text() || 'All';
+            $s.select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: placeholder,
+                allowClear: true,
+                selectionCssClass: 'select2--small',
+                dropdownCssClass: 'select2--small fas-dropdown',
+                language: { noResults: () => 'No match found' }
+            });
+
+            // the page refills the options (cascade) and resets values in code: keep the shown text in step
+            // ("change.select2" updates the display only - the page's own change handlers do not run again)
+            let pending = false;
+            const sync = () => { if (pending) return; pending = true; setTimeout(() => { pending = false; $s.trigger('change.select2'); }, 0); };
+            new MutationObserver(sync).observe($s[0], { childList: true, subtree: true, attributes: true, attributeFilter: ['selected'] });
+            $s.data('fasSync', sync);
+        });
+
+        // Lab Reporting's "Reset" clears the values without a change event
+        $(document).on('click', '#btnResetFilters', function () {
+            ids.forEach(id => $(id).data('fasSync')?.());
+        });
+
+        // typing starts the search at once when the dropdown opens
+        $(document).on('select2:open', function (e) {
+            if (!ids.includes('#' + e.target.id)) return;
+            setTimeout(() => document.querySelector('.select2-container--open .select2-search__field')?.focus(), 0);
+        });
+    });
+</script>

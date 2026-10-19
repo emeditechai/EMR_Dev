@@ -1,0 +1,387 @@
+@{
+    ViewData["Title"] = "Testwise Workload";
+    var departments = ViewBag.Departments as List<(int Id, string Name)> ?? [];
+    var branches = ViewBag.Branches as List<(int Id, string Name)> ?? [];
+    int currentBranchId = ViewBag.CurrentBranchId as int? ?? 0;
+    var branchName = User.FindFirst("BranchName")?.Value ?? "";
+}
+
+@section HeadStyles {
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
+<style>
+    .tw-wrap { --tw-brand:#644098; --tw-line:#e2e8f0; --tw-muted:#64748b; --tw-ink:#0f172a; }
+    .tw-card { background:#fff; border:1px solid var(--tw-line); border-radius:.75rem; }
+    .tw-label { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--tw-muted); margin-bottom:.15rem; display:block; }
+    .tw-kpi { padding:.75rem .9rem; border-left:4px solid var(--k); height:100%; }
+    .tw-kpi .k-label { font-size:.64rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--tw-muted); }
+    .tw-kpi .k-val { font-size:1.35rem; font-weight:800; color:var(--tw-ink); line-height:1.2; font-variant-numeric:tabular-nums; }
+    .tw-kpi .k-sub { font-size:.7rem; color:var(--tw-muted); }
+    .btn-quick.active { background:var(--tw-brand); border-color:var(--tw-brand); color:#fff; }
+    .tw-tabs .nav-link { font-size:.82rem; font-weight:600; color:var(--tw-muted); border:0; border-bottom:3px solid transparent; border-radius:0; padding:.6rem .9rem; }
+    .tw-tabs .nav-link.active { color:var(--tw-brand); border-bottom-color:var(--tw-brand); background:transparent; }
+    .tw-scroll { max-height:62vh; overflow:auto; }
+    .tw-table { margin:0; }
+    .tw-table thead th { position:sticky; top:0; z-index:2; background:#f8fafc; color:var(--tw-muted); font-size:.64rem; font-weight:700;
+                         letter-spacing:.3px; text-transform:uppercase; white-space:nowrap; border-bottom:1px solid var(--tw-line); vertical-align:bottom; }
+    .tw-table thead tr.grp th { top:0; z-index:3; text-align:center; color:var(--tw-brand); background:#f5f1fa; border-bottom:1px solid #e4dcf0; }
+    .tw-table thead tr.grp + tr th { top:27px; }
+    .tw-table tbody td, .tw-table tfoot td { font-size:.78rem; vertical-align:middle; border-color:#eef2f6; white-space:nowrap; }
+    .tw-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+    .tw-table .zero { color:#cbd5e1; }
+    .tw-table td.sticky-col, .tw-table th.sticky-col { position:sticky; left:0; background:#fff; z-index:1; }
+    .tw-table thead th.sticky-col { z-index:4; background:#f8fafc; }
+    .tw-table tr.dept-row td { background:#f5f1fa; font-weight:700; color:var(--tw-brand); font-size:.74rem; }
+    .tw-table tr.dept-row td.sticky-col { background:#f5f1fa; }
+    .tw-table tr.sub-row td { background:#fbfaff; font-weight:700; font-style:italic; }
+    .tw-table tr.sub-row td.sticky-col { background:#fbfaff; }
+    .tw-table tfoot td { background:#ede7f6 !important; font-weight:800; position:sticky; bottom:0; }
+    .tw-table tbody tr.test-row { cursor:pointer; }
+    .tw-table tbody tr.test-row:hover td { background:#faf7ff; }
+    .tw-code { font-size:.68rem; color:var(--tw-muted); font-family:var(--bs-font-monospace); }
+    .pill { display:inline-block; font-size:.66rem; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid; }
+    .pill-ok { background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+    .pill-bad { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
+    .pill-warn { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    .pill-info { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+    .pill-mute { background:#f8fafc; color:#64748b; border-color:#e2e8f0; }
+    tr.line-cancelled td { color:#94a3b8 !important; text-decoration:line-through; }
+    .tw-empty { padding:2.5rem 1rem; text-align:center; color:var(--tw-muted); }
+    .bar { height:5px; border-radius:3px; background:#f1f5f9; overflow:hidden; min-width:60px; margin-top:3px; }
+    .bar > span { display:block; height:100%; background:var(--tw-brand); }
+    .select2-container--bootstrap-5 .select2-selection { min-height:calc(1.5em + .5rem + 2px); font-size:.875rem; }
+    .select2-container--bootstrap-5 .select2-selection--multiple { max-height:4.2rem; overflow-y:auto; }
+    .select2-container--bootstrap-5 .select2-selection--multiple .select2-search__field { margin-top:.15rem; }
+    .select2-container--bootstrap-5 .select2-results__option--highlighted { background-color:var(--tw-brand, #644098) !important; color:#fff; }
+</style>
+}
+
+<div class="container-fluid px-3 py-2 tw-wrap">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
+        <div class="flex-grow-1" style="min-width:0">
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-bar-chart-steps me-2" style="color:#644098"></i>Testwise Workload</h1>
+            <div class="text-muted" style="font-size:.78rem">
+                Reports &rsaquo; LAB &middot; test-wise patients, workload, status and turnaround by bill date &middot; every count is per test of the Investigation Master
+                (a profile counts as one test; a package counts as the profiles and tests in it) &middot; <span id="lblRange"></span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-shrink-0 pt-1">
+            <button type="button" class="btn btn-sm btn-outline-success" id="btnExcel" disabled title="All three views as sheets"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="btnPdf" disabled title="The view shown below"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="tw-card p-2 px-3 mb-2">
+        <div class="row g-2 align-items-start">
+            <div class="col-6 col-md-2"><label class="tw-label" for="txtFrom">From (bill date)</label><input type="date" id="txtFrom" class="form-control form-control-sm" /></div>
+            <div class="col-6 col-md-2"><label class="tw-label" for="txtTo">To</label><input type="date" id="txtTo" class="form-control form-control-sm" /></div>
+            <div class="col-12 col-md-4"><label class="tw-label">Quick select</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="today">Today</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="yesterday">Yesterday</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="week">7 Days</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="month">This Month</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="lastmonth">Last Month</button>
+                </div></div>
+            @if (branches.Count > 0)
+            {
+                <div class="col-6 col-md-2"><label class="tw-label" for="selBranch">Branch</label>
+                    <select id="selBranch" class="form-select form-select-sm">
+                        <option value="0">All branches</option>
+                        @foreach (var b in branches)
+                        {
+                            <option value="@b.Id" selected="@(b.Id == currentBranchId ? "selected" : null)">@b.Name</option>
+                        }
+                    </select></div>
+            }
+            else
+            {
+                <div class="col-6 col-md-2"><label class="tw-label">Branch</label><div class="form-control form-control-sm bg-light text-truncate">@branchName</div></div>
+            }
+            <div class="col-6 col-md-2"><label class="tw-label" for="selBilling">Billing</label>
+                <select id="selBilling" class="form-select form-select-sm"><option value="">B2C &amp; B2B</option><option>B2C</option><option>B2B</option></select></div>
+
+            <div class="col-12 col-md-3"><label class="tw-label" for="selDept">Department</label>
+                <select id="selDept" class="form-select form-select-sm tw-s2" data-placeholder="All departments">
+                    <option value="">All departments</option>
+                    @foreach (var d in departments) { <option value="@d.Id">@d.Name</option> }
+                </select></div>
+            <div class="col-12 col-md-3"><label class="tw-label" for="selCat">Test category</label>
+                <select id="selCat" class="form-select form-select-sm tw-s2" data-placeholder="All categories"><option value="">All categories</option></select></div>
+            <div class="col-12 col-md-3"><label class="tw-label" for="selSub">Test sub category</label>
+                <select id="selSub" class="form-select form-select-sm tw-s2" data-placeholder="All sub categories"><option value="">All sub categories</option></select></div>
+            <div class="col-12 col-md-3"><label class="tw-label" for="selTests">Tests</label>
+                <select id="selTests" class="form-select form-select-sm" multiple data-placeholder="All tests - type to search"></select></div>
+
+            <div class="col-12 col-md-6">
+                <div class="input-group input-group-sm"><span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                    <input type="text" id="txtSearch" class="form-control" autocomplete="off" placeholder="Bill No, token, patient ID, name or mobile..." /></div>
+            </div>
+            <div class="col-12 col-md-6 d-flex gap-2 justify-content-md-end align-self-end">
+                <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none" id="btnReset"><i class="bi bi-x-circle me-1"></i>Reset</button>
+                <button type="button" class="btn btn-sm text-white px-4" style="background:#644098" id="btnApply"><i class="bi bi-funnel me-1"></i>Show Report</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="stateError" class="alert alert-danger py-2 d-none" style="font-size:.8rem"></div>
+    <div id="stateNote" class="alert alert-warning py-2 d-none" style="font-size:.8rem"></div>
+
+    <!-- KPIs -->
+    <div class="row g-2 mb-2">
+        <div class="col-6 col-md-4 col-xl"><div class="tw-card tw-kpi" style="--k:#644098"><div class="k-label">Tests performed</div><div class="k-val" id="kTests">-</div><div class="k-sub"><span id="kDistinct">0</span> different tests</div></div></div>
+        <div class="col-6 col-md-4 col-xl"><div class="tw-card tw-kpi" style="--k:#0ea5e9"><div class="k-label">Patients</div><div class="k-val" id="kPatients">-</div><div class="k-sub"><span id="kBills">0</span> bills</div></div></div>
+        <div class="col-6 col-md-4 col-xl"><div class="tw-card tw-kpi" style="--k:#16a34a"><div class="k-label">Approved</div><div class="k-val" id="kApproved">-</div><div class="k-sub"><span id="kApprovedPct">-</span> of tests</div></div></div>
+        <div class="col-6 col-md-4 col-xl"><div class="tw-card tw-kpi" style="--k:#d97706"><div class="k-label">Pending</div><div class="k-val" id="kPending">-</div><div class="k-sub">collection <span id="kPendColl">0</span> &middot; entry <span id="kPendEntry">0</span> &middot; approval <span id="kPendAppr">0</span></div></div></div>
+        <div class="col-6 col-md-4 col-xl"><div class="tw-card tw-kpi" style="--k:#7c3aed"><div class="k-label">Avg turnaround</div><div class="k-val" id="kTat">-</div><div class="k-sub">TAT compliance <span id="kTatPct">-</span> &middot; overdue <span id="kOverdue">0</span></div></div></div>
+        <div class="col-6 col-md-4 col-xl"><div class="tw-card tw-kpi" style="--k:#dc2626"><div class="k-label">Abnormal results</div><div class="k-val" id="kAbnormal">-</div><div class="k-sub">critical <span id="kCritical">0</span> &middot; rejected <span id="kRejected">0</span></div></div></div>
+    </div>
+
+    <!-- Views -->
+    <div class="tw-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center border-bottom px-2">
+            <ul class="nav tw-tabs" role="tablist">
+                <li class="nav-item"><button class="nav-link active" data-view="summary" type="button"><i class="bi bi-grid-3x3-gap me-1"></i>Workload Summary</button></li>
+                <li class="nav-item"><button class="nav-link" data-view="patients" type="button"><i class="bi bi-people me-1"></i>Test-wise Patient Count</button></li>
+                <li class="nav-item"><button class="nav-link" data-view="details" type="button"><i class="bi bi-list-ul me-1"></i>Patient-wise Details</button></li>
+            </ul>
+            <div class="d-flex align-items-center gap-2 py-1" id="detailTools" style="display:none !important">
+                <select id="selDetailTest" class="form-select form-select-sm" style="min-width:240px"><option value="">All tests</option></select>
+                <input type="text" id="txtDetailFind" class="form-control form-control-sm" style="width:200px" placeholder="Find in details..." />
+            </div>
+        </div>
+        <div class="tw-scroll" id="viewHost"><div class="tw-empty"><i class="bi bi-funnel fs-3 d-block mb-1"></i>Choose the bill dates and filters, then <strong>Show Report</strong>.</div></div>
+        <div class="px-3 py-2 border-top text-muted" style="font-size:.72rem" id="viewFoot"></div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const URLS = {
+        data: '@Url.Action("Data", "LabTestWorkload")', exp: '@Url.Action("Export", "LabTestWorkload")',
+        cats: '@Url.Action("Categories", "LabTestWorkload")', subs: '@Url.Action("SubCategories", "LabTestWorkload")', tests: '@Url.Action("Tests", "LabTestWorkload")'
+    };
+    let data = null, view = 'summary';
+    const H = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const N = v => (v === null || v === undefined) ? '' : Number(v).toLocaleString('en-IN');
+    const cell = v => v ? `<td class="num">${N(v)}</td>` : '<td class="num zero">-</td>';
+    const pct = v => v === null || v === undefined ? '-' : Math.round(v) + '%';
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // ── filters ──
+    function setRange(r) {
+        const t = new Date(); let f = new Date(t), to = new Date(t);
+        if (r === 'yesterday') { f.setDate(t.getDate() - 1); to = new Date(f); }
+        else if (r === 'week') f.setDate(t.getDate() - 6);
+        else if (r === 'month') f = new Date(t.getFullYear(), t.getMonth(), 1);
+        else if (r === 'lastmonth') { f = new Date(t.getFullYear(), t.getMonth() - 1, 1); to = new Date(t.getFullYear(), t.getMonth(), 0); }
+        $('#txtFrom').val(iso(f)); $('#txtTo').val(iso(to));
+        $('.btn-quick').removeClass('active').filter(`[data-range="${r}"]`).addClass('active');
+    }
+    $('.btn-quick').on('click', function () { setRange(this.dataset.range); load(); });
+    $('#txtFrom, #txtTo').on('change', () => $('.btn-quick').removeClass('active'));
+
+    $('.tw-s2, #selBranch, #selBilling').each(function () {
+        const ph = $(this).data('placeholder');
+        $(this).select2({ theme: 'bootstrap-5', width: '100%', ...(ph ? { placeholder: ph, allowClear: true } : {}),
+                          minimumResultsForSearch: this.id === 'selBilling' ? Infinity : 0, selectionCssClass: 'select2--small', dropdownCssClass: 'select2--small' });
+    });
+    $('#selTests').select2({
+        theme: 'bootstrap-5', width: '100%', placeholder: $('#selTests').data('placeholder'), allowClear: true, closeOnSelect: false,
+        templateSelection: d => (d.text || '').replace(/ - Profile, \d+ test\(s\)$/, ' (profile)'),
+        selectionCssClass: 'select2--small', dropdownCssClass: 'select2--small',
+        ajax: { url: URLS.tests, delay: 250, data: p => ({ term: p.term, departmentId: $('#selDept').val() || null, categoryId: $('#selCat').val() || null, subCategoryId: $('#selSub').val() || null }) }
+    });
+    function fill($s, url, params, all) {
+        $s.empty().append(new Option(all, '', true, true)).trigger('change.select2');
+        if (params === null) return $.Deferred().resolve();
+        return $.get(url, params).done(list => { (list || []).forEach(x => $s.append(new Option(x.text, x.value))); $s.val('').trigger('change.select2'); });
+    }
+    $('#selDept').on('change', function () {
+        fill($('#selCat'), URLS.cats, { departmentId: this.value || null }, 'All categories');
+        fill($('#selSub'), URLS.subs, null, 'All sub categories');
+    });
+    $('#selCat').on('change', function () { fill($('#selSub'), URLS.subs, this.value ? { categoryId: this.value } : null, 'All sub categories'); });
+    $(document).on('select2:open', () => setTimeout(() => document.querySelector('.select2-container--open .select2-search__field')?.focus(), 0));
+
+    function params() {
+        return {
+            fromDate: $('#txtFrom').val(), toDate: $('#txtTo').val(), branchId: $('#selBranch').val() ?? null,
+            departmentId: $('#selDept').val() || null, categoryId: $('#selCat').val() || null, subCategoryId: $('#selSub').val() || null,
+            testIds: ($('#selTests').val() || []).join(','), billingType: $('#selBilling').val() || null, search: $('#txtSearch').val().trim() || null
+        };
+    }
+    const query = extra => $.param(Object.fromEntries(Object.entries({ ...params(), ...extra }).filter(([, v]) => v !== null && v !== '')));
+
+    $('#btnApply').on('click', () => load());
+    $('#txtSearch').on('keydown', e => { if (e.key === 'Enter') load(); });
+    $('#btnReset').on('click', function () {
+        setRange('month');
+        $('#selDept').val('').trigger('change'); $('#selTests').val(null).trigger('change'); $('#selBilling').val('').trigger('change');
+        if ($('#selBranch').length) $('#selBranch').val('@currentBranchId').trigger('change');
+        $('#txtSearch').val('');
+        load();
+    });
+    $('#btnExcel').on('click', () => window.location = URLS.exp + '?' + query({ format: 'excel' }));
+    $('#btnPdf').on('click', () => window.location = URLS.exp + '?' + query({ format: 'pdf', view }));
+
+    // ── load ──
+    function load() {
+        const p = params();
+        if (!p.fromDate || !p.toDate) return showError('Choose the bill date range.');
+        $('#btnApply').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Loading...');
+        $('#stateError, #stateNote').addClass('d-none');
+        $.get(URLS.data, query({}))
+            .done(res => {
+                if (!res.success) { data = null; render(); return showError(res.message); }
+                data = res;
+                const notes = [];
+                if (res.truncated) notes.push(`Only the first ${N(res.maxLines)} tests of this period are counted. Choose a shorter period or narrow the filters.`);
+                if (res.totalLines > res.screenLines) notes.push(`Patient-wise Details shows the first ${N(res.screenLines)} of ${N(res.totalLines)} lines here; Excel and PDF carry all of them.`);
+                if (notes.length) $('#stateNote').html(notes.join('<br>')).removeClass('d-none');
+                fillDetailTests();
+                kpis(); render();
+            })
+            .fail(() => { data = null; render(); showError('The report could not be loaded.'); })
+            .always(() => $('#btnApply').prop('disabled', false).html('<i class="bi bi-funnel me-1"></i>Show Report'));
+        const f = new Date(p.fromDate), t = new Date(p.toDate);
+        const fmt = d => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        $('#lblRange').text(p.fromDate === p.toDate ? fmt(f) : `${fmt(f)} to ${fmt(t)}`);
+    }
+    function showError(m) { $('#stateError').text(m).removeClass('d-none'); }
+
+    function kpis() {
+        const t = data?.total || {};
+        $('#kTests').text(N(t.tests ?? 0)); $('#kDistinct').text(N(data?.distinctTests ?? 0));
+        $('#kPatients').text(N(t.patients ?? 0)); $('#kBills').text(N(t.bills ?? 0));
+        $('#kApproved').text(N(t.approved ?? 0)); $('#kApprovedPct').text(pct(t.approvedPercent));
+        const pendAppr = (t.entered || 0) + (t.validated || 0);
+        $('#kPending').text(N((t.pendingCollection || 0) + (t.pendingEntry || 0) + pendAppr));
+        $('#kPendColl').text(N(t.pendingCollection || 0)); $('#kPendEntry').text(N(t.pendingEntry || 0)); $('#kPendAppr').text(N(pendAppr));
+        $('#kTat').text(t.avgTat || '-'); $('#kTatPct').text(pct(t.tatCompliance)); $('#kOverdue').text(N(t.overdue || 0));
+        $('#kAbnormal').text(N(t.abnormal ?? 0)); $('#kCritical').text(N(t.critical || 0)); $('#kRejected').text(N(t.rejected || 0));
+        $('#btnExcel, #btnPdf').prop('disabled', !data);
+    }
+
+    // ── views ──
+    $('.tw-tabs .nav-link').on('click', function () {
+        $('.tw-tabs .nav-link').removeClass('active'); $(this).addClass('active');
+        view = this.dataset.view; render();
+    });
+
+    function groups(rows) {
+        const m = new Map();
+        rows.forEach(r => { if (!m.has(r.department)) m.set(r.department, []); m.get(r.department).push(r); });
+        return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    }
+    const sum = (rows, k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
+
+    const SUMMARY = [
+        ['Volume', [['patients', 'Patients'], ['bills', 'Bills'], ['tests', 'Tests'], ['urgent', 'Urgent'], ['b2C', 'B2C'], ['b2B', 'B2B'], ['singleTest', 'Direct'], ['inPackage', 'In Package']]],
+        ['Sample', [['pendingCollection', 'Pending'], ['collected', 'Collected'], ['reCollect', 'Re-collect'], ['rejected', 'Rejected']]],
+        ['Report', [['pendingEntry', 'Pending Entry'], ['entered', 'Entered'], ['validated', 'Validated'], ['approved', 'Approved']]],
+        ['Turnaround', [['avgTat', 'Avg TAT', 'text'], ['withinTat', 'Within'], ['delayed', 'Delayed'], ['overdue', 'Overdue'], ['tatCompliance', 'Compliance', 'pct']]],
+        ['Quality', [['outsourced', 'Outsourced'], ['abnormal', 'Abnormal'], ['critical', 'Critical'], ['cancelled', 'Cancelled']]]
+    ];
+    const PATIENTS = [
+        ['Volume', [['patients', 'Patients'], ['tests', 'Tests'], ['bills', 'Bills'], ['perPatient', 'Tests / Patient', 'text']]],
+        ['Gender', [['male', 'Male'], ['female', 'Female'], ['otherGender', 'Other / NA']]],
+        ['Age group', [['children', 'Under 18'], ['adults', '18 - 59'], ['seniors', '60 +']]],
+        ['Repeat', [['repeatPatients', 'Repeat Patients']]]
+    ];
+
+    function value(r, col) {
+        const [k, , kind] = col;
+        if (k === 'perPatient') return `<td class="num">${r.patients ? (r.tests / r.patients).toFixed(1) : '-'}</td>`;
+        if (kind === 'text') return `<td class="num">${H(r[k] || '-')}</td>`;
+        if (kind === 'pct') {
+            const v = r[k]; if (v === null || v === undefined) return '<td class="num zero">-</td>';
+            return `<td class="num"><span class="pill ${v >= 90 ? 'pill-ok' : v >= 70 ? 'pill-warn' : 'pill-bad'}">${Math.round(v)}%</span></td>`;
+        }
+        return cell(r[k]);
+    }
+
+    function grid(cols) {
+        const rows = data.rows || [];
+        if (!rows.length) return '<div class="tw-empty"><i class="bi bi-inbox fs-3 d-block mb-1"></i>No tests for the selected bill dates and filters.</div>';
+        const flat = cols.flatMap(g => g[1]);
+        let h = '<table class="table table-sm tw-table"><thead><tr class="grp"><th class="sticky-col" colspan="2"></th><th></th>'
+              + cols.map(g => `<th colspan="${g[1].length}">${g[0]}</th>`).join('') + '</tr><tr>'
+              + '<th class="sticky-col">Test</th><th>Category</th><th class="num">TAT h</th>'
+              + flat.map(c => `<th class="num">${c[1]}</th>`).join('') + '</tr></thead><tbody>';
+        const max = Math.max(...rows.map(r => r.tests), 1);
+        groups(rows).forEach(([dept, list]) => {
+            h += `<tr class="dept-row"><td class="sticky-col" colspan="${3 + flat.length}"><i class="bi bi-building me-1"></i>${H(dept)} <span class="fw-normal text-muted">&middot; ${list.length} test(s)</span></td></tr>`;
+            list.forEach(r => {
+                h += `<tr class="test-row" data-test="${r.testId}" title="Click for the patient-wise details of this test">`
+                   + `<td class="sticky-col"><div class="fw-semibold">${H(r.testName)} <span class="tw-code">${H(r.testCode)}</span>${r.isProfile ? ' <span class="pill pill-info">Profile</span>' : ''}</div><div class="bar" style="width:120px"><span style="width:${Math.round(100 * r.tests / max)}%"></span></div></td>`
+                   + `<td class="text-muted" style="font-size:.72rem">${H(r.category)}${r.subCategory ? ' &rsaquo; ' + H(r.subCategory) : ''}</td>`
+                   + `<td class="num text-muted">${r.tatHours || ''}</td>` + flat.map(c => value(r, c)).join('') + '</tr>';
+            });
+            const s = (data.departments || {})[dept] || {};   // from the server: each patient counted once per department
+            h += `<tr class="sub-row"><td class="sticky-col">${H(dept)} subtotal</td><td></td><td></td>` + flat.map(c => value(s, c)).join('') + '</tr>';
+        });
+        const t = data.total;
+        h += `</tbody><tfoot><tr><td class="sticky-col">Grand total</td><td></td><td></td>` + flat.map(c => value(t, c)).join('') + '</tr></tfoot></table>';
+        return h;
+    }
+
+    function fillDetailTests() {
+        const $s = $('#selDetailTest').empty().append(new Option('All tests', ''));
+        (data?.rows || []).slice().sort((a, b) => a.testName.localeCompare(b.testName))
+            .forEach(r => $s.append(new Option(`${r.testName} (${r.tests})`, r.testId)));
+    }
+    $('#selDetailTest, #txtDetailFind').on('input change', () => { if (view === 'details') render(); });
+    $(document).on('click', 'tr.test-row', function () {
+        $('#selDetailTest').val(String(this.dataset.test));
+        $('.tw-tabs .nav-link[data-view="details"]').trigger('click');
+    });
+
+    function details() {
+        const test = $('#selDetailTest').val(), q = $('#txtDetailFind').val().trim().toLowerCase();
+        let lines = data.lines || [];
+        if (test) lines = lines.filter(l => String(l.testId) === test);
+        if (q) lines = lines.filter(l => [l.billNo, l.token, l.patientCode, l.patientName, l.phone, l.testName].join(' ').toLowerCase().includes(q));
+        if (!lines.length) return '<div class="tw-empty"><i class="bi bi-inbox fs-3 d-block mb-1"></i>No lines.</div>';
+        const pill = (t, map) => t ? `<span class="pill ${map[t] || 'pill-mute'}">${H(t)}</span>` : '';
+        const SAMPLE = { Collected: 'pill-ok', 'Re-collect': 'pill-warn', Rejected: 'pill-bad', 'Pending collection': 'pill-mute', Cancelled: 'pill-mute' };
+        const REPORT = { Approved: 'pill-ok', Validated: 'pill-info', Entered: 'pill-info', 'Pending entry': 'pill-warn', 'Not reportable': 'pill-bad' };
+        const TAT = { 'Within TAT': 'pill-ok', Delayed: 'pill-bad', Overdue: 'pill-bad', 'In time': 'pill-info' };
+        let h = '<table class="table table-sm tw-table"><thead><tr><th>#</th><th>Bill Date</th><th>Bill No</th><th class="sticky-col">Patient</th><th>Age / Sex</th>'
+              + '<th>Test</th><th>Ordered</th><th>Sample</th><th>Collected</th><th>Report</th><th>Approved</th><th class="num">TAT h</th><th class="num">Taken</th><th>TAT</th><th>Flag</th></tr></thead><tbody>';
+        let lastTest = null, n = 0;
+        lines.forEach(l => {
+            if (!test && l.testId !== lastTest) {
+                lastTest = l.testId;
+                h += `<tr class="dept-row"><td colspan="15">${H(l.testName)} <span class="tw-code">${H(l.testCode)}</span>${l.isProfile ? ' <span class="pill pill-info">Profile</span>' : ''} <span class="fw-normal text-muted">&middot; ${H(l.department || '')}</span></td></tr>`;
+            }
+            h += `<tr class="${l.cancelled ? 'line-cancelled' : ''}"><td class="text-muted">${++n}</td><td>${H(l.billDate)}</td>`
+               + `<td>${H(l.billNo)}${l.billing === 'B2B' ? ' <span class="pill pill-info">B2B</span>' : ''}${l.urgent ? ' <span class="pill pill-bad">Urgent</span>' : ''}</td>`
+               + `<td class="sticky-col"><div class="fw-semibold">${H(l.patientName)}</div><div class="tw-code">${H(l.patientCode)} ${l.phone ? '&middot; ' + H(l.phone) : ''}</div></td>`
+               + `<td>${l.age ?? '-'} / ${H(l.gender ? l.gender[0] : '-')}</td><td>${H(l.testName)}${l.isProfile ? `<div class="tw-code">profile &middot; ${l.parts} tests</div>` : ''}</td><td style="font-size:.72rem">${H(l.source)}</td>`
+               + `<td>${pill(l.sample, SAMPLE)}${l.outsourced ? ' <span class="pill pill-mute">Outsourced</span>' : ''}</td><td>${H(l.collectedAt || '')}</td>`
+               + `<td>${pill(l.report, REPORT)}</td><td>${H(l.approvedAt || '')}</td><td class="num">${l.tatHours}</td><td class="num">${H(l.taken || '')}</td>`
+               + `<td>${pill(l.tat, TAT)}</td><td>${l.flag ? `<span class="pill ${l.flag === 'Critical' ? 'pill-bad' : 'pill-warn'}">${H(l.flag)}</span>` : ''}</td></tr>`;
+        });
+        return h + '</tbody></table>';
+    }
+
+    function render() {
+        $('#detailTools').attr('style', view === 'details' && data ? '' : 'display:none !important');
+        if (!data) { $('#viewFoot').text(''); return; }
+        $('#viewHost').html(view === 'summary' ? grid(SUMMARY) : view === 'patients' ? grid(PATIENTS) : details());
+        $('#viewFoot').html(view === 'summary'
+            ? 'Click a test to see its patient-wise details. Turnaround runs from booking to report approval, against the test\'s TAT in the Investigation Master; Overdue = not approved yet and past its TAT. Cancelled tests are not counted in any other column.'
+            : view === 'patients'
+              ? 'Patients are counted once per test. Repeat patients had the same test on more than one bill in the period. Age is on the bill date.'
+              : 'Every test of every bill, grouped by test. Struck-through lines are cancelled.');
+    }
+
+    setRange('month');
+    load();
+})();
+</script>
+}

@@ -239,6 +239,15 @@
             {
                 <span class="text-secondary">(@item.PreviousOrderDate.Value.ToString("dd MMM"))</span>
             }
+            @if (ViewData["DeltaTrend"] as bool? == true && !string.IsNullOrWhiteSpace(item.PreviousTestValue))
+            {
+                @* Lab Report Entry only: last 5 results with a small trend graph (_DeltaTrendPopup) *@
+                <button type="button" class="delta-trend-btn" title="Last 5 results and trend" aria-label="Show last 5 results of @item.TestName"
+                        data-order="@item.Laborderid" data-inv="@item.InvestigationID" data-name="@item.TestName"
+                        data-unit="@(item.PreviousUnitSymbol ?? item.UnitName ?? "")" data-low="@lowValStr" data-high="@highValStr">
+                    <i class="bi bi-graph-up"></i>
+                </button>
+            }
         </div>
         <div class="delta-diff-display fw-semibold mt-0.5"></div>
     </div>

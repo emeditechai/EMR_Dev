@@ -146,15 +146,13 @@ public class LabCriticalNotificationService(
         var items = string.Join("", list.Select(r => $"<li style=\"margin:4px 0\"><b>{E(r.TestName)}</b>{(string.IsNullOrWhiteSpace(r.ProfileName) ? "" : $" ({E(r.ProfileName)})")}: "
             + $"<b style=\"color:#b91c1c\">{E(r.ResultValue)} {E(r.Unit)}</b> &ndash; {(r.Severity == "PANIC" ? "Panic" : "Critical")}"
             + $"{(string.IsNullOrWhiteSpace(r.Threshold) ? "" : $", limit {E(r.Threshold)}")}</li>"));
-        return $"""
-            <div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#111">
-              <h2 style="color:#b91c1c;margin:0 0 12px">Critical value alert</h2>
-              <p>Dear {E(f.InformedName)},</p>
-              <p>The following result(s) of <b>{E(f.PatientName)}</b> ({E(f.PatientCode)}), bill <b>{E(f.BillNo)}</b>, crossed a critical threshold:</p>
-              <ul>{items}</ul>
-              <p>{(string.IsNullOrWhiteSpace(f.LabPhone) ? "Please contact the laboratory to acknowledge this result." : $"Please call the laboratory on <b>{E(f.LabPhone)}</b> to acknowledge this result.")}</p>
-              <p style="color:#555">{E(f.RecordedBy)}<br>{E(f.LabName)}</p>
-            </div>
-            """;
+        return EmailLayout.Wrap(
+            EmailLayout.Greeting(f.InformedName ?? "Doctor")
+            + EmailLayout.P($"The following result(s) of <b>{E(f.PatientName)}</b> ({E(f.PatientCode)}), bill <b>{E(f.BillNo)}</b>, crossed a critical threshold:")
+            + EmailLayout.Callout($"<ul style=\"margin:0;padding-left:18px;\">{items}</ul>", "danger")
+            + EmailLayout.P(string.IsNullOrWhiteSpace(f.LabPhone) ? "Please contact the laboratory to acknowledge this result." : $"Please call the laboratory on <b>{E(f.LabPhone)}</b> to acknowledge this result.")
+            + EmailLayout.P($"{E(f.RecordedBy)}<br>{E(f.LabName)}", muted: true),
+            heading: "Critical value alert",
+            organisation: f.LabName);
     }
 }

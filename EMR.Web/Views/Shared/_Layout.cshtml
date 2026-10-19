@@ -158,6 +158,10 @@
 
             function positionSubmenu() {
                 menu.style.top = '0px';
+                // open to the left when the flyout would run past the right edge (menus near the end of the bar)
+                menu.classList.remove('open-left');
+                var vw = window.innerWidth || document.documentElement.clientWidth;
+                if (menu.getBoundingClientRect().right > vw - 8) menu.classList.add('open-left');
                 var rect = menu.getBoundingClientRect();
                 var vh = window.innerHeight || document.documentElement.clientHeight;
                 if (rect.bottom > vh - 15) {
@@ -173,7 +177,7 @@
                 positionSubmenu();
             });
             el.addEventListener('mouseleave', function () {
-                menu.classList.remove('show');
+                menu.classList.remove('show', 'open-left');
                 menu.style.top = '0px';
             });
 

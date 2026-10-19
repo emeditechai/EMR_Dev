@@ -52,7 +52,7 @@
                     }
                 </div>
 
-                <form asp-action="SelectBranch" method="post" novalidate>
+                <form asp-action="SelectBranch" method="post" novalidate id="branchForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="IsSwitch" />
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small mb-3"></div>
@@ -72,7 +72,7 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn auth-signin-btn w-100">
+                    <button type="submit" class="btn auth-signin-btn w-100" id="branchSubmitBtn">
                         <i class="bi bi-arrow-right-circle me-2"></i>@(Model.IsSwitch ? "Switch Branch" : "Continue to Dashboard")
                     </button>
                 </form>
@@ -107,4 +107,33 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Enter anywhere on the page continues with the chosen branch (buttons and links keep their own Enter)
+        (function () {
+            const form = document.getElementById('branchForm');
+            const btn = document.getElementById('branchSubmitBtn');
+            const select = document.getElementById('BranchId');
+            if (!form || !btn) return;
+            let sent = false;
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter' || e.isComposing || e.repeat || sent) return;
+                const t = e.target;
+                if (t && t !== select && t.closest && t.closest('button, a, textarea')) return;
+                e.preventDefault();
+                if (form.requestSubmit) form.requestSubmit(btn); else btn.click();
+            });
+
+            form.addEventListener('submit', function () {
+                const $f = window.jQuery ? jQuery(form) : null;
+                if ($f && $f.valid && !$f.valid()) return;
+                if (select && !select.value) return;
+                sent = true;
+                setTimeout(() => { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Please wait...'; }, 0);
+            });
+
+            // the branch list has focus, so arrow keys pick a branch and Enter continues
+            select?.focus();
+        })();
+    </script>
 }

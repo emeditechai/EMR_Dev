@@ -30,6 +30,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IMasterApprovalService, MasterApprovalService>();
 builder.Services.AddScoped<ILoginCredentialsMailer, LoginCredentialsMailer>();
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR.Web.Services.Reports.LabTestWorkloadService>();
 
 // Geography Masters (Dapper)
 builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();

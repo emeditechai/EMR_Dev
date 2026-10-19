@@ -167,77 +167,37 @@ public class VideoConsultationService(
         string doctorName, string patientName, string date,
         string startTime, string endTime, int graceMin, string hostUrl)
     {
+        static string H(string? v) => System.Net.WebUtility.HtmlEncode(v ?? string.Empty);
         var graceText = graceMin > 0 ? $" (+{graceMin} min grace)" : "";
-        return $"""
-        <html><body style="font-family:Arial,sans-serif;color:#333;">
-        <div style="max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
-            <div style="background:#1a6fbf;padding:20px;text-align:center;">
-                <h2 style="color:#fff;margin:0;">📹 Video Consultation Scheduled</h2>
-            </div>
-            <div style="padding:24px;">
-                <p>Dear <strong>Dr. {doctorName}</strong>,</p>
-                <p>A video consultation has been scheduled with the following details:</p>
-                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Patient</td><td style="padding:8px;">{patientName}</td></tr>
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Date</td><td style="padding:8px;">{date}</td></tr>
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Time</td><td style="padding:8px;">{startTime} to {endTime}{graceText}</td></tr>
-                </table>
-                <p>Click the button below to join the consultation as <strong>host</strong>:</p>
-                <div style="text-align:center;margin:24px 0;">
-                    <a href="{hostUrl}" target="_blank"
-                       style="background:#1a6fbf;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">
-                        🎥 Start Video Consultation
-                    </a>
-                </div>
-                <p style="color:#666;font-size:13px;">As the host, you can admit the patient from the waiting room.</p>
-                <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
-                <p style="color:#999;font-size:12px;">This is an automated notification. Please do not reply to this email.</p>
-            </div>
-        </div>
-        </body></html>
-        """;
+        return EmailLayout.Wrap(
+            EmailLayout.Greeting($"Dr. {doctorName}")
+            + EmailLayout.P("A video consultation has been scheduled with the following details:")
+            + EmailLayout.Details(("Patient", H(patientName)), ("Date", H(date)), ("Time", H($"{startTime} to {endTime}{graceText}")))
+            + EmailLayout.P("Click the button below to join the consultation as <strong>host</strong>:")
+            + EmailLayout.Button("Start Video Consultation", hostUrl)
+            + EmailLayout.P("As the host, you can admit the patient from the waiting room.", muted: true),
+            heading: "Video consultation scheduled");
     }
 
     private static string BuildPatientEmailBody(
         string patientName, string doctorName, string date,
         string startTime, string endTime, int graceMin, string roomUrl)
     {
+        static string H(string? v) => System.Net.WebUtility.HtmlEncode(v ?? string.Empty);
         var graceText = graceMin > 0 ? $" (+{graceMin} min grace)" : "";
-        return $"""
-        <html><body style="font-family:Arial,sans-serif;color:#333;">
-        <div style="max-width:600px;margin:0 auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
-            <div style="background:#0d9e6e;padding:20px;text-align:center;">
-                <h2 style="color:#fff;margin:0;">📹 Your Video Consultation</h2>
-            </div>
-            <div style="padding:24px;">
-                <p>Dear <strong>{patientName}</strong>,</p>
-                <p>Your video consultation has been confirmed:</p>
-                <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Doctor</td><td style="padding:8px;">Dr. {doctorName}</td></tr>
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Date</td><td style="padding:8px;">{date}</td></tr>
-                    <tr><td style="padding:8px;background:#f5f5f5;font-weight:bold;">Time</td><td style="padding:8px;">{startTime} to {endTime}{graceText}</td></tr>
-                </table>
-                <p>Click the button below to join your appointment:</p>
-                <div style="text-align:center;margin:24px 0;">
-                    <a href="{roomUrl}" target="_blank"
-                       style="background:#0d9e6e;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">
-                        🎥 Join Video Consultation
-                    </a>
-                </div>
-                <div style="background:#fff8e1;border-left:4px solid #ffc107;padding:12px;margin:16px 0;border-radius:4px;">
-                    <p style="margin:0;font-weight:bold;">📋 Instructions:</p>
-                    <ol style="margin:8px 0 0 0;padding-left:20px;">
-                        <li>Click the link at your scheduled appointment time.</li>
-                        <li>You will enter a waiting room.</li>
-                        <li>Click <strong>"Knock"</strong> and the doctor will admit you.</li>
-                        <li>No software download required — works directly in your browser.</li>
-                    </ol>
-                </div>
-                <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
-                <p style="color:#999;font-size:12px;">This is an automated notification. Please do not reply to this email.</p>
-            </div>
-        </div>
-        </body></html>
-        """;
+        return EmailLayout.Wrap(
+            EmailLayout.Greeting(patientName)
+            + EmailLayout.P("Your video consultation has been confirmed:")
+            + EmailLayout.Details(("Doctor", H($"Dr. {doctorName}")), ("Date", H(date)), ("Time", H($"{startTime} to {endTime}{graceText}")))
+            + EmailLayout.P("Click the button below to join your appointment:")
+            + EmailLayout.Button("Join Video Consultation", roomUrl)
+            + EmailLayout.Callout(@"<strong>How to join</strong>
+                <ol style=""margin:8px 0 0;padding-left:20px;"">
+                    <li>Click the link at your scheduled appointment time.</li>
+                    <li>You will enter a waiting room.</li>
+                    <li>Click <strong>""Knock""</strong> and the doctor will admit you.</li>
+                    <li>No software download required - works directly in your browser.</li>
+                </ol>"),
+            heading: "Your video consultation");
     }
 }

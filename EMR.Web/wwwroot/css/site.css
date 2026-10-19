@@ -1021,6 +1021,18 @@ body {
   display: block;
 }
 
+/* flyout opened to the left of its menu (no room on the right) */
+.dropdown-submenu-menu.open-left {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 2px;
+}
+.dropdown-submenu-menu.open-left ~ .dropdown-submenu-toggle .submenu-arrow,
+.dropdown-submenu:has(> .dropdown-submenu-menu.open-left) .submenu-arrow {
+  transform: rotate(180deg);
+}
+
 /* Highlight parent row when submenu is open */
 .dropdown-submenu:hover > .dropdown-submenu-toggle,
 .dropdown-submenu:focus-within > .dropdown-submenu-toggle {

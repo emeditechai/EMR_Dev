@@ -139,19 +139,13 @@ public sealed class FollowUpReminderService(IServiceScopeFactory scopeFactory, I
     private static string EmailBody(string name, string doctor, string hospital, string? contact, string when, string dateText, string? patientCode)
     {
         static string H(string? s) => WebUtility.HtmlEncode(s ?? string.Empty);
-        return $@"<div style=""font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;max-width:560px"">
-  <div style=""background:#1e3a8a;color:#fff;padding:14px 18px;border-radius:8px 8px 0 0;font-size:16px;font-weight:bold"">{H(hospital)}</div>
-  <div style=""border:1px solid #e5e7eb;border-top:0;padding:18px;border-radius:0 0 8px 8px"">
-    <p>Dear {H(name)},</p>
-    <p>This is a friendly reminder that your <strong>follow-up visit</strong> with <strong>{H(doctor)}</strong> is <strong>{H(when)}</strong>.</p>
-    <table style=""border-collapse:collapse;margin:12px 0"">
-      <tr><td style=""padding:4px 12px 4px 0;color:#6b7280"">Date</td><td style=""padding:4px 0""><strong>{H(dateText)}</strong></td></tr>
-      <tr><td style=""padding:4px 12px 4px 0;color:#6b7280"">Doctor</td><td style=""padding:4px 0"">{H(doctor)}</td></tr>
-      {(string.IsNullOrWhiteSpace(patientCode) ? "" : $@"<tr><td style=""padding:4px 12px 4px 0;color:#6b7280"">Patient ID</td><td style=""padding:4px 0"">{H(patientCode)}</td></tr>")}
-    </table>
-    {(string.IsNullOrWhiteSpace(contact) ? "" : $"<p>To book or change the visit, please call <strong>{H(contact)}</strong>.</p>")}
-    <p style=""color:#6b7280;font-size:12px;margin-top:18px"">This is an automated reminder from {H(hospital)}.</p>
-  </div>
-</div>";
+        return EmailLayout.Wrap(
+            EmailLayout.Greeting(name)
+            + EmailLayout.P($"This is a friendly reminder that your <strong>follow-up visit</strong> with <strong>{H(doctor)}</strong> is <strong>{H(when)}</strong>.")
+            + EmailLayout.Details(("Date", H(dateText)), ("Doctor", H(doctor)), ("Patient ID", H(patientCode)))
+            + (string.IsNullOrWhiteSpace(contact) ? "" : EmailLayout.P($"To book or change the visit, please call <strong>{H(contact)}</strong>."))
+            + EmailLayout.SignOff(hospital),
+            heading: "Follow-up visit reminder",
+            organisation: hospital);
     }
 }
