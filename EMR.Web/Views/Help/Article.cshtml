@@ -1,0 +1,110 @@
+@model EMR.Web.ApiClients.HelpArticleView
+@{
+    ViewData["Title"] = "Help - " + Model.Title;
+    var modules = ViewBag.Modules as List<EMR.Web.ApiClients.HelpModuleView> ?? [];
+    var kind = Model.Kind switch { "FAQ" => "FAQ", "TROUBLE" => "Troubleshooting", "FLOW" => "Workflow", _ => "Guide" };
+    var isFlow = Model.Kind == "FLOW";
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/help.css" asp-append-version="true" /> }
+
+<div class="container-fluid px-3 py-3 hp">
+    <div class="row g-3">
+        <div class="col-12 col-lg-3 col-xxl-2 d-none d-lg-block"><partial name="_Sidebar" model="(modules, (string?)Model.Module)" /></div>
+        <div class="col-12 col-lg-9 col-xxl-10">
+            @if (ViewBag.AskAi as bool? ?? false) { <div class="hp-topask"><div class="hp-topask-title"><i class="bi bi-stars"></i>AI Help Assistant - ask in plain words</div><div id="hpAsk"></div></div> }
+            <div class="hp-crumb"><a asp-action="Index">Help Center</a> &rsaquo; <a asp-action="Module" asp-route-id="@Model.Module">@Model.ModuleTitle</a> &rsaquo; @kind</div>
+            <h1 class="hp-title">@Model.Title</h1>
+            <p class="hp-lead">@Model.Summary</p>
+
+            <div class="row g-3">
+                <div class="col-12 col-xl-8">
+                    @if (Model.Prereq.Count > 0)
+                    {
+                        <div class="hp-box hp-box-before mb-3">
+                            <div class="hp-box-title"><i class="bi bi-signpost-split"></i>Before you start - these must be ready</div>
+                            <ul class="hp-links">
+                                @foreach (var p in Model.Prereq) { <li><a asp-action="Page" asp-route-id="@p.Code">@p.Title</a> <span class="hp-muted">@p.Path</span></li> }
+                            </ul>
+                        </div>
+                    }
+                    @if (isFlow && Model.Workflows.Count > 0)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-diagram-3"></i>The order of work - click a step to open its screen</div>
+                            <div class="hp-flow-host" data-flow="@System.Text.Json.JsonSerializer.Serialize(Model.Workflows[0], new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))" data-nohead="1" data-big="1"></div>
+                        </div>
+                    }
+                    @if (Model.Steps.Count > 0 && !isFlow)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-list-ol"></i>@(Model.Kind == "TROUBLE" ? "How to fix it" : "Step by step")</div>
+                            <ol class="hp-bigsteps">@foreach (var s in Model.Steps) { <li>@s</li> }</ol>
+                        </div>
+                    }
+                    @if (Model.Tips.Count > 0)
+                    {
+                        <div class="hp-tips mb-3">@foreach (var t in Model.Tips) { <div><i class="bi bi-lightbulb me-1"></i>@t</div> }</div>
+                    }
+                    @if (!isFlow)
+                    {
+                        foreach (var wf in Model.Workflows.Take(2))
+                        {
+                            <div class="hp-flow-host mb-3" data-flow="@System.Text.Json.JsonSerializer.Serialize(wf, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))" data-label="Where this fits in the work"></div>
+                        }
+                    }
+                    @if (Model.Next.Count > 0)
+                    {
+                        <div class="hp-box hp-box-next mb-3">
+                            <div class="hp-box-title"><i class="bi bi-arrow-right-circle"></i>What usually comes next</div>
+                            <ul class="hp-links">
+                                @foreach (var p in Model.Next) { <li><a asp-action="Page" asp-route-id="@p.Code">@p.Title</a> <span class="hp-muted">@p.Path</span></li> }
+                            </ul>
+                        </div>
+                    }
+                    <div class="hp-card p-3 hp-feedback-host" data-code="@Model.Code">
+                        <div class="hp-feedback" data-code="@Model.Code" data-q="">Was this helpful?
+                            <button type="button" class="btn btn-sm btn-outline-success" data-helpful="true"><i class="bi bi-hand-thumbs-up"></i> Yes</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-helpful="false"><i class="bi bi-hand-thumbs-down"></i> No</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-xl-4">
+                    @if (Model.Pages.Count > 0)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-box-arrow-up-right"></i>Open the screen</div>
+                            <div class="d-grid gap-2">
+                                @foreach (var p in Model.Pages.Where(p => p.Url is not null))
+                                {
+                                    <a href="@p.Url" class="btn btn-sm btn-outline-primary text-start"><i class="bi bi-window me-1"></i>@p.Title <span class="hp-muted d-block">@p.Path</span></a>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @if (Model.Related.Count > 0)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-link-45deg"></i>Related</div>
+                            <ul class="hp-links">@foreach (var r in Model.Related) { <li><a asp-action="Article" asp-route-id="@r.Code">@r.Title</a></li> }</ul>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+    if (document.getElementById('hpAsk')) HelpAssistant.mount(document.getElementById('hpAsk'), { placeholder: 'Ask a question...', });
+    document.querySelector('.hp-feedback-host')?.addEventListener('click', async function (e) {
+        const b = e.target.closest('button[data-helpful]');
+        if (!b) return;
+        const helpful = b.dataset.helpful === 'true', box = this.querySelector('.hp-feedback');
+        box.innerHTML = helpful ? '<span class="text-success"><i class="bi bi-check-circle"></i> Thanks for the feedback.</span>' : '<span class="hp-muted">Thanks - the administrator will improve this topic.</span>';
+        const body = new URLSearchParams({ __RequestVerificationToken: document.querySelector('input[name="__RequestVerificationToken"]').value, articleCode: this.dataset.code, helpful });
+        try { await fetch('@Url.Action("Feedback")', { method: 'POST', body, credentials: 'same-origin' }); } catch (x) { }
+    });
+</script>
+}

@@ -1,0 +1,157 @@
+@model EMR.Web.ApiClients.HelpFeedbackList
+@{
+    ViewData["Title"] = "Help Insights";
+    var stats = ViewBag.Stats as EMR.Web.ApiClients.HelpLearningStats ?? new();
+    var days = stats.Days;
+    int asked = days.Sum(d => d.Asked), answered = days.Sum(d => d.Answered), helpful = days.Sum(d => d.Helpful), notHelpful = days.Sum(d => d.NotHelpful);
+    string Pct(int a, int b) => b == 0 ? "-" : Math.Round(100.0 * a / b) + "%";
+    // this week against the week before: is the assistant getting better?
+    var last7 = days.TakeLast(7).ToList();
+    var prev7 = days.SkipLast(7).TakeLast(7).ToList();
+    double Rate(List<EMR.Web.ApiClients.HelpDayStat> x) => x.Sum(d => d.Asked) == 0 ? -1 : 100.0 * x.Sum(d => d.Answered) / x.Sum(d => d.Asked);
+    var rNow = Rate(last7); var rPrev = Rate(prev7);
+    var max = Math.Max(1, days.Count == 0 ? 1 : days.Max(d => d.Asked));
+    var topics = stats.Topics;
+    // one row per question (with how often it came up); questions already taught are done
+    string Norm(string? q) => System.Text.RegularExpressions.Regex.Replace((q ?? "").Trim().ToLowerInvariant(), @"[\s?!.]+", " ").Trim();
+    var taught = stats.Learned.Where(l => l.Source == "ADMIN").Select(l => Norm(l.Question)).ToHashSet();
+    var open = Model.Open.Where(f => !taught.Contains(Norm(f.Question)))
+                    .GroupBy(f => Norm(f.Question) + "|" + f.ArticleCode + "|" + f.Helpful)
+                    .Select(g => (Row: g.First(), Count: g.Count())).ToList();
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/help.css" asp-append-version="true" /> }
+
+<div class="container-fluid px-3 py-3 hp">
+    <div class="hp-crumb"><a asp-action="Index">Help Center</a> &rsaquo; Insights</div>
+    <h1 class="hp-title"><i class="bi bi-graph-up me-2" style="color:#644098"></i>Help insights</h1>
+    <p class="hp-lead">How the AI Help Assistant is doing, day by day. It learns by itself from every "Yes / No" and every related topic users open,
+        and you can teach it the right answer for any question it missed - taught answers apply at once.</p>
+
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-lg-3"><div class="hp-card hp-kpi"><div class="hp-kpi-lbl">Questions (30 days)</div><div class="hp-kpi-val">@asked</div><div class="hp-kpi-sub">@last7.Sum(d => d.Asked) in the last 7 days</div></div></div>
+        <div class="col-6 col-lg-3"><div class="hp-card hp-kpi"><div class="hp-kpi-lbl">Answered</div><div class="hp-kpi-val">@Pct(answered, asked)</div>
+            <div class="hp-kpi-sub">@if (rNow >= 0 && rPrev >= 0) { <span class="@(rNow >= rPrev ? "text-success" : "text-danger")"><i class="bi @(rNow >= rPrev ? "bi-arrow-up" : "bi-arrow-down")"></i> @Math.Abs(Math.Round(rNow - rPrev)) pts</span> <span>vs the week before</span> } else { <span>this week vs last: not enough questions yet</span> }</div></div></div>
+        <div class="col-6 col-lg-3"><div class="hp-card hp-kpi"><div class="hp-kpi-lbl">Rated helpful</div><div class="hp-kpi-val">@Pct(helpful, helpful + notHelpful)</div><div class="hp-kpi-sub">@helpful yes · @notHelpful no</div></div></div>
+        <div class="col-6 col-lg-3"><div class="hp-card hp-kpi"><div class="hp-kpi-lbl">Learned answers</div><div class="hp-kpi-val">@stats.Learned.Count</div><div class="hp-kpi-sub">@stats.Learned.Count(l => l.Source == "ADMIN") taught by administrators</div></div></div>
+    </div>
+
+    <div class="hp-card p-3 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="hp-section-title mb-0"><i class="bi bi-bar-chart"></i>Questions per day - last 30 days</div>
+            <div class="hp-legend"><span><i style="background:#e4dcef"></i>Asked</span><span><i style="background:#8b46c4"></i>Answered</span></div>
+        </div>
+        <div class="hp-trend" role="img" aria-label="Questions asked and answered per day">
+            @foreach (var d in days)
+            {
+                <div class="hp-trend-day" title="@d.Day.ToString("dd MMM"): @d.Asked asked, @d.Answered answered, @d.Helpful helpful, @d.NotHelpful not helpful">
+                    <span class="hp-trend-asked" style="height:@(Math.Round(100.0 * (d.Asked - d.Answered) / max, 1))%"></span>
+                    <span class="hp-trend-ans" style="height:@(Math.Round(100.0 * d.Answered / max, 1))%;border-radius:@(d.Asked == d.Answered ? "3px 3px 0 0" : "0")"></span>
+                </div>
+            }
+        </div>
+        @if (days.Count > 0) { <div class="hp-trend-axis"><span>@days[0].Day.ToString("dd MMM")</span><span>@days[^1].Day.ToString("dd MMM")</span></div> }
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-7">
+            <div class="hp-card p-3 mb-3">
+                <div class="hp-section-title"><i class="bi bi-question-diamond"></i>Missed or not helpful - teach the right answer</div>
+                @if (open.Count == 0) { <p class="hp-muted mb-0">Nothing to teach - every question was answered or has been taught.</p> }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0 align-top">
+                            <thead><tr><th>When</th><th>Question / topic</th><th>User</th></tr></thead>
+                            <tbody>
+                                @foreach (var (f, count) in open)
+                                {
+                                    <tr>
+                                        <td class="small text-nowrap">@f.CreatedDate.ToString("dd MMM, hh:mm tt")</td>
+                                        <td class="small">@(f.Question ?? "")@if (count > 1) { <span class="hp-muted"> · asked @count times</span> }@if (f.ArticleTitle is not null) { <div class="hp-muted">Answered with: @f.ArticleTitle</div> }@if (!string.IsNullOrWhiteSpace(f.Comment)) { <div class="hp-muted">"@f.Comment"</div> }
+                                            <span class="hp-kind @(f.Helpful == false ? "hp-kind-TROUBLE" : "hp-kind-PAGE")">@(f.Helpful == false ? "Not helpful" : "No answer found")</span>
+                                            @if (!string.IsNullOrWhiteSpace(f.Question))
+                                            {
+                                                <form class="hp-teach" data-question="@f.Question">
+                                                    <select class="form-select form-select-sm" aria-label="The right topic for this question">
+                                                        <option value="">Teach: choose the right topic...</option>
+                                                        <optgroup label="Workflows">@foreach (var t in topics.Where(t => t.Note == "FLOW")) { <option value="@t.Code">@t.Title</option> }</optgroup>
+                                                        <optgroup label="Guides">@foreach (var t in topics.Where(t => t.Note == "GUIDE")) { <option value="@t.Code">@t.Title</option> }</optgroup>
+                                                        <optgroup label="FAQs">@foreach (var t in topics.Where(t => t.Note == "FAQ")) { <option value="@t.Code">@t.Title</option> }</optgroup>
+                                                        <optgroup label="Troubleshooting">@foreach (var t in topics.Where(t => t.Note == "TROUBLE")) { <option value="@t.Code">@t.Title</option> }</optgroup>
+                                                        <optgroup label="Screens">@foreach (var t in topics.Where(t => t.Note == "PAGE")) { <option value="@t.Code">@t.Path</option> }</optgroup>
+                                                    </select>
+                                                    <button type="submit" class="btn btn-sm text-white" style="background:#644098"><i class="bi bi-mortarboard me-1"></i>Teach</button>
+                                                </form>
+                                            }
+                                        </td>
+                                        <td class="small">@f.UserName</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+        <div class="col-12 col-xl-5">
+            <div class="hp-card p-3 mb-3">
+                <div class="hp-section-title"><i class="bi bi-mortarboard"></i>What the assistant has learned</div>
+                @if (stats.Learned.Count == 0) { <p class="hp-muted mb-0">Nothing yet - it learns from "Yes / No" on answers and from what users open.</p> }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Question</th><th>Answer</th><th class="text-end text-nowrap">Votes</th><th></th></tr></thead>
+                            <tbody>
+                                @foreach (var l in stats.Learned)
+                                {
+                                    <tr>
+                                        <td class="small">@l.Question
+                                            <div class="hp-muted">@(l.Source == "ADMIN" ? "Taught" + (l.ByUser is null ? "" : " by " + l.ByUser) : "From users") · @l.ModifiedDate.ToString("dd MMM")</div></td>
+                                        <td class="small">@(l.TargetTitle ?? (l.Intent is null ? "-" : "Understands: " + l.Intent switch { "NEXT" => "what comes next", "BEFORE" => "what comes before", "FLOW" => "the whole workflow", "PROBLEM" => "a problem", "WHERE" => "where a screen is", _ => "how to do it" }))</td>
+                                        <td class="small text-end text-nowrap"><span class="text-success">@l.UpVotes <i class="bi bi-hand-thumbs-up"></i></span> <span class="text-danger">@l.DownVotes <i class="bi bi-hand-thumbs-down"></i></span>@if (l.Clicks > 0) { <span class="hp-muted"> · @l.Clicks <i class="bi bi-cursor"></i></span> }</td>
+                                        <td class="text-end"><button type="button" class="btn btn-sm btn-outline-secondary hp-forget" data-id="@l.LearnedId" title="Forget this">Forget</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            <div class="hp-card p-3">
+                <div class="hp-section-title"><i class="bi bi-hand-thumbs-up"></i>Topic ratings</div>
+                @if (Model.Scores.Count == 0) { <p class="hp-muted mb-0">No ratings yet.</p> }
+                else
+                {
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Topic</th><th class="text-end">Helpful</th><th class="text-end">Not helpful</th></tr></thead>
+                        <tbody>@foreach (var s in Model.Scores) { <tr><td class="small"><a asp-action="Article" asp-route-id="@s.Code">@s.Title</a></td><td class="text-end">@s.Helpful</td><td class="text-end">@s.NotHelpful</td></tr> }</tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+    (function () {
+        const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+        const post = (url, data) => fetch(url, { method: 'POST', credentials: 'same-origin', body: new URLSearchParams(Object.assign({ __RequestVerificationToken: token() }, data)) }).then(r => r.json());
+        document.querySelectorAll('.hp-teach').forEach(f => f.addEventListener('submit', async e => {
+            e.preventDefault();
+            const sel = f.querySelector('select');
+            if (!sel.value) { sel.focus(); return; }
+            const r = await post('@Url.Action("Teach")', { question: f.dataset.question, targetCode: sel.value });
+            f.outerHTML = r.saved ? `<div class="small text-success mt-1"><i class="bi bi-check-circle"></i> Learned - this question now gets "${sel.options[sel.selectedIndex].text.replace(/[<>&"]/g, '')}".</div>`
+                                  : `<div class="small text-danger mt-1">${r.message || 'Could not save.'}</div>`;
+        }));
+        document.querySelectorAll('.hp-forget').forEach(b => b.addEventListener('click', async () => {
+            b.disabled = true;
+            const r = await post('@Url.Action("Forget")', { id: b.dataset.id });
+            if (r.saved) b.closest('tr').remove(); else b.disabled = false;
+        }));
+    })();
+</script>
+}

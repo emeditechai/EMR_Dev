@@ -379,7 +379,7 @@ else
         <div class="tab-pane fade module-tab-pane" id="tabLab" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#fd7e14"><i class="bi bi-eyedropper me-1"></i>LAB Configuration</span>
-                <span class="coming-soon-badge">13 active parameters</span>
+                <span class="coming-soon-badge">14 active parameters</span>
             </div>
 
             <div class="lab-section-title">Billing &amp; Sample Collection</div>
@@ -435,6 +435,16 @@ else
                             <div class="lp-label">Enable AI Features at Billing</div>
                             <div class="lp-desc">Yes: AI prescription assist and Smart ID Scan on B2C / B2B booking. No: billing works as before, without AI.</div>
                             <span class="lp-pill @(Model.EnableAiBillingFeatures ? "yes" : "no")"><i class="bi @(Model.EnableAiBillingFeatures ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAiBillingFeatures ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c026d3;--lp-bg:#fae8ff;">
+                        <div class="lp-icon"><i class="bi bi-chat-square-heart"></i></div>
+                        <div>
+                            <div class="lp-label">Enable Ask AI Features</div>
+                            <div class="lp-desc">Yes: the AI Help Assistant (Ask AI) on the Home dashboard and in the Help Center. No: not shown; the Help Center guides stay.</div>
+                            <span class="lp-pill @(Model.EnableAskAiFeatures ? "yes" : "no")"><i class="bi @(Model.EnableAskAiFeatures ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAskAiFeatures ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>

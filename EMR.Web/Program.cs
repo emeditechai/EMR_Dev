@@ -33,6 +33,7 @@ builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR.Web.Services.Reports.LabTestWorkloadService>();
 // Utility > Campaigns (SQLScripts/2299): EMR.Api api/campaigns, and the background sender (also started at once on "Send now")
 builder.Services.AddScoped<EMR.Web.ApiClients.ICampaignApiClient, EMR.Web.ApiClients.CampaignApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.IHelpApiClient, EMR.Web.ApiClients.HelpApiClient>();   // Utility > Help Center (SQLScripts/2300)
 builder.Services.AddSingleton<EMR.Web.Services.Campaigns.CampaignSenderService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EMR.Web.Services.Campaigns.CampaignSenderService>());
 
@@ -60,6 +61,8 @@ builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionT
 builder.Services.AddSingleton<EMR.Web.Services.IdDocumentAssist.IIdDocumentReader, EMR.Web.Services.IdDocumentAssist.IdDocumentReader>();
 // Hospital Settings > LAB > Enable AI Features at Billing (per branch, SQLScripts/2286)
 builder.Services.AddScoped<EMR.Web.Services.IAiBillingFeatures, EMR.Web.Services.AiBillingFeatures>();
+// Hospital Settings > LAB > Enable Ask AI Features (per branch, SQLScripts/2302): the AI Help Assistant
+builder.Services.AddScoped<EMR.Web.Services.IAskAiFeatures, EMR.Web.Services.AskAiFeatures>();
 // AI test suggestions at B2C billing: learned from past bills, kept in memory per branch (SQLScripts/2287)
 // reflex test suggestions at LAB Reporting (SQLScripts/2289)
 builder.Services.AddScoped<EMR.Web.Services.Reflex.ILabReflexService, EMR.Web.Services.Reflex.LabReflexService>();

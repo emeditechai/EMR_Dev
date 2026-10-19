@@ -1,4 +1,5 @@
 @model EMR.Web.Models.ViewModels.DashboardViewModel
+@inject EMR.Web.Services.IAskAiFeatures AskAi
 @{
     ViewData["Title"] = "Dashboard";
     var now = DateTime.Now;
@@ -85,7 +86,16 @@
                  border-radius: 999px; padding: .2rem .75rem; font-weight: 700; font-size: .85rem; }
     .home-chip.ghost { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.3); }
 
-    .home-goto { position: relative; flex: 1 1 320px; max-width: 460px; }
+    .home-hero-tools { flex: 1 1 340px; max-width: 480px; display: flex; flex-direction: column; gap: .55rem; }
+    .home-goto { position: relative; width: 100%; }
+    .home-ask { position: relative; display: flex; align-items: center; background: #fff; border-radius: 12px; padding: .25rem .25rem .25rem 2.4rem;
+                box-shadow: 0 6px 22px rgba(20,6,40,.25); border: 2px solid rgba(255,255,255,.8); }
+    .home-ask > .bi-stars { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); color: #ca2e6d; font-size: 1.1rem; }
+    .home-ask input { flex: 1; min-width: 0; border: 0; padding: .5rem .3rem; font-size: .95rem; color: #1b1530; background: transparent; }
+    .home-ask input:focus { outline: none; }
+    .home-ask:focus-within { outline: 3px solid rgba(255,255,255,.55); }
+    .home-ask button { border: 0; border-radius: 9px; padding: .45rem .85rem; color: #fff; font-weight: 700; font-size: .85rem; white-space: nowrap;
+                       background: linear-gradient(135deg, #ca2e6d, #8b46c4); display: inline-flex; align-items: center; gap: .35rem; }
     .home-goto input { width: 100%; border: 0; border-radius: 12px; padding: .7rem 4.2rem .7rem 2.5rem; font-size: .95rem;
                        box-shadow: 0 6px 18px rgba(16,25,47,.18); }
     .home-goto input:focus { outline: 3px solid rgba(255,255,255,.55); }
@@ -169,6 +179,17 @@
                 }
             </div>
         </div>
+        <div class="home-hero-tools">
+        @* ask the AI Help Assistant (wwwroot/js/help.js): opens the assistant panel with the answer - when the branch has
+           Hospital Settings > LAB > Enable Ask AI Features on (SQLScripts/2302) *@
+        @if (await AskAi.IsEnabledAsync(Context))
+        {
+            <form class="home-ask" id="homeAsk" autocomplete="off">
+                <i class="bi bi-stars"></i>
+                <input type="text" id="homeAskInput" maxlength="400" placeholder="Ask AI - e.g. how do I collect a due on a LAB bill?" aria-label="Ask the AI Help Assistant" />
+                <button type="submit" aria-label="Ask"><i class="bi bi-send"></i><span>Ask AI</span></button>
+            </form>
+        }
         @if (Model.PageCatalog.Count > 0)
         {
             <div class="home-goto" id="homeGoTo">
@@ -179,6 +200,7 @@
                 <div class="home-goto-results" id="homeGoToResults" role="listbox" hidden></div>
             </div>
         }
+        </div>
     </div>
 
     @* 2. Sign-in, last activity, session & security *@

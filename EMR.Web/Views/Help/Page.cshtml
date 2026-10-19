@@ -1,0 +1,94 @@
+@model EMR.Web.ApiClients.HelpPageView
+@{
+    ViewData["Title"] = "Help - " + Model.Title;
+    var modules = ViewBag.Modules as List<EMR.Web.ApiClients.HelpModuleView> ?? [];
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/help.css" asp-append-version="true" /> }
+
+<div class="container-fluid px-3 py-3 hp">
+    <div class="row g-3">
+        <div class="col-12 col-lg-3 col-xxl-2 d-none d-lg-block"><partial name="_Sidebar" model="(modules, (string?)Model.Module)" /></div>
+        <div class="col-12 col-lg-9 col-xxl-10">
+            @if (ViewBag.AskAi as bool? ?? false) { <div class="hp-topask"><div class="hp-topask-title"><i class="bi bi-stars"></i>AI Help Assistant - ask in plain words</div><div id="hpAsk"></div></div> }
+            <div class="hp-crumb"><a asp-action="Index">Help Center</a> &rsaquo; <a asp-action="Module" asp-route-id="@Model.Module">@Model.ModuleTitle</a> &rsaquo; Screen</div>
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div>
+                    <h1 class="hp-title">@Model.Title</h1>
+                    <div class="hp-muted mb-2"><i class="bi bi-signpost me-1"></i>@Model.Path</div>
+                </div>
+                @if (Model.Url is not null) { <a href="@Model.Url" class="btn btn-sm text-white" style="background:#644098"><i class="bi bi-box-arrow-up-right me-1"></i>Open this screen</a> }
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12 col-xl-8">
+                    @foreach (var wf in Model.Workflows.Take(2))
+                    {
+                        <div class="hp-flow-host mb-3" data-flow="@System.Text.Json.JsonSerializer.Serialize(wf, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))" data-label="Where this screen fits"></div>
+                    }
+                    @if (Model.Before.Count > 0)
+                    {
+                        <div class="hp-box hp-box-before mb-3">
+                            <div class="hp-box-title"><i class="bi bi-signpost-split"></i>Before you use this screen</div>
+                            <ul class="hp-links">
+                                @foreach (var p in Model.Before) { <li><a asp-action="Page" asp-route-id="@p.Code">@p.Title</a> @if (!string.IsNullOrWhiteSpace(p.Note)) { <span class="hp-muted">- @p.Note</span> }</li> }
+                            </ul>
+                        </div>
+                    }
+                    @foreach (var g in Model.Guides)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-list-ol"></i>@g.Title</div>
+                            <p class="hp-muted mb-2">@g.Summary</p>
+                            <ol class="hp-bigsteps">@foreach (var s in g.Steps) { <li>@s</li> }</ol>
+                            @if (g.Tips.Count > 0) { <div class="hp-tips mt-2">@foreach (var t in g.Tips) { <div><i class="bi bi-lightbulb me-1"></i>@t</div> }</div> }
+                        </div>
+                    }
+                    @if (!Model.HasWrittenGuide)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-list-ol"></i>How to use this screen</div>
+                            <ol class="hp-bigsteps">@foreach (var s in Model.GeneralSteps) { <li>@s</li> }</ol>
+                        </div>
+                    }
+                    @if (Model.Actions.Count > 0)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-ui-checks"></i>What you can do here <span class="hp-muted text-lowercase fw-normal">(when your role allows it)</span></div>
+                            <div class="hp-chips">@foreach (var a in Model.Actions) { <span class="hp-chip hp-chip-plain">@a</span> }</div>
+                        </div>
+                    }
+                    @if (Model.After.Count > 0)
+                    {
+                        <div class="hp-box hp-box-next mb-3">
+                            <div class="hp-box-title"><i class="bi bi-arrow-right-circle"></i>What usually comes next</div>
+                            <ul class="hp-links">@foreach (var p in Model.After) { <li><a asp-action="Page" asp-route-id="@p.Code">@p.Title</a> <span class="hp-muted">@p.Path</span></li> }</ul>
+                        </div>
+                    }
+                </div>
+                <div class="col-12 col-xl-4">
+                    @if (Model.Troubles.Count > 0)
+                    {
+                        <div class="hp-section-title"><i class="bi bi-wrench-adjustable"></i>Problems?</div>
+                        <div class="mb-3">
+                            @foreach (var t in Model.Troubles)
+                            {
+                                <details class="hp-faq"><summary>@t.Title</summary>
+                                    <div class="hp-faq-body">@t.Summary <a asp-action="Article" asp-route-id="@t.Code" class="d-block mt-1">How to fix it &rsaquo;</a></div></details>
+                            }
+                        </div>
+                    }
+                    @if (Model.Faqs.Count > 0)
+                    {
+                        <div class="hp-section-title"><i class="bi bi-chat-square-text"></i>FAQs</div>
+                        <div class="mb-3">@foreach (var f in Model.Faqs) { <details class="hp-faq"><summary>@f.Title</summary><div class="hp-faq-body">@f.Summary</div></details> }</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>if (document.getElementById('hpAsk')) HelpAssistant.mount(document.getElementById('hpAsk'), { pageCode: '@Model.PageCode', placeholder: 'Ask a question...' });</script>
+}

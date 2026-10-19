@@ -462,6 +462,20 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c026d3;--lp-bg:#fae8ff;">
+                        <div class="lp-icon"><i class="bi bi-chat-square-heart"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Enable Ask AI Features</div>
+                            <div class="lp-desc">Yes: the AI Help Assistant (Ask AI) on the Home dashboard and in the Help Center. No: not shown; the Help Center guides stay.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="EnableAskAiFeatures">
+                                <label class="form-check-label" asp-for="EnableAskAiFeatures">Enable Ask AI Features</label>
+                            </div>
+                            <span asp-validation-for="EnableAskAiFeatures" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Reporting</div>

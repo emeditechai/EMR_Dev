@@ -84,6 +84,8 @@ public class HospitalSettings
     public bool BarcodeGenerateAtBilling { get; set; } = false;
     /// <summary>LAB billing AI features (AI prescription assist, Smart ID Scan) for this branch (SQLScripts/2286). Off = billing as before.</summary>
     public bool EnableAiBillingFeatures { get; set; } = false;
+    /// <summary>The AI Help Assistant (Ask AI on the Home dashboard and in the Help Center) for this branch (SQLScripts/2302).</summary>
+    public bool EnableAskAiFeatures { get; set; } = false;
     /// <summary>When true a B2C Lab bill gets its Token No even while a payment is still due (default: only when fully paid).</summary>
     public bool TokenGenerateOnDuePayment { get; set; } = false;
     /// <summary>Email the finished LAB report to the patient (default No).</summary>

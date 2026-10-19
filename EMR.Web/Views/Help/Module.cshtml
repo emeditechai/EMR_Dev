@@ -1,0 +1,97 @@
+@model EMR.Web.ApiClients.HelpModuleView
+@{
+    ViewData["Title"] = "Help - " + Model.Title;
+    var modules = ViewBag.Modules as List<EMR.Web.ApiClients.HelpModuleView> ?? [];
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/help.css" asp-append-version="true" /> }
+
+<div class="container-fluid px-3 py-3 hp">
+    <div class="row g-3">
+        <div class="col-12 col-lg-3 col-xxl-2 d-none d-lg-block"><partial name="_Sidebar" model="(modules, (string?)Model.Code)" /></div>
+        <div class="col-12 col-lg-9 col-xxl-10">
+            <div class="hp-crumb"><a asp-action="Index">Help Center</a> &rsaquo; @Model.Title</div>
+            <h1 class="hp-title"><i class="bi @Model.Icon me-2" style="color:#644098"></i>@Model.Title</h1>
+            <p class="hp-lead">@Model.Summary</p>
+            @if (ViewBag.AskAi as bool? ?? false) { <div class="hp-topask"><div class="hp-topask-title"><i class="bi bi-stars"></i>AI Help Assistant - ask about @Model.Title</div><div id="hpAsk"></div></div> }
+
+            <div class="row g-3">
+                <div class="col-12 col-xl-7">
+                    @if (Model.Workflows.Count > 0)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-diagram-3"></i>Workflows - the order of work</div>
+                            <ul class="hp-links">
+                                @foreach (var w in Model.Workflows) { <li><a asp-action="Article" asp-route-id="@w.Code"><i class="bi bi-diagram-3 me-1"></i>@w.Title</a> <span class="hp-muted">@w.Summary</span></li> }
+                            </ul>
+                        </div>
+                    }
+                    @if (Model.Setup.Count > 0)
+                    {
+                        <div class="hp-card p-3 mb-3">
+                            <div class="hp-section-title"><i class="bi bi-diagram-3"></i>Set up first - in this order</div>
+                            <ol class="hp-setup">
+                                @foreach (var s in Model.Setup)
+                                {
+                                    <li><div>
+                                        <div class="hp-setup-title"><a asp-action="Page" asp-route-id="@s.Code">@s.Title</a></div>
+                                        <div class="hp-muted">@s.Note · <span>@s.Path</span></div>
+                                    </div></li>
+                                }
+                            </ol>
+                        </div>
+                    }
+                    @if (Model.Guides.Count > 0)
+                    {
+                        <div class="hp-section-title"><i class="bi bi-journal-text"></i>Step-by-step guides</div>
+                        <div class="row g-2 mb-3">
+                            @foreach (var g in Model.Guides)
+                            {
+                                <div class="col-12 col-md-6">
+                                    <a asp-action="Article" asp-route-id="@g.Code" class="hp-card hp-mod">
+                                        <span class="hp-mod-title">@g.Title</span>
+                                        <span class="hp-mod-sum">@g.Summary</span>
+                                    </a>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div class="hp-card p-3 mb-3">
+                        <div class="hp-section-title"><i class="bi bi-window-stack"></i>Every screen of @Model.Title (@Model.PageCount)</div>
+                        @foreach (var g in Model.Groups)
+                        {
+                            <div class="hp-group-title">@g.Title</div>
+                            <div class="hp-pagelist">
+                                @foreach (var p in g.Pages) { <a asp-action="Page" asp-route-id="@p.Code"><i class="bi bi-question-circle me-1"></i>@p.Title</a> }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="col-12 col-xl-5">
+                    @if (Model.Troubles.Count > 0)
+                    {
+                        <div class="hp-section-title"><i class="bi bi-wrench-adjustable"></i>Troubleshooting</div>
+                        <div class="mb-3">
+                            @foreach (var t in Model.Troubles)
+                            {
+                                <details class="hp-faq"><summary>@t.Title</summary>
+                                    <div class="hp-faq-body">@t.Summary <a asp-action="Article" asp-route-id="@t.Code" class="d-block mt-1">How to fix it &rsaquo;</a></div></details>
+                            }
+                        </div>
+                    }
+                    @if (Model.Faqs.Count > 0)
+                    {
+                        <div class="hp-section-title"><i class="bi bi-chat-square-text"></i>FAQs</div>
+                        @foreach (var f in Model.Faqs)
+                        {
+                            <details class="hp-faq"><summary>@f.Title</summary><div class="hp-faq-body">@f.Summary</div></details>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>if (document.getElementById('hpAsk')) HelpAssistant.mount(document.getElementById('hpAsk'), { placeholder: 'Ask about @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.Title))...' });</script>
+}

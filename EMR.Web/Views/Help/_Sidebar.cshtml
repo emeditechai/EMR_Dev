@@ -1,0 +1,9 @@
+@model (List<EMR.Web.ApiClients.HelpModuleView> Modules, string? Active)
+@* Help Center: the module list on the left of every help page *@
+<div class="hp-card p-2 hp-side">
+    <a asp-action="Index" class="@(Model.Active is null ? "active" : "")"><i class="bi bi-house"></i>Help home</a>
+    @foreach (var m in Model.Modules)
+    {
+        <a asp-action="Module" asp-route-id="@m.Code" class="@(string.Equals(Model.Active, m.Code, StringComparison.OrdinalIgnoreCase) ? "active" : "")"><i class="bi @m.Icon"></i>@m.Title</a>
+    }
+</div>

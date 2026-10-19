@@ -1,3 +1,4 @@
+@inject EMR.Web.Services.IAskAiFeatures AskAi
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +11,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/sweetalert2/dist/sweetalert2.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/help.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/EMR.Web.styles.css" asp-append-version="true" />
     @await RenderSectionAsync("HeadStyles", required: false)
 </head>
@@ -146,6 +148,37 @@
     {
         <script src="~/lib/microsoft-signalr/signalr.min.js" asp-append-version="true"></script>
         <script src="~/js/notifications.js" asp-append-version="true"></script>
+        @* Hospital Settings > LAB > Enable Ask AI Features (per branch, SQLScripts/2302): the assistant panel and the Home button *@
+        @if (await AskAi.IsEnabledAsync(Context))
+        {
+            @* the help drawer: the AI Help Assistant on top, help for this screen below (Utility > Help Center, SQLScripts/2300) *@
+            <div class="offcanvas offcanvas-end hp hp-drawer" tabindex="-1" id="emrHelpDrawer" aria-labelledby="emrHelpDrawerTitle"
+                 data-controller="@ViewContext.RouteData.Values["controller"]" data-action="@ViewContext.RouteData.Values["action"]">
+                <div class="offcanvas-header">
+                    <div>
+                        <h5 class="offcanvas-title" id="emrHelpDrawerTitle"><i class="bi bi-stars me-2"></i>AI Help Assistant</h5>
+                        <div class="hp-drawer-sub">Knows the order of work - ask what to do next</div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                </div>
+                <div class="offcanvas-body">
+                    <div class="hp-drawer-ask"></div>
+                    <div class="hp-section-title mt-3"><i class="bi bi-life-preserver"></i>Help for this page</div>
+                    <div class="hp-drawer-body"><div class="hp-muted"><span class="spinner-border spinner-border-sm me-2"></span>Loading help...</div></div>
+                    <div class="mt-3 pt-2 border-top"><a asp-controller="Help" asp-action="Index" class="small"><i class="bi bi-book me-1"></i>Open the Help Center</a></div>
+                    <div id="emrHelpToken">@Html.AntiForgeryToken()</div>
+                </div>
+            </div>
+            @* the floating Ask AI button: on the Home dashboard only *@
+            @if (string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Dashboard", StringComparison.OrdinalIgnoreCase)
+                 && string.Equals(ViewContext.RouteData.Values["action"]?.ToString(), "Index", StringComparison.OrdinalIgnoreCase))
+            {
+                <button type="button" class="emr-ask-fab" id="emrAskFab" aria-label="Ask the AI Help Assistant" title="Ask the AI Help Assistant">
+                    <i class="bi bi-stars"></i><span>Ask AI</span>
+                </button>
+            }
+        }
+        <script src="~/js/help.js" asp-append-version="true"></script>
     }
     <script>
         // Nested submenu: hover on desktop, click on mobile

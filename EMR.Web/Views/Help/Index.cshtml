@@ -1,0 +1,134 @@
+@model EMR.Web.ApiClients.HelpHomeView
+@{
+    ViewData["Title"] = "Help Center";
+    bool isAdmin = ViewBag.IsAdmin as bool? ?? false;
+    bool askAi = ViewBag.AskAi as bool? ?? false;   // Hospital Settings > LAB > Enable Ask AI Features (SQLScripts/2302)
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/help.css" asp-append-version="true" /> }
+
+<div class="container-fluid px-3 py-3 hp">
+    <div class="hp-hero mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+            @if (askAi)
+            {
+                <div class="hp-assist-head">
+                    <span class="hp-assist-avatar"><i class="bi bi-stars"></i></span>
+                    <div>
+                        <h1 class="mb-0">AI Help Assistant</h1>
+                        <div style="opacity:.9">Ask in plain words. It knows how the work flows in eCare360Plus+ - what comes next, what must be done first, and where to click.</div>
+                        <div class="hp-assist-badges"><span><i class="bi bi-diagram-3 me-1"></i>Knows the workflow</span><span><i class="bi bi-spellcheck me-1"></i>Understands typos and everyday words</span><span><i class="bi bi-window-stack me-1"></i>Help for all @Model.PageCount screens</span></div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="hp-assist-head">
+                    <span class="hp-assist-avatar"><i class="bi bi-life-preserver"></i></span>
+                    <div>
+                        <h1 class="mb-0">Help Center</h1>
+                        <div style="opacity:.9">Step-by-step guides in the order the work happens, workflows, FAQs and fixes for common problems - for every screen.</div>
+                    </div>
+                </div>
+            }
+            @if (isAdmin)
+            {
+                <div><a asp-action="Insights" class="btn btn-sm btn-light"><i class="bi bi-graph-up me-1"></i>Help insights</a></div>
+            }
+        </div>
+        @if (askAi) { <div id="hpAsk"></div> }
+        <div class="hp-stats">
+            <span><strong>@Model.Modules.Count</strong> modules</span>
+            <span><strong>@Model.Workflows.Count</strong> workflows</span>
+            <span><strong>@Model.ArticleCount</strong> guides, FAQs and fixes</span>
+            @if (askAi) { <span><i class="bi bi-stars"></i> Tip: <strong>Ask AI</strong> at the bottom right of Home opens the assistant too</span> }
+            else { <span><strong>@Model.PageCount</strong> screens covered</span> }
+        </div>
+    </div>
+
+    <div class="hp-section-title"><i class="bi bi-diagram-3"></i>Workflows - the order of work</div>
+    <div class="row g-2 mb-3">
+        @foreach (var w in Model.Workflows.Where(w => w.Note != "SETUP"))
+        {
+            <div class="col-12 col-md-6 col-xxl-4">
+                <a asp-action="Article" asp-route-id="@w.Code" class="hp-card hp-wf-card">
+                    <span class="hp-wf-title"><i class="bi bi-diagram-3"></i>@w.Title</span>
+                    <span class="hp-wf-chain">@w.Summary</span>
+                </a>
+            </div>
+        }
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-8">
+            <div class="hp-section-title"><i class="bi bi-rocket-takeoff"></i>Start here</div>
+            <div class="row g-2 mb-3">
+                @foreach (var a in Model.QuickStart)
+                {
+                    <div class="col-12 col-md-6">
+                        <a asp-action="Article" asp-route-id="@a.Code" class="hp-card hp-mod">
+                            <span class="hp-mod-title"><i class="bi bi-play-circle me-1" style="color:#ca2e6d"></i>@a.Title</span>
+                            <span class="hp-mod-sum">@a.Summary</span>
+                        </a>
+                    </div>
+                }
+            </div>
+
+            <div class="hp-section-title"><i class="bi bi-grid-3x3-gap"></i>Browse by module</div>
+            <div class="row g-2 mb-3">
+                @foreach (var m in Model.Modules.Where(m => m.Code != "GENERAL"))
+                {
+                    <div class="col-12 col-md-6 col-xxl-4">
+                        <a asp-action="Module" asp-route-id="@m.Code" class="hp-card hp-mod">
+                            <span class="hp-mod-icon"><i class="bi @m.Icon"></i></span>
+                            <span class="hp-mod-title">@m.Title</span>
+                            <span class="hp-mod-sum">@m.Summary</span>
+                            <span class="hp-mod-meta">@m.PageCount screens · @m.Guides.Count guides · @(m.Faqs.Count + m.Troubles.Count) FAQs &amp; fixes</span>
+                        </a>
+                    </div>
+                }
+            </div>
+
+            <div class="hp-card p-3 mb-3">
+                <div class="hp-section-title"><i class="bi bi-list-check"></i>First-time setup - in this order</div>
+                <ol class="hp-setup">
+                    <li><div><div class="hp-setup-title"><a asp-action="Module" asp-route-id="SETTINGS">Settings &amp; Security</a></div><div class="hp-muted">Company, branches, hospital settings, email, users, roles and permissions, approvals.</div></div></li>
+                    <li><div><div class="hp-setup-title"><a asp-action="Module" asp-route-id="MASTER">Masters</a></div><div class="hp-muted">Departments, places, doctors, corporates, discount types, membership plans.</div></div></li>
+                    <li><div><div class="hp-setup-title"><a asp-action="Module" asp-route-id="LAB">LAB masters</a> and <a asp-action="Module" asp-route-id="OPD">OPD masters</a></div><div class="hp-muted">Tests, profiles, ranges and rate lists; services, rooms and rosters.</div></div></li>
+                    <li><div><div class="hp-setup-title">Daily work</div><div class="hp-muted">OPD registration and booking, LAB booking, collection, reporting, dispatch and day closing.</div></div></li>
+                    <li><div><div class="hp-setup-title"><a asp-action="Module" asp-route-id="REPORTS">Reports</a>, <a asp-action="Module" asp-route-id="QUALITY">Quality</a> and <a asp-action="Module" asp-route-id="UTILITY">Utility</a></div><div class="hp-muted">Check the day, keep quality records, emails, campaigns and accounts.</div></div></li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="hp-section-title"><i class="bi bi-wrench-adjustable"></i>Troubleshooting</div>
+            <div class="mb-3">
+                @foreach (var t in Model.Troubles)
+                {
+                    <details class="hp-faq">
+                        <summary>@t.Title</summary>
+                        <div class="hp-faq-body">@t.Summary <a asp-action="Article" asp-route-id="@t.Code" class="d-block mt-1">How to fix it &rsaquo;</a></div>
+                    </details>
+                }
+            </div>
+            <div class="hp-section-title"><i class="bi bi-chat-square-text"></i>Frequently asked questions</div>
+            @foreach (var f in Model.Faqs)
+            {
+                <details class="hp-faq">
+                    <summary>@f.Title</summary>
+                    <div class="hp-faq-body">@f.Summary</div>
+                </details>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    if (document.getElementById('hpAsk')) HelpAssistant.mount(document.getElementById('hpAsk'), {
+        big: true,
+        suggestions: ['After creating a B2C bill, what is next?', 'What comes before sample collection?', 'Show the LAB workflow', 'How do I cancel a LAB bill?',
+                      'Sample not showing in lab reporting', 'After adding a test, what next?', 'Send an email to all patients']
+    }).focus();
+</script>
+}

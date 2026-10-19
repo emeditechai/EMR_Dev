@@ -105,6 +105,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Enable AI Features at Billing")]
     public bool EnableAiBillingFeatures { get; set; } = false;
 
+    [Display(Name = "Enable Ask AI Features")]
+    public bool EnableAskAiFeatures { get; set; } = false;
+
     [Display(Name = "Token No Generate in Due Payment")]
     public bool TokenGenerateOnDuePayment { get; set; } = false;
 

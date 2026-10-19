@@ -123,6 +123,10 @@ builder.Services.AddScoped<ILabUnapproveService,                  LabUnapproveSe
 builder.Services.AddScoped<IPathologistDashboardService,          PathologistDashboardService>();
 builder.Services.AddScoped<ILabCriticalCommunicationService,      LabCriticalCommunicationService>();
 builder.Services.AddScoped<ICampaignService, CampaignService>();   // Utility > Campaigns (SQLScripts/2299)
+// Utility > Help Center (SQLScripts/2300); the Help Assistant may use Claude when HelpAssistant:AnthropicApiKey is set
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("Anthropic");
+builder.Services.AddScoped<IHelpService, HelpService>();
 builder.Services.AddScoped<ILabDefaultSignatoryService,           LabDefaultSignatoryService>();
 builder.Services.AddScoped<ILabApprovalFlowService,                LabApprovalFlowService>();
 builder.Services.AddScoped<IB2BBillingService,              B2BBillingService>();
