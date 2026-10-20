@@ -6,7 +6,7 @@ public interface IServiceBookingApiClient
 {
     Task<ServiceBookingPagedResult> GetPagedAsync(
         int? branchId, DateOnly? fromDate, DateOnly? toDate,
-        int page, int pageSize, string? search);
+        int page, int pageSize, string? search, string? paymentFilter = null);
 
     Task<ServiceBookingDetail?> GetByIdAsync(int opdServiceId);
     Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId);

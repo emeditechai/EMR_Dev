@@ -1301,9 +1301,12 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> ServiceBooking(
         string? fromDate, string? toDate,
-        int page = 1, int pageSize = 10, string? search = null)
+        int page = 1, int pageSize = 10, string? search = null, string? paymentStatus = null)
     {
         var branchId = User.GetCurrentBranchId();
+        // Payment Status filter, as on the B2C Order List (SQLScripts/2308)
+        var effectivePaymentStatus = paymentStatus?.Trim().ToUpperInvariant() is "DUE" or "PARTIAL" or "PAID" or "PCAN" or "FCAN"
+            ? paymentStatus.Trim().ToUpperInvariant() : null;
         if (page < 1) page = 1;
         if (pageSize is < 5 or > 100) pageSize = 10;
 
@@ -1318,7 +1321,7 @@ public class OPDController(
         try
         {
             var apiResult = await serviceBookingApiClient.GetPagedAsync(
-                branchId, from, to, page, pageSize, search?.Trim());
+                branchId, from, to, page, pageSize, search?.Trim(), effectivePaymentStatus);
 
             var paged = new ServiceBookingPagedListViewModel
             {
@@ -1351,7 +1354,8 @@ public class OPDController(
                 PageSize        = pageSize,
                 Search          = search?.Trim(),
                 FromDate        = from?.ToString("yyyy-MM-dd"),
-                ToDate          = to?.ToString("yyyy-MM-dd")
+                ToDate          = to?.ToString("yyyy-MM-dd"),
+                PaymentStatus   = effectivePaymentStatus ?? string.Empty
             };
 
             ViewData["Title"] = "Service Booking";

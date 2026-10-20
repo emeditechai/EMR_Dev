@@ -9,7 +9,7 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
     // ─── Paged list ───────────────────────────────────────────────────────────
     public async Task<ServiceBookingPagedResult> GetPagedAsync(
         int? branchId, DateTime? fromDate, DateTime? toDate,
-        int page, int pageSize, string? search)
+        int page, int pageSize, string? search, string? paymentFilter = null)
     {
         using var con = db.CreateConnection();
 
@@ -22,7 +22,8 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
                 ToDate     = toDate.HasValue   ? (DateTime?)toDate.Value.Date   : null,
                 PageNumber = page,
                 PageSize   = pageSize,
-                Search     = search
+                Search     = search,
+                PaymentFilter = paymentFilter   // SQLScripts/2308
             },
             commandType: System.Data.CommandType.StoredProcedure)).ToList();
 

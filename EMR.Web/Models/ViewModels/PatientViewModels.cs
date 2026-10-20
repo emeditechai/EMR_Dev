@@ -332,6 +332,8 @@ public class ServiceBookingPagedListViewModel
     public string? Search { get; set; }
     public string? FromDate { get; set; }
     public string? ToDate { get; set; }
+    /// <summary>Payment Status filter (SQLScripts/2308): "" all, DUE, PARTIAL, PAID, PCAN, FCAN.</summary>
+    public string PaymentStatus { get; set; } = string.Empty;
     public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 1;
     public bool HasPrev => Page > 1;
     public bool HasNext => Page < TotalPages;}

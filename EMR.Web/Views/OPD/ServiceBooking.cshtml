@@ -183,6 +183,15 @@
                 </div>
             </div>
             <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">Payment Status</label>
+                <select name="paymentStatus" id="ddlPaymentStatus" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var (val, text) in new[] { ("", "All"), ("DUE", "Full Due"), ("PARTIAL", "Partial Due"), ("PAID", "Paid"), ("PCAN", "Partial Cancelled"), ("FCAN", "Full Cancelled") })
+                    {
+                        <option value="@val" selected="@(Model.PaymentStatus == val ? "selected" : null)">@text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">Per page</label>
                 <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
                     @foreach (var ps in new[] { 10, 25, 50, 100 })
@@ -327,7 +336,7 @@
                                        asp-route-page="@(Model.Page - 1)"
                                        asp-route-pageSize="@Model.PageSize"
                                        asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate"
+                                       asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus"
                                        asp-route-search="@Model.Search">
                                         <i class="bi bi-chevron-left"></i>
                                     </a>
@@ -342,7 +351,7 @@
                                     <li class="page-item">
                                         <a class="page-link" asp-action="ServiceBooking" asp-route-page="1"
                                            asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
+                                           asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus" asp-route-search="@Model.Search">1</a>
                                     </li>
                                     @if (startPage > 2)
                                     {
@@ -354,7 +363,7 @@
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
                                         <a class="page-link" asp-action="ServiceBooking" asp-route-page="@pg"
                                            asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
+                                           asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus" asp-route-search="@Model.Search">@pg</a>
                                     </li>
                                 }
                                 @if (endPage < Model.TotalPages)
@@ -366,7 +375,7 @@
                                     <li class="page-item">
                                         <a class="page-link" asp-action="ServiceBooking" asp-route-page="@Model.TotalPages"
                                            asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                           asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus" asp-route-search="@Model.Search">@Model.TotalPages</a>
                                     </li>
                                 }
                                 <li class="page-item @(!Model.HasNext ? "disabled" : "")">
@@ -375,7 +384,7 @@
                                        asp-route-page="@(Model.Page + 1)"
                                        asp-route-pageSize="@Model.PageSize"
                                        asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate"
+                                       asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus"
                                        asp-route-search="@Model.Search">
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
