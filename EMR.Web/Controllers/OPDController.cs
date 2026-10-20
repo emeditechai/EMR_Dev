@@ -387,6 +387,8 @@ public class OPDController(
             {
                 ModelState.AddModelError(nameof(model.LineItemsJson), "Please select a Type and Item/Service Name for all rows.");
             }
+            if (PastAppointmentError(model) is { } pastError)
+                ModelState.AddModelError(string.Empty, pastError);   // the page shows model-level errors in its summary
         }
 
         if (!ModelState.IsValid)
@@ -1404,6 +1406,65 @@ public class OPDController(
         }
     }
 
+    // ── OPD Dashboard > visit Audit History with workflow (SQLScripts/2304; shared modal _LabAuditHistoryModal) ──
+
+    /// <summary>The visit's activity: bill, payment, token, status changes, vitals, consultation, follow-up, cancellation.</summary>
+    [HttpGet]
+    public async Task<IActionResult> VisitAuditHistoryJson(int opdServiceId, [FromServices] EMR.Web.ApiClients.IOpdVisitHistoryApiClient history)
+    {
+        if (opdServiceId <= 0) return Json(new { success = false, message = "A valid OPD visit is required." });
+        try
+        {
+            var rows = await history.ActivityAsync(opdServiceId);
+            var events = rows.Select(r => new
+            {
+                eventDate = r.EventDate, source = r.Source, eventType = r.EventType, actionName = r.ActionName, description = r.Description,
+                userName = string.IsNullOrWhiteSpace(r.UserName) ? "System" : r.UserName, branchName = r.BranchName, ipAddress = r.IpAddress,
+                metadata = ParseJson(r.MetadataJson)
+            }).ToList();
+            return Json(new { success = true, events });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "Unable to load the audit history right now. The service is unreachable." });
+        }
+    }
+
+    /// <summary>The visit's journey: booked / billed, payment, token, vitals, in consultation, consultation completed.</summary>
+    [HttpGet]
+    public async Task<IActionResult> VisitWorkflowJson(int opdServiceId, [FromServices] EMR.Web.ApiClients.IOpdVisitHistoryApiClient history)
+    {
+        if (opdServiceId <= 0) return Json(new { success = false, message = "A valid OPD visit is required." });
+        try { return Json(await history.WorkflowAsync(opdServiceId)); }
+        catch (HttpRequestException) { return Json(new { success = false, message = "The workflow could not be loaded." }); }
+    }
+
+    private static System.Text.Json.JsonElement? ParseJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try { using var doc = System.Text.Json.JsonDocument.Parse(json); return doc.RootElement.Clone(); }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// A booking is made only at or after the current date and time (SQLScripts/2303): a roster slot whose time has passed,
+    /// or a past date, is refused. Null when the appointment is fine (or none is given).
+    /// </summary>
+    private static string? PastAppointmentError(PatientRegistrationViewModel model)
+    {
+        if (model.AppointmentDate is not DateTime date) return null;
+        var now = DateTime.Now;
+        if (model.AppointmentTime is TimeSpan time)
+        {
+            var slot = date.Date + time;
+            if (slot < new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0))
+                return $"The slot {slot:dd MMM yyyy, hh:mm tt} has already passed. Please choose a current or later slot.";
+        }
+        else if (date.Date < now.Date)
+            return $"The appointment date {date:dd MMM yyyy} is in the past. Please choose today or a later date.";
+        return null;
+    }
+
     // ─── New Service Booking (GET) ────────────────────────────────────────────
 
     [HttpGet]
@@ -1442,6 +1503,8 @@ public class OPDController(
             { nameof(model.ConsultingDoctorId), nameof(model.LineItemsJson) };
         foreach (var key in ModelState.Keys.Where(k => !keepFields.Contains(k)).ToList())
             ModelState.Remove(key);
+        if (PastAppointmentError(model) is { } pastError)
+            ModelState.AddModelError(string.Empty, pastError);
 
         if (!ModelState.IsValid)
         {

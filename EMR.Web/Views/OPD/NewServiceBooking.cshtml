@@ -260,6 +260,7 @@
 ══════════════════════════════════════════════════════════════ *@
 <form asp-action="NewServiceBooking" method="post" enctype="multipart/form-data"
       id="bookingForm" novalidate>
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
     @Html.AntiForgeryToken()
     <input asp-for="PatientId"              type="hidden" id="hdnPatientId" />
     <input asp-for="PatientCode"            type="hidden" id="hdnPatientCode" />

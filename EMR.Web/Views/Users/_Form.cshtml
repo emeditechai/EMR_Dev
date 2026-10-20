@@ -76,6 +76,17 @@
                         </div>
                         <span asp-validation-for="Email" class="text-danger small"></span>
                     </div>
+                    @* the user this user reports to - any user of the company (SQLScripts/2305) *@
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Reports To</label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-diagram-3 input-icon"></i>
+                            <select asp-for="ReportsToUserId" id="ddlReportsTo" class="form-select ps-icon" asp-items="Model.ReportsToOptions">
+                                <option value="">-- Nobody --</option>
+                            </select>
+                        </div>
+                        <span asp-validation-for="ReportsToUserId" class="text-danger small"></span>
+                    </div>
             </div>
         </div>
     </div>

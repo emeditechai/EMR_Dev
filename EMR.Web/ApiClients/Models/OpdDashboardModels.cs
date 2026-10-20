@@ -83,6 +83,8 @@ public class OpdRecentBooking
     public bool IsBooked { get; set; }
     public string? Speciality { get; set; }
     public DateTime? RegisteredAt { get; set; }
+    /// <summary>CONSULT (a doctor consultation on the bill) or SERVICE (services only - dressing...), SQLScripts/2304.</summary>
+    public string? VisitKind { get; set; }
 }
 
 public class OpdDayTrend

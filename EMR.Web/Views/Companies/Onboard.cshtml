@@ -1,0 +1,457 @@
+@model EMR.Web.Models.ViewModels.CompanyOnboardViewModel
+@{
+    ViewData["Title"] = "New Company";
+}
+@* Settings > Company Master > New Company wizard (SQLScripts/2306): everything a company needs to start, created in one step. *@
+<style>
+    .ob-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; }
+    @@media (max-width: 991.98px) { .ob-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @@media (max-width: 575.98px) { .ob-steps { grid-template-columns: 1fr; } }
+    .ob-step { display: flex; align-items: center; gap: .6rem; padding: .7rem .8rem; border: 1px solid #e2e8f0; border-radius: .7rem; background: #fff;
+               text-align: left; color: #475569; cursor: pointer; transition: border-color .15s, background .15s; }
+    .ob-step:hover { border-color: #c4b5fd; }
+    .ob-step .ob-num { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+                       font-weight: 800; font-size: .85rem; background: #f1f5f9; color: #64748b; }
+    .ob-step .ob-t { font-weight: 700; font-size: .88rem; color: #1e293b; line-height: 1.2; }
+    .ob-step .ob-s { font-size: .72rem; color: #64748b; }
+    .ob-step.active { border-color: #644098; background: #f6f2fc; }
+    .ob-step.active .ob-num { background: #644098; color: #fff; }
+    .ob-step.done .ob-num { background: #16a34a; color: #fff; }
+    .ob-step.has-error { border-color: #fca5a5; }
+    .ob-step.has-error .ob-num { background: #dc2626; color: #fff; }
+    .ob-pane { display: none; }
+    .ob-pane.active { display: block; }
+    .ob-hint { font-size: .78rem; color: #64748b; }
+    .ob-free { font-size: .76rem; margin-top: .2rem; }
+    .ob-free.ok { color: #16a34a; } .ob-free.bad { color: #dc2626; }
+    .ob-review dt { font-size: .74rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+    .ob-review dd { font-weight: 600; color: #0f172a; margin-bottom: .6rem; word-break: break-word; }
+    .ob-creates li { padding: .25rem 0; }
+    .ob-creates i { color: #644098; }
+</style>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1"><i class="bi bi-building-add text-primary me-2"></i>New Company</h3>
+            <p class="text-muted mb-0">Onboard a company in one step: the company, its Head Office branch, Hospital Settings, menus and its first Administrator.</p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back to List</a>
+    </div>
+
+    <div class="ob-steps mb-3" id="obSteps" role="tablist">
+        <button type="button" class="ob-step" data-step="1"><span class="ob-num">1</span><span><span class="ob-t d-block">Company</span><span class="ob-s">Name, tax, contact</span></span></button>
+        <button type="button" class="ob-step" data-step="2"><span class="ob-num">2</span><span><span class="ob-t d-block">Head Office</span><span class="ob-s">First branch</span></span></button>
+        <button type="button" class="ob-step" data-step="3"><span class="ob-num">3</span><span><span class="ob-t d-block">Hospital Settings</span><span class="ob-s">Bills & reports header</span></span></button>
+        <button type="button" class="ob-step" data-step="4"><span class="ob-num">4</span><span><span class="ob-t d-block">Administrator</span><span class="ob-s">First login</span></span></button>
+        <button type="button" class="ob-step" data-step="5"><span class="ob-num">5</span><span><span class="ob-t d-block">Review & Create</span><span class="ob-s">Menus, roles, confirm</span></span></button>
+    </div>
+
+    <form asp-action="Onboard" method="post" enctype="multipart/form-data" id="obForm" novalidate>
+        <input type="hidden" asp-for="Step" id="obStep" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        @* ── 1. Company ── *@
+        <div class="ob-pane" data-step="1">
+            <div class="card border-0 shadow-sm rounded-3 mb-3">
+                <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-info-circle-fill me-2"></i>Company</h6></div>
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label asp-for="CompanyCode" class="form-label fw-semibold">Company Code <span class="text-danger">*</span></label>
+                            <input asp-for="CompanyCode" class="form-control text-uppercase" placeholder="e.g. CAREPLUS" maxlength="20" data-check="companyCode" />
+                            <div class="ob-free" data-free-for="companyCode"></div>
+                            <span asp-validation-for="CompanyCode" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-8">
+                            <label asp-for="CompanyName" class="form-label fw-semibold">Company / Brand Name <span class="text-danger">*</span></label>
+                            <input asp-for="CompanyName" class="form-control" placeholder="e.g. CarePlus Health Group" />
+                            <span asp-validation-for="CompanyName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="LegalName" class="form-label fw-semibold">Legal / Registered Name</label>
+                            <input asp-for="LegalName" class="form-control" placeholder="e.g. CarePlus Healthcare Pvt Ltd" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="RegistrationNumber" class="form-label fw-semibold">CIN / Registration No.</label>
+                            <input asp-for="RegistrationNumber" class="form-control" placeholder="e.g. U85110WB2022PTC123456" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="GSTIN" class="form-label fw-semibold">GSTIN</label>
+                            <input asp-for="GSTIN" class="form-control text-uppercase" placeholder="e.g. 19AAACP1234A1Z5" maxlength="15" />
+                            <span asp-validation-for="GSTIN" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="PAN" class="form-label fw-semibold">PAN Number</label>
+                            <input asp-for="PAN" class="form-control text-uppercase" placeholder="e.g. AAACP1234A" maxlength="10" />
+                            <span asp-validation-for="PAN" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Email" class="form-label fw-semibold">Official Email</label>
+                            <input asp-for="Email" class="form-control" placeholder="info@careplushealth.com" />
+                            <span asp-validation-for="Email" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Phone" class="form-label fw-semibold">Central Phone</label>
+                            <input asp-for="Phone" class="form-control" placeholder="+91 33 2456 7890" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Website" class="form-label fw-semibold">Website</label>
+                            <input asp-for="Website" class="form-control" placeholder="https://careplushealth.com" />
+                        </div>
+                        <div class="col-12">
+                            <label asp-for="Address" class="form-label fw-semibold">Address</label>
+                            <input asp-for="Address" class="form-control" placeholder="Building, street, area" />
+                        </div>
+                        @* Country -> State -> City from the masters (the chosen names are stored, as before) *@
+                        <div class="col-md-3"><label asp-for="Country" class="form-label fw-semibold">Country</label>
+                            <select asp-for="Country" class="form-select" data-geo="country" data-current="@Model.Country"><option value="">-- Select Country --</option></select></div>
+                        <div class="col-md-3"><label asp-for="State" class="form-label fw-semibold">State</label>
+                            <select asp-for="State" class="form-select" data-geo="state" data-parent="Country" data-current="@Model.State"><option value="">-- Select State --</option></select></div>
+                        <div class="col-md-3"><label asp-for="City" class="form-label fw-semibold">City</label>
+                            <select asp-for="City" class="form-select" data-geo="city" data-parent="State" data-current="@Model.City"><option value="">-- Select City --</option></select></div>
+                        <div class="col-md-3"><label asp-for="Pincode" class="form-label fw-semibold">Pincode</label><input asp-for="Pincode" class="form-control" maxlength="10" /></div>
+                        <div class="col-12">
+                            <label asp-for="LogoFile" class="form-label fw-semibold">Company Logo</label>
+                            <input asp-for="LogoFile" type="file" class="form-control" accept=".png,.jpg,.jpeg,.webp" />
+                            <div class="ob-hint mt-1">Square or horizontal PNG / JPG, up to 2 MB. Used on the company and on bills and reports of the Head Office.</div>
+                            <span asp-validation-for="LogoFile" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── 2. Head Office ── *@
+        <div class="ob-pane" data-step="2">
+            <div class="card border-0 shadow-sm rounded-3 mb-3">
+                <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-building me-2"></i>Head Office branch</h6></div>
+                <div class="card-body p-4">
+                    <p class="ob-hint mb-3">Every company starts with one Head Office branch (more branches can be added later in Branch Master). Branch codes are unique in the whole application.</p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label asp-for="BranchCode" class="form-label fw-semibold">Branch Code <span class="text-danger">*</span></label>
+                            <input asp-for="BranchCode" class="form-control text-uppercase" placeholder="e.g. CAREPLUS-HO" maxlength="20" data-check="branchCode" />
+                            <div class="ob-free" data-free-for="branchCode"></div>
+                            <span asp-validation-for="BranchCode" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-5">
+                            <label asp-for="BranchName" class="form-label fw-semibold">Branch Name <span class="text-danger">*</span></label>
+                            <input asp-for="BranchName" class="form-control" />
+                            <span asp-validation-for="BranchName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <div class="form-check form-switch mb-2">
+                                <input asp-for="BranchIsLab" class="form-check-input" type="checkbox" role="switch" />
+                                <label asp-for="BranchIsLab" class="form-check-label">Has a laboratory</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input asp-for="SameAddressAsCompany" class="form-check-input" type="checkbox" id="obSameAddress" />
+                                <label class="form-check-label" for="obSameAddress">Same address as the company</label>
+                            </div>
+                        </div>
+                        <div class="col-12 ob-branch-addr"><label asp-for="BranchAddress" class="form-label fw-semibold">Branch Address</label><input asp-for="BranchAddress" class="form-control" /></div>
+                        <div class="col-md-4 ob-branch-addr"><label asp-for="BranchState" class="form-label fw-semibold">State</label>
+                            <select asp-for="BranchState" class="form-select" data-geo="state" data-parent="Country" data-current="@Model.BranchState"><option value="">-- Select State --</option></select></div>
+                        <div class="col-md-4 ob-branch-addr"><label asp-for="BranchCity" class="form-label fw-semibold">City</label>
+                            <select asp-for="BranchCity" class="form-select" data-geo="city" data-parent="BranchState" data-current="@Model.BranchCity"><option value="">-- Select City --</option></select></div>
+                        <div class="col-md-4 ob-branch-addr"><label asp-for="BranchPincode" class="form-label fw-semibold">Pincode</label><input asp-for="BranchPincode" class="form-control" maxlength="10" /></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── 3. Hospital Settings ── *@
+        <div class="ob-pane" data-step="3">
+            <div class="card border-0 shadow-sm rounded-3 mb-3">
+                <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-sliders me-2"></i>Hospital Settings of the Head Office</h6></div>
+                <div class="card-body p-4">
+                    <p class="ob-hint mb-3">The name and contacts printed on bills and reports. Every other setting starts with its default and can be changed later in Hospital Settings.</p>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="HospitalName" class="form-label fw-semibold">Hospital Name <span class="text-danger">*</span></label>
+                            <input asp-for="HospitalName" class="form-control" />
+                            <span asp-validation-for="HospitalName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="HospitalPhone" class="form-label fw-semibold">Contact Number</label>
+                            <input asp-for="HospitalPhone" class="form-control" placeholder="Company phone if empty" />
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="HospitalEmail" class="form-label fw-semibold">Email</label>
+                            <input asp-for="HospitalEmail" class="form-control" placeholder="Company e-mail if empty" />
+                            <span asp-validation-for="HospitalEmail" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="OpdRegistrationValidityDays" class="form-label fw-semibold">OPD Registration Validity (days)</label>
+                            <input asp-for="OpdRegistrationValidityDays" type="number" min="0" max="3650" class="form-control" placeholder="Default" />
+                            <span asp-validation-for="OpdRegistrationValidityDays" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── 4. Administrator ── *@
+        <div class="ob-pane" data-step="4">
+            <div class="card border-0 shadow-sm rounded-3 mb-3">
+                <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-person-badge me-2"></i>Company Administrator</h6></div>
+                <div class="card-body p-4">
+                    <p class="ob-hint mb-3">The first user of the company: role <strong>Administrator</strong> in the Head Office branch. Usernames are unique in the whole application.</p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label asp-for="AdminUsername" class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+                            <input asp-for="AdminUsername" class="form-control" autocomplete="off" data-check="username" />
+                            <div class="ob-free" data-free-for="username"></div>
+                            <span asp-validation-for="AdminUsername" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="AdminFirstName" class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
+                            <input asp-for="AdminFirstName" class="form-control" />
+                            <span asp-validation-for="AdminFirstName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="AdminLastName" class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
+                            <input asp-for="AdminLastName" class="form-control" />
+                            <span asp-validation-for="AdminLastName" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="AdminEmail" class="form-label fw-semibold">Email</label>
+                            <input asp-for="AdminEmail" class="form-control" placeholder="Needed for password reset" />
+                            <span asp-validation-for="AdminEmail" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="AdminPhone" class="form-label fw-semibold">Phone Number</label>
+                            <input asp-for="AdminPhone" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="AdminEmployeeCode" class="form-label fw-semibold">Employee Code</label>
+                            <input asp-for="AdminEmployeeCode" class="form-control text-uppercase" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="AdminPassword" class="form-label fw-semibold">Password <span class="text-danger">*</span></label>
+                            <input asp-for="AdminPassword" class="form-control" autocomplete="new-password" />
+                            <div class="ob-hint mt-1">At least 8 characters.</div>
+                            <span asp-validation-for="AdminPassword" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="AdminConfirmPassword" class="form-label fw-semibold">Confirm Password <span class="text-danger">*</span></label>
+                            <input asp-for="AdminConfirmPassword" class="form-control" autocomplete="new-password" />
+                            <span asp-validation-for="AdminConfirmPassword" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input asp-for="AdminMustChangePassword" class="form-check-input" type="checkbox" />
+                                <label asp-for="AdminMustChangePassword" class="form-check-label">Remind the administrator to change this password after the first sign-in</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── 5. Review & Create ── *@
+        <div class="ob-pane" data-step="5">
+            <div class="row g-3">
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm rounded-3 mb-3">
+                        <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-diagram-3 me-2"></i>Menus and roles</h6></div>
+                        <div class="card-body p-4">
+                            <label asp-for="TemplateCompanyId" class="form-label fw-semibold">Copy the menus and screens from <span class="text-danger">*</span></label>
+                            <select asp-for="TemplateCompanyId" class="form-select" id="obTemplate">
+                                @foreach (var t in Model.Templates)
+                                {
+                                    <option value="@t.CompanyId" data-roles="@t.Roles" data-perms="@t.AdminPermissions">@t.CompanyCode - @t.CompanyName (@t.Pages screens, @t.Roles roles)</option>
+                                }
+                            </select>
+                            <span asp-validation-for="TemplateCompanyId" class="text-danger small"></span>
+                            <div class="ob-hint mt-1 mb-3">The new company gets the same navigation (menus, screens, their actions and permission mapping) as this company.</div>
+                            <div class="form-check mb-2">
+                                <input asp-for="CopyAdminPermissions" class="form-check-input" type="checkbox" />
+                                <label asp-for="CopyAdminPermissions" class="form-check-label">Give the new Administrator role the same permissions as this company's Administrator
+                                    (<span id="obPermCount">0</span> grants)</label>
+                                <div class="ob-hint">Off: the Administrator role starts without grants - set them in Settings › Security › Role Permissions.</div>
+                            </div>
+                            <div class="form-check">
+                                <input asp-for="CopyOtherRoles" class="form-check-input" type="checkbox" />
+                                <label asp-for="CopyOtherRoles" class="form-check-label">Also create this company's other roles (<span id="obRoleCount">0</span>, names only - no permissions)</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card border-0 shadow-sm rounded-3 mb-3">
+                        <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-list-check me-2"></i>Review</h6></div>
+                        <div class="card-body p-4">
+                            <dl class="row ob-review mb-0" id="obReview"></dl>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm rounded-3 mb-3" style="background:#faf8fd">
+                        <div class="card-body p-4">
+                            <h6 class="fw-bold mb-2"><i class="bi bi-magic me-1" style="color:#644098"></i>Create will set up, all at once:</h6>
+                            <ul class="list-unstyled ob-creates mb-3 small">
+                                <li><i class="bi bi-building-check me-2"></i>The company</li>
+                                <li><i class="bi bi-house-check me-2"></i>Its Head Office branch</li>
+                                <li><i class="bi bi-sliders me-2"></i>Hospital Settings of the Head Office (defaults)</li>
+                                <li><i class="bi bi-menu-button-wide me-2"></i>Menus, screens and permission mapping</li>
+                                <li><i class="bi bi-shield-lock me-2"></i>The Administrator role (and other roles if chosen)</li>
+                                <li><i class="bi bi-person-check me-2"></i>The administrator login, assigned to the Head Office</li>
+                            </ul>
+                            <div class="ob-hint mb-3">Nothing is saved if any part fails.</div>
+                            <button type="submit" class="btn btn-primary w-100" id="obCreate"><i class="bi bi-check2-circle me-1"></i>Create Company</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <button type="button" class="btn btn-outline-secondary" id="obPrev"><i class="bi bi-arrow-left me-1"></i>Previous</button>
+            <span class="text-muted small" id="obInfo"></span>
+            <button type="button" class="btn btn-outline-primary" id="obNext">Next<i class="bi bi-arrow-right ms-1"></i></button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+    (function () {
+        const form = document.getElementById('obForm');
+        const steps = [...document.querySelectorAll('.ob-step')], panes = [...document.querySelectorAll('.ob-pane')];
+        const prev = document.getElementById('obPrev'), next = document.getElementById('obNext'), info = document.getElementById('obInfo');
+        const $ = id => document.getElementById(id);
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        let current = parseInt($('obStep').value) || 1;
+        const taken = {};   // availability: field -> false when taken
+
+        // the step that holds an invalid field gets a red marker
+        function markErrors() {
+            panes.forEach(p => {
+                const k = parseInt(p.dataset.step);
+                const bad = p.querySelector('.input-validation-error, .field-validation-error:not(:empty)')
+                         || [...p.querySelectorAll('[data-check]')].some(i => taken[i.dataset.check] === false);
+                steps[k - 1].classList.toggle('has-error', !!bad);
+            });
+        }
+        function show(n) {
+            current = Math.max(1, Math.min(steps.length, n));
+            steps.forEach((s, i) => { s.classList.toggle('active', i + 1 === current); s.classList.toggle('done', i + 1 < current && !s.classList.contains('has-error')); });
+            panes.forEach(p => p.classList.toggle('active', parseInt(p.dataset.step) === current));
+            prev.disabled = current === 1;
+            next.style.visibility = current === steps.length ? 'hidden' : 'visible';
+            info.textContent = 'Step ' + current + ' of ' + steps.length;
+            $('obStep').value = current;
+            if (current === steps.length) review();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        // a step can be left when its fields are valid (client rules) and its codes are free
+        function stepValid(n) {
+            const pane = panes[n - 1];
+            let ok = true;
+            if (window.jQuery && jQuery.fn.valid) pane.querySelectorAll('input, select').forEach(i => { if (i.name && !jQuery(i).valid()) ok = false; });
+            pane.querySelectorAll('[data-check]').forEach(i => { if (taken[i.dataset.check] === false) ok = false; });
+            markErrors();
+            return ok;
+        }
+        next.addEventListener('click', () => { if (stepValid(current)) show(current + 1); });
+        prev.addEventListener('click', () => show(current - 1));
+        steps.forEach(s => s.addEventListener('click', () => {
+            const n = parseInt(s.dataset.step);
+            if (n <= current) { show(n); return; }
+            for (let k = current; k < n; k++) if (!stepValid(k)) { show(k); return; }
+            show(n);
+        }));
+        form.addEventListener('submit', e => {
+            for (let k = 1; k < steps.length; k++) if (!stepValid(k)) { e.preventDefault(); show(k); return; }
+            $('obCreate').disabled = true;
+            $('obCreate').innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+        });
+
+        // availability of company code, branch code and username (unique in the whole application)
+        async function check(input) {
+            const box = document.querySelector('[data-free-for="' + input.dataset.check + '"]');
+            const v = input.value.trim();
+            if (!v) { box.textContent = ''; box.className = 'ob-free'; delete taken[input.dataset.check]; return; }
+            try {
+                const q = new URLSearchParams({ companyCode: input.dataset.check === 'companyCode' ? v : '', branchCode: input.dataset.check === 'branchCode' ? v : '', username: input.dataset.check === 'username' ? v : '' });
+                const r = await (await fetch('@Url.Action("OnboardCheck")?' + q, { credentials: 'same-origin' })).json();
+                const free = input.dataset.check === 'companyCode' ? r.companyCodeFree : input.dataset.check === 'branchCode' ? r.branchCodeFree : r.usernameFree;
+                taken[input.dataset.check] = free;
+                box.className = 'ob-free ' + (free ? 'ok' : 'bad');
+                box.innerHTML = free ? '<i class="bi bi-check-circle me-1"></i>Available' : '<i class="bi bi-x-circle me-1"></i>Already used - choose another';
+                markErrors();
+            } catch (e) { box.textContent = ''; }
+        }
+        document.querySelectorAll('[data-check]').forEach(i => {
+            let t; i.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => check(i), 400); });
+            i.addEventListener('blur', () => check(i));
+            if (i.value) check(i);
+        });
+
+        // sensible defaults from the company: branch code, hospital name, administrator e-mail (until edited)
+        const follow = (src, dst, make) => {
+            const d = $(dst); let edited = !!d.value;
+            d.addEventListener('input', () => edited = true);
+            $(src).addEventListener('input', () => { if (!edited) { d.value = make($(src).value); if (d.dataset.check) check(d); } });
+        };
+        follow('CompanyCode', 'BranchCode', v => v.trim() ? v.trim().toUpperCase() + '-HO' : '');
+        follow('CompanyName', 'HospitalName', v => v);
+        follow('Email', 'AdminEmail', v => v);
+        ['CompanyCode', 'BranchCode', 'GSTIN', 'PAN', 'AdminEmployeeCode'].forEach(id => $(id).addEventListener('input', e => e.target.value = e.target.value.toUpperCase()));
+
+        // branch address only when it differs from the company's
+        const same = $('obSameAddress');
+        const toggleAddr = () => document.querySelectorAll('.ob-branch-addr').forEach(el => el.classList.toggle('d-none', same.checked));
+        same.addEventListener('change', toggleAddr); toggleAddr();
+
+        // template: counts of what can be copied
+        const tpl = $('obTemplate');
+        const counts = () => { const o = tpl.selectedOptions[0]; $('obPermCount').textContent = o ? o.dataset.perms : 0; $('obRoleCount').textContent = o ? Math.max(0, o.dataset.roles - 1) : 0; };
+        tpl.addEventListener('change', counts); counts();
+
+        function review() {
+            const v = id => ($(id)?.value || '').trim();
+            const rows = [
+                ['Company', `${v('CompanyName')} (${v('CompanyCode')})`], ['Legal name', v('LegalName') || '—'], ['GSTIN / PAN', [v('GSTIN'), v('PAN')].filter(Boolean).join(' / ') || '—'],
+                ['Head Office', `${v('BranchName')} (${v('BranchCode')})${$('BranchIsLab').checked ? ' · with laboratory' : ''}`],
+                ['Address', same.checked ? [v('Address'), v('City'), v('State'), v('Pincode')].filter(Boolean).join(', ') || '—' : [v('BranchAddress'), v('BranchCity'), v('BranchState'), v('BranchPincode')].filter(Boolean).join(', ') || '—'],
+                ['Hospital name (bills / reports)', v('HospitalName')],
+                ['Administrator', `${v('AdminFirstName')} ${v('AdminLastName')} · login ${v('AdminUsername')}`], ['Administrator e-mail', v('AdminEmail') || '—']
+            ];
+            $('obReview').innerHTML = rows.map(r => `<dt class="col-sm-4">${esc(r[0])}</dt><dd class="col-sm-8">${esc(r[1])}</dd>`).join('');
+        }
+
+        // Country -> State -> City from the masters: each list loads from the one above it (option value = the name, data-id = master id)
+        const geoUrl = '@Url.Action("OnboardGeo")';
+        async function loadGeo(sel, parentId) {
+            const level = sel.dataset.geo, keep = sel.value || sel.dataset.current || '';
+            const first = sel.options[0].cloneNode(true);
+            sel.innerHTML = ''; sel.appendChild(first);
+            if (level !== 'country' && !parentId) { sel.dispatchEvent(new Event('change')); return; }
+            try {
+                const items = await (await fetch(geoUrl + '?level=' + level + (parentId ? '&parentId=' + parentId : ''), { credentials: 'same-origin' })).json();
+                items.forEach(i => { const o = new Option(i.name, i.name); o.dataset.id = i.id; sel.appendChild(o); });
+                const match = [...sel.options].find(o => o.value && o.value.toLowerCase() === keep.toLowerCase());
+                sel.value = match ? match.value : '';
+            } catch (e) { }
+            sel.dataset.current = '';
+            sel.dispatchEvent(new Event('change'));
+        }
+        const geo = [...document.querySelectorAll('select[data-geo]')];
+        geo.filter(s => s.dataset.parent).forEach(child => {
+            const parent = $(child.dataset.parent);
+            parent.addEventListener('change', () => loadGeo(child, parent.selectedOptions[0]?.dataset.id));
+        });
+        geo.filter(s => s.dataset.geo === 'country').forEach(s => loadGeo(s));
+
+        // validate the fields of every step, not only the visible one (the steps are hidden panes)
+        if (window.jQuery && jQuery(form).data('validator')) jQuery(form).data('validator').settings.ignore = '.ob-branch-addr.d-none *';
+
+        markErrors();
+        show(current);
+    })();
+    </script>
+}

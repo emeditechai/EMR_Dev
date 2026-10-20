@@ -1,0 +1,56 @@
+@model EMR.Web.Models.Entities.CompanyMaster
+@{
+    ViewData["Title"] = "Company Created";
+    var r = ViewBag.Result as EMR.Web.ApiClients.CompanyOnboardResult;
+    dynamic? branch = ViewBag.Branch;
+    dynamic? admin = ViewBag.Admin;
+}
+@* Settings > Company Master > New Company wizard (SQLScripts/2306): what was created and what to do next. *@
+<div class="container py-4" style="max-width:980px">
+    <div class="card border-0 shadow-sm rounded-3 mb-3">
+        <div class="card-body p-4">
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <span class="d-inline-flex align-items-center justify-content-center rounded-circle" style="width:56px;height:56px;background:#dcfce7;color:#16a34a;font-size:1.8rem"><i class="bi bi-check2-circle"></i></span>
+                <div>
+                    <h4 class="fw-bold mb-0">@Model.CompanyName is ready</h4>
+                    <div class="text-muted">Company code <strong>@Model.CompanyCode</strong> - created with everything it needs to start.</div>
+                </div>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-3 h-100">
+                        <div class="small text-muted fw-semibold text-uppercase mb-2">Created</div>
+                        <ul class="list-unstyled mb-0 small">
+                            <li class="mb-1"><i class="bi bi-building-check text-success me-2"></i>Company <strong>@Model.CompanyCode</strong></li>
+                            <li class="mb-1"><i class="bi bi-house-check text-success me-2"></i>Head Office branch <strong>@(branch?.BranchName) (@(branch?.BranchCode))</strong></li>
+                            <li class="mb-1"><i class="bi bi-sliders text-success me-2"></i>Hospital Settings of the Head Office</li>
+                            @if (r is not null)
+                            {
+                                <li class="mb-1"><i class="bi bi-menu-button-wide text-success me-2"></i>@r.Menus menus, @r.Pages screens, @r.Controls screen actions, @r.Endpoints permission mappings</li>
+                                <li class="mb-1"><i class="bi bi-shield-lock text-success me-2"></i>@r.Roles role(s) incl. Administrator@(r.Permissions > 0 ? $" - {r.Permissions} Administrator permissions copied" : " - Administrator without grants")</li>
+                            }
+                            <li><i class="bi bi-person-check text-success me-2"></i>Administrator <strong>@(admin?.FullName)</strong> (login <span class="font-monospace">@(admin?.Username)</span>) in the Head Office</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-3 h-100" style="background:#faf8fd">
+                        <div class="small text-muted fw-semibold text-uppercase mb-2">Next steps</div>
+                        <ol class="small mb-0 ps-3">
+                            <li class="mb-1">Give the administrator the login <span class="font-monospace">@(admin?.Username)</span> and the password you set; they sign in and choose the Head Office.</li>
+                            <li class="mb-1">Review <a asp-controller="HospitalSettings" asp-action="Index">Hospital Settings</a> (logo, printing, LAB / OPD rules) of the Head Office.</li>
+                            <li class="mb-1">Set the branch's mail settings in <a asp-controller="SmtpConfig" asp-action="Index">SMTP Configuration</a> so bills, reports and password e-mails go out.</li>
+                            <li class="mb-1">Check the Administrator role's grants in Settings › Security › Role Permissions.</li>
+                            <li>Add the company's masters (tests, rates, services, doctors) and more branches when needed.</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <a asp-action="Details" asp-route-id="@Model.CompanyId" class="btn btn-primary"><i class="bi bi-building me-1"></i>Open the company</a>
+                <a asp-action="Onboard" class="btn btn-outline-primary"><i class="bi bi-building-add me-1"></i>Create another company</a>
+                <a asp-action="Index" class="btn btn-outline-secondary">Company list</a>
+            </div>
+        </div>
+    </div>
+</div>

@@ -521,14 +521,8 @@
                         </label>
                         <input type="file" name="identificationFile" id="idFileUpload"
                                class="form-control" accept=".pdf,.jpg,.jpeg,.png" />
-                        @if (!string.IsNullOrEmpty(Model.IdentificationFilePath))
-                        {
-                            <div class="mt-1">
-                                <a href="@Model.IdentificationFilePath" target="_blank" class="small text-primary">
-                                    <i class="bi bi-eye me-1"></i>View uploaded file
-                                </a>
-                            </div>
-                        }
+                        @* the patient's uploaded ID document with a Preview (Shared/_IdDocumentPreview) *@
+                        <div id="idDocExisting" class="id-doc-existing d-none" data-path="@Model.IdentificationFilePath"></div>
                         <span asp-validation-for="IdentificationFilePath" class="text-danger small"></span>
                     </div>
                 </div>
@@ -904,6 +898,7 @@
     </div>
 
 @section Scripts {
+    <partial name="_IdDocumentPreview" />
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script>
@@ -993,7 +988,7 @@
                 const opt = new Option(`${slot.slotTime} (${slot.bookedCount}/${slot.maxPerSlot} Booked)`, `${slot.scheduleId}|${slot.slotTime}`);
                 if (!slot.isAvailable) {
                     opt.disabled = true;
-                    opt.text += ' - FULL';
+                    opt.text += slot.isPast ? ' - PASSED' : ' - FULL';   // a passed slot is listed but not bookable (2303)
                 }
                 $ddlSlot.append(opt);
             });
@@ -1048,7 +1043,7 @@
                                 `${slot.slotTime} (${slot.bookedCount}/${slot.maxPerSlot} Booked)`,
                                 `${slot.scheduleId}|${slot.slotTime}`
                             );
-                            if (!slot.isAvailable) { opt.disabled = true; opt.text += ' - FULL'; }
+                            if (!slot.isAvailable) { opt.disabled = true; opt.text += slot.isPast ? ' - PASSED' : ' - FULL'; }
                             $ddlSlot.append(opt);
                         });
                         const targetVal = `${schId}|${rawTime}`;
@@ -1632,6 +1627,8 @@
             document.getElementById('PatientCode').value  = p.patientCode ?? '';
             // Preserve existing ID file so it isn't wiped if user doesn't re-upload
             document.getElementById('existingFilePath').value = p.identificationFilePath ?? '';
+            // the ID document already on record: Preview under "Upload ID Document"
+            window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');
             document.getElementById('existingPhotoPath').value = p.photoPath ?? '';
             document.getElementById('HomeCollectionAddress').value = p.homeCollectionAddress ?? '';
             document.getElementById('Latitude').value = p.latitude ?? '';
@@ -1761,6 +1758,8 @@
 
             window._registrationValidityConfigured = true;
             const el = document.getElementById('regValidityBadge');
+            // a new patient (blank form): the registration charge applies, but no badge until a patient is loaded
+            if (!patientId || patientId === '0') { window._registrationValid = false; return; }
             if (rv.isRegistrationValid) {
                 // Patient's registration is still active — suppress registration items
                 window._registrationValid = true;

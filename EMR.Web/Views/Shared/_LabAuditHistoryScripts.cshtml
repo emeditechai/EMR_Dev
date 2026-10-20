@@ -1,4 +1,11 @@
-@* Script for the shared audit history modal (_LabAuditHistoryModal). Render inside @section Scripts, after jQuery/Bootstrap. *@
+@* Script for the shared audit history modal (_LabAuditHistoryModal). Render inside @section Scripts, after jQuery/Bootstrap.
+   LAB bills by default; another source passes ViewData AuditHistoryUrl / AuditWorkflowUrl / AuditIdParam (e.g. the OPD visit,
+   SQLScripts/2304: buttons with data-auditid instead of data-laborderid). *@
+@{
+    var auditHistoryUrl = ViewData["AuditHistoryUrl"] as string ?? Url.Action("GetAuditHistoryJson", "LabReporting");
+    var auditWorkflowUrl = ViewData["AuditWorkflowUrl"] as string ?? Url.Action("GetOrderWorkflowJson", "LabReporting");
+    var auditIdParam = ViewData["AuditIdParam"] as string ?? "labOrderId";
+}
 <style>
     .audit-reason { color: #dc2626; font-weight: 700; }
     .audit-for { color: #ca8a04; font-weight: 700; }
@@ -7,8 +14,10 @@
         // Audit history for this Lab Order / Bill (loaded on demand when the "i" icon is clicked)
         (function () {
             let labOrderId = 0;
-            const historyUrl = '@Url.Action("GetAuditHistoryJson", "LabReporting")';
-            const workflowUrl = '@Url.Action("GetOrderWorkflowJson", "LabReporting")';
+            const historyUrl = '@auditHistoryUrl';
+            const workflowUrl = '@auditWorkflowUrl';
+            const idParam = '@auditIdParam';
+            const idArgs = function () { const o = {}; o[idParam] = labOrderId; return o; };
             let allEvents = [];
             let activeFilter = 'All';
 
@@ -51,8 +60,32 @@
                     'LAB.ReportEmailSkipped':     ['Report Email Skipped',      'bi-envelope-dash',      '#64748b', 'Reporting'],
                     'LAB.ReportWhatsAppFailed':   ['Report WhatsApp Failed',    'bi-whatsapp',           '#dc2626', 'Reporting'],
                     'LAB.ReportWhatsAppSkipped':  ['Report WhatsApp Skipped',   'bi-whatsapp',           '#64748b', 'Reporting'],
-                    'LAB.ReportSignatoriesSaved': ['Report Signatories Saved',  'bi-pen',                '#64748b', 'Reporting']
+                    'LAB.ReportSignatoriesSaved': ['Report Signatories Saved',  'bi-pen',                '#64748b', 'Reporting'],
+                    'LAB.BillCancelled':          ['Bill Cancelled',            'bi-x-octagon-fill',     '#dc2626', 'Billing'],
+                    // OPD visit (SQLScripts/2304)
+                    'OPD.NewVisitBill':           ['Visit Billed',              'bi-receipt',            '#4f46e5', 'Billing'],
+                    'OPD.BillGenerated':          ['Bill Generated',            'bi-receipt',            '#4f46e5', 'Billing'],
+                    'OPD.ServiceBooking':         ['Visit Billed',              'bi-receipt',            '#4f46e5', 'Billing'],
+                    'OPD.PaymentReceived':        ['Payment Received',          'bi-cash-coin',          '#16a34a', 'Billing'],
+                    'OPD.BillCancelled':          ['Bill Cancelled',            'bi-x-octagon-fill',     '#dc2626', 'Billing'],
+                    'OPD.BillRefunded':           ['Refund Paid',               'bi-arrow-counterclockwise', '#d97706', 'Billing'],
+                    'OPD.TokenIssued':            ['Token Issued',              'bi-ticket-perforated',  '#0891b2', 'Visit'],
+                    'OPD.VitalsRecorded':         ['Vitals Recorded',           'bi-heart-pulse',        '#db2777', 'Vitals'],
+                    'EMR.SaveConsultation':       ['Consultation Saved',        'bi-clipboard2-pulse',   '#2563eb', 'Consultation'],
+                    'OPD.FollowUpSet':            ['Follow-up Set',             'bi-calendar-plus',      '#7c3aed', 'Consultation'],
+                    'OPD.VideoConsultation':      ['Video Consultation',        'bi-camera-video',       '#0d9488', 'Consultation']
                 };
+                if (a === 'OPD.VisitStatus') {
+                    const to = pick(md, 'ToStatus', 'toStatus') || '';
+                    // a visit for services only (dressing...) has no doctor consultation: its status means the service
+                    const svc = (pick(md, 'VisitKind', 'visitKind') || '') === 'SERVICE';
+                    const v = { Registered: ['Visit Registered', 'bi-person-check', '#4f46e5'],
+                                Consulting: svc ? ['Service Started', 'bi-bandaid', '#d97706'] : ['Consultation Started', 'bi-person-video2', '#d97706'],
+                                Completed: svc ? ['Service Completed', 'bi-check2-square', '#16a34a'] : ['Consultation Completed', 'bi-clipboard2-check', '#16a34a'],
+                                Cancelled: ['Visit Cancelled', 'bi-x-octagon-fill', '#dc2626'] }[to]
+                            || ['Status: ' + (to || 'changed'), 'bi-arrow-right-circle', '#64748b'];
+                    return { label: v[0], icon: v[1], color: v[2], cat: 'Visit' };
+                }
                 if (a === 'LAB.ReportUnapproved') {
                     // Re-Test (back to Submitted) and Re-Collect (sample re-drawn) are told apart by their metadata.
                     const forLabel = pick(md, 'UnapprovedFor', 'unapprovedFor')
@@ -73,7 +106,7 @@
                     const color = /reject/i.test(st) ? '#dc2626' : /re-?collect/i.test(st) ? '#d97706' : /collected/i.test(st) ? '#16a34a' : '#64748b';
                     return { label: 'Sample ' + st + ' (Reporting)', icon: 'bi-arrow-repeat', color: color, cat: 'Sample' };
                 }
-                return { label: (a || 'Activity').replace(/^LAB\./, ''), icon: 'bi-dot', color: '#64748b', cat: 'Other' };
+                return { label: (a || 'Activity').replace(/^(LAB|OPD|EMR)\./, ''), icon: 'bi-dot', color: '#64748b', cat: 'Other' };
             }
 
             function fmtDate(v) {
@@ -217,7 +250,7 @@
             }
 
             function renderChips() {
-                const cats = ['All', 'Reporting', 'Sample', 'Transfer', 'Billing'];
+                const cats = ['All', 'Reporting', 'Sample', 'Transfer', 'Billing', 'Visit', 'Vitals', 'Consultation'];   // only the ones with events show
                 const counts = { All: allEvents.length };
                 allEvents.forEach(function (e) { counts[e._d.cat] = (counts[e._d.cat] || 0) + 1; });
                 const html = cats
@@ -234,15 +267,17 @@
                 const $wf = $('#auditWorkflow');
                 if (!$wf.length) return;
                 $wf.addClass('d-none');
-                $.getJSON(workflowUrl, { labOrderId: labOrderId })
+                $.getJSON(workflowUrl, idArgs())
                     .done(function (res) {
                         if (!res || !res.success || !res.steps || !res.steps.length) { $wf.addClass('d-none'); return; }
                         const steps = res.steps;
-                        const done = steps.filter(function (s) { return s.state === 'done'; }).length;
+                        // a stage skipped on purpose (e.g. OPD vitals not recorded) counts as closed - unless the bill was cancelled
+                        const closed = function (s) { return s.state === 'done' || (s.state === 'skipped' && !res.cancelled); };
+                        const done = steps.filter(closed).length;
                         // "now": the first stage that is not done (an issue counts as the stage to look at)
                         const nowIdx = res.cancelled
                             ? steps.findIndex(function (s) { return s.key === 'cancelled'; })
-                            : steps.findIndex(function (s) { return s.state !== 'done'; });
+                            : steps.findIndex(function (s) { return !closed(s); });
                         const html = steps.map(function (s, i) {
                             const cls = 's-' + s.state + (i === nowIdx && !res.cancelled ? ' s-now' : '');
                             const icon = s.state === 'done' ? 'bi-check-lg' : s.key === 'cancelled' ? 'bi-x-lg'
@@ -264,7 +299,7 @@
                             : '<strong>' + done + ' of ' + steps.length + '</strong> stages done &middot; now: <strong>' + esc(steps[nowIdx].label) + '</strong>');
                         $('#wfCancelled').toggleClass('d-none', !res.cancelled);
                         const rw = res.rework || [];
-                        const TAG = { retest: ['Re-Test', 'rw-retest'], recollect: ['Re-Collect', 'rw-recollect'], rejected: ['Rejected', 'rw-rejected'], revised: ['Revised', 'rw-revised'], cancelled: ['Cancelled', 'rw-cancelled'] };
+                        const TAG = { retest: ['Re-Test', 'rw-retest'], recollect: ['Re-Collect', 'rw-recollect'], rejected: ['Rejected', 'rw-rejected'], revised: ['Revised', 'rw-revised'], cancelled: ['Cancelled', 'rw-cancelled'], refund: ['Refund', 'rw-retest'] };
                         $('#wfReworkList').html(rw.slice().reverse().map(function (r) {
                             const t = TAG[r.kind] || ['Change', 'rw-retest'];
                             return '<li><span class="rw-tag ' + t[1] + '">' + t[0] + '</span>'
@@ -273,7 +308,7 @@
                                  + (r.by ? '<span class="rw-by">by ' + esc(r.by) + '</span>' : '') + '</li>';
                         }).join(''));
                         $('#wfRework').toggleClass('d-none', rw.length === 0);
-                        const reworkCount = rw.filter(function (r) { return r.kind !== 'revised' && r.kind !== 'cancelled'; }).length;
+                        const reworkCount = rw.filter(function (r) { return r.kind !== 'revised' && r.kind !== 'cancelled' && r.kind !== 'refund'; }).length;
                         if (reworkCount) $('#wfSummary').append(' <span class="wf-rework-badge"><i class="bi bi-arrow-repeat"></i> ' + reworkCount + ' rework</span>');
                         $wf.removeClass('d-none');
                     })
@@ -290,7 +325,7 @@
                 $('#auditLoading').removeClass('d-none');
                 $('#btnAuditRefresh').prop('disabled', true);
 
-                $.getJSON(historyUrl, { labOrderId: labOrderId })
+                $.getJSON(historyUrl, idArgs())
                     .done(function (res) {
                         if (!res || !res.success) {
                             $('#auditError').text((res && res.message) || 'Unable to load audit history.').removeClass('d-none');
@@ -318,7 +353,7 @@
                     ev.preventDefault();
                     ev.stopPropagation();
                     const $b = $(this);
-                    const id = parseInt($b.data('laborderid')) || 0;
+                    const id = parseInt($b.data('laborderid') || $b.data('auditid')) || 0;
                     if (id <= 0) return;
                     if (id !== labOrderId) { allEvents = []; activeFilter = 'All'; }
                     labOrderId = id;

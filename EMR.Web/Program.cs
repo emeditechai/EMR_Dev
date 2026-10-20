@@ -33,7 +33,9 @@ builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR.Web.Services.Reports.LabTestWorkloadService>();
 // Utility > Campaigns (SQLScripts/2299): EMR.Api api/campaigns, and the background sender (also started at once on "Send now")
 builder.Services.AddScoped<EMR.Web.ApiClients.ICampaignApiClient, EMR.Web.ApiClients.CampaignApiClient>();
-builder.Services.AddScoped<EMR.Web.ApiClients.IHelpApiClient, EMR.Web.ApiClients.HelpApiClient>();   // Utility > Help Center (SQLScripts/2300)
+builder.Services.AddScoped<EMR.Web.ApiClients.IHelpApiClient, EMR.Web.ApiClients.HelpApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.IOpdVisitHistoryApiClient, EMR.Web.ApiClients.OpdVisitHistoryApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyOnboardingApiClient, EMR.Web.ApiClients.CompanyOnboardingApiClient>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)   // Utility > Help Center (SQLScripts/2300)
 builder.Services.AddSingleton<EMR.Web.Services.Campaigns.CampaignSenderService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EMR.Web.Services.Campaigns.CampaignSenderService>());
 

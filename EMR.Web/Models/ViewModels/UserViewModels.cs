@@ -190,6 +190,11 @@ public class UserFormViewModel
     public List<TestCategoryOptionItem> TestCategoryOptions { get; set; } = new();
 
     public List<SelectListItem> BranchOptions { get; set; } = new();
+
+    /// <summary>Reports To: the user this user reports to (SQLScripts/2305).</summary>
+    [Display(Name = "Reports To")]
+    public int? ReportsToUserId { get; set; }
+    public List<SelectListItem> ReportsToOptions { get; set; } = new();
     public List<SelectListItem> DepartmentOptions { get; set; } = new();
     public List<BranchRoleGroup> BranchRoleGroups { get; set; } = new();
 }
@@ -219,6 +224,9 @@ public class RoleItem
 public class UserDetailsViewModel
 {
     public int Id { get; set; }
+
+    /// <summary>Reports To (SQLScripts/2305): the name of the user this user reports to.</summary>
+    public string? ReportsToName { get; set; }
 
     /// <summary>Users.User_Type ('U' general, 'D' doctor, 'F' franchise, 'C' company) and the record a login belongs to.</summary>
     public string UserType { get; set; } = "U";

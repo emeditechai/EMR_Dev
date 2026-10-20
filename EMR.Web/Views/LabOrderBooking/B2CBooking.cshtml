@@ -568,14 +568,8 @@
                         </label>
                         <input type="file" name="identificationFile" id="idFileUpload"
                                class="form-control" accept=".pdf,.jpg,.jpeg,.png" />
-                        @if (!string.IsNullOrEmpty(Model.IdentificationFilePath))
-                        {
-                            <div class="mt-1">
-                                <a href="@Model.IdentificationFilePath" target="_blank" class="small text-primary">
-                                    <i class="bi bi-eye me-1"></i>View uploaded file
-                                </a>
-                            </div>
-                        }
+                        @* the patient's uploaded ID document with a Preview (Shared/_IdDocumentPreview) *@
+                        <div id="idDocExisting" class="id-doc-existing d-none" data-path="@Model.IdentificationFilePath"></div>
                         <span asp-validation-for="IdentificationFilePath" class="text-danger small"></span>
                     </div>
                 </div>
@@ -1099,6 +1093,7 @@
 </div>
 
 @section Scripts {
+    <partial name="_IdDocumentPreview" />
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/leaflet/dist/leaflet.js"></script>
     <script src="~/js/lab-compliance-docs.js"></script>
@@ -2210,7 +2205,7 @@
                 const opt = new Option(`${slot.slotTime} (${slot.bookedCount}/${slot.maxPerSlot} Booked)`, `${slot.scheduleId}|${slot.slotTime}`);
                 if (!slot.isAvailable) {
                     opt.disabled = true;
-                    opt.text += ' - FULL';
+                    opt.text += slot.isPast ? ' - PASSED' : ' - FULL';   // a passed slot is listed but not bookable (2303)
                 }
                 $ddlSlot.append(opt);
             });
@@ -3095,6 +3090,8 @@
             ['PhoneNumber','SecondaryPhoneNumber','FirstName','MiddleName','LastName',
              'EmailId','GuardianName','IdentificationNumber','KnownAllergies','Remarks'
             ].forEach(f => setVal(f, p[f.charAt(0).toLowerCase() + f.slice(1)]));
+            // the ID document already on record: Preview under "Upload ID Document"
+            window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');
 
             // Clear phone error state
             const ph = document.getElementById('phoneNumber');

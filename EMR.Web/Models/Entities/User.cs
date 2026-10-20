@@ -119,6 +119,9 @@ public class User
     /// </summary>
     public int? ReferenceUserId { get; set; }
 
+    /// <summary>The user this user reports to - any user of the same company (SQLScripts/2305); null = nobody.</summary>
+    public int? ReportsToUserId { get; set; }
+
     public ICollection<UserBranch> UserBranches { get; set; } = new List<UserBranch>();
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 }

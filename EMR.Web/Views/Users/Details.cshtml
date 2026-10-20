@@ -60,6 +60,12 @@
             </div>
             <div class="col-md-4">
                 <div class="detail-field">
+                    <div class="detail-label"><i class="bi bi-diagram-3 me-1"></i>Reports To</div>
+                    <div class="detail-value">@(Model.ReportsToName ?? "—")</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="detail-field">
                     <div class="detail-label"><i class="bi bi-layout-text-sidebar me-1"></i>First Name</div>
                     <div class="detail-value">@(string.IsNullOrWhiteSpace(Model.FirstName) ? "—" : Model.FirstName)</div>
                 </div>

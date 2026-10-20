@@ -321,6 +321,8 @@
                                     var (stCls, stIcon, stText) = b.Status switch
                                     {
                                         "Completed" => ("p-done", "bi-check2-circle", "Completed"),
+                                        // a visit for services only (dressing...) is "in service", not with a doctor (SQLScripts/2304)
+                                        "Consulting" when b.VisitKind == "SERVICE" => ("p-cons", "bi-bandaid", "In service"),
                                         "Consulting" => ("p-cons", "bi-chat-square-heart", "In consultation"),
                                         "Cancelled" => ("p-canc", "bi-x-circle", "Cancelled"),
                                         _ => ("p-wait", "bi-hourglass-split", "Waiting")
@@ -341,7 +343,10 @@
                                         <td>
                                             <div class="d-flex align-items-center gap-2">
                                                 <span class="od-avatar" style="background:@hue">@(string.IsNullOrEmpty(initials) ? "?" : initials)</span>
-                                                <div class="lh-sm"><a href="#" class="fw-semibold text-decoration-none" onclick="viewBooking(@b.OPDServiceId);return false;">@b.PatientName</a>
+                                                <div class="lh-sm"><div class="d-flex align-items-center gap-1"><a href="#" class="fw-semibold text-decoration-none" onclick="viewBooking(@b.OPDServiceId);return false;">@b.PatientName</a>
+                                                    @* the visit's Audit History with its workflow (SQLScripts/2304) *@
+                                                    <button type="button" class="btn-audit-info" data-auditid="@b.OPDServiceId" data-patient="@b.PatientName" data-bill="@b.OPDBillNo"
+                                                            title="Audit history and workflow of this visit" aria-label="Audit history and workflow of this visit"><i class="bi bi-info-circle-fill"></i></button></div>
                                                     <div class="text-muted" style="font-size:.74rem">@b.PatientCode</div></div>
                                             </div>
                                         </td>
@@ -465,7 +470,18 @@
 }
 <partial name="_PaymentModal" />
 
+@* the visit's Audit History with its workflow: the shared modal, fed by the OPD visit endpoints (SQLScripts/2304) *@
+@{
+    ViewData["AuditHistoryUrl"]  = Url.Action("VisitAuditHistoryJson", "OPD");
+    ViewData["AuditWorkflowUrl"] = Url.Action("VisitWorkflowJson", "OPD");
+    ViewData["AuditIdParam"]     = "opdServiceId";
+    ViewData["AuditRefLabel"]    = "OPD Bill No";
+    ViewData["AuditReworkTitle"] = "Changes after billing - cancellation, refund";
+}
+<partial name="_LabAuditHistoryModal" />
+
 @section Scripts {
+    <partial name="_LabAuditHistoryScripts" />
     <script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
     <script>
     // ── OPD dashboard: charts, visit filters and paging ──

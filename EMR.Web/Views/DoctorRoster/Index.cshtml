@@ -963,19 +963,23 @@
                 result.slots.filter(slot => slot.scheduleId === s.scheduleId).forEach(slot => {
                     const col = document.createElement('div');
                     col.className = 'col-6 col-md-4 col-lg-3';
+                    // a slot whose time has passed is still shown, but disabled (SQLScripts/2303); otherwise unavailable = full
+                    const isPast = !!slot.isPast;
                     const isFull = !slot.isAvailable;
                     const pct = Math.round((slot.bookedCount / slot.maxPerSlot) * 100);
                     const barColor = isFull ? '#f5576c' : pct > 50 ? '#f59e0b' : '#11998e';
                     const bookUrl = `${URLS.register}?doctorId=${s.doctorId}&date=${s.date}&scheduleId=${slot.scheduleId}&time=${slot.slotTime}`;
                     col.innerHTML = `
                         <button type="button" data-permission="OPD.DOCTORROSTER:BOOK_SLOT" data-permission-mode="disable"
-                            class="btn w-100 slot-btn p-3 text-start h-100 d-flex flex-column justify-content-center shadow-sm border ${isFull ? '' : 'slot-available'}"
-                            ${isFull ? 'disabled' : `onclick="window.location.href='${bookUrl}'"`}>
+                            class="btn w-100 slot-btn p-3 text-start h-100 d-flex flex-column justify-content-center shadow-sm border ${isFull ? '' : 'slot-available'} ${isPast ? 'slot-past' : ''}"
+                            ${isFull ? `disabled title="${isPast ? 'This time has passed - book a current or later slot' : 'This slot is full'}"` : `onclick="window.location.href='${bookUrl}'"`}>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="fw-bold fs-6 ${isFull ? 'text-muted' : ''}" style="${isFull ? '' : 'color:#667eea'}">
                                     <i class="bi bi-clock me-1 small"></i>${slot.slotTime}
                                 </span>
-                                ${isFull
+                                ${isPast
+                                    ? `<span class="badge" style="background:#94a3b8;color:#fff;border-radius:8px;font-size:.7rem"><i class="bi bi-clock-history me-1"></i>PASSED</span>`
+                                    : isFull
                                     ? `<span class="badge" style="background:#f5576c;color:#fff;border-radius:8px;font-size:.7rem">FULL</span>`
                                     : `<i class="bi bi-arrow-right-circle" style="color:#667eea;opacity:.6"></i>`}
                             </div>

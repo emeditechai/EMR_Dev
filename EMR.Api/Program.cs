@@ -68,6 +68,8 @@ builder.Services.AddScoped<IDiscountTypeService,     DiscountTypeService>();
 builder.Services.AddScoped<IMembershipService,       MembershipService>();
 builder.Services.AddScoped<IPatientService,          PatientService>();
 builder.Services.AddScoped<IReportService,           ReportService>();
+builder.Services.AddScoped<IOpdVisitHistoryService,  OpdVisitHistoryService>();
+builder.Services.AddScoped<ICompanyOnboardingService, CompanyOnboardingService>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)
 builder.Services.AddScoped<IServiceBookingService,   ServiceBookingService>();
 builder.Services.AddScoped<IPaymentSummaryService,   PaymentSummaryService>();
 builder.Services.AddScoped<IVitalService,            VitalService>();

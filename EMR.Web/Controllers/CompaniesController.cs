@@ -265,6 +265,164 @@ public class CompaniesController(
         return RedirectToAction(nameof(Index));
     }
 
+    // ── New Company wizard (SQLScripts/2306): company + Head Office branch + Hospital Settings + navigation + Administrator ──
+    // A new screen next to the existing Create / Edit (unchanged). Only Super Admin onboards a company.
+
+    private bool IsSuperAdmin => User.HasClaim("IsSuperAdmin", "true");
+
+    [HttpGet]
+    public async Task<IActionResult> Onboard([FromServices] EMR.Web.ApiClients.ICompanyOnboardingApiClient onboarding)
+    {
+        if (!IsSuperAdmin) return RedirectToAction(nameof(Create));
+        var model = new CompanyOnboardViewModel { Templates = await onboarding.TemplatesAsync() };
+        model.TemplateCompanyId = model.Templates.FirstOrDefault(t => t.CompanyId == User.GetCompanyId())?.CompanyId
+                                  ?? model.Templates.FirstOrDefault()?.CompanyId ?? 0;
+        return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(10 * 1024 * 1024)]
+    public async Task<IActionResult> Onboard(CompanyOnboardViewModel model,
+        [FromServices] EMR.Web.ApiClients.ICompanyOnboardingApiClient onboarding, [FromServices] IPasswordHasherService passwordHasher)
+    {
+        if (!IsSuperAdmin) return RedirectToAction(nameof(Create));
+        model.CompanyCode = (model.CompanyCode ?? "").Trim().ToUpperInvariant();
+        model.BranchCode = (model.BranchCode ?? "").Trim().ToUpperInvariant();
+        model.AdminUsername = (model.AdminUsername ?? "").Trim();
+
+        // codes and username: free in the whole application
+        if (ModelState.IsValid || !string.IsNullOrEmpty(model.CompanyCode))
+        {
+            var free = await onboarding.CheckAsync(model.CompanyCode, model.BranchCode, model.AdminUsername);
+            if (!free.CompanyCodeFree) ModelState.AddModelError(nameof(model.CompanyCode), "This company code is already used.");
+            if (!free.BranchCodeFree) ModelState.AddModelError(nameof(model.BranchCode), "This branch code is already used - branch codes are unique in the whole application.");
+            if (!free.UsernameFree) ModelState.AddModelError(nameof(model.AdminUsername), "This username is already used.");
+        }
+        if (model.LogoFile is { Length: > 0 } logo)
+        {
+            var ext = Path.GetExtension(logo.FileName).ToLowerInvariant();
+            if (ext is not (".png" or ".jpg" or ".jpeg" or ".webp")) ModelState.AddModelError(nameof(model.LogoFile), "Logo must be a PNG, JPG or WEBP image.");
+            else if (logo.Length > 2 * 1024 * 1024) ModelState.AddModelError(nameof(model.LogoFile), "Logo can be up to 2 MB.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            model.Templates = await onboarding.TemplatesAsync();
+            model.Step = FirstStepWithError();
+            return View(model);
+        }
+
+        var (hash, salt) = passwordHasher.HashPassword(model.AdminPassword!);
+        var logoPath = model.LogoFile is { Length: > 0 } ? await SaveLogoFileAsync(model.LogoFile) : null;
+        string? T(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+        var (result, error) = await onboarding.OnboardAsync(new EMR.Web.ApiClients.CompanyOnboardRequest
+        {
+            CompanyCode = model.CompanyCode, CompanyName = model.CompanyName.Trim(), LegalName = T(model.LegalName), RegistrationNumber = T(model.RegistrationNumber),
+            GSTIN = T(model.GSTIN)?.ToUpperInvariant(), PAN = T(model.PAN)?.ToUpperInvariant(), Email = T(model.Email), Phone = T(model.Phone), Website = T(model.Website),
+            Address = T(model.Address), Country = T(model.Country), State = T(model.State), City = T(model.City), Pincode = T(model.Pincode), LogoPath = logoPath,
+            BranchCode = model.BranchCode, BranchName = model.BranchName.Trim(),
+            BranchAddress = model.SameAddressAsCompany ? T(model.Address) : T(model.BranchAddress),
+            BranchCountry = T(model.Country),
+            BranchState = model.SameAddressAsCompany ? T(model.State) : T(model.BranchState),
+            BranchCity = model.SameAddressAsCompany ? T(model.City) : T(model.BranchCity),
+            BranchPincode = model.SameAddressAsCompany ? T(model.Pincode) : T(model.BranchPincode),
+            BranchIsLab = model.BranchIsLab,
+            HospitalName = model.HospitalName.Trim(), HospitalPhone = T(model.HospitalPhone), HospitalEmail = T(model.HospitalEmail),
+            OpdRegistrationValidityDays = model.OpdRegistrationValidityDays,
+            AdminUsername = model.AdminUsername, AdminFirstName = model.AdminFirstName.Trim(), AdminLastName = model.AdminLastName.Trim(),
+            AdminEmail = T(model.AdminEmail), AdminPhone = T(model.AdminPhone), AdminEmployeeCode = T(model.AdminEmployeeCode)?.ToUpperInvariant(),
+            AdminPasswordHash = hash, AdminSalt = salt, AdminMustChangePassword = model.AdminMustChangePassword,
+            TemplateCompanyId = model.TemplateCompanyId, CopyAdminPermissions = model.CopyAdminPermissions, CopyOtherRoles = model.CopyOtherRoles,
+            CreatedBy = User.GetUserId()
+        });
+
+        if (result is null)
+        {
+            if (logoPath is not null) DeleteLogoFile(logoPath);   // nothing was created - no orphan file either
+            ModelState.AddModelError(string.Empty, error ?? "The company could not be created. Nothing was saved.");
+            model.Templates = await onboarding.TemplatesAsync();
+            model.Step = 5;
+            return View(model);
+        }
+
+        await auditLogService.LogAsync("Company", "Onboard",
+            $"Onboarded company {model.CompanyName} ({model.CompanyCode}): Head Office {model.BranchCode}, Hospital Settings, {result.Pages} pages / {result.Menus} menus copied, " +
+            $"{result.Roles} role(s), {result.Permissions} Administrator permission(s) copied, administrator '{model.AdminUsername}'.", branchId: User.GetCurrentBranchId());
+        TempData["Onboarded"] = System.Text.Json.JsonSerializer.Serialize(result);
+        return RedirectToAction(nameof(Onboarded), new { id = result.CompanyId });
+    }
+
+    /// <summary>Wizard: are the company code, branch code and username free?</summary>
+    [HttpGet]
+    public async Task<IActionResult> OnboardCheck(string? companyCode, string? branchCode, string? username,
+        [FromServices] EMR.Web.ApiClients.ICompanyOnboardingApiClient onboarding)
+    {
+        if (!IsSuperAdmin) return Forbid();
+        return Json(await onboarding.CheckAsync(companyCode?.Trim(), branchCode?.Trim(), username?.Trim()));
+    }
+
+    /// <summary>Wizard: Country / State / City from the masters (dependent lists; the chosen names are stored as text).</summary>
+    [HttpGet]
+    public async Task<IActionResult> OnboardGeo(string level, int? parentId)
+    {
+        if (!IsSuperAdmin) return Forbid();
+        IEnumerable<object> items = level switch
+        {
+            "country" => (await countryService.GetAllAsync()).Where(c => c.IsActive).OrderBy(c => c.CountryName).Select(c => new { id = c.CountryId, name = c.CountryName }),
+            "state" when parentId > 0 => (await stateService.GetByCountryAsync(parentId.Value)).Where(x => x.IsActive).OrderBy(x => x.StateName).Select(x => new { id = x.StateId, name = x.StateName }),
+            "city" when parentId > 0 => (await cityService.GetByStateAsync(parentId.Value)).Where(x => x.IsActive).OrderBy(x => x.CityName).Select(x => new { id = x.CityId, name = x.CityName }),
+            _ => []
+        };
+        return Json(items);
+    }
+
+    /// <summary>Wizard result: what was created, and what to do next.</summary>
+    [HttpGet]
+    public async Task<IActionResult> Onboarded(int id)
+    {
+        if (!IsSuperAdmin) return RedirectToAction(nameof(Index));
+        var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(c => c.CompanyId == id);
+        if (company is null) return RedirectToAction(nameof(Index));
+        ViewBag.Result = TempData["Onboarded"] is string json ? System.Text.Json.JsonSerializer.Deserialize<EMR.Web.ApiClients.CompanyOnboardResult>(json) : null;
+        ViewBag.Branch = await dbContext.BranchMasters.AsNoTracking().Where(b => b.CompanyId == id && b.IsHOBranch)
+            .Select(b => new { b.BranchId, b.BranchCode, b.BranchName }).FirstOrDefaultAsync();
+        ViewBag.Admin = await dbContext.Users.AsNoTracking().Where(u => u.CompanyId == id).OrderBy(u => u.Id)
+            .Select(u => new { u.Id, u.Username, u.FullName, u.Email }).FirstOrDefaultAsync();
+        return View(company);
+    }
+
+    private int FirstStepWithError()
+    {
+        var steps = new (int Step, string[] Fields)[]
+        {
+            (1, [nameof(CompanyOnboardViewModel.CompanyCode), nameof(CompanyOnboardViewModel.CompanyName), nameof(CompanyOnboardViewModel.LegalName),
+                 nameof(CompanyOnboardViewModel.RegistrationNumber), nameof(CompanyOnboardViewModel.GSTIN), nameof(CompanyOnboardViewModel.PAN),
+                 nameof(CompanyOnboardViewModel.Email), nameof(CompanyOnboardViewModel.Phone), nameof(CompanyOnboardViewModel.Website),
+                 nameof(CompanyOnboardViewModel.Address), nameof(CompanyOnboardViewModel.Pincode), nameof(CompanyOnboardViewModel.LogoFile)]),
+            (2, [nameof(CompanyOnboardViewModel.BranchCode), nameof(CompanyOnboardViewModel.BranchName), nameof(CompanyOnboardViewModel.BranchAddress),
+                 nameof(CompanyOnboardViewModel.BranchPincode)]),
+            (3, [nameof(CompanyOnboardViewModel.HospitalName), nameof(CompanyOnboardViewModel.HospitalPhone), nameof(CompanyOnboardViewModel.HospitalEmail),
+                 nameof(CompanyOnboardViewModel.OpdRegistrationValidityDays)]),
+            (4, [nameof(CompanyOnboardViewModel.AdminUsername), nameof(CompanyOnboardViewModel.AdminFirstName), nameof(CompanyOnboardViewModel.AdminLastName),
+                 nameof(CompanyOnboardViewModel.AdminEmail), nameof(CompanyOnboardViewModel.AdminPhone), nameof(CompanyOnboardViewModel.AdminEmployeeCode),
+                 nameof(CompanyOnboardViewModel.AdminPassword), nameof(CompanyOnboardViewModel.AdminConfirmPassword)])
+        };
+        foreach (var (step, fields) in steps)
+            if (fields.Any(f => ModelState.TryGetValue(f, out var e) && e.Errors.Count > 0)) return step;
+        return 5;
+    }
+
+    private void DeleteLogoFile(string webPath)
+    {
+        try
+        {
+            var full = Path.Combine(webHostEnvironment.WebRootPath, webPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            if (full.StartsWith(Path.Combine(webHostEnvironment.WebRootPath, "uploads", "company_logos")) && System.IO.File.Exists(full)) System.IO.File.Delete(full);
+        }
+        catch (IOException) { }
+    }
+
     private async Task<string> SaveLogoFileAsync(IFormFile file)
     {
         var uploadsFolder = Path.Combine(webHostEnvironment.WebRootPath, "uploads", "company_logos");

@@ -109,7 +109,7 @@
                     </h6>
                     <div class="text-muted fs-9 mt-0.5">
                         <span class="fw-semibold text-dark" id="auditPatientName">—</span>
-                        <span class="mx-1">&bull;</span> Bill / Order No:
+                        <span class="mx-1">&bull;</span> @(ViewData["AuditRefLabel"] as string ?? "Bill / Order No"):
                         <span class="font-monospace fw-semibold text-dark" id="auditBillNo">—</span>
                         <span class="mx-1">&bull;</span> Newest first
                     </div>
@@ -130,7 +130,7 @@
                 <div class="alert alert-danger py-1 px-2 mb-2 wf-cancelled d-none" id="wfCancelled"><i class="bi bi-x-octagon me-1"></i>This bill was cancelled.</div>
                 <ol class="wf-steps" id="wfSteps"></ol>
                 <div class="wf-rework d-none" id="wfRework">
-                    <div class="wf-rework-title"><i class="bi bi-arrow-repeat me-1"></i>Rework history - re-test, re-collection, rejection, revised report, cancellation</div>
+                    <div class="wf-rework-title"><i class="bi bi-arrow-repeat me-1"></i>@(ViewData["AuditReworkTitle"] as string ?? "Rework history - re-test, re-collection, rejection, revised report, cancellation")</div>
                     <ul class="wf-rework-list" id="wfReworkList"></ul>
                 </div>
             </div>

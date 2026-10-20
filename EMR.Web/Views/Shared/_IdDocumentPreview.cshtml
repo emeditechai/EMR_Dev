@@ -1,0 +1,79 @@
+@*
+    The uploaded ID document of a patient (PatientMaster.IdentificationFilePath): a Preview button under "Upload ID Document"
+    that opens the image / PDF in a viewer. Used by B2C / B2B LAB booking and OPD Patient Registration.
+      <div id="idDocExisting" class="id-doc-existing" data-path="@Model.IdentificationFilePath"></div>   (the slot; filled on load)
+      IdDocPreview.set('idDocExisting', path)    (after an existing patient is loaded; '' hides it)
+*@
+<style>
+    .id-doc-existing { margin-top: .4rem; }
+    .id-doc-existing .idp-row { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .8rem; color: #475569;
+                                background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .3rem .5rem; }
+    .id-doc-existing .idp-row i.bi-file-earmark-check { color: #16a34a; }
+    .id-doc-existing .idp-new { font-size: .74rem; color: #b45309; margin-top: .2rem; }
+</style>
+
+<div class="modal fade" id="idDocPreviewModal" tabindex="-1" aria-labelledby="idDocPreviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-semibold" id="idDocPreviewLabel"><i class="bi bi-shield-check me-2"></i>Uploaded ID Document</h6>
+                <a id="idDocPreviewOpen" href="#" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary ms-auto me-2">
+                    <i class="bi bi-box-arrow-up-right me-1"></i>Open in new tab
+                </a>
+                <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0 text-center bg-dark" style="min-height:70vh">
+                <img id="idDocPreviewImg" src="" alt="Uploaded ID document" class="img-fluid" style="display:none;max-height:80vh;object-fit:contain" />
+                <iframe id="idDocPreviewFrame" src="" title="Uploaded ID document" style="display:none;width:100%;height:80vh;border:0"></iframe>
+                <div id="idDocPreviewFallback" style="display:none" class="p-5 text-light">
+                    <i class="bi bi-file-earmark-x display-4 d-block mb-3"></i>
+                    <p>Preview is not available for this file type.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.IdDocPreview = (function () {
+        const kind = path => { const e = (path.split('?')[0].split('.').pop() || '').toLowerCase(); return e === 'pdf' ? 'pdf' : ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(e) ? 'img' : ''; };
+
+        function open(path) {
+            if (!path) return;
+            const img = document.getElementById('idDocPreviewImg'), frame = document.getElementById('idDocPreviewFrame'),
+                  fb = document.getElementById('idDocPreviewFallback'), k = kind(path);
+            document.getElementById('idDocPreviewOpen').href = path;
+            img.style.display = k === 'img' ? '' : 'none'; img.src = k === 'img' ? path : '';
+            frame.style.display = k === 'pdf' ? '' : 'none'; frame.src = k === 'pdf' ? path : '';
+            fb.style.display = k ? 'none' : '';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('idDocPreviewModal')).show();
+        }
+
+        // show (or hide, with no path) the uploaded document of the patient under the upload box
+        function set(slotId, path) {
+            const slot = document.getElementById(slotId);
+            if (!slot) return;
+            slot.dataset.path = path || '';
+            if (!path) { slot.innerHTML = ''; slot.classList.add('d-none'); return; }
+            const name = decodeURIComponent(path.split('/').pop() || '').replace(/^[0-9a-f-]{20,}_?/i, '') || 'ID document';
+            slot.innerHTML = `<div class="idp-row"><i class="bi bi-file-earmark-check"></i><span>Already uploaded${kind(path) ? ' (' + kind(path).replace('img', 'image').toUpperCase() + ')' : ''}</span>
+                <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 idp-preview"><i class="bi bi-eye me-1"></i>Preview</button></div>
+                <div class="idp-new d-none"><i class="bi bi-info-circle me-1"></i>The new file you chose replaces it when you save.</div>`;
+            slot.classList.remove('d-none');
+            slot.querySelector('.idp-preview').addEventListener('click', () => open(slot.dataset.path));
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // slots rendered with a path (the page reloaded with an existing patient)
+            document.querySelectorAll('.id-doc-existing[data-path]').forEach(s => set(s.id, s.dataset.path));
+            // a new file chosen while one is on record: say it will replace it
+            document.querySelectorAll('input[type=file][name=identificationFile]').forEach(inp => inp.addEventListener('change', () => {
+                document.querySelectorAll('.id-doc-existing .idp-new').forEach(n => n.classList.toggle('d-none', !inp.files.length));
+            }));
+            document.getElementById('idDocPreviewModal')?.addEventListener('hidden.bs.modal', () => {
+                document.getElementById('idDocPreviewFrame').src = ''; document.getElementById('idDocPreviewImg').src = '';
+            });
+        });
+        return { set, open };
+    })();
+</script>

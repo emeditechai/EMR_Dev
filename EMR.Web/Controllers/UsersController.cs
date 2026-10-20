@@ -209,6 +209,10 @@ public class UsersController(
         var detailRefNames = await ReferenceNamesAsync(new[] { (user.UserType, user.ReferenceUserId) });
         var model = new UserDetailsViewModel
         {
+            ReportsToName = user.ReportsToUserId is null ? null
+                : await dbContext.Users.AsNoTracking().Where(u => u.Id == user.ReportsToUserId)
+                    .Select(u => (string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName.Trim() + " (" + u.Username + ")"))
+                    .FirstOrDefaultAsync(),
             Id = user.Id,
             UserType = user.UserType,
             ReferenceUserId = user.ReferenceUserId,
@@ -315,6 +319,8 @@ public class UsersController(
         }
 
         await ValidateEmployeeCodeUniquenessAsync(model);
+        await ValidateContactUniquenessAsync(model, User.GetCompanyId(), null, null);
+        await ValidateReportsToAsync(model, User.GetCompanyId());
         ValidateProfilePicture(model);
         await ValidateSignatureAsync(model);
 
@@ -347,6 +353,7 @@ public class UsersController(
             FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim()),
             PhoneNumber = model.PhoneNumber,
             Phone = model.PhoneNumber,
+            ReportsToUserId = model.ReportsToUserId > 0 ? model.ReportsToUserId : null,
             DateOfJoining = model.DateOfJoining,
             DateOfBirth = model.DateOfBirth,
             Address = model.Address?.Trim(),
@@ -430,6 +437,7 @@ public class UsersController(
             FirstName = user.FirstName ?? string.Empty,
             LastName = user.LastName ?? string.Empty,
             PhoneNumber = user.PhoneNumber,
+            ReportsToUserId = user.ReportsToUserId,
             EmployeeCode = user.UserBranches.Where(x => x.IsActive).Select(x => x.EmployeeCode).FirstOrDefault() ?? string.Empty,
             ExistingProfilePicturePath = user.ProfilePicturePath,
             ExistingSignaturePath = user.SignaturePath,
@@ -536,6 +544,9 @@ public class UsersController(
         }
 
         await ValidateEmployeeCodeUniquenessAsync(model);
+        // e-mail / phone: checked when changed (existing records may already share them); a linked login keeps its own
+        await ValidateContactUniquenessAsync(model, user.CompanyId ?? User.GetCompanyId(), user.Email, user.PhoneNumber);
+        await ValidateReportsToAsync(model, user.CompanyId ?? User.GetCompanyId());
         ValidateProfilePicture(model);
         await ValidateSignatureAsync(model);
 
@@ -560,6 +571,7 @@ public class UsersController(
             user.PhoneNumber = model.PhoneNumber;
             user.Phone = model.PhoneNumber;
         }
+        user.ReportsToUserId = model.ReportsToUserId > 0 ? model.ReportsToUserId : null;
         user.DateOfJoining = model.DateOfJoining;
         user.DateOfBirth = model.DateOfBirth;
         user.Address = model.Address?.Trim();
@@ -797,6 +809,20 @@ public class UsersController(
 
     private async Task PopulateSelections(UserFormViewModel model)
     {
+        // Reports To: the active users of the company (the one already chosen stays listed even if inactive), not the user
+        var companyId = User.GetCompanyId();
+        var reportsTo = await dbContext.Users.AsNoTracking()
+            .Where(u => u.CompanyId == companyId && u.Id != model.Id && (u.IsActive || u.Id == model.ReportsToUserId))
+            .Select(u => new { u.Id, u.FullName, u.FirstName, u.LastName, u.Username, u.IsActive })
+            .ToListAsync();
+        model.ReportsToOptions = reportsTo
+            .Select(u => new { u.Id, Name = !string.IsNullOrWhiteSpace(u.FullName) ? u.FullName.Trim() : $"{u.FirstName} {u.LastName}".Trim(), u.Username, u.IsActive })
+            .OrderBy(u => string.IsNullOrWhiteSpace(u.Name) ? u.Username : u.Name)
+            .Select(u => new SelectListItem(
+                (string.IsNullOrWhiteSpace(u.Name) ? u.Username : $"{u.Name} ({u.Username})") + (u.IsActive ? "" : " - inactive"),
+                u.Id.ToString(), u.Id == model.ReportsToUserId))
+            .ToList();
+
         var branches = await dbContext.BranchMasters
             .Where(x => x.IsActive)
             .OrderBy(x => x.BranchName)
@@ -994,6 +1020,74 @@ public class UsersController(
                 ModifiedBy = User.GetUserId()
             });
         dbContext.UserRoles.AddRange(roleMappings);
+    }
+
+    /// <summary>
+    /// E-mail and phone number are unique within the company (SQLScripts/2305): e-mail ignoring case and spaces, phone by
+    /// its last 10 digits (so 09007524092 and 9007524092 are the same number). On edit a value is checked only when it is
+    /// changed, so records that already share one can still be saved.
+    /// </summary>
+    private async Task ValidateContactUniquenessAsync(UserFormViewModel model, int? companyId, string? storedEmail, string? storedPhone)
+    {
+        static string Phone10(string? phone)
+        {
+            var digits = new string((phone ?? "").Where(char.IsDigit).ToArray());
+            return digits.Length > 10 ? digits[^10..] : digits;
+        }
+
+        var email = model.Email?.Trim();
+        if (!string.IsNullOrEmpty(email)
+            && !string.Equals(email, storedEmail?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            var lower = email.ToLower();
+            var taken = await dbContext.Users.AsNoTracking()
+                .Where(u => u.CompanyId == companyId && u.Id != model.Id && u.Email != null && u.Email.Trim().ToLower() == lower)
+                .Select(u => u.Username).FirstOrDefaultAsync();
+            if (taken is not null)
+                ModelState.AddModelError(nameof(model.Email), $"This e-mail is already used by user '{taken}' in this company.");
+        }
+
+        var phone = Phone10(model.PhoneNumber);
+        if (phone.Length > 0 && phone != Phone10(storedPhone))
+        {
+            // compared in memory by the last 10 digits (numbers are stored with or without a leading 0 / +91)
+            var tail = phone.Length >= 6 ? phone[^6..] : phone;
+            var candidates = await dbContext.Users.AsNoTracking()
+                .Where(u => u.CompanyId == companyId && u.Id != model.Id && u.PhoneNumber != null && u.PhoneNumber.Contains(tail))
+                .Select(u => new { u.Username, u.PhoneNumber }).ToListAsync();
+            var taken = candidates.FirstOrDefault(u => Phone10(u.PhoneNumber) == phone);
+            if (taken is not null)
+                ModelState.AddModelError(nameof(model.PhoneNumber), $"This phone number is already used by user '{taken.Username}' in this company.");
+        }
+    }
+
+    /// <summary>Reports To (SQLScripts/2305): a user of the same company, not the user itself, and no reporting loop.</summary>
+    private async Task ValidateReportsToAsync(UserFormViewModel model, int? companyId)
+    {
+        if (model.ReportsToUserId is not > 0) { model.ReportsToUserId = null; return; }
+        if (model.ReportsToUserId == model.Id)
+        {
+            ModelState.AddModelError(nameof(model.ReportsToUserId), "A user cannot report to himself / herself.");
+            return;
+        }
+        if (!await dbContext.Users.AnyAsync(u => u.Id == model.ReportsToUserId && u.CompanyId == companyId))
+        {
+            ModelState.AddModelError(nameof(model.ReportsToUserId), "Choose a user of this company.");
+            return;
+        }
+        if (model.Id <= 0) return;   // a new user cannot be anybody's manager yet
+        // walk up the chain from the chosen manager: reaching this user again would make a loop
+        var seen = new HashSet<int>();
+        int? cur = model.ReportsToUserId;
+        while (cur is int id && seen.Add(id))
+        {
+            if (id == model.Id)
+            {
+                ModelState.AddModelError(nameof(model.ReportsToUserId), "This would make a reporting loop - the chosen user already reports (directly or through others) to this user.");
+                return;
+            }
+            cur = await dbContext.Users.Where(u => u.Id == id).Select(u => u.ReportsToUserId).FirstOrDefaultAsync();
+        }
     }
 
     private async Task ValidateEmployeeCodeUniquenessAsync(UserFormViewModel model)
