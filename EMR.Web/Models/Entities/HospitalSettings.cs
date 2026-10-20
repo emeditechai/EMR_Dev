@@ -79,6 +79,10 @@ public class HospitalSettings
     /// No (default) = a second person checks the cash.</summary>
     public bool DayClosingAllowSelfVerify { get; set; } = false;
 
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2313): Yes (default) = a pop-up after login when earlier days' cash is not
+    /// closed; No = no pop-up (the bell notification stays).</summary>
+    public bool DayClosingLoginReminder { get; set; } = true;
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;

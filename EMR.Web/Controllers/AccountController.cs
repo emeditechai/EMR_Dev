@@ -808,9 +808,28 @@ public class AccountController(
             var text = string.Join("; ", pending.GroupBy(p => p.BranchName ?? $"Branch {p.BranchId}").Select(b =>
                 $"{b.Key} - " + string.Join(", ", b.GroupBy(p => p.Module == "PETTY" ? "petty cash (close in OPD or LAB)" : p.Module)
                     .Select(g => $"{g.Key} {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"))));
-            var otherBranch = pending.Any(p => p.BranchId != branchId);
-            TempData["Warning"] = $"Cash not closed for earlier days: {text}." +
-                (otherBranch ? " Switch to that branch and use OPD / LAB Day Closing there." : " Use OPD / LAB Day Closing.");
+            // Hospital Settings "Remind Day Closing Notification" (SQLScripts/2313), per branch: the pop-up lists only the days of
+            // branches set to Yes (a day closing belongs to the branch the cash was taken at, and a Super Admin signs in
+            // without a branch). Nothing left = no pop-up. The bell notification below is unchanged.
+            var pendingBranchIds = pending.Select(p => p.BranchId).Distinct().ToArray();
+            HashSet<int> reminderOff;
+            using (var rc = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection())
+                reminderOff = (await Dapper.SqlMapper.QueryAsync<int>(rc, @"
+                    SELECT x.BranchId FROM (
+                        SELECT hs.BranchId, hs.DayClosingLoginReminder,
+                               ROW_NUMBER() OVER (PARTITION BY hs.BranchId ORDER BY hs.IsActive DESC, hs.Id DESC) AS rn
+                        FROM dbo.HospitalSettings hs WHERE hs.BranchId IN @ids) x
+                    WHERE x.rn = 1 AND x.DayClosingLoginReminder = 0", new { ids = pendingBranchIds })).ToHashSet();
+            var remind = pending.Where(p => !reminderOff.Contains(p.BranchId)).ToList();
+            if (remind.Count > 0)
+            {
+                var remindText = string.Join("; ", remind.GroupBy(p => p.BranchName ?? $"Branch {p.BranchId}").Select(b =>
+                    $"{b.Key} - " + string.Join(", ", b.GroupBy(p => p.Module == "PETTY" ? "petty cash (close in OPD or LAB)" : p.Module)
+                        .Select(g => $"{g.Key} {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"))));
+                var otherBranch = remind.Any(p => p.BranchId != branchId);
+                TempData["Warning"] = $"Cash not closed for earlier days: {remindText}." +
+                    (otherBranch ? " Switch to that branch and use OPD / LAB Day Closing there." : " Use OPD / LAB Day Closing.");
+            }
             // one current reminder: the older days' reminders are replaced by today's
             using (var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection())
                 await Dapper.SqlMapper.ExecuteAsync(con, @"UPDATE dbo.UserNotification SET IsDismissed = 1, DismissedOn = SYSDATETIME()

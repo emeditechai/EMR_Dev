@@ -313,6 +313,7 @@ public class HospitalSettingsController(
             existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
             existing.DayClosingBlockBilling = model.DayClosingBlockBilling;
             existing.DayClosingAllowSelfVerify = model.DayClosingAllowSelfVerify;
+            existing.DayClosingLoginReminder = model.DayClosingLoginReminder;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -390,6 +391,7 @@ public class HospitalSettingsController(
             OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
             DayClosingBlockBilling = s.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = s.DayClosingAllowSelfVerify,
+            DayClosingLoginReminder = s.DayClosingLoginReminder,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -454,6 +456,7 @@ public class HospitalSettingsController(
             OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
             DayClosingBlockBilling = m.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = m.DayClosingAllowSelfVerify,
+            DayClosingLoginReminder = m.DayClosingLoginReminder,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

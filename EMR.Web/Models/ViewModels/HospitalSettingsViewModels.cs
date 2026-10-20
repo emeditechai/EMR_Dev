@@ -198,6 +198,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Allow Verifying Own Day Closing")]
     public bool DayClosingAllowSelfVerify { get; set; }
 
+    [Display(Name = "Remind Day Closing Notification")]
+    public bool DayClosingLoginReminder { get; set; } = true;
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

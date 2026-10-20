@@ -234,7 +234,7 @@ else
         <div class="tab-pane fade show active module-tab-pane" id="tabOpd" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#0d6efd"><i class="bi bi-person-plus-fill me-1"></i>OPD Module Settings</span>
-                <span class="coming-soon-badge">4 active parameters</span>
+                <span class="coming-soon-badge">7 active parameters</span>
             </div>
 
             <div class="lab-section-title">Registration &amp; Notifications</div>
@@ -303,6 +303,16 @@ else
                             <div class="lp-label">Allow Verifying Own Day Closing</div>
                             <div class="lp-desc">OPD / LAB Day Closing: Yes lets a verifier verify their own closing; No needs a second person.</div>
                             <span class="lp-pill @(Model.DayClosingAllowSelfVerify ? "yes" : "no")"><i class="bi @(Model.DayClosingAllowSelfVerify ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DayClosingAllowSelfVerify ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-alarm"></i></div>
+                        <div>
+                            <div class="lp-label">Remind Day Closing Notification</div>
+                            <div class="lp-desc">OPD / LAB Day Closing: Yes shows a pop-up after login when earlier days are not closed; No shows none.</div>
+                            <span class="lp-pill @(Model.DayClosingLoginReminder ? "yes" : "no")"><i class="bi @(Model.DayClosingLoginReminder ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DayClosingLoginReminder ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>

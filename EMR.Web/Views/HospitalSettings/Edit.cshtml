@@ -357,6 +357,20 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-alarm"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Remind Day Closing Notification</div>
+                            <div class="lp-desc">OPD and LAB Day Closing. Yes: after login, a pop-up reminds the user of earlier days whose cash is not closed. No: no pop-up after login (the bell notification stays).</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="DayClosingLoginReminder">
+                                <label class="form-check-label" asp-for="DayClosingLoginReminder">Remind at login</label>
+                            </div>
+                            <span asp-validation-for="DayClosingLoginReminder" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>
