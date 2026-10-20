@@ -2022,6 +2022,15 @@
             });
 
             var _isLabBookingSubmitting = false;
+            // One bill per booking (SQLScripts/2310): one key per booking. A retry (payment refused, Collect again) sends the
+            // same key, so the server pays the bill it already created instead of creating a second bill no.
+            function newBookingKey() {
+                if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+                    var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+                });
+            }
+            var _labBookingKey = newBookingKey();
             async function submitBookingWithPayment(paymentData) {
                 if (_isLabBookingSubmitting) return;
                 _isLabBookingSubmitting = true;
@@ -2043,6 +2052,7 @@
                     var formEl = document.getElementById('labForm');
                     var formData = new FormData(formEl);
                     formData.append('paymentDataJson', JSON.stringify(paymentData));
+                    formData.append('bookingRequestKey', _labBookingKey);
 
                     var res = await fetch('@Url.Action("SaveBookingWithPayment", "LabOrderBooking")', {
                         method: 'POST',
@@ -2059,6 +2069,8 @@
                     if (!result.success) {
                         throw new Error(result.error || 'Failed to save booking');
                     }
+                    // saved: the next booking on this page is a new bill
+                    _labBookingKey = newBookingKey();
 
                     // Hide payment modal
                     var pmModalEl = document.getElementById('paymentModal');

@@ -462,7 +462,8 @@
                 $('#btnSignOffNext').prop('disabled', idx >= currentBills.length - 1);
 
                 $('#soLoading').removeClass('d-none');
-                $frame.attr('src', urls.approve + '?q=' + encodeURIComponent(encMap[b.labOrderId] || '') + '&embed=true');
+                $frame.attr('src', urls.approve + '?q=' + encodeURIComponent(encMap[b.labOrderId] || '') + '&embed=true'
+                    + '&hasNext=' + (idx < currentBills.length - 1 ? '1' : '0'));
 
                 if (!modalEl.classList.contains('show')) signOffModal.show();
             }
@@ -486,6 +487,24 @@
             // is marked dirty so the KPI cards / table are accurate once the pathologist closes the modal.
             window.addEventListener('message', function (e) {
                 if (e.data && e.data.type === 'pd-approved') listDirty = true;
+                // the messages below come only from the sign-off page in this modal
+                if (e.origin !== window.location.origin || e.source !== $frame[0].contentWindow || !e.data) return;
+                if (e.data.type === 'pd-nav' && modalEl.classList.contains('show')) {
+                    openSignOffModal(modalIndex + (e.data.dir < 0 ? -1 : 1));
+                }
+                // Approve & Next: the report is fully signed for me - open the next one, or finish after the last
+                if (e.data.type === 'pd-advance') {
+                    listDirty = true;
+                    if (modalIndex >= 0 && modalIndex < currentBills.length - 1) {
+                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2200, showConfirmButton: false,
+                                    title: 'Signed', text: 'Opening the next report…' });
+                        openSignOffModal(modalIndex + 1);
+                    } else {
+                        signOffModal.hide();
+                        Swal.fire({ icon: 'success', title: 'All caught up', timer: 2600, showConfirmButton: false,
+                                    text: (e.data.message ? e.data.message + ' ' : '') + 'That was the last report in this list.' });
+                    }
+                }
             });
 
             $(modalEl).on('hidden.bs.modal', function () {

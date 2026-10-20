@@ -46,8 +46,20 @@ namespace EMR.Web.Controllers
         IB2BBillingApiClient b2bBillingApiClient,
         ILogger<LabOrderBookingController> logger,
         EMR.Shared.Security.IActionPermissionGuard permissionGuard,
-        IPatientPortalLoginService portalLoginService) : Controller
+        IPatientPortalLoginService portalLoginService,
+        IBillingSubmissionApiClient billingSubmissionApiClient) : Controller
     {
+        /// <summary>One bill per booking (SQLScripts/2310): the billed tests / packages / misc lines, to tell a retry of the
+        /// same booking from a changed one.</summary>
+        private static string LabItemsSignature(IEnumerable<LabOrderItemRequestDto> items, IEnumerable<object>? misc)
+        {
+            var parts = items.Select(x => $"{x.Type}:{x.InvestigationId}:{x.Price:0.00}").OrderBy(x => x, StringComparer.Ordinal).ToList();
+            if (misc != null) parts.AddRange(misc.Select(m => "M:" + System.Text.Json.JsonSerializer.Serialize(m)).OrderBy(x => x, StringComparer.Ordinal));
+            var text = string.Join(",", parts);
+            return text.Length <= 1000 ? text
+                : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+        }
+
         /// <summary>For a franchise login the partner on a B2B bill is always its own franchise, whatever the form posted.</summary>
         private void LockToOwnFranchise(LabOrderBookingViewModel model)
         {
@@ -1113,9 +1125,13 @@ namespace EMR.Web.Controllers
             [FromForm] IFormFile? ovdDocumentFile,
             [FromForm] string? ovdDocumentRemarks,
             [FromForm] IFormFile? consentFile,
-            [FromForm] string? consentRemarks)
+            [FromForm] string? consentRemarks,
+            [FromForm] string? bookingRequestKey)
         {
             LockToOwnFranchise(model);
+            // One bill per booking (SQLScripts/2310): the key of this booking form; a retry reuses the bill it created
+            Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
+            bool keyClaimed = false;      // this request holds the key and has not created the bill yet
             try
             {
             var branchId = User.GetCurrentBranchId();
@@ -1242,9 +1258,41 @@ namespace EMR.Web.Controllers
                 model.AgeDays = d;
             }
 
+            // ── One bill per booking (SQLScripts/2310) ─────────────────────────────────────────────────────────
+            // A retry of this booking (payment refused / timed out, Collect clicked again) reuses the bill created the
+            // first time - same bill no. and, once paid, the same token - instead of creating a second bill.
+            var itemsSignature = LabItemsSignature(lineItems, bookingMisc?.Cast<object>());
+            BillingSubmissionClaim? reuse = null;
+            if (requestKey != Guid.Empty)
+            {
+                var claim = await billingSubmissionApiClient.ClaimAsync(requestKey, "LAB", User.GetUserId());
+                switch (claim.Status)
+                {
+                    case "BUSY":
+                        return Json(new { success = false, error = "This booking is still being saved. Please wait a few seconds and check the B2C Order List before clicking Collect again." });
+                    case "EXISTS" when claim.ModuleRefId is > 0:
+                        if (!string.Equals(claim.Stage, "READY", StringComparison.OrdinalIgnoreCase))
+                            return Json(new { success = false, billNo = claim.BillNo,
+                                error = $"Bill {claim.BillNo} was already created for this booking, but its set-up did not finish. Open it from the B2C Order List (collect its payment there) instead of booking again." });
+                        if (!string.Equals(claim.ItemsSignature, itemsSignature, StringComparison.Ordinal))
+                            return Json(new { success = false, billNo = claim.BillNo,
+                                error = $"Bill {claim.BillNo} was already created for this booking with a different list of tests. Collect its payment from the B2C Order List, or cancel it there, before billing other tests." });
+                        if (claim.HasPayment)
+                            return await LabBookingAlreadySavedAsync(claim, model, branchId.Value);
+                        reuse = claim;
+                        break;
+                    case "NEW":
+                        keyClaimed = true;
+                        break;
+                    default:
+                        requestKey = Guid.Empty;   // a key of another user / module: book as before, without retry protection
+                        break;
+                }
+            }
+
             var patient = new PatientMaster
             {
-                PatientId = model.PatientId,
+                PatientId = reuse?.PatientId ?? model.PatientId,
                 FirstName = model.FirstName,
                 LastName = model.LastName,
                 PhoneNumber = model.PhoneNumber,
@@ -1283,6 +1331,28 @@ namespace EMR.Web.Controllers
 
             int actualPatientId = model.PatientId;
             string actualPatientCode = model.PatientCode ?? string.Empty;
+            LabOrderResponseDto labOrderRes;
+            decimal totalAmount = lineItems.Sum(x => x.Price);
+            string patientFullName;
+            if (reuse != null)
+            {
+                // retry of a booking whose bill exists: the patient and the bill were saved the first time - only the payment is left
+                actualPatientId = reuse.PatientId ?? model.PatientId;
+                var savedPatient = await patientService.GetByIdAsync(actualPatientId);
+                actualPatientCode = savedPatient?.PatientCode ?? actualPatientCode;
+                patient.PatientId = actualPatientId;
+                labOrderRes = new LabOrderResponseDto { LabOrderId = reuse.ModuleRefId!.Value, BillNo = reuse.BillNo ?? string.Empty, TokenNo = reuse.TokenNo ?? string.Empty };
+                patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+                await auditLogService.LogActivityAsync(
+                    eventType: "LAB Billing",
+                    actionName: "LAB.OrderRetryPayment",
+                    description: $"Payment retried on Lab Order Bill {labOrderRes.BillNo} (the same booking - no new bill created).",
+                    userId: User.GetUserId(), branchId: branchId, moduleCode: "LAB",
+                    referenceNo: labOrderRes.BillNo, referenceId: labOrderRes.LabOrderId, patientCode: actualPatientCode,
+                    metadata: new { labOrderRes.LabOrderId, labOrderRes.BillNo, RequestKey = requestKey });
+            }
+            else
+            {
             if (model.PatientId == 0)
             {
                 actualPatientId = await patientService.CreateDemographicsOnlyAsync(patient, User.GetUserId());
@@ -1318,7 +1388,6 @@ namespace EMR.Web.Controllers
                 MiscCharges = bookingMisc
             };
 
-            LabOrderResponseDto labOrderRes;
             try
             {
                 labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
@@ -1326,19 +1395,25 @@ namespace EMR.Web.Controllers
             catch (InvalidOperationException ex)
             {
                 // a billing rule refused the order (e.g. a test not on the branch's rate list - script 2199)
+                await ReleaseBookingKeyAsync(requestKey, keyClaimed);
                 return Json(new { success = false, error = ex.Message });
+            }
+            if (requestKey != Guid.Empty)
+            {
+                // the bill exists: from here a retry of this booking reuses it
+                await billingSubmissionApiClient.UpdateAsync(requestKey, labOrderRes.LabOrderId, labOrderRes.BillNo, actualPatientId, itemsSignature, "CREATED");
+                keyClaimed = false;
             }
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
             await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
                 prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
 
-            decimal totalAmount = lineItems.Sum(x => x.Price);
             // revenue = tests + misc charges (taxable); the misc GST goes to GST Output Payable
             var bookingMiscTotals = await ReadLabMiscTotalsAsync(labOrderRes.LabOrderId);
             await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount + bookingMiscTotals.MiscAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
             await SyncLabGstAsync(labOrderRes.LabOrderId);
 
-            string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
             await auditLogService.LogActivityAsync(
                 eventType: "LAB Billing",
                 actionName: "LAB.OrderBooked",
@@ -1359,6 +1434,11 @@ namespace EMR.Web.Controllers
                 });
 
             await TryCreatePortalLoginForB2CAsync(branchId.Value, actualPatientId, actualPatientCode, patient);
+
+            // the bill is fully set up: a retry of this booking now only redoes the payment
+            if (requestKey != Guid.Empty)
+                await billingSubmissionApiClient.UpdateAsync(requestKey, labOrderRes.LabOrderId, null, null, null, "READY");
+            }
 
             // Process Payment
             SavePaymentResult? paymentResult = null;
@@ -1401,7 +1481,11 @@ namespace EMR.Web.Controllers
                     paymentResult = await paymentService.SavePaymentAsync(paymentReq, User.GetUserId());
                     if (paymentResult != null && !paymentResult.Success)
                     {
-                        return Json(new { success = false, error = paymentResult.Error ?? "Failed to save payment." });
+                        // the bill stays as it is: correcting the payment and clicking Collect again pays this same bill
+                        var payError = paymentResult.Error ?? "Failed to save payment.";
+                        if (requestKey != Guid.Empty)
+                            payError += $" Bill {labOrderRes.BillNo} is kept for this booking - correct the payment and click Collect again; the same bill no. will be used.";
+                        return Json(new { success = false, error = payError, billNo = labOrderRes.BillNo, labOrderId = labOrderRes.LabOrderId });
                     }
 
                     if (paymentResult != null && paymentResult.Success)
@@ -1594,8 +1678,55 @@ namespace EMR.Web.Controllers
             }
             catch (Exception ex)
             {
+                await ReleaseBookingKeyAsync(requestKey, keyClaimed);
                 return Json(new { success = false, error = $"An error occurred while saving the booking: {ex.Message}" });
             }
+        }
+
+        /// <summary>One bill per booking (SQLScripts/2310): a request that stopped before creating the bill frees its key.</summary>
+        private async Task ReleaseBookingKeyAsync(Guid requestKey, bool keyClaimed)
+        {
+            if (requestKey == Guid.Empty || !keyClaimed) return;
+            try { await billingSubmissionApiClient.ReleaseAsync(requestKey); }
+            catch (Exception ex) { logger.LogWarning(ex, "Could not release booking request key {Key}", requestKey); }
+        }
+
+        /// <summary>
+        /// One bill per booking (SQLScripts/2310): the booking was saved with its payment already (e.g. the answer was lost
+        /// on the way back) - answer with that bill instead of creating another one.
+        /// </summary>
+        private async Task<IActionResult> LabBookingAlreadySavedAsync(BillingSubmissionClaim claim, LabOrderBookingViewModel model, int branchId)
+        {
+            var labOrderId = claim.ModuleRefId!.Value;
+            var con = dbContext.Database.GetDbConnection();
+            if (con.State != System.Data.ConnectionState.Open) await con.OpenAsync();
+            var ph = await con.QueryFirstOrDefaultAsync<(decimal NetAmount, decimal TotalPaid, decimal BalanceDue, string PaymentStatus, decimal SubTotal)>(@"
+                SELECT ISNULL(NetAmount, 0), ISNULL(TotalPaid, 0), ISNULL(BalanceDue, 0), ISNULL(PaymentStatus, 'U'), ISNULL(SubTotal, 0)
+                FROM dbo.PaymentHeader WHERE ModuleCode = 'LAB' AND ModuleRefId = @Id AND IsActive = 1", new { Id = labOrderId });
+            var patient = claim.PatientId is > 0 ? await patientService.GetByIdAsync(claim.PatientId.Value) : null;
+            var showPrintBarcode = await con.ExecuteScalarAsync<bool>(@"
+                SELECT CASE WHEN EXISTS (SELECT 1 FROM dbo.HospitalSettings hs WHERE hs.BranchId = @BranchId AND hs.IsActive = 1 AND hs.BarcodeGenerateAtBilling = 1)
+                             AND EXISTS (SELECT 1 FROM dbo.SampleCollection WHERE Laborderid = @LabOrderId AND BarcodeNo IS NOT NULL AND LTRIM(RTRIM(BarcodeNo)) <> '')
+                            THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END", new { BranchId = branchId, LabOrderId = labOrderId });
+            var name = patient != null
+                ? ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim()
+                : ((model.Salutation ?? "") + " " + model.FirstName + " " + model.LastName).Trim();
+            return Json(new
+            {
+                success = true,
+                alreadySaved = true,
+                labOrderId,
+                billNo = claim.BillNo,
+                tokenNo = claim.TokenNo,
+                patientCode = patient?.PatientCode ?? model.PatientCode,
+                patientName = name,
+                totalAmount = ph.SubTotal,
+                netAmount = ph.NetAmount,
+                totalPaid = ph.TotalPaid,
+                balanceDue = ph.BalanceDue,
+                paymentStatus = ph.PaymentStatus,
+                showPrintBarcode
+            });
         }
 
         /// <summary>

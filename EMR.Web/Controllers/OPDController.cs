@@ -42,7 +42,8 @@ public class OPDController(
     ILabReportWhatsAppService labReportWhatsAppService,
     EMR.Shared.Security.IActionPermissionGuard permissionGuard,
     IAdministratorCheck administratorCheck,
-    IPatientPortalLoginService portalLoginService) : Controller
+    IPatientPortalLoginService portalLoginService,
+    IBillingSubmissionApiClient billingSubmissionApiClient) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -699,8 +700,12 @@ public class OPDController(
         [FromForm] PatientRegistrationViewModel model,
         [FromForm] IFormFile? profilePictureFile,
         [FromForm] IFormFile? identificationFile,
-        [FromForm] string? paymentDataJson)
+        [FromForm] string? paymentDataJson,
+        [FromForm] string? bookingRequestKey)
     {
+        // One bill per booking (SQLScripts/2310): the key of this registration form; a retry reuses the bill it created
+        Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
+        bool keyClaimed = false;      // this request holds the key and has not created the bill yet
         try
         {
             var branchId = User.GetCurrentBranchId();
@@ -818,8 +823,43 @@ public class OPDController(
                 model.AgeDays = d;
             }
 
-            // Uniqueness check: Phone + Relation per active patient
-            if (model.RelationId.HasValue)
+            // ── One bill per booking (SQLScripts/2310) ─────────────────────────────────────────────────────────
+            // A retry of this registration (payment refused / timed out, Save again) reuses the bill created the first
+            // time - same bill no. and token - instead of creating a second bill (and a second patient).
+            var itemsSignature = string.Join(",", lineItems
+                .Select(x => $"{x.ServiceType}:{x.ServiceId}:{x.ServiceCharges:0.00}").OrderBy(x => x, StringComparer.Ordinal));
+            if (itemsSignature.Length > 1000)
+                itemsSignature = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(itemsSignature)));
+            BillingSubmissionClaim? reuse = null;
+            if (requestKey != Guid.Empty)
+            {
+                var claim = await billingSubmissionApiClient.ClaimAsync(requestKey, "OPD", User.GetUserId());
+                switch (claim.Status)
+                {
+                    case "BUSY":
+                        return Json(new { success = false, error = "This registration is still being saved. Please wait a few seconds and check the OPD list before saving again." });
+                    case "EXISTS" when claim.ModuleRefId is > 0:
+                        if (!string.Equals(claim.Stage, "READY", StringComparison.OrdinalIgnoreCase))
+                            return Json(new { success = false, billNo = claim.BillNo,
+                                error = $"OPD bill {claim.BillNo} was already created for this registration, but its set-up did not finish. Open it from Service Booking (collect its payment there) instead of saving again." });
+                        if (!string.Equals(claim.ItemsSignature, itemsSignature, StringComparison.Ordinal))
+                            return Json(new { success = false, billNo = claim.BillNo,
+                                error = $"OPD bill {claim.BillNo} was already created for this registration with different services. Collect its payment from Service Booking, or cancel it there, before billing other services." });
+                        if (claim.HasPayment)
+                            return await OpdRegistrationAlreadySavedAsync(claim, model);
+                        reuse = claim;
+                        break;
+                    case "NEW":
+                        keyClaimed = true;
+                        break;
+                    default:
+                        requestKey = Guid.Empty;   // a key of another user / module: save as before, without retry protection
+                        break;
+                }
+            }
+
+            // Uniqueness check: Phone + Relation per active patient (a retry's patient was saved by its first attempt)
+            if (reuse == null && model.RelationId.HasValue)
             {
                 var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
                     p.PhoneNumber == model.PhoneNumber.Trim() &&
@@ -841,7 +881,24 @@ public class OPDController(
             int actualPatientId = model.PatientId;
             int newSvcId = 0;
 
-            if (model.PatientId == 0)   // CREATE — new patient + first OPD visit
+            if (reuse != null)   // RETRY — the patient and the bill were saved by the first attempt: only the payment is left
+            {
+                actualPatientId = reuse.PatientId ?? model.PatientId;
+                patient.PatientId = actualPatientId;
+                var savedPatient = await patientService.GetByIdAsync(actualPatientId);
+                patientCode = savedPatient?.PatientCode ?? "";
+                billNo = reuse.BillNo ?? "";
+                tokenNo = reuse.TokenNo;
+                newSvcId = reuse.ModuleRefId!.Value;
+                await auditLogService.LogActivityAsync(
+                    eventType: "OPD Billing",
+                    actionName: "OPD.BillRetryPayment",
+                    description: $"Payment retried on OPD Bill {billNo} (the same registration - no new bill created).",
+                    userId: User.GetUserId(), branchId: branchId, moduleCode: "OPD",
+                    referenceNo: billNo, referenceId: newSvcId, patientCode: patientCode,
+                    metadata: new { OPDServiceId = newSvcId, BillNo = billNo, RequestKey = requestKey });
+            }
+            else if (model.PatientId == 0)   // CREATE — new patient + first OPD visit
             {
                 if (string.IsNullOrWhiteSpace(patient.Address) && !string.IsNullOrWhiteSpace(patient.HomeCollectionAddress))
                 {
@@ -931,10 +988,24 @@ public class OPDController(
                 await TryGeneratePatientLoginAsync(patient.PatientId, patientCode, patient.PhoneNumber, patient.EmailId, patient.FirstName + " " + patient.LastName, branchId.Value);
             }
 
-            // Ledger Entry
             decimal totalAmount = lineItems.Sum(x => x.ServiceCharges);
-            await ledgerService.PostOpdBillLedgerAsync(newSvcId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), billNo);
-            TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
+            if (reuse == null)
+            {
+                if (requestKey != Guid.Empty)
+                {
+                    // the bill exists: from here a retry of this registration reuses it
+                    await billingSubmissionApiClient.UpdateAsync(requestKey, newSvcId, billNo, actualPatientId, itemsSignature, "CREATED");
+                    keyClaimed = false;
+                }
+
+                // Ledger Entry
+                await ledgerService.PostOpdBillLedgerAsync(newSvcId, totalAmount, branchId, patient.CompanyId, User.GetUserId(), billNo);
+                TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
+
+                // the bill is fully set up: a retry now only redoes the payment
+                if (requestKey != Guid.Empty)
+                    await billingSubmissionApiClient.UpdateAsync(requestKey, newSvcId, null, null, null, "READY");
+            }
 
             // Process Payment
             SavePaymentResult? paymentResult = null;
@@ -953,7 +1024,11 @@ public class OPDController(
                     paymentResult = await paymentService.SavePaymentAsync(paymentReq, User.GetUserId());
                     if (paymentResult != null && !paymentResult.Success)
                     {
-                        return Json(new { success = false, error = paymentResult.Error ?? "Failed to save payment." });
+                        // the bill stays as it is: correcting the payment and saving again pays this same bill
+                        var payError = paymentResult.Error ?? "Failed to save payment.";
+                        if (requestKey != Guid.Empty)
+                            payError += $" OPD bill {billNo} is kept for this registration - correct the payment and save again; the same bill no. will be used.";
+                        return Json(new { success = false, error = payError, billNo, opdServiceId = newSvcId });
                     }
 
                     if (paymentResult != null && paymentResult.Success)
@@ -1011,8 +1086,44 @@ public class OPDController(
         }
         catch (Exception ex)
         {
+            if (requestKey != Guid.Empty && keyClaimed)
+            {
+                try { await billingSubmissionApiClient.ReleaseAsync(requestKey); } catch { /* the stale claim expires on its own */ }
+            }
             return Json(new { success = false, error = $"An error occurred while saving registration: {ex.Message}" });
         }
+    }
+
+    /// <summary>
+    /// One bill per booking (SQLScripts/2310): the registration was saved with its payment already (e.g. the answer was
+    /// lost on the way back) - answer with that bill instead of creating another one.
+    /// </summary>
+    private async Task<IActionResult> OpdRegistrationAlreadySavedAsync(BillingSubmissionClaim claim, PatientRegistrationViewModel model)
+    {
+        var svcId = claim.ModuleRefId!.Value;
+        using var con = db.CreateConnection();
+        var ph = await con.QueryFirstOrDefaultAsync<(decimal NetAmount, decimal TotalPaid, decimal BalanceDue, string PaymentStatus, decimal SubTotal)>(@"
+            SELECT ISNULL(NetAmount, 0), ISNULL(TotalPaid, 0), ISNULL(BalanceDue, 0), ISNULL(PaymentStatus, 'U'), ISNULL(SubTotal, 0)
+            FROM dbo.PaymentHeader WHERE ModuleCode = 'OPD' AND ModuleRefId = @Id AND IsActive = 1", new { Id = svcId });
+        var patient = claim.PatientId is > 0 ? await patientService.GetByIdAsync(claim.PatientId.Value) : null;
+        var name = patient != null
+            ? ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim()
+            : ((model.Salutation ?? "") + " " + model.FirstName + " " + model.LastName).Trim();
+        return Json(new
+        {
+            success = true,
+            alreadySaved = true,
+            opdServiceId = svcId,
+            billNo = claim.BillNo,
+            tokenNo = claim.TokenNo,
+            patientCode = patient?.PatientCode ?? "",
+            patientName = name,
+            totalAmount = ph.SubTotal,
+            netAmount = ph.NetAmount,
+            totalPaid = ph.TotalPaid,
+            balanceDue = ph.BalanceDue,
+            paymentStatus = ph.PaymentStatus
+        });
     }
 
     // ─── Delete (POST) ────────────────────────────────────────────────────────

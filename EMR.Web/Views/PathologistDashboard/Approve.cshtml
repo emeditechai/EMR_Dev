@@ -3,6 +3,8 @@
     // embed=true: loaded inside the dashboard's sign-off modal (iframe) - same page, chrome-less layout,
     // so the top navbar / footer are not duplicated inside the modal.
     bool embed = ViewData["Embed"] as bool? ?? false;
+    // In the dashboard modal: is there another report after this one? Approving everything then moves straight on.
+    bool hasNext = embed && Context.Request.Query["hasNext"] == "1";
     Layout = embed ? "_EmbedLayout" : "_Layout";
 
     ViewData["Title"] = "Sign-off: " + (Model.Bill?.BillNo ?? "Report");
@@ -56,6 +58,9 @@
                             letter-spacing:.4px;text-transform:uppercase;border-bottom:1px solid var(--pa-line);white-space:nowrap; }
         #tblSign tbody td { border-top:1px solid #eef2f6;border-bottom:0;vertical-align:middle;padding-top:.55rem;padding-bottom:.55rem; }
         .grp-row td { background:#f1f5f9;font-weight:700;font-size:.72rem;color:#334155; }
+        .grp-profile td { background:#eef2ff; }
+        .grp-profile.picked td { background:#fee2e2 !important; }
+        .cursor-pointer { cursor:pointer; }
         tr.t-mine > td:first-child { box-shadow:inset 3px 0 0 #b91c1c; }
         tr.t-done > td:first-child { box-shadow:inset 3px 0 0 #0f766e; }
         tr.t-wait > td:first-child { box-shadow:inset 3px 0 0 #b45309; }
@@ -81,6 +86,7 @@
         .btn.btn-print-report.is-provisional:hover { background:#fef3c7;color:#92400e;box-shadow:0 2px 8px rgba(217,119,6,.28); }
         #reportPrintFrame { width:100%;height:100%;border:0;background:#525659; }
         .sig-box { max-height:46px; }
+        .pa-keys kbd { font-size:.62rem;padding:.05rem .3rem;background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:.25rem;box-shadow:none; }
     </style>
 }
 
@@ -117,31 +123,7 @@
                 </a>
             }
             }
-            @if (showPrint && imageOnly)
-            {
-                @* Image reports print from the image report layout (provisional watermark until every test is approved). *@
-                <button type="button" class="btn btn-sm fs-8 px-3 btn-view-image-report @(pendingCount > 0 ? "is-provisional" : "")"
-                        data-laborderid="@b.LabOrderId" data-title="@(b.BillNo ?? "Report") &middot; all image reports"
-                        title="Preview and print the image reports of this bill">
-                    <i class="bi bi-printer-fill me-1"></i>@(pendingCount > 0 ? "Print (Not Approved)" : "Print Report")
-                </button>
-            }
-            else if (showPrint)
-            {
-                <button type="button" class="btn btn-sm fs-8 px-3 btn-print-report @(printProvisional ? "is-provisional" : "")"
-                        data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")"
-                        title="@(printSplit ? "Preview and print the approved tests" : "Preview and print the lab report")">
-                    <i class="bi bi-printer-fill me-1"></i>@(printProvisional ? "Print (Not Approved)" : "Print Report")
-                </button>
-                @if (printSplit)
-                {
-                    <button type="button" class="btn btn-sm fs-8 px-3 btn-print-report is-provisional"
-                            data-scope="pending" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")"
-                            title="Preview and print the tests that are not approved yet (watermarked)">
-                        <i class="bi bi-printer-fill me-1"></i>Print (Not Approved)
-                    </button>
-                }
-            }
+            @* Print lives in the sign-off bar at the bottom (one place for every print button). *@
             @if (!embed)
             {
                 <a asp-action="Index" class="btn btn-outline-secondary btn-sm fs-8"><i class="bi bi-x-lg me-1"></i>Close</a>
@@ -185,8 +167,11 @@
                         {
                             <div class="pa-chip"><span class="k">B2B Client</span><span class="v">@b.ClientName</span></div>
                         }
-                        <div class="pa-chip"><span class="k">Awaiting me</span><span class="v text-danger">@mine.Count</span></div>
-                        <div class="pa-chip"><span class="k">Approved</span><span class="v text-success">@doneTests.Count / @Model.Tests.Count</span></div>
+                        <div class="pa-chip" title="Tests waiting for your signature, and tests fully approved">
+                            <span class="k">Sign-off</span>
+                            <span class="v"><span class="@(mine.Count > 0 ? "text-danger" : "text-muted")">@mine.Count awaiting you</span>
+                                <span class="text-muted fw-normal mx-1">&middot;</span><span class="text-success">@doneTests.Count/@Model.Tests.Count approved</span></span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -255,6 +240,13 @@
                     <input class="form-check-input" type="checkbox" id="chkAll" @(mine.Count == 0 ? "disabled" : "") />
                     <label class="form-check-label fs-9 fw-semibold" for="chkAll">Select all awaiting me (@mine.Count)</label>
                 </div>
+                @if (mine.Any(t => t.AbnormalFlag is "Critical" or "Panic"))
+                {
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9" id="severeNote"
+                          title="Critical / Panic results are left unticked so each one is reviewed and ticked on purpose">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>Critical / Panic not pre-selected &mdash; review and tick
+                    </span>
+                }
             </div>
         </div>
         <div class="table-responsive">
@@ -263,7 +255,7 @@
                     <tr>
                         <th style="width:44px;" class="ps-3"><i class="bi bi-check2-square"></i></th>
                         <th>Investigation</th>
-                        <th style="width:140px;">Result</th>
+                        <th style="width:200px;">Result</th>
                         <th style="width:130px;">Unit</th>
                         <th>Validated</th>
                         <th style="width:190px;">Approval level</th>
@@ -273,21 +265,72 @@
                 <tbody class="fs-8">
                 @{
                     string? lastGroup = null;
+                    // Profile tests are signed as one: the tick is on the profile heading, not on each test of the profile.
+                    // Key = profile id; the per-test checkboxes stay (hidden) so the approve call is unchanged.
+                    static string? ProfileKey(EMR.Web.Models.DTOs.PathologistTestDto x) =>
+                        x.ProfileId.HasValue && !string.IsNullOrWhiteSpace(x.GroupName) ? "P" + x.ProfileId.Value : null;
+                    var profileMine = Model.Tests.Where(x => x.CanApproveNow && ProfileKey(x) != null)
+                                                 .GroupBy(x => ProfileKey(x)!).ToDictionary(g => g.Key, g => g.Count());
+                    var profileTotal = Model.Tests.Where(x => ProfileKey(x) != null)
+                                                  .GroupBy(x => ProfileKey(x)!).ToDictionary(g => g.Key, g => g.Count());
+                    string? lastProfileKey = null;
                 }
                 @foreach (var t in Model.Tests)
                 {
-                    var grp = t.GroupName ?? t.DepartmentName ?? "Investigations";
-                    if (grp != lastGroup)
+                    var grp = !string.IsNullOrWhiteSpace(t.GroupName) ? t.GroupName!
+                            : !string.IsNullOrWhiteSpace(t.DepartmentName) ? t.DepartmentName!
+                            : "Investigations";
+                    var pKey = ProfileKey(t);
+                    if (grp != lastGroup || pKey != lastProfileKey)
                     {
                         lastGroup = grp;
-                        <tr class="grp-row"><td colspan="7"><i class="bi bi-folder2-open me-1"></i>@grp</td></tr>
+                        lastProfileKey = pKey;
+                        if (pKey != null)
+                        {
+                            var pMine = profileMine.GetValueOrDefault(pKey);
+                            var pTotal = profileTotal.GetValueOrDefault(pKey);
+                            <tr class="grp-row grp-profile" data-profile="@pKey">
+                                <td class="ps-3">
+                                    @if (pMine > 0)
+                                    {
+                                        <input type="checkbox" class="form-check-input chk-profile" id="chkProf_@pKey" data-profile="@pKey"
+                                               title="Select the whole profile for sign-off" />
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-diagram-3 text-muted fs-8" title="Nothing in this profile is waiting for you"></i>
+                                    }
+                                </td>
+                                <td colspan="6">
+                                    <label class="mb-0 @(pMine > 0 ? "cursor-pointer" : "")" for="@(pMine > 0 ? "chkProf_" + pKey : null)">
+                                        <i class="bi bi-folder2-open me-1"></i>@grp
+                                    </label>
+                                    <span class="badge bg-white text-secondary border fw-semibold ms-2 fs-9">Profile &middot; @pTotal test@(pTotal == 1 ? "" : "s")</span>
+                                    @if (pMine > 0)
+                                    {
+                                        <span class="text-danger fw-semibold fs-9 ms-2">@pMine awaiting you &mdash; signed together</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            <tr class="grp-row"><td colspan="7"><i class="bi bi-folder2-open me-1"></i>@grp</td></tr>
+                        }
                     }
                     var rowCls = t.CanApproveNow ? "t-mine" : (t.IsApproved ? "t-done" : "t-wait");
                     var flagCls = t.AbnormalFlag switch { "H" => "flag-H", "L" => "flag-L", "Critical" => "flag-Critical", "Panic" => "flag-Panic", _ => "" };
                     var sevCls = t.AbnormalFlag switch { "Critical" => " t-critical", "Panic" => " t-panic", _ => "" };
-                    <tr class="@rowCls@sevCls" data-id="@t.SamplecollectionID">
+                    <tr class="@rowCls@sevCls" data-id="@t.SamplecollectionID" data-severe="@(t.AbnormalFlag is "Critical" or "Panic" ? "1" : "0")"
+                        data-profile="@pKey" data-profile-name="@(pKey != null ? grp : null)">
                         <td class="ps-3">
-                            @if (t.CanApproveNow)
+                            @if (t.CanApproveNow && pKey != null)
+                            {
+                                @* part of a profile: selected through the profile heading *@
+                                <input type="checkbox" class="form-check-input chk-test d-none" value="@t.SamplecollectionID" data-profile="@pKey" />
+                                <i class="bi bi-arrow-return-right text-muted fs-9 ms-1" title="Selected with the profile @grp"></i>
+                            }
+                            else if (t.CanApproveNow)
                             {
                                 <input type="checkbox" class="form-check-input chk-test" value="@t.SamplecollectionID" />
                             }
@@ -333,13 +376,19 @@
                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle fs-9 ms-1">@t.AbnormalFlag</span>
                                 }
                             }
+                            @if (!string.IsNullOrWhiteSpace(t.ReferenceRange))
+                            {
+                                <div class="fs-9 text-muted mt-1" title="Reference range for this patient's gender and age">
+                                    Ref: <span class="pa-mono text-dark">@t.ReferenceRange</span> @t.UnitName
+                                </div>
+                            }
                             @if (!string.IsNullOrWhiteSpace(t.PreviousTestValue))
                             {
                                 double.TryParse(t.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var curNum);
                                 double.TryParse(t.PreviousTestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var prevNum);
                                 bool bothNumeric = !string.IsNullOrWhiteSpace(t.TestValue) && double.TryParse(t.TestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _)
                                                    && double.TryParse(t.PreviousTestValue, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out _) && prevNum != 0;
-                                <div class="delta-check-container mt-1 fs-9" style="max-width:155px;line-height:1.25;">
+                                <div class="delta-check-container mt-1 fs-9" style="max-width:190px;line-height:1.25;">
                                     <div class="text-muted">
                                         Previous: <strong>@t.PreviousTestValue</strong> @(t.PreviousUnitSymbol ?? t.UnitName)
                                         @if (t.PreviousOrderDate.HasValue)
@@ -354,7 +403,7 @@
                                         {
                                             <div class="fw-semibold mt-0.5"><span class="text-warning-emphasis fw-bold font-monospace">&Delta; @(deltaPct)% &mdash; delta check flagged</span></div>
                                         }
-                                        else
+                                        else if (deltaPct > 0)
                                         {
                                             <div class="fw-semibold mt-0.5"><span class="text-secondary font-monospace">&Delta; @(deltaPct)%</span></div>
                                         }
@@ -468,27 +517,45 @@
                 {
                     <span>&bull; Reg. @profile!.RegistrationNo</span>
                 }
+                <div class="pa-keys mt-1 d-none d-md-block" title="Keyboard shortcuts (not while typing in the remark)">
+                    <kbd>A</kbd> approve &middot; <kbd>P</kbd> print
+                    @if (embed)
+                    {
+                        <text>&middot; <kbd>Alt</kbd>+<kbd>&larr;</kbd>/<kbd>&rarr;</kbd> previous / next report</text>
+                    }
+                </div>
             </div>
         </div>
-        <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end" style="max-width:640px;">
+        <div class="d-flex align-items-center gap-2 flex-grow-1 justify-content-end" style="max-width:820px;">
             <input type="text" id="txtRemarks" class="form-control form-control-sm fs-8" maxlength="500"
                    placeholder="Optional sign-off remark…" @(mine.Count == 0 ? "disabled" : "") />
             @if (showPrint && imageOnly)
             {
+                @* Image reports print from the image report layout (provisional watermark until every test is approved). *@
                 <button type="button" class="btn btn-sm fs-8 px-3 text-nowrap btn-view-image-report @(pendingCount > 0 ? "is-provisional" : "")"
-                        data-laborderid="@b.LabOrderId" data-title="@(b.BillNo ?? "Report") &middot; all image reports">
+                        data-laborderid="@b.LabOrderId" data-title="@(b.BillNo ?? "Report") &middot; all image reports"
+                        title="Preview and print the image reports of this bill">
                     <i class="bi bi-printer-fill me-1"></i>@(pendingCount > 0 ? "Print (Not Approved)" : "Print Report")
                 </button>
             }
             else if (showPrint)
             {
                 <button type="button" class="btn btn-sm fs-8 px-3 text-nowrap btn-print-report @(printProvisional ? "is-provisional" : "")"
-                        data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")">
+                        data-scope="@(printSplit ? "approved" : "all")" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")"
+                        title="@(printSplit ? "Preview and print the approved tests" : "Preview and print the lab report")">
                     <i class="bi bi-printer-fill me-1"></i>@(printProvisional ? "Print (Not Approved)" : "Print Report")
                 </button>
+                @if (printSplit)
+                {
+                    <button type="button" class="btn btn-sm fs-8 px-3 text-nowrap btn-print-report is-provisional"
+                            data-scope="pending" data-laborderid="@b.LabOrderId" data-bill="@(b.BillNo ?? "—")"
+                            title="Preview and print the tests that are not approved yet (watermarked)">
+                        <i class="bi bi-printer-fill me-1"></i>Print (Not Approved)
+                    </button>
+                }
             }
             <button type="button" class="btn btn-sign btn-sm px-3 fs-8 text-nowrap" id="btnSign" asp-permission="LAB.PATHOLOGISTDASHBOARD:APPROVE" asp-permission-mode="hide" disabled>
-                <i class="bi bi-pen-fill me-1"></i>Approve <span class="badge bg-white text-danger ms-1" id="selCount">0</span>
+                <i class="bi bi-pen-fill me-1"></i><span id="signLabel">Approve</span> <span class="badge bg-white text-danger ms-1" id="selCount">0</span>
             </button>
         </div>
     </div>
@@ -544,6 +611,7 @@
                 try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { window.open(f.src.replace('&embed=true', ''), '_blank'); }
             });
             $('#imageReportViewer').on('hidden.bs.modal', function () { $('#imageReportFrame').attr('src', 'about:blank'); });
+            const hasNext = @(hasNext ? "true" : "false");
             function notifyParent(type) { if (isEmbedded) { try { window.parent.postMessage({ type: type, labOrderId: labOrderId }, '*'); } catch (e) { /* ignore */ } } }
 
             function selected() { return $('.chk-test:checked').map(function () { return parseInt(this.value); }).get(); }
@@ -551,12 +619,27 @@
                 const n = selected().length;
                 $('#selCount').text(n);
                 $('#btnSign').prop('disabled', n === 0);
+                // everything awaiting me is ticked -> the report is finished after this sign-off, so move on to the next one
+                const total0 = $('.chk-test').length;
+                $('#signLabel').text(isEmbedded && hasNext && n > 0 && n === total0 ? 'Approve & Next' : 'Approve');
                 $('.chk-test').each(function () { $(this).closest('tr').toggleClass('picked', this.checked); });
+                // profile heading: ticked when all of its tests awaiting me are, half-ticked when only some are
+                $('.chk-profile').each(function () {
+                    const $t = $('.chk-test[data-profile="' + this.dataset.profile + '"]');
+                    const on = $t.filter(':checked').length;
+                    this.checked = $t.length > 0 && on === $t.length;
+                    this.indeterminate = on > 0 && on < $t.length;
+                    $(this).closest('tr').toggleClass('picked', this.checked);
+                });
                 const total = $('.chk-test').length;
                 $('#chkAll').prop('checked', total > 0 && n === total);
             }
 
             $('#tblSign').on('change', '.chk-test', sync);
+            $('#tblSign').on('change', '.chk-profile', function () {
+                $('.chk-test[data-profile="' + this.dataset.profile + '"]').prop('checked', this.checked);
+                sync();
+            });
             $('#chkAll').on('change', function () { $('.chk-test').prop('checked', this.checked); sync(); });
 
             $('#btnSign').on('click', async function () {
@@ -568,15 +651,24 @@
                     const commOk = await CriticalComm.ensure({ labOrderId: labOrderId, sampleIds: ids, context: 'SIGNOFF' });
                     if (!commOk) return;
                 }
-                const names = $('.chk-test:checked').map(function () {
-                    return $(this).closest('tr').find('td:nth-child(2) .fw-semibold').text().trim();
-                }).get();
+                // confirm list: a profile once, with its test count; single tests by name
+                const names = [], profCount = {};
+                $('.chk-test:checked').each(function () {
+                    const $tr = $(this).closest('tr'), prof = $tr.data('profile');
+                    if (prof) {
+                        if (!(prof in profCount)) { profCount[prof] = 0; names.push({ prof: prof, name: $tr.data('profile-name') }); }
+                        profCount[prof]++;
+                    } else {
+                        names.push({ name: $tr.find('td:nth-child(2) .fw-semibold').text().trim() });
+                    }
+                });
+                const nameText = n => n.prof ? n.name + ' (profile, ' + profCount[n.prof] + ' test' + (profCount[n.prof] === 1 ? '' : 's') + ')' : n.name;
 
                 const r = await Swal.fire({
                     icon: 'question',
                     title: 'Approve ' + ids.length + ' test' + (ids.length === 1 ? '' : 's') + '?',
                     html: '<ul class="text-start fs-8 mb-2" style="max-height:150px;overflow:auto;">'
-                        + names.map(n => '<li>' + $('<div>').text(n).html() + '</li>').join('') + '</ul>'
+                        + names.map(n => '<li>' + $('<div>').text(nameText(n)).html() + '</li>').join('') + '</ul>'
                         + '<div class="text-start fs-8 text-muted">Your signature is recorded for your level of the approval flow. '
                         + 'A test only becomes <b>Approved</b> once the last level has signed.</div>',
                     showCancelButton: true, confirmButtonText: 'Approve', confirmButtonColor: '#b91c1c'
@@ -590,6 +682,11 @@
                 }).done(function (res) {
                     if (res && res.success) {
                         notifyParent('pd-approved');
+                        // Nothing left awaiting me on this report: the dashboard opens the next report (or closes when
+                        // this was the last one) instead of reloading the same, now signed, report.
+                        if (isEmbedded && ids.length === $('.chk-test').length) {
+                            try { window.parent.postMessage({ type: 'pd-advance', labOrderId: labOrderId, message: res.message || '' }, window.location.origin); return; } catch (e) { /* fall back to reload */ }
+                        }
                         Swal.fire({ icon: 'success', title: 'Signed', text: res.message, timer: 2600, showConfirmButton: false })
                             .then(() => window.location.reload());
                     } else {
@@ -602,7 +699,30 @@
                 });
             });
 
+            // Pre-select every test awaiting my signature, except Critical / Panic results: those are ticked on purpose
+            // after review (the critical-value communication step still runs on Approve, unchanged).
+            // A profile with a Critical / Panic result is left unticked as a whole (it is signed as one).
+            const severeProfiles = new Set($('tr[data-severe="1"][data-profile]').map(function () { return $(this).data('profile'); }).get());
+            $('.chk-test').each(function () {
+                const $tr = $(this).closest('tr'), prof = $tr.data('profile');
+                if (prof ? !severeProfiles.has(prof) : $tr.data('severe') != 1) this.checked = true;
+            });
             sync();
+
+            // Keyboard: A = approve, P = print, Alt + arrows = previous / next report (handled by the dashboard modal).
+            $(document).on('keydown', function (e) {
+                if (e.altKey && isEmbedded && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                    e.preventDefault();
+                    try { window.parent.postMessage({ type: 'pd-nav', dir: e.key === 'ArrowLeft' ? -1 : 1 }, window.location.origin); } catch (x) { /* ignore */ }
+                    return;
+                }
+                if (e.altKey || e.ctrlKey || e.metaKey) return;
+                if ($(e.target).is('input, textarea, select, [contenteditable="true"]')) return;
+                if ($('.modal.show').length || (window.Swal && Swal.isVisible())) return;
+                const k = (e.key || '').toLowerCase();
+                if (k === 'a' && !$('#btnSign').prop('disabled') && $('#btnSign').is(':visible')) { e.preventDefault(); $('#btnSign').trigger('click'); }
+                else if (k === 'p') { const $p = $('.pa-sticky .btn-print-report, .pa-sticky .btn-view-image-report').first(); if ($p.length) { e.preventDefault(); $p.trigger('click'); } }
+            });
         });
     </script>
 }

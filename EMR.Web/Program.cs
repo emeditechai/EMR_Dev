@@ -35,6 +35,7 @@ builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR
 builder.Services.AddScoped<EMR.Web.ApiClients.ICampaignApiClient, EMR.Web.ApiClients.CampaignApiClient>();
 builder.Services.AddScoped<EMR.Web.ApiClients.IHelpApiClient, EMR.Web.ApiClients.HelpApiClient>();
 builder.Services.AddScoped<EMR.Web.ApiClients.IOpdVisitHistoryApiClient, EMR.Web.ApiClients.OpdVisitHistoryApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.IBillingSubmissionApiClient, EMR.Web.ApiClients.BillingSubmissionApiClient>();   // one bill per booking (SQLScripts/2310)
 builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyOnboardingApiClient, EMR.Web.ApiClients.CompanyOnboardingApiClient>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)   // Utility > Help Center (SQLScripts/2300)
 builder.Services.AddSingleton<EMR.Web.Services.Campaigns.CampaignSenderService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<EMR.Web.Services.Campaigns.CampaignSenderService>());
