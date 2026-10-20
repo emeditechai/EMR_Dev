@@ -64,10 +64,16 @@ public class AccountController(
             return View(model);
         }
 
-        var user = await dbContext.Users
+        // Sign-in by e-mail (SQLScripts/2307). An e-mail is unique for new and changed users; a few older records may
+        // still share one - then the account whose password matches is the one signing in.
+        var email = model.Email.Trim().ToLower();
+        var candidates = await dbContext.Users
             .Include(x => x.UserBranches.Where(b => b.IsActive))
                 .ThenInclude(x => x.Branch)
-            .FirstOrDefaultAsync(x => x.Username == model.Username);
+            .Where(x => x.Email != null && x.Email.Trim().ToLower() == email)
+            .ToListAsync();
+        var user = candidates.Count == 1 ? candidates[0]
+                 : candidates.FirstOrDefault(x => passwordHasherService.VerifyPassword(model.Password, x.PasswordHash));
 
         // Too many wrong passwords lock the account for a while (Users.Lockout_Until), whatever is typed next.
         if (user is not null && await loginSecurity.LockedUntilAsync(user.Id) is { } lockedUntil)
@@ -79,14 +85,14 @@ public class AccountController(
 
         if (user is null || !passwordHasherService.VerifyPassword(model.Password, user.PasswordHash))
         {
-            await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for username: {model.Username}");
+            await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for e-mail: {model.Email}");
             if (user is not null && await loginSecurity.RecordFailureAsync(user.Id) is { } nowLocked)
             {
                 await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {user.Username}", user.Id);
                 ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {nowLocked:hh:mm tt}.");
                 return View(model);
             }
-            ModelState.AddModelError(string.Empty, "Invalid username or password.");
+            ModelState.AddModelError(string.Empty, "Invalid e-mail or password.");
             return View(model);
         }
 

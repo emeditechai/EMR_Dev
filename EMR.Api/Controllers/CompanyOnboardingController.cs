@@ -16,8 +16,8 @@ public class CompanyOnboardingController(ICompanyOnboardingService service) : Co
     public async Task<IActionResult> Templates() => Ok(await service.TemplatesAsync());
 
     [HttpGet("check")]
-    public async Task<IActionResult> Check([FromQuery] string? companyCode, [FromQuery] string? branchCode, [FromQuery] string? username) =>
-        Ok(await service.CheckAsync(companyCode, branchCode, username));
+    public async Task<IActionResult> Check([FromQuery] string? companyCode, [FromQuery] string? branchCode, [FromQuery] string? username, [FromQuery] string? email) =>
+        Ok(await service.CheckAsync(companyCode, branchCode, username, email));
 
     [HttpPost]
     public async Task<IActionResult> Onboard([FromBody] CompanyOnboardRequest request)

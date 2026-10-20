@@ -102,7 +102,7 @@ def trouble(code, module, problem, why, fixes, pages=(), keywords=""):
 # ════════════════════════════════ GETTING STARTED ════════════════════════════════
 guide("GS.SIGNIN", "GENERAL", "Sign in, choose your branch and role",
       "How to sign in and start working in the right branch with the right role.",
-      ["Open the application and enter your User Name and Password, then click Sign In (or press Enter).",
+      ["Open the application and enter your Email and Password, then click Sign In (or press Enter). You sign in with your e-mail address, not a user name.",
        "If you work in more than one branch, choose the branch and press Enter or click Continue to Dashboard. Your last used branch is pre-selected.",
        "If you have more than one role, choose the role (arrow keys move between roles) and press Enter. The left side shows what the role can open.",
        "The Home page opens. The top bar shows the menus your role may use, the notification bell, your branch and your profile."],
@@ -153,7 +153,7 @@ guide("SET.BRANCH", "SETTINGS", "Set up a new branch",
 
 guide("SET.USER", "SETTINGS", "Create a user and give access",
       "Add a staff member, map branches and roles, and set special flags.",
-      ["Settings > User Master: click Add User; enter name, user name, email (needed for password reset) and phone.",
+      ["Settings > User Master: click Add User; enter the e-mail first - it is the sign-in, must be unique in the whole application and is checked as you type (green = available); the user name is the e-mail. Then name and phone.",
        "Choose the branches the user works in and the role(s) in each branch.",
        "For LAB staff tick Lab Technician or Pathologist and choose the departments they may report (Department Access). Without this, Lab Reporting is not available to them.",
        "Save. The user signs in with the default password and changes it.",

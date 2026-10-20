@@ -553,7 +553,9 @@ public class CorporatesController(
     {
         var email = model.Email.Trim();
 
-        if (await dbContext.Users.AnyAsync(u => u.Username == email))
+        // sign-in is by e-mail (SQLScripts/2307): unique among all sign-ins
+        var lowerEmail = email.ToLower();
+        if (await dbContext.Users.AnyAsync(u => u.Username == email || (u.Email != null && u.Email.Trim().ToLower() == lowerEmail)))
             return;
 
         var defaultPassword = LoginCredentialsMailer.DefaultPassword;

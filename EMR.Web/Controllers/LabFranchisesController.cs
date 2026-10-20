@@ -659,8 +659,10 @@ public class LabFranchisesController(
     {
         var email = model.Email.Trim();
 
-        if (await dbContext.Users.AnyAsync(u => u.Username == email))
-            return $"No login was created for this franchise: a user with the username {email} already exists.";
+        // sign-in is by e-mail (SQLScripts/2307): unique among all sign-ins
+        var lowerEmail = email.ToLower();
+        if (await dbContext.Users.AnyAsync(u => u.Username == email || (u.Email != null && u.Email.Trim().ToLower() == lowerEmail)))
+            return $"No login was created for this franchise: the e-mail {email} is already used by another sign-in.";
 
         var defaultPassword = LoginCredentialsMailer.DefaultPassword;
         var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);

@@ -43,7 +43,14 @@
             <div class="small">
                 <div class="mb-1"><partial name="_UserTypeBadge" model="@(new EMR.Web.Models.ViewModels.UserTypeBadgeModel(Model.UserType, Model.ReferenceUserId, Model.ReferenceName))" /></div>
                 This login was created from @(Model.UserType == "D" ? "Doctor Master" : Model.UserType == "F" ? "the Franchise Master" : "the Company Master").
-                Its <strong>username, name, e-mail, phone and active status</strong> are maintained there and cannot be changed here.
+                @if (Model.UserType == "D")
+                {
+                    <text>Its <strong>name, phone and active status</strong> are maintained there and cannot be changed here. Its <strong>e-mail</strong> (the sign-in) can be changed here - Doctor Master is updated with it.</text>
+                }
+                else
+                {
+                    <text>Its <strong>username, name, e-mail, phone and active status</strong> are maintained there and cannot be changed here.</text>
+                }
                 Password, branches, roles, departments and other details can be changed here.
             </div>
         </div>
@@ -52,13 +59,27 @@
         <div class="uf-section-header"><i class="bi bi-shield-lock-fill me-2"></i>Account Information</div>
         <div class="uf-section-body">
             <div class="row g-3">
+                    @* Sign-in is by e-mail (SQLScripts/2307): the e-mail comes first, must be unique in the whole application and
+                       is checked while typing; the user name is not typed - it is the e-mail (shown read-only) *@
                     <div class="col-md-4">
-                        <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+                        <label class="form-label fw-semibold">Email <span class="text-danger">*</span> <small class="text-muted fw-normal">(used to sign in)</small></label>
+                        <div class="input-icon-wrap">
+                            <i class="bi bi-envelope input-icon"></i>
+                            <input asp-for="Email" type="email" class="form-control ps-icon pe-5" id="ufEmail" placeholder="name@example.com" autocomplete="off" maxlength="100"
+                                   data-user-id="@Model.Id" readonly="@(Model.EmailEditable ? null : "readonly")" />
+                            <span class="uf-email-state" id="ufEmailState" aria-hidden="true"></span>
+                        </div>
+                        <div class="uf-email-msg" id="ufEmailMsg" role="status" aria-live="polite"></div>
+                        <span asp-validation-for="Email" class="text-danger small"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Username</label>
                         <div class="input-icon-wrap">
                             <i class="bi bi-person input-icon"></i>
-                            <input asp-for="Username" class="form-control ps-icon" placeholder="Enter username" autocomplete="off" readonly="@(Model.IsLinkedLogin ? "readonly" : null)" />
+                            <input asp-for="Username" class="form-control ps-icon bg-light" id="ufUsername" readonly tabindex="-1"
+                                   data-follows="@(Model.EmailEditable ? "1" : "0")" />
                         </div>
-                        <span asp-validation-for="Username" class="text-danger small"></span>
+                        <small class="text-muted">@(Model.EmailEditable ? "Same as the e-mail - saved with it." : "Not editable - users sign in with their e-mail.")</small>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-semibold">Employee Code</label>
@@ -67,14 +88,6 @@
                             <input asp-for="EmployeeCode" class="form-control ps-icon text-uppercase" placeholder="Enter employee code" oninput="this.value=this.value.toUpperCase()" />
                         </div>
                         <span asp-validation-for="EmployeeCode" class="text-danger small"></span>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-semibold">Email</label>
-                        <div class="input-icon-wrap">
-                            <i class="bi bi-envelope input-icon"></i>
-                            <input asp-for="Email" class="form-control ps-icon" placeholder="user@example.com" readonly="@(Model.IsLinkedLogin ? "readonly" : null)" />
-                        </div>
-                        <span asp-validation-for="Email" class="text-danger small"></span>
                     </div>
                     @* the user this user reports to - any user of the company (SQLScripts/2305) *@
                     <div class="col-md-4">
@@ -1926,5 +1939,54 @@ if (isLogisticsBoyToggle) {
 
     // After a failed post-back open the first step with an error; otherwise start at step 1
     go(markErrors() || 1);
+})();
+</script>
+
+@* Sign-in by e-mail (SQLScripts/2307): the user name follows the e-mail, and the e-mail is checked for availability while typing *@
+<style>
+    .uf-email-state { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); font-size: 1rem; line-height: 1; }
+    .uf-email-state.ok { color: #16a34a; } .uf-email-state.bad { color: #dc2626; } .uf-email-state.wait { color: #94a3b8; }
+    .uf-email-msg { font-size: .78rem; margin-top: .25rem; min-height: 1rem; }
+    .uf-email-msg.ok { color: #15803d; } .uf-email-msg.bad { color: #dc2626; }
+    #ufEmail.uf-ok { border-color: #16a34a; box-shadow: 0 0 0 .18rem rgba(22, 163, 74, .15); }
+    #ufEmail.uf-bad { border-color: #dc2626; box-shadow: 0 0 0 .18rem rgba(220, 38, 38, .12); }
+</style>
+<script>
+(function () {
+    const email = document.getElementById('ufEmail'), user = document.getElementById('ufUsername');
+    const state = document.getElementById('ufEmailState'), msg = document.getElementById('ufEmailMsg');
+    if (!email || email.readOnly) return;
+    const original = email.value.trim().toLowerCase();
+    let timer = null, seq = 0;
+    function paint(kind, text) {
+        email.classList.toggle('uf-ok', kind === 'ok'); email.classList.toggle('uf-bad', kind === 'bad');
+        state.className = 'uf-email-state ' + (kind || '');
+        state.innerHTML = kind === 'ok' ? '<i class="bi bi-check-circle-fill"></i>' : kind === 'bad' ? '<i class="bi bi-x-circle-fill"></i>'
+                        : kind === 'wait' ? '<span class="spinner-border spinner-border-sm"></span>' : '';
+        msg.className = 'uf-email-msg ' + (kind === 'wait' ? '' : kind || '');
+        msg.textContent = text || '';
+    }
+    async function check() {
+        const v = email.value.trim();
+        if (!v) { paint('', ''); return; }
+        if (v.toLowerCase() === original && original) { paint('ok', 'Current e-mail of this user.'); return; }
+        const my = ++seq;
+        paint('wait', 'Checking...');
+        try {
+            const r = await (await fetch('@Url.Action("CheckEmail", "Users")?email=' + encodeURIComponent(v) + '&id=' + (email.dataset.userId || 0), { credentials: 'same-origin' })).json();
+            if (my !== seq) return;   // a newer check is running
+            paint(r.valid && r.available ? 'ok' : 'bad', r.message);
+        } catch (e) { if (my === seq) paint('', ''); }
+    }
+    email.addEventListener('input', () => {
+        if (user && user.dataset.follows === '1') user.value = email.value.trim().toLowerCase();
+        clearTimeout(timer); timer = setTimeout(check, 450);
+    });
+    email.addEventListener('blur', () => { clearTimeout(timer); check(); });
+    // the form is not sent while the e-mail is known to be taken
+    email.form?.addEventListener('submit', e => {
+        if (email.classList.contains('uf-bad')) { e.preventDefault(); email.focus(); email.scrollIntoView({ block: 'center' }); }
+    });
+    if (email.value.trim() && email.value.trim().toLowerCase() !== original) check();
 })();
 </script>

@@ -289,15 +289,18 @@ public class CompaniesController(
         if (!IsSuperAdmin) return RedirectToAction(nameof(Create));
         model.CompanyCode = (model.CompanyCode ?? "").Trim().ToUpperInvariant();
         model.BranchCode = (model.BranchCode ?? "").Trim().ToUpperInvariant();
-        model.AdminUsername = (model.AdminUsername ?? "").Trim();
+        // the administrator signs in with the e-mail (SQLScripts/2307): the user name is the e-mail
+        model.AdminEmail = model.AdminEmail?.Trim().ToLowerInvariant();
+        model.AdminUsername = model.AdminEmail ?? "";
+        ModelState.Remove(nameof(model.AdminUsername));
 
         // codes and username: free in the whole application
         if (ModelState.IsValid || !string.IsNullOrEmpty(model.CompanyCode))
         {
-            var free = await onboarding.CheckAsync(model.CompanyCode, model.BranchCode, model.AdminUsername);
+            var free = await onboarding.CheckAsync(model.CompanyCode, model.BranchCode, model.AdminUsername, model.AdminEmail);
             if (!free.CompanyCodeFree) ModelState.AddModelError(nameof(model.CompanyCode), "This company code is already used.");
             if (!free.BranchCodeFree) ModelState.AddModelError(nameof(model.BranchCode), "This branch code is already used - branch codes are unique in the whole application.");
-            if (!free.UsernameFree) ModelState.AddModelError(nameof(model.AdminUsername), "This username is already used.");
+            if (!free.UsernameFree || !free.EmailFree) ModelState.AddModelError(nameof(model.AdminEmail), "This e-mail is already used by another sign-in.");
         }
         if (model.LogoFile is { Length: > 0 } logo)
         {
@@ -355,11 +358,11 @@ public class CompaniesController(
 
     /// <summary>Wizard: are the company code, branch code and username free?</summary>
     [HttpGet]
-    public async Task<IActionResult> OnboardCheck(string? companyCode, string? branchCode, string? username,
+    public async Task<IActionResult> OnboardCheck(string? companyCode, string? branchCode, string? username, string? email,
         [FromServices] EMR.Web.ApiClients.ICompanyOnboardingApiClient onboarding)
     {
         if (!IsSuperAdmin) return Forbid();
-        return Json(await onboarding.CheckAsync(companyCode?.Trim(), branchCode?.Trim(), username?.Trim()));
+        return Json(await onboarding.CheckAsync(companyCode?.Trim(), branchCode?.Trim(), username?.Trim(), email?.Trim()));
     }
 
     /// <summary>Wizard: Country / State / City from the masters (dependent lists; the chosen names are stored as text).</summary>
@@ -404,7 +407,7 @@ public class CompaniesController(
                  nameof(CompanyOnboardViewModel.BranchPincode)]),
             (3, [nameof(CompanyOnboardViewModel.HospitalName), nameof(CompanyOnboardViewModel.HospitalPhone), nameof(CompanyOnboardViewModel.HospitalEmail),
                  nameof(CompanyOnboardViewModel.OpdRegistrationValidityDays)]),
-            (4, [nameof(CompanyOnboardViewModel.AdminUsername), nameof(CompanyOnboardViewModel.AdminFirstName), nameof(CompanyOnboardViewModel.AdminLastName),
+            (4, [nameof(CompanyOnboardViewModel.AdminUsername), nameof(CompanyOnboardViewModel.AdminEmail), nameof(CompanyOnboardViewModel.AdminFirstName), nameof(CompanyOnboardViewModel.AdminLastName),
                  nameof(CompanyOnboardViewModel.AdminEmail), nameof(CompanyOnboardViewModel.AdminPhone), nameof(CompanyOnboardViewModel.AdminEmployeeCode),
                  nameof(CompanyOnboardViewModel.AdminPassword), nameof(CompanyOnboardViewModel.AdminConfirmPassword)])
         };

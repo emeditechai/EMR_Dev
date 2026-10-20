@@ -29,7 +29,7 @@
                                 <li class="mb-1"><i class="bi bi-menu-button-wide text-success me-2"></i>@r.Menus menus, @r.Pages screens, @r.Controls screen actions, @r.Endpoints permission mappings</li>
                                 <li class="mb-1"><i class="bi bi-shield-lock text-success me-2"></i>@r.Roles role(s) incl. Administrator@(r.Permissions > 0 ? $" - {r.Permissions} Administrator permissions copied" : " - Administrator without grants")</li>
                             }
-                            <li><i class="bi bi-person-check text-success me-2"></i>Administrator <strong>@(admin?.FullName)</strong> (login <span class="font-monospace">@(admin?.Username)</span>) in the Head Office</li>
+                            <li><i class="bi bi-person-check text-success me-2"></i>Administrator <strong>@(admin?.FullName)</strong> (signs in with <span class="font-monospace">@(admin?.Email)</span>) in the Head Office</li>
                         </ul>
                     </div>
                 </div>
@@ -37,7 +37,7 @@
                     <div class="border rounded-3 p-3 h-100" style="background:#faf8fd">
                         <div class="small text-muted fw-semibold text-uppercase mb-2">Next steps</div>
                         <ol class="small mb-0 ps-3">
-                            <li class="mb-1">Give the administrator the login <span class="font-monospace">@(admin?.Username)</span> and the password you set; they sign in and choose the Head Office.</li>
+                            <li class="mb-1">Give the administrator the sign-in e-mail <span class="font-monospace">@(admin?.Email)</span> and the password you set.</li>
                             <li class="mb-1">Review <a asp-controller="HospitalSettings" asp-action="Index">Hospital Settings</a> (logo, printing, LAB / OPD rules) of the Head Office.</li>
                             <li class="mb-1">Set the branch's mail settings in <a asp-controller="SmtpConfig" asp-action="Index">SMTP Configuration</a> so bills, reports and password e-mails go out.</li>
                             <li class="mb-1">Check the Administrator role's grants in Settings › Security › Role Permissions.</li>

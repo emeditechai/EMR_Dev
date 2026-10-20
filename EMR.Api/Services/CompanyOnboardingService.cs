@@ -9,7 +9,7 @@ namespace EMR.Api.Services;
 public interface ICompanyOnboardingService
 {
     Task<List<CompanyOnboardTemplate>> TemplatesAsync();
-    Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username);
+    Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username, string? email);
     /// <summary>Creates the company and all it needs in one transaction; Error is set (nothing created) when refused.</summary>
     Task<(CompanyOnboardResult? Result, string? Error)> OnboardAsync(CompanyOnboardRequest request);
 }
@@ -28,11 +28,11 @@ public class CompanyOnboardingService(IDbConnectionFactory connectionFactory) : 
         return (await db.QueryAsync<CompanyOnboardTemplate>("dbo.usp_Api_Company_OnboardTemplates", commandType: Sp)).ToList();
     }
 
-    public async Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username)
+    public async Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username, string? email)
     {
         using var db = connectionFactory.CreateConnection();
         return await db.QueryFirstAsync<CompanyOnboardCheck>("dbo.usp_Api_Company_OnboardCheck",
-            new { CompanyCode = companyCode, BranchCode = branchCode, Username = username }, commandType: Sp);
+            new { CompanyCode = companyCode, BranchCode = branchCode, Username = username, Email = email }, commandType: Sp);
     }
 
     public async Task<(CompanyOnboardResult? Result, string? Error)> OnboardAsync(CompanyOnboardRequest r)

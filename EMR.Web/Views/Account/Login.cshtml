@@ -35,12 +35,12 @@
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger ar-alert ar-summary"></div>
 
                     <div class="ar-field">
-                        <label asp-for="Username" class="ar-label"></label>
+                        <label asp-for="Email" class="ar-label"></label>
                         <div class="ar-control">
-                            <i class="bi bi-person ar-lead-ico"></i>
-                            <input asp-for="Username" class="form-control ar-input" placeholder="Enter your user name" autocomplete="username" autofocus />
+                            <i class="bi bi-envelope ar-lead-ico"></i>
+                            <input asp-for="Email" type="email" class="form-control ar-input" placeholder="name@example.com" autocomplete="username email" autofocus />
                         </div>
-                        <span asp-validation-for="Username" class="ar-error"></span>
+                        <span asp-validation-for="Email" class="ar-error"></span>
                     </div>
 
                     <div class="ar-field">

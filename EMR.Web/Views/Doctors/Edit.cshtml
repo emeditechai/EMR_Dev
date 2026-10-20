@@ -199,16 +199,15 @@
                     <span class="input-group-text"><i class="bi bi-person"></i></span>
                     @if (Model.LoginAccountId.HasValue)
                     {
-                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="off" disabled />
+                        <input asp-for="LoginUsername" class="form-control bg-light" maxlength="100" readonly tabindex="-1" placeholder="Same as the e-mail" />
                     }
                     else
                     {
-                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="emr-no-autofill" spellcheck="false" />
+                        <input asp-for="LoginUsername" class="form-control bg-light" maxlength="100" readonly tabindex="-1" placeholder="Same as the e-mail" />
                     }
                 </div>
+                <div class="small text-muted mt-1">The doctor signs in with the e-mail; the user name follows it when saved.</div>
                 <span asp-validation-for="LoginUsername" class="text-danger small"></span>
-                <div id="usernameStatus" class="small mt-1"></div>
-                <div id="usernameSuggestions" class="d-flex flex-wrap align-items-center gap-1 mt-1"></div>
             </div>
             <div class="col-md-4">
                 <label asp-for="LoginPassword" class="form-label fw-semibold">
@@ -308,5 +307,46 @@
         loginToggle.addEventListener('change', syncLoginPanel);
         // Panel visibility already set server-side via Razor class binding
     </script>
-    <partial name="_LoginUsernameAssist" model="Model" />
+    @* sign-in is by e-mail (SQLScripts/2307): the login's user name is the doctor's e-mail, checked for availability while
+       typing (only when a login is required); the save checks again *@
+    <style>
+        .dl-state { font-size: .8rem; margin-top: .3rem; min-height: 1rem; }
+        .dl-state.ok { color: #15803d; } .dl-state.bad { color: #dc2626; } .dl-state.wait { color: #64748b; }
+        #EmailId.dl-ok, #LoginUsername.dl-ok { border-color: #16a34a !important; box-shadow: 0 0 0 .18rem rgba(22, 163, 74, .15); }
+        #EmailId.dl-bad, #LoginUsername.dl-bad { border-color: #dc2626 !important; box-shadow: 0 0 0 .18rem rgba(220, 38, 38, .12); }
+    </style>
+    <script>
+        (function () {
+            const mail = document.getElementById('EmailId'), user = document.getElementById('LoginUsername'), toggle = document.getElementById('isLoginRequired');
+            if (!mail || !user) return;
+            let box = document.getElementById('dlLoginState');
+            if (!box) { box = document.createElement('div'); box.id = 'dlLoginState'; box.className = 'dl-state'; box.setAttribute('aria-live', 'polite'); user.closest('.input-group').after(box); }
+            let timer = null, seq = 0;
+            const paint = (kind, text) => {
+                [mail, user].forEach(el => { el.classList.toggle('dl-ok', kind === 'ok'); el.classList.toggle('dl-bad', kind === 'bad'); });
+                box.className = 'dl-state ' + (kind || '');
+                box.innerHTML = !text ? '' : (kind === 'ok' ? '<i class="bi bi-check-circle-fill me-1"></i>' : kind === 'bad' ? '<i class="bi bi-x-circle-fill me-1"></i>'
+                              : '<span class="spinner-border spinner-border-sm me-1"></span>') + text.replace(/[<>&]/g, '');
+            };
+            async function check() {
+                const v = mail.value.trim();
+                if (!toggle?.checked || !v) { paint('', ''); return; }
+                const my = ++seq;
+                paint('wait', 'Checking...');
+                try {
+                    const r = await (await fetch('@Url.Action("CheckLoginEmail", "Doctors")?email=' + encodeURIComponent(v) + '&doctorId=@Model.DoctorId', { credentials: 'same-origin' })).json();
+                    if (my === seq) paint(r.valid && r.available ? 'ok' : 'bad', r.message);
+                } catch (e) { if (my === seq) paint('', ''); }
+            }
+            const sync = () => user.value = mail.value.trim().toLowerCase();
+            mail.addEventListener('input', () => { sync(); clearTimeout(timer); timer = setTimeout(check, 450); });
+            mail.addEventListener('blur', () => { clearTimeout(timer); check(); });
+            toggle?.addEventListener('change', check);
+            // not sent while the e-mail is known to be taken by another sign-in
+            mail.form?.addEventListener('submit', e => {
+                if (toggle?.checked && mail.classList.contains('dl-bad')) { e.preventDefault(); mail.focus(); mail.scrollIntoView({ block: 'center' }); }
+            });
+            sync(); check();
+        })();
+    </script>
 }

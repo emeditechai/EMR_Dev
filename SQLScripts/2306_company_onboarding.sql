@@ -11,6 +11,7 @@
 --      only when asked, the template Administrator's company-wide permissions (grants are the operator's choice)
 --   6. its first user: active, Administrator in the Head Office branch, "change password" reminder on
 -- Data goes EMR.Web -> EMR.Api (api/company-onboarding) -> the procedures below. Only Super Admin may onboard.
+-- The administrator signs in with the e-mail (2307): it is required, unique among all users, and is the user name.
 -- Safe to re-run (procedures only, plus endpoint mappings).
 -- ============================================================================================================
 SET ANSI_NULLS ON;
@@ -20,7 +21,7 @@ GO
 
 -- ── is a value free? (company code, branch code - unique in the whole application - and username) ──
 CREATE OR ALTER PROCEDURE dbo.usp_Api_Company_OnboardCheck
-    @CompanyCode NVARCHAR(50) = NULL, @BranchCode NVARCHAR(50) = NULL, @Username NVARCHAR(100) = NULL
+    @CompanyCode NVARCHAR(50) = NULL, @BranchCode NVARCHAR(50) = NULL, @Username NVARCHAR(100) = NULL, @Email NVARCHAR(200) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -29,7 +30,11 @@ BEGIN
            CAST(CASE WHEN NULLIF(LTRIM(@BranchCode), '') IS NULL THEN 1
                      WHEN EXISTS (SELECT 1 FROM dbo.Branchmaster WHERE BranchCode = LTRIM(RTRIM(@BranchCode))) THEN 0 ELSE 1 END AS BIT) AS BranchCodeFree,
            CAST(CASE WHEN NULLIF(LTRIM(@Username), '') IS NULL THEN 1
-                     WHEN EXISTS (SELECT 1 FROM dbo.Users WHERE Username = LTRIM(RTRIM(@Username))) THEN 0 ELSE 1 END AS BIT) AS UsernameFree;
+                     WHEN EXISTS (SELECT 1 FROM dbo.Users WHERE Username = LTRIM(RTRIM(@Username))) THEN 0 ELSE 1 END AS BIT) AS UsernameFree,
+           -- sign-in is by e-mail (2307): unique among all users
+           CAST(CASE WHEN NULLIF(LTRIM(@Email), '') IS NULL THEN 1
+                     WHEN EXISTS (SELECT 1 FROM dbo.Users WHERE LOWER(LTRIM(RTRIM(Email))) = LOWER(LTRIM(RTRIM(@Email)))
+                                                            OR Username = LOWER(LTRIM(RTRIM(@Email)))) THEN 0 ELSE 1 END AS BIT) AS EmailFree;
 END
 GO
 
@@ -83,6 +88,9 @@ BEGIN
     IF EXISTS (SELECT 1 FROM dbo.CompanyMaster WHERE CompanyCode = @CompanyCode) THROW 50004, 'This company code is already used.', 1;
     IF EXISTS (SELECT 1 FROM dbo.Branchmaster WHERE BranchCode = @BranchCode) THROW 50005, 'This branch code is already used (branch codes are unique in the whole application).', 1;
     IF EXISTS (SELECT 1 FROM dbo.Users WHERE Username = @AdminUsername) THROW 50006, 'This username is already used.', 1;
+    IF NULLIF(LTRIM(@AdminEmail), '') IS NULL THROW 50008, 'The administrator''s e-mail is required - it is the sign-in.', 1;
+    IF EXISTS (SELECT 1 FROM dbo.Users WHERE LOWER(LTRIM(RTRIM(Email))) = LOWER(LTRIM(RTRIM(@AdminEmail))) OR Username = LOWER(LTRIM(RTRIM(@AdminEmail))))
+        THROW 50009, 'This e-mail is already used by another sign-in.', 1;
     IF NOT EXISTS (SELECT 1 FROM dbo.PageMaster WHERE CompanyId = @TemplateCompanyId) THROW 50007, 'The template company has no navigation to copy.', 1;
 
     DECLARE @now DATETIME = GETDATE(), @CompanyId INT, @BranchId INT, @SettingsId INT, @AdminRoleId INT, @UserId INT;

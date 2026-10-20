@@ -48,13 +48,18 @@ public class UserFormViewModel
     [Display(Name = "Employee Code")]
     public string? EmployeeCode { get; set; }
 
-    [Required]
+    /// <summary>Shown read-only: the e-mail for users created since sign-in by e-mail (SQLScripts/2307).</summary>
     [MaxLength(100)]
     public string Username { get; set; } = string.Empty;
 
-    [EmailAddress]
-    [MaxLength(200)]
+    /// <summary>The sign-in (SQLScripts/2307): required and unique in the whole application.</summary>
+    [EmailAddress(ErrorMessage = "Enter a valid e-mail address.")]
+    [MaxLength(100, ErrorMessage = "E-mail can be up to 100 characters.")]
     public string? Email { get; set; }
+
+    /// <summary>The e-mail can be changed here: every login except a franchise / company one (a doctor's e-mail is kept in
+    /// step with Doctor Master, SQLScripts/2307).</summary>
+    public bool EmailEditable => !IsLinkedLogin || UserType == "D";
 
     [Display(Name = "Password")]
     [DataType(DataType.Password)]

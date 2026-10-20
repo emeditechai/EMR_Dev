@@ -82,4 +82,5 @@ public class CompanyOnboardCheck
     public bool CompanyCodeFree { get; set; }
     public bool BranchCodeFree { get; set; }
     public bool UsernameFree { get; set; }
+    public bool EmailFree { get; set; } = true;
 }

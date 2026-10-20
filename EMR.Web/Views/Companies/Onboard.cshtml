@@ -199,13 +199,18 @@
             <div class="card border-0 shadow-sm rounded-3 mb-3">
                 <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-person-badge me-2"></i>Company Administrator</h6></div>
                 <div class="card-body p-4">
-                    <p class="ob-hint mb-3">The first user of the company: role <strong>Administrator</strong> in the Head Office branch. Usernames are unique in the whole application.</p>
+                    <p class="ob-hint mb-3">The first user of the company: role <strong>Administrator</strong> in the Head Office branch. The administrator <strong>signs in with this e-mail</strong>, so it must not be used by any other account.</p>
                     <div class="row g-3">
-                        <div class="col-md-4">
-                            <label asp-for="AdminUsername" class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
-                            <input asp-for="AdminUsername" class="form-control" autocomplete="off" data-check="username" />
-                            <div class="ob-free" data-free-for="username"></div>
-                            <span asp-validation-for="AdminUsername" class="text-danger small"></span>
+                        <div class="col-md-5">
+                            <label asp-for="AdminEmail" class="form-label fw-semibold">Email <span class="text-danger">*</span> <small class="text-muted fw-normal">(used to sign in)</small></label>
+                            <input asp-for="AdminEmail" type="email" class="form-control" autocomplete="off" maxlength="100" data-check="email" placeholder="name@example.com" />
+                            <div class="ob-free" data-free-for="email"></div>
+                            <span asp-validation-for="AdminEmail" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="AdminUsername" class="form-label fw-semibold">Username</label>
+                            <input asp-for="AdminUsername" class="form-control bg-light" readonly tabindex="-1" />
+                            <div class="ob-hint mt-1">Same as the e-mail.</div>
                         </div>
                         <div class="col-md-4">
                             <label asp-for="AdminFirstName" class="form-label fw-semibold">First Name <span class="text-danger">*</span></label>
@@ -216,11 +221,6 @@
                             <label asp-for="AdminLastName" class="form-label fw-semibold">Last Name <span class="text-danger">*</span></label>
                             <input asp-for="AdminLastName" class="form-control" />
                             <span asp-validation-for="AdminLastName" class="text-danger small"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label asp-for="AdminEmail" class="form-label fw-semibold">Email</label>
-                            <input asp-for="AdminEmail" class="form-control" placeholder="Needed for password reset" />
-                            <span asp-validation-for="AdminEmail" class="text-danger small"></span>
                         </div>
                         <div class="col-md-4">
                             <label asp-for="AdminPhone" class="form-label fw-semibold">Phone Number</label>
@@ -376,12 +376,16 @@
             const v = input.value.trim();
             if (!v) { box.textContent = ''; box.className = 'ob-free'; delete taken[input.dataset.check]; return; }
             try {
-                const q = new URLSearchParams({ companyCode: input.dataset.check === 'companyCode' ? v : '', branchCode: input.dataset.check === 'branchCode' ? v : '', username: input.dataset.check === 'username' ? v : '' });
+                const q = new URLSearchParams({ companyCode: input.dataset.check === 'companyCode' ? v : '', branchCode: input.dataset.check === 'branchCode' ? v : '', email: input.dataset.check === 'email' ? v : '' });
                 const r = await (await fetch('@Url.Action("OnboardCheck")?' + q, { credentials: 'same-origin' })).json();
-                const free = input.dataset.check === 'companyCode' ? r.companyCodeFree : input.dataset.check === 'branchCode' ? r.branchCodeFree : r.usernameFree;
+                if (input.dataset.check === 'email' && !/^[^@@\s]+@@[^@@\s]+\.[^@@\s]+$/.test(v)) {
+                    taken.email = false; box.className = 'ob-free bad'; box.innerHTML = '<i class="bi bi-x-circle me-1"></i>Enter a valid e-mail address'; markErrors(); return;
+                }
+                const free = input.dataset.check === 'companyCode' ? r.companyCodeFree : input.dataset.check === 'branchCode' ? r.branchCodeFree : r.emailFree;
                 taken[input.dataset.check] = free;
                 box.className = 'ob-free ' + (free ? 'ok' : 'bad');
-                box.innerHTML = free ? '<i class="bi bi-check-circle me-1"></i>Available' : '<i class="bi bi-x-circle me-1"></i>Already used - choose another';
+                box.innerHTML = free ? '<i class="bi bi-check-circle me-1"></i>Available' + (input.dataset.check === 'email' ? ' - this e-mail will be the sign-in' : '')
+                                     : '<i class="bi bi-x-circle me-1"></i>' + (input.dataset.check === 'email' ? 'Already used by another sign-in' : 'Already used - choose another');
                 markErrors();
             } catch (e) { box.textContent = ''; }
         }
@@ -399,7 +403,10 @@
         };
         follow('CompanyCode', 'BranchCode', v => v.trim() ? v.trim().toUpperCase() + '-HO' : '');
         follow('CompanyName', 'HospitalName', v => v);
-        follow('Email', 'AdminEmail', v => v);
+        follow('Email', 'AdminEmail', v => v.trim().toLowerCase());
+        // the administrator's user name is the e-mail
+        const syncUser = () => $('AdminUsername').value = $('AdminEmail').value.trim().toLowerCase();
+        $('AdminEmail').addEventListener('input', syncUser); $('Email').addEventListener('input', syncUser); syncUser();
         ['CompanyCode', 'BranchCode', 'GSTIN', 'PAN', 'AdminEmployeeCode'].forEach(id => $(id).addEventListener('input', e => e.target.value = e.target.value.toUpperCase()));
 
         // branch address only when it differs from the company's
@@ -419,7 +426,7 @@
                 ['Head Office', `${v('BranchName')} (${v('BranchCode')})${$('BranchIsLab').checked ? ' · with laboratory' : ''}`],
                 ['Address', same.checked ? [v('Address'), v('City'), v('State'), v('Pincode')].filter(Boolean).join(', ') || '—' : [v('BranchAddress'), v('BranchCity'), v('BranchState'), v('BranchPincode')].filter(Boolean).join(', ') || '—'],
                 ['Hospital name (bills / reports)', v('HospitalName')],
-                ['Administrator', `${v('AdminFirstName')} ${v('AdminLastName')} · login ${v('AdminUsername')}`], ['Administrator e-mail', v('AdminEmail') || '—']
+                ['Administrator', `${v('AdminFirstName')} ${v('AdminLastName')}`], ['Administrator sign-in (e-mail)', v('AdminEmail') || '—']
             ];
             $('obReview').innerHTML = rows.map(r => `<dt class="col-sm-4">${esc(r[0])}</dt><dd class="col-sm-8">${esc(r[1])}</dd>`).join('');
         }

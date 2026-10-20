@@ -67,7 +67,8 @@ public sealed class PasswordResetService(
             await auditLog.LogAsync("AuthFailure", "ForgotPassword", $"Reset link not sent: account {user.Username} is inactive or locked by the administrator.", user.Id);
             return;
         }
-        if (string.IsNullOrWhiteSpace(user.Email) || !user.Email.Contains('@'))
+        // a placeholder e-mail (SQLScripts/2307: name@company.invalid) cannot receive mail - nothing is sent
+        if (string.IsNullOrWhiteSpace(user.Email) || !user.Email.Contains('@') || user.Email.Trim().EndsWith(".invalid", StringComparison.OrdinalIgnoreCase))
         {
             await auditLog.LogAsync("AuthFailure", "ForgotPassword", $"Reset link not sent: account {user.Username} has no email address.", user.Id);
             return;

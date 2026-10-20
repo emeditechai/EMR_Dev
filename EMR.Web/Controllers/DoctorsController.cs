@@ -121,6 +121,32 @@ public class DoctorsController(
     [HttpGet]
     [RequiresPermission("MASTER.DOCTORS", PermissionControls.Create)]
     [RequiresPermission("MASTER.DOCTORS", PermissionControls.Edit)]
+    /// <summary>
+    /// Doctor Master > Login Account: is the doctor's e-mail free to sign in with? (SQLScripts/2307) Checked while typing;
+    /// the save checks again. The doctor's own login is not counted.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> CheckLoginEmail(string? email, int? doctorId)
+    {
+        var e = (email ?? "").Trim().ToLower();
+        if (e.Length == 0) return Json(new { valid = false, available = false, message = "" });
+        if (e.Length > 100 || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(e) || !e.Contains('.'))
+            return Json(new { valid = false, available = false, message = e.Length > 100 ? "Up to 100 characters for a login e-mail." : "Enter a valid e-mail address." });
+        int? ownUserId = null;
+        if (doctorId is > 0)
+            ownUserId = await dbContext.Users.Where(u => u.UserType == UserTypes.Doctor && u.ReferenceUserId == doctorId)
+                                             .Select(u => (int?)u.Id).FirstOrDefaultAsync();
+        var own = ownUserId is int oid ? await dbContext.Users.AsNoTracking().Where(u => u.Id == oid).Select(u => u.Email).FirstOrDefaultAsync() : null;
+        if (own is not null && string.Equals(own.Trim(), e, StringComparison.OrdinalIgnoreCase))
+            return Json(new { valid = true, available = true, message = "Current sign-in of this doctor." });
+        var taken = await dbContext.Users.AsNoTracking()
+            .Where(u => (ownUserId == null || u.Id != ownUserId) && ((u.Email != null && u.Email.Trim().ToLower() == e) || u.Username == e))
+            .Select(u => u.Username).FirstOrDefaultAsync();
+        return taken is null
+            ? Json(new { valid = true, available = true, message = "Available - the doctor will sign in with this e-mail." })
+            : Json(new { valid = true, available = false, message = $"Already used by the sign-in '{taken}' - choose another e-mail." });
+    }
+
     public async Task<IActionResult> SuggestLoginUsernames(string? fullName, string? email, string? check, int? doctorId)
     {
         int? ownUserId = null;
@@ -437,22 +463,32 @@ public class DoctorsController(
 
     private async Task ValidateLoginFieldsAsync(DoctorFormViewModel model, int? existingUserId)
     {
-        if (string.IsNullOrWhiteSpace(model.LoginUsername))
+        // Sign-in is by e-mail (SQLScripts/2307): the doctor's login signs in with the doctor's e-mail and its user name
+        // is that e-mail. The e-mail must be unique among all sign-ins when it is new or changed; an older login whose
+        // e-mail is shared keeps its user name until the e-mail is changed to a unique one.
+        var email = model.EmailId?.Trim().ToLowerInvariant() ?? "";
+        var stored = existingUserId.HasValue
+            ? await dbContext.Users.AsNoTracking().Where(u => u.Id == existingUserId.Value).Select(u => new { u.Username, u.Email }).FirstOrDefaultAsync()
+            : null;
+        var emailChanged = stored is null || !string.Equals(stored.Email?.Trim(), email, StringComparison.OrdinalIgnoreCase);
+        ModelState.Remove(nameof(model.LoginUsername));
+        if (email.Length == 0)
         {
-            ModelState.AddModelError(nameof(model.LoginUsername), "Username is required when login is enabled.");
+            ModelState.AddModelError(nameof(model.EmailId), "E-mail is required when login is enabled - the doctor signs in with it.");
+            model.LoginUsername = stored?.Username;
         }
-        else if (!existingUserId.HasValue && UsernameFormatError(model.LoginUsername.Trim()) is { } formatError)
+        else if (email.Length > 100)
         {
-            ModelState.AddModelError(nameof(model.LoginUsername), formatError);
+            ModelState.AddModelError(nameof(model.EmailId), "For a doctor with a login the e-mail can be up to 100 characters (it is the sign-in).");
+            model.LoginUsername = stored?.Username;
         }
         else
         {
-            // Check username uniqueness (allow same user on edit)
-            var taken = await dbContext.Users.AnyAsync(u =>
-                u.Username == model.LoginUsername.Trim() &&
-                (!existingUserId.HasValue || u.Id != existingUserId.Value));
-            if (taken)
-                ModelState.AddModelError(nameof(model.LoginUsername), "This username is already taken.");
+            var others = dbContext.Users.Where(u => !existingUserId.HasValue || u.Id != existingUserId.Value);
+            if (emailChanged && await others.AnyAsync(u => (u.Email != null && u.Email.Trim().ToLower() == email) || u.Username == email))
+                ModelState.AddModelError(nameof(model.EmailId), "This e-mail is already used by another sign-in - the doctor's login signs in with this e-mail.");
+            // user name = e-mail, unless another login already holds it (only possible for an unchanged, shared e-mail)
+            model.LoginUsername = await others.AnyAsync(u => u.Username == email) && stored is not null ? stored.Username : email;
         }
 
         // Password is mandatory on Create; optional on Edit (blank = keep existing)
@@ -499,8 +535,8 @@ public class DoctorsController(
         var user = new User
         {
             CompanyId        = User.GetCompanyId(),
-            Username         = model.LoginUsername!.Trim(),
-            Email            = model.EmailId.Trim(),
+            Username         = model.LoginUsername!.Trim(),       // the e-mail (ValidateLoginFieldsAsync), SQLScripts/2307
+            Email            = model.EmailId.Trim().ToLowerInvariant(),
             PasswordHash     = hash,
             Salt             = salt,
             FirstName        = firstName,
@@ -568,8 +604,8 @@ public class DoctorsController(
         user.ReferenceUserId = doctorId;
 
         var nameParts = fullName.Trim().Split(' ', 2);
-        user.Username        = model.LoginUsername!.Trim();
-        user.Email           = model.EmailId.Trim();
+        user.Username        = model.LoginUsername!.Trim();       // the e-mail (ValidateLoginFieldsAsync), SQLScripts/2307
+        user.Email           = model.EmailId.Trim().ToLowerInvariant();
         user.FirstName       = nameParts[0];
         user.LastName        = nameParts.Length > 1 ? nameParts[1] : string.Empty;
         user.FullName        = fullName;

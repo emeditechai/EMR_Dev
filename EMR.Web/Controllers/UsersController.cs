@@ -291,9 +291,13 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.Password), "Password is required.");
         }
 
-        if (await dbContext.Users.AnyAsync(x => x.Username == model.Username))
+        // sign-in is by e-mail (SQLScripts/2307): the e-mail is required and the user name is the e-mail
+        RequireEmail(model);
+        model.Username = (model.Email ?? "").Trim().ToLowerInvariant();
+        ModelState.Remove(nameof(model.Username));
+        if (model.Username.Length > 0 && await dbContext.Users.AnyAsync(x => x.Username == model.Username))
         {
-            ModelState.AddModelError(nameof(model.Username), "Username already exists.");
+            ModelState.AddModelError(nameof(model.Email), "This e-mail is already used as a sign-in.");
         }
 
         if (!model.SelectedBranchIds.Any())
@@ -344,8 +348,8 @@ public class UsersController(
         var user = new User
         {
             CompanyId = User.GetCompanyId(),
-            Username = model.Username.Trim(),
-            Email = model.Email?.Trim(),
+            Username = model.Username,
+            Email = model.Email?.Trim().ToLowerInvariant(),
             PasswordHash = hash,
             Salt = salt,
             FirstName = model.FirstName.Trim(),
@@ -506,19 +510,36 @@ public class UsersController(
             model.Username = user.Username;
             model.FirstName = user.FirstName ?? string.Empty;
             model.LastName = user.LastName ?? string.Empty;
-            model.Email = user.Email;
+            if (!model.EmailEditable)   // a doctor login's e-mail is changed here too (Doctor Master follows), SQLScripts/2307
+            {
+                model.Email = user.Email;
+                ModelState.Remove(nameof(model.Email));
+            }
             model.PhoneNumber = user.PhoneNumber;
             model.IsActive = user.IsActive;
             ModelState.Remove(nameof(model.Username));
             ModelState.Remove(nameof(model.FirstName));
             ModelState.Remove(nameof(model.LastName));
-            ModelState.Remove(nameof(model.Email));
             ModelState.Remove(nameof(model.PhoneNumber));
         }
 
+        // the user name is not edited any more (sign-in is by e-mail, SQLScripts/2307): it follows the e-mail when it was
+        // the e-mail (users created since), otherwise the existing user name stays as it is
+        if (model.EmailEditable)
+        {
+            // user name = e-mail, on create and on edit; an older user whose e-mail is shared keeps the user name while
+            // another user holds that e-mail as user name and the e-mail is unchanged (it must be unique once changed)
+            RequireEmail(model);
+            var newEmail = model.Email?.Trim().ToLowerInvariant() ?? "";
+            var unchanged = string.Equals(newEmail, user.Email?.Trim(), StringComparison.OrdinalIgnoreCase);
+            model.Username = newEmail.Length == 0
+                || (unchanged && await dbContext.Users.AnyAsync(x => x.Id != user.Id && x.Username == newEmail))
+                ? user.Username : newEmail;
+            ModelState.Remove(nameof(model.Username));
+        }
         if (await dbContext.Users.AnyAsync(x => x.Id != model.Id && x.Username == model.Username))
         {
-            ModelState.AddModelError(nameof(model.Username), "Username already exists.");
+            ModelState.AddModelError(nameof(model.Email), "This e-mail is already used as a sign-in.");
         }
 
         if (!model.SelectedBranchIds.Any())
@@ -561,10 +582,18 @@ public class UsersController(
             ? null
             : model.EmployeeCode.Trim().ToUpperInvariant();
 
+        // a doctor's login: the e-mail (and a user name that is the e-mail) can change here - the doctor's e-mail follows
+        if (model.IsLinkedLogin && model.UserType == UserTypes.Doctor && user.ReferenceUserId is int doctorId)
+        {
+            user.Username = model.Username.Trim();
+            user.Email = model.Email?.Trim().ToLowerInvariant();
+            var doctor = await dbContext.DoctorMasters.FirstOrDefaultAsync(d => d.DoctorId == doctorId);
+            if (doctor is not null) doctor.EmailId = user.Email ?? doctor.EmailId;
+        }
         if (!model.IsLinkedLogin)
         {
             user.Username = model.Username.Trim();
-            user.Email = model.Email?.Trim();
+            user.Email = model.Email?.Trim().ToLowerInvariant();
             user.FirstName = model.FirstName.Trim();
             user.LastName = model.LastName.Trim();
             user.FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim());
@@ -1039,12 +1068,15 @@ public class UsersController(
         if (!string.IsNullOrEmpty(email)
             && !string.Equals(email, storedEmail?.Trim(), StringComparison.OrdinalIgnoreCase))
         {
+            // e-mail is the sign-in: unique in the whole application (SQLScripts/2307)
             var lower = email.ToLower();
             var taken = await dbContext.Users.AsNoTracking()
-                .Where(u => u.CompanyId == companyId && u.Id != model.Id && u.Email != null && u.Email.Trim().ToLower() == lower)
-                .Select(u => u.Username).FirstOrDefaultAsync();
+                .Where(u => u.Id != model.Id && u.Email != null && u.Email.Trim().ToLower() == lower)
+                .Select(u => new { u.Username, u.CompanyId }).FirstOrDefaultAsync();
             if (taken is not null)
-                ModelState.AddModelError(nameof(model.Email), $"This e-mail is already used by user '{taken}' in this company.");
+                ModelState.AddModelError(nameof(model.Email), taken.CompanyId == companyId
+                    ? $"This e-mail is already used by user '{taken.Username}'."
+                    : "This e-mail is already registered to another account.");
         }
 
         var phone = Phone10(model.PhoneNumber);
@@ -1059,6 +1091,35 @@ public class UsersController(
             if (taken is not null)
                 ModelState.AddModelError(nameof(model.PhoneNumber), $"This phone number is already used by user '{taken.Username}' in this company.");
         }
+    }
+
+    private void RequireEmail(UserFormViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.Email))
+            ModelState.AddModelError(nameof(model.Email), "E-mail is required - it is used to sign in.");
+    }
+
+    /// <summary>
+    /// User Master: is this e-mail free to sign in with? (SQLScripts/2307) Checked while typing; the save checks again.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> CheckEmail(string? email, int id = 0)
+    {
+        if (!CanManage()) return Forbid();
+        var e = (email ?? "").Trim();
+        if (e.Length == 0) return Json(new { valid = false, available = false, message = "" });
+        if (e.Length > 100 || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(e) || !e.Contains('.'))
+            return Json(new { valid = false, available = false, message = "Enter a valid e-mail address." });
+        var lower = e.ToLower();
+        var taken = await dbContext.Users.AsNoTracking()
+            .Where(u => u.Id != id && ((u.Email != null && u.Email.Trim().ToLower() == lower) || u.Username == lower))
+            .Select(u => new { u.Username, u.CompanyId }).FirstOrDefaultAsync();
+        if (taken is null) return Json(new { valid = true, available = true, message = "Available - this e-mail will be the sign-in." });
+        return Json(new
+        {
+            valid = true, available = false,
+            message = taken.CompanyId == User.GetCompanyId() ? $"Already used by user '{taken.Username}'." : "Already registered to another account."
+        });
     }
 
     /// <summary>Reports To (SQLScripts/2305): a user of the same company, not the user itself, and no reporting loop.</summary>

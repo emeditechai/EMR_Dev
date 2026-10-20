@@ -6,7 +6,7 @@ namespace EMR.Web.ApiClients;
 public interface ICompanyOnboardingApiClient
 {
     Task<List<CompanyOnboardTemplate>> TemplatesAsync();
-    Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username);
+    Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username, string? email = null);
     Task<(CompanyOnboardResult? Result, string? Error)> OnboardAsync(CompanyOnboardRequest request);
 }
 
@@ -26,6 +26,7 @@ public class CompanyOnboardCheck
     public bool CompanyCodeFree { get; set; }
     public bool BranchCodeFree { get; set; }
     public bool UsernameFree { get; set; }
+    public bool EmailFree { get; set; } = true;
 }
 
 public class CompanyOnboardResult
@@ -94,10 +95,10 @@ public class CompanyOnboardingApiClient(IHttpClientFactory httpClientFactory) : 
     public async Task<List<CompanyOnboardTemplate>> TemplatesAsync() =>
         await Client.GetFromJsonAsync<List<CompanyOnboardTemplate>>("api/company-onboarding/templates") ?? [];
 
-    public async Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username) =>
+    public async Task<CompanyOnboardCheck> CheckAsync(string? companyCode, string? branchCode, string? username, string? email = null) =>
         await Client.GetFromJsonAsync<CompanyOnboardCheck>(
-            $"api/company-onboarding/check?companyCode={Uri.EscapeDataString(companyCode ?? "")}&branchCode={Uri.EscapeDataString(branchCode ?? "")}&username={Uri.EscapeDataString(username ?? "")}")
-        ?? new CompanyOnboardCheck { CompanyCodeFree = true, BranchCodeFree = true, UsernameFree = true };
+            $"api/company-onboarding/check?companyCode={Uri.EscapeDataString(companyCode ?? "")}&branchCode={Uri.EscapeDataString(branchCode ?? "")}&username={Uri.EscapeDataString(username ?? "")}&email={Uri.EscapeDataString(email ?? "")}")
+        ?? new CompanyOnboardCheck { CompanyCodeFree = true, BranchCodeFree = true, UsernameFree = true, EmailFree = true };
 
     public async Task<(CompanyOnboardResult? Result, string? Error)> OnboardAsync(CompanyOnboardRequest request)
     {

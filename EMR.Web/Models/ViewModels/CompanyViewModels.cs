@@ -190,15 +190,16 @@ public class CompanyOnboardViewModel
     [Range(0, 3650, ErrorMessage = "Enter 0 - 3650 days.")]
     public int? OpdRegistrationValidityDays { get; set; }
 
-    // 4. administrator
-    [Required(ErrorMessage = "Username is required.")]
+    // 4. administrator - signs in with the e-mail (SQLScripts/2307); the user name is the e-mail
     [StringLength(100)]
-    [RegularExpression(@"^[A-Za-z0-9._@\-]+$", ErrorMessage = "Use letters, digits and . _ @ - only.")]
     [Display(Name = "Username")]
     public string AdminUsername { get; set; } = string.Empty;
     [Required(ErrorMessage = "First Name is required.")] [StringLength(100)] public string AdminFirstName { get; set; } = string.Empty;
     [Required(ErrorMessage = "Last Name is required.")] [StringLength(100)] public string AdminLastName { get; set; } = string.Empty;
-    [EmailAddress] [StringLength(200)] public string? AdminEmail { get; set; }
+    [Required(ErrorMessage = "E-mail is required - the administrator signs in with it.")]
+    [EmailAddress(ErrorMessage = "Enter a valid e-mail address.")]
+    [StringLength(100, ErrorMessage = "E-mail can be up to 100 characters.")]
+    public string? AdminEmail { get; set; }
     [StringLength(20)] public string? AdminPhone { get; set; }
     [StringLength(20)] public string? AdminEmployeeCode { get; set; }
     [Required(ErrorMessage = "Password is required.")]
