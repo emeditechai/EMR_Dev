@@ -69,6 +69,14 @@ builder.Services.AddScoped<IMembershipService,       MembershipService>();
 builder.Services.AddScoped<IPatientService,          PatientService>();
 builder.Services.AddScoped<IReportService,           ReportService>();
 builder.Services.AddScoped<IOpdVisitHistoryService,  OpdVisitHistoryService>();
+builder.Services.AddScoped<IUserListService, UserListService>();
+// Utility > API data: Standard Laboratory Test Master (LOINC), SQLScripts/2316
+builder.Services.AddScoped<ITerminologyService, TerminologyService>();
+builder.Services.AddSingleton<TerminologyStorage>();
+builder.Services.AddSingleton<TerminologyImportQueue>();
+builder.Services.AddHostedService<TerminologyImportWorker>();
+builder.Services.AddHttpClient("LoincSearch");
+builder.Services.AddScoped<ILoincTerminologyClient, LoincSearchClient>();   // User Master server paging (SQLScripts/2314)
 builder.Services.AddScoped<IBillingSubmissionService, BillingSubmissionService>();   // one bill per booking (SQLScripts/2310)
 builder.Services.AddScoped<ICompanyOnboardingService, CompanyOnboardingService>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)
 builder.Services.AddScoped<IServiceBookingService,   ServiceBookingService>();

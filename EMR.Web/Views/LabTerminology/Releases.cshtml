@@ -1,0 +1,272 @@
+@model EMR.Web.ApiClients.Models.TermReleasesResult
+@{
+    ViewData["Title"] = "Terminology Import";
+    ViewData["ApiDataPage"] = "Releases";
+    var s = Model.Stats;
+    var running = Model.Releases.Any(r => r.JobStatus is "Queued" or "Running");
+    string Pill(string? st) => st switch
+    {
+        "Published" => "green", "Validated" => "blue", "Running" or "Queued" or "Staged" => "amber", "Failed" => "red", _ => "grey"
+    };
+    static string Size(long? b) => b is null ? "" : b >= 1048576 ? $"{b / 1048576.0:N1} MB" : $"{b / 1024.0:N0} KB";
+}
+
+<div class="container-fluid px-4 py-3">
+    <partial name="_ApiDataNav" />
+
+    <div class="row g-3 mb-3">
+        <div class="col-xl col-md-4 col-6"><div class="card shadow-sm ad-kpi h-100" style="--k:#2563eb"><div class="card-body p-3">
+            <div class="lbl">Active release</div><div class="num mt-1">@(s.ActiveVersion ?? "—")</div>
+            <div class="ad-note mt-1">LOINC file release in use</div></div></div></div>
+        <div class="col-xl col-md-4 col-6"><div class="card shadow-sm ad-kpi h-100" style="--k:#0d9488"><div class="card-body p-3">
+            <div class="lbl">Lab concepts</div><div class="num mt-1">@((s.LabConcepts ?? 0).ToString("N0"))</div>
+            <div class="ad-note mt-1">@((s.ActiveConcepts ?? 0).ToString("N0")) active of @s.Concepts.ToString("N0") concepts</div></div></div></div>
+        <div class="col-xl col-md-4 col-6"><div class="card shadow-sm ad-kpi h-100" style="--k:#16a34a"><div class="card-body p-3">
+            <div class="lbl">Approved mappings</div><div class="num mt-1">@s.ApprovedMappings</div>
+            <div class="ad-note mt-1">local investigations linked</div></div></div></div>
+        <div class="col-xl col-md-6 col-6"><div class="card shadow-sm ad-kpi h-100" style="--k:#d97706"><div class="card-body p-3">
+            <div class="lbl">Pending / review</div><div class="num mt-1">@s.PendingMappings / @s.ReviewMappings</div>
+            <div class="ad-note mt-1">waiting for approval / changed by a release</div></div></div></div>
+        <div class="col-xl col-md-6 col-12"><div class="card shadow-sm ad-kpi h-100" style="--k:@(Model.OnlineConfigured ? "#7c3aed" : "#94a3b8")"><div class="card-body p-3">
+            <div class="lbl">LOINC Search API</div><div class="num mt-1" style="font-size:1.1rem">@(Model.OnlineConfigured ? "Configured" : "Not configured")</div>
+            <div class="ad-note mt-1">optional online lookup</div></div></div></div>
+    </div>
+
+    <div class="row g-3">
+        <!-- Import -->
+        <div class="col-xl-4" asp-permission="UTILITY.APIDATA.RELEASES:IMPORT">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 fw-bold"><i class="bi bi-upload me-2 text-primary"></i>Import a LOINC release</div>
+                <div class="card-body">
+                    <ol class="small text-muted ps-3 mb-3">
+                        <li>Download the official release from <a href="https://loinc.org/get" target="_blank" rel="noopener">loinc.org/get</a> (free account; review the licence).</li>
+                        <li>Upload the release <b>ZIP</b> as downloaded, or <b>LoincTable/Loinc.csv</b> from it.</li>
+                        <li>The file is checked and compared with the published release - <b>nothing is published until you click Publish</b>.</li>
+                    </ol>
+                    <form id="impForm" autocomplete="off">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold mb-1">Release version <span class="text-danger">*</span></label>
+                                <input id="impVersion" class="form-control" maxlength="30" placeholder="e.g. 2.78" required />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-semibold mb-1">Release date</label>
+                                <input id="impDate" type="date" class="form-control" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold mb-1">Release file (.zip or .csv) <span class="text-danger">*</span></label>
+                                <input id="impFile" type="file" class="form-control" accept=".zip,.csv" required />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold mb-1">Notes (licence, download date…)</label>
+                                <input id="impNotes" class="form-control" maxlength="1000" />
+                            </div>
+                        </div>
+                        <div class="progress mt-3 d-none" id="impProgressWrap" style="height:20px">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="impProgress" style="width:0%">0%</div>
+                        </div>
+                        <div class="small mt-2" id="impMsg"></div>
+                        <button type="submit" class="btn btn-primary w-100 mt-3" id="impBtn"><i class="bi bi-cloud-arrow-up me-1"></i>Upload and import</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Releases -->
+        <div class="col">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold"><i class="bi bi-collection me-2 text-primary"></i>Releases and imports</span>
+                    @if (running)
+                    {
+                        <span class="ad-pill amber"><span class="spinner-border spinner-border-sm me-1" style="width:.7rem;height:.7rem"></span>Import running - this page refreshes by itself</span>
+                    }
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 ad-table">
+                        <thead><tr><th class="ps-3">Release</th><th>Status</th><th>File</th><th class="text-end">Rows</th><th class="text-end">New</th><th class="text-end">Changed</th><th class="text-end">Missing</th><th class="text-end">Errors</th><th class="text-end pe-3">Actions</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in Model.Releases)
+                            {
+                                var st = r.JobStatus is "Queued" or "Running" ? r.JobStatus! : r.Status;
+                                <tr data-job="@r.ImportJobId" data-status="@st">
+                                    <td class="ps-3">
+                                        <div class="fw-bold">@r.SystemCode @r.VersionCode @if (r.IsActive) { <span class="ad-pill green ms-1">Active</span> }</div>
+                                        <div class="ad-note">@(r.ReleaseDate?.ToString("dd MMM yyyy") ?? "") @(r.PublishedAt.HasValue ? $"· published {r.PublishedAt:dd MMM yyyy HH:mm}" + (r.PublishedByName is null ? "" : $" by {r.PublishedByName}") : "")</div>
+                                    </td>
+                                    <td>
+                                        <span class="ad-pill @Pill(st)">@st</span>
+                                        @if (!string.IsNullOrWhiteSpace(r.JobMessage))
+                                        {
+                                            <div class="ad-note mt-1" style="max-width:280px">@r.JobMessage</div>
+                                        }
+                                    </td>
+                                    <td class="small">
+                                        @(r.SourceFileName ?? (r.VersionCode == "API-LOOKUP" ? "LOINC Search API" : "—"))
+                                        @if (r.FileSizeBytes.HasValue) { <div class="ad-note">@Size(r.FileSizeBytes)</div> }
+                                        @if (!string.IsNullOrWhiteSpace(r.SourceFileHash)) { <div class="ad-note font-monospace" title="SHA-256 @r.SourceFileHash">SHA-256 @r.SourceFileHash[..12]…</div> }
+                                    </td>
+                                    <td class="text-end">@(r.RowsRead?.ToString("N0") ?? (r.VersionCode == "API-LOOKUP" ? r.ConceptsFromRelease.ToString("N0") : "—"))</td>
+                                    <td class="text-end">@(r.CountAdded?.ToString("N0") ?? "—")</td>
+                                    <td class="text-end">@(r.CountModified?.ToString("N0") ?? "—")</td>
+                                    <td class="text-end">@(r.CountRetired?.ToString("N0") ?? "—")</td>
+                                    <td class="text-end">
+                                        @if (r.ImportJobId.HasValue && (r.RowsError ?? 0) > 0)
+                                        {
+                                            <a href="#" class="text-danger fw-semibold" data-errors="@r.ImportJobId">@r.RowsError?.ToString("N0")</a>
+                                        }
+                                        else if (r.ImportJobId.HasValue)
+                                        {
+                                            <a href="#" class="text-muted" data-errors="@r.ImportJobId" title="Warnings and messages">0</a>
+                                        }
+                                        else { <span class="text-muted">—</span> }
+                                    </td>
+                                    <td class="text-end pe-3 text-nowrap">
+                                        @if (r.Status is "Validated" or "Published")
+                                        {
+                                            <a asp-action="Changes" asp-route-releaseId="@r.ReleaseId" class="btn btn-sm btn-outline-secondary" title="Release changes"><i class="bi bi-arrow-left-right"></i></a>
+                                        }
+                                        @if (r.Status == "Validated" && r.JobStatus == "Validated")
+                                        {
+                                            <button asp-permission="UTILITY.APIDATA.RELEASES:PUBLISH" type="button" class="btn btn-sm btn-success" data-publish="@r.ReleaseId" data-version="@r.VersionCode"><i class="bi bi-check2-circle me-1"></i>Publish</button>
+                                        }
+                                        @if (r.Status is "Staged" or "Validated" or "Failed" && r.JobStatus is not ("Queued" or "Running"))
+                                        {
+                                            <button asp-permission="UTILITY.APIDATA.RELEASES:PUBLISH" type="button" class="btn btn-sm btn-outline-danger" data-discard="@r.ReleaseId" data-version="@r.VersionCode" title="Discard this import"><i class="bi bi-trash"></i></button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.Releases.Any())
+                            {
+                                <tr><td colspan="9" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>No release imported yet. Upload the official LOINC release to start.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import errors -->
+<div class="modal fade" id="errModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle text-danger me-2"></i>Import messages <span class="text-muted fw-normal" id="errCount"></span></h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body p-0">
+                <table class="table table-sm mb-0 ad-table"><thead><tr><th class="ps-3">Severity</th><th>Row</th><th>Code</th><th>Reason</th><th>File</th></tr></thead><tbody id="errBody"></tbody></table>
+            </div>
+            <div class="modal-footer py-2"><button class="btn btn-sm btn-outline-secondary" id="errPrev">Previous</button><span class="small text-muted" id="errPage"></span><button class="btn btn-sm btn-outline-secondary" id="errNext">Next</button></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const CHUNK = 8 * 1024 * 1024;   // 8 MB per request: under the web server's request size limits
+
+    // ── upload in chunks, then start the import ───────────────────────────────────────────────────────
+    const form = document.getElementById('impForm');
+    if (form) form.addEventListener('submit', async e => {
+        e.preventDefault();
+        const file = document.getElementById('impFile').files[0];
+        const version = document.getElementById('impVersion').value.trim();
+        const msg = document.getElementById('impMsg'), btn = document.getElementById('impBtn');
+        const bar = document.getElementById('impProgress'), wrap = document.getElementById('impProgressWrap');
+        if (!file || !version) { msg.innerHTML = '<span class="text-danger">Enter the version and choose the file.</span>'; return; }
+        if (!/\.(zip|csv)$/i.test(file.name)) { msg.innerHTML = '<span class="text-danger">Choose the LOINC release .zip or Loinc.csv.</span>'; return; }
+        const uploadId = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(16) + Math.random().toString(16).slice(2)).replace(/-/g, '').slice(0, 32).padEnd(32, '0');
+        btn.disabled = true; wrap.classList.remove('d-none'); msg.textContent = 'Uploading…';
+        const chunks = Math.max(1, Math.ceil(file.size / CHUNK));
+        try {
+            for (let i = 0; i < chunks; i++) {
+                const blob = file.slice(i * CHUNK, Math.min(file.size, (i + 1) * CHUNK));
+                let ok = false, err = null;
+                for (let attempt = 0; attempt < 3 && !ok; attempt++) {     // retry a chunk on a network blip
+                    try {
+                        const r = await fetch('@Url.Action("UploadChunk")?uploadId=' + uploadId + '&index=' + i, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: blob });
+                        const j = await r.json(); ok = j.success; err = j.error;
+                    } catch (x) { err = 'Network error'; }
+                }
+                if (!ok) throw new Error(err || 'Upload failed.');
+                const pct = Math.round((i + 1) * 100 / chunks);
+                bar.style.width = pct + '%'; bar.textContent = pct + '%';
+            }
+            msg.textContent = 'Starting the import…';
+            const r = await fetch('@Url.Action("StartImport")', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ uploadId, fileName: file.name, versionCode: version, releaseDate: document.getElementById('impDate').value || null, notes: document.getElementById('impNotes').value || null }) });
+            const j = await r.json();
+            if (!j.success) throw new Error(j.error || 'The import could not start.');
+            msg.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Uploaded. The import runs in the background (job ' + j.jobId + ').</span>';
+            setTimeout(() => location.reload(), 1200);
+        } catch (x) {
+            msg.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + esc(x.message) + '</span>';
+            btn.disabled = false; bar.classList.remove('progress-bar-animated');
+        }
+    });
+
+    // ── live status of running imports ──────────────────────────────────────────────────────────────
+    const runningRows = [...document.querySelectorAll('tr[data-status="Running"], tr[data-status="Queued"]')];
+    if (runningRows.length) {
+        const poll = async () => {
+            let done = true;
+            for (const row of runningRows) {
+                try {
+                    const r = await fetch('@Url.Action("ImportStatus")?jobId=' + row.dataset.job);
+                    if (!r.ok) continue;
+                    const j = await r.json();
+                    const cell = row.children[1];
+                    cell.innerHTML = '<span class="ad-pill amber">' + esc(j.status) + '</span><div class="ad-note mt-1">' + esc(j.message || '') + '</div>';
+                    row.children[3].textContent = (j.rowsRead || 0).toLocaleString();
+                    if (j.status === 'Queued' || j.status === 'Running') done = false;
+                } catch { done = false; }
+            }
+            if (done) location.reload(); else setTimeout(poll, 3000);
+        };
+        setTimeout(poll, 2000);
+    }
+
+    // ── errors / warnings of an import ──────────────────────────────────────────────────────────────
+    let errJob = 0, errPageNo = 1, errTotal = 0;
+    const errModal = new bootstrap.Modal(document.getElementById('errModal'));
+    async function loadErrors() {
+        const r = await fetch('@Url.Action("ImportErrors")?jobId=' + errJob + '&page=' + errPageNo);
+        const j = await r.json();
+        errTotal = j.totalCount || 0;
+        const pill = s => s === 'CRITICAL' ? 'red' : s === 'ERROR' ? 'amber' : 'grey';
+        document.getElementById('errBody').innerHTML = (j.items || []).map(e =>
+            '<tr><td class="ps-3"><span class="ad-pill ' + pill(e.severity) + '">' + esc(e.severity) + '</span></td><td>' + esc(e.rowNumber ?? '') + '</td><td class="ad-code">' + esc(e.loincCode ?? '') +
+            '</td><td>' + esc(e.reason) + '</td><td class="ad-note">' + esc(e.fileName ?? '') + '</td></tr>').join('') ||
+            '<tr><td colspan="5" class="text-center text-muted py-4">No errors or warnings.</td></tr>';
+        const pages = Math.max(1, Math.ceil(errTotal / 50));
+        document.getElementById('errCount').textContent = '(' + errTotal.toLocaleString() + ')';
+        document.getElementById('errPage').textContent = 'Page ' + errPageNo + ' of ' + pages;
+        document.getElementById('errPrev').disabled = errPageNo <= 1;
+        document.getElementById('errNext').disabled = errPageNo >= pages;
+    }
+    document.querySelectorAll('[data-errors]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); errJob = a.dataset.errors; errPageNo = 1; loadErrors(); errModal.show(); }));
+    document.getElementById('errPrev').addEventListener('click', () => { errPageNo--; loadErrors(); });
+    document.getElementById('errNext').addEventListener('click', () => { errPageNo++; loadErrors(); });
+
+    // ── publish / discard ───────────────────────────────────────────────────────────────────────────
+    async function act(url, releaseId, title, text, confirmText, color) {
+        const c = await Swal.fire({ icon: 'question', title, html: text, showCancelButton: true, confirmButtonText: confirmText, confirmButtonColor: color });
+        if (!c.isConfirmed) return;
+        Swal.fire({ title: 'Working…', text: 'This can take a few minutes for a full release.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ releaseId: +releaseId }) });
+        const j = await r.json();
+        if (j.success) Swal.fire({ icon: 'success', title: 'Done', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+        else Swal.fire({ icon: 'error', title: 'Not done', text: j.error || 'Please try again.' });
+    }
+    document.querySelectorAll('[data-publish]').forEach(b => b.addEventListener('click', () =>
+        act('@Url.Action("Publish")', b.dataset.publish, 'Publish LOINC ' + b.dataset.version + '?',
+            'New and changed concepts go into the local repository; concepts missing from this release are marked retired (never deleted).<br>Local mappings to changed or retired concepts are flagged for review.<br><br>Your Investigation Master is <b>not</b> changed.',
+            'Publish', '#16a34a')));
+    document.querySelectorAll('[data-discard]').forEach(b => b.addEventListener('click', () =>
+        act('@Url.Action("Discard")', b.dataset.discard, 'Discard the import of ' + b.dataset.version + '?', 'The staged rows and the change report are removed. The published repository is not affected.', 'Discard', '#dc2626')));
+})();
+</script>
+}

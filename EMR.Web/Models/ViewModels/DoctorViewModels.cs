@@ -106,6 +106,32 @@ public class DoctorFormViewModel
     public List<SelectListItem> DepartmentOptions { get; set; } = [];
 }
 
+/// <summary>Master > Doctor Master list, one page of doctors from the server (SQLScripts/2315).</summary>
+public class DoctorListPageViewModel
+{
+    public List<DoctorListItemViewModel> Items { get; set; } = new();
+    public int TotalDoctors { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int InactiveDoctors { get; set; }
+    public int OpdDoctors { get; set; }
+    public int WithFees { get; set; }
+    public int FilteredCount { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 25;
+    public string? Search { get; set; }
+    public string? Status { get; set; }
+    public string? Referral { get; set; }
+    public string? Speciality { get; set; }
+    public string? Department { get; set; }
+    public int? DoctorId { get; set; }
+    public List<string> Specialities { get; set; } = new();
+    /// <summary>Department name and its type (OPD / IPD / LAB) for the filter labels.</summary>
+    public List<(string Name, string Type)> Departments { get; set; } = new();
+    public int TotalPages => PageSize > 0 ? Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)PageSize)) : 1;
+    public bool HasFilter => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Referral)
+                             || !string.IsNullOrWhiteSpace(Speciality) || !string.IsNullOrWhiteSpace(Department) || DoctorId is > 0;
+}
+
 public class DoctorListItemViewModel
 {
     public int DoctorId { get; set; }

@@ -24,7 +24,10 @@ public class DoctorsController(
     IAuditLogService auditLogService,
     IPasswordHasherService passwordHasherService) : Controller
 {
-    public async Task<IActionResult> Index([FromQuery] int? doctorId = null, [FromQuery] int page = 1)
+    /// <summary>Doctor Master list, paged and filtered on the server (SQLScripts/2315).</summary>
+    public async Task<IActionResult> Index([FromQuery] int? doctorId = null, [FromQuery] string? search = null, [FromQuery] string? status = null,
+        [FromQuery] string? referral = null, [FromQuery] string? speciality = null, [FromQuery] string? department = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
         var branchId = User.GetCurrentBranchId();
 
@@ -33,55 +36,62 @@ public class DoctorsController(
             : null;
         ViewBag.SelectedDoctorId = doctorId;
 
+        if (page < 1) page = 1;
+        if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 25;
+        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" ? status.Trim().ToLowerInvariant() : null;
+        referral = referral?.Trim().ToLowerInvariant() is "yes" or "no" ? referral.Trim().ToLowerInvariant() : null;
+        search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        speciality = string.IsNullOrWhiteSpace(speciality) ? null : speciality.Trim();
+        department = string.IsNullOrWhiteSpace(department) ? null : department.Trim();
+        var oneDoctor = doctorId is > 0 ? doctorId : null;
+
         try
         {
             // Strictly via EMR.Api — no DB fallback
-            // All doctors of the branch in one call: the list filters instantly in the browser (User Master pattern)
-            var pagedDoctors = await doctorApiClient.GetListAsync(branchId, pageNumber: 1, pageSize: 5000, companyId: User.GetCompanyId());
-            var apiDoctors = pagedDoctors.Items;
-            
-            if (doctorId.HasValue && doctorId.Value > 0)
+            var result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize);
+            // a page past the end (e.g. after narrowing the filter): show the last page
+            var lastPage = Math.Max(1, (int)Math.Ceiling(result.FilteredCount / (double)pageSize));
+            if (page > lastPage)
             {
-                apiDoctors = apiDoctors.Where(d => d.DoctorId == doctorId.Value).ToList();
-                var selectedDoctor = apiDoctors.FirstOrDefault();
-                if (selectedDoctor != null)
-                {
-                    ViewBag.SelectedDoctorName = $"{selectedDoctor.FullName} ({selectedDoctor.PrimarySpecialityName})";
-                }
-                
-                // Override pagination stats for single-item filter
-                pagedDoctors.TotalCount = selectedDoctor != null ? 1 : 0;
-                pagedDoctors.Page = 1;
-                pagedDoctors.PageSize = 1;
+                page = lastPage;
+                result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize);
             }
+            if (oneDoctor.HasValue && result.Items.FirstOrDefault() is { } selected)
+                ViewBag.SelectedDoctorName = $"{selected.FullName} ({selected.PrimarySpecialityName})";
 
-            var doctors = apiDoctors.Select(d => new DoctorListItemViewModel
+            var model = new DoctorListPageViewModel
             {
-                DoctorId              = d.DoctorId,
-                FullName              = d.FullName,
-                PrimarySpecialityName = d.PrimarySpecialityName ?? string.Empty,
-                DepartmentNames       = d.DepartmentNames ?? string.Empty,
-                PhoneNumber           = d.PhoneNumber ?? string.Empty,
-                EmailId               = d.EmailId ?? string.Empty,
-                IsActive              = d.IsActive,
-                ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
-                HasOPDDept            = d.HasOPDDept,
-                IsReferralDoctor      = d.IsReferralDoctor
-            });
-            
-            // Stats from the paged result (before local filter if any)
-            ViewBag.TotalCount = pagedDoctors.TotalCount;
-            ViewBag.CurrentPage = pagedDoctors.Page;
-            ViewBag.TotalPages = pagedDoctors.TotalPages;
-            ViewBag.PageSize = pagedDoctors.PageSize;
-
-            // Department name -> Type (Department Master) for the "Pathology (LAB)" filter labels
-            ViewBag.DeptTypes = (await dbContext.DepartmentMasters.AsNoTracking()
-                    .Select(d => new { d.DeptName, d.DeptType }).ToListAsync())
-                .GroupBy(d => d.DeptName.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => (g.First().DeptType ?? string.Empty).Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase);
-
-            return View(doctors);
+                Items = result.Items.Select(d => new DoctorListItemViewModel
+                {
+                    DoctorId              = d.DoctorId,
+                    FullName              = d.FullName,
+                    PrimarySpecialityName = d.PrimarySpecialityName ?? string.Empty,
+                    DepartmentNames       = d.DepartmentNames ?? string.Empty,
+                    PhoneNumber           = d.PhoneNumber ?? string.Empty,
+                    EmailId               = d.EmailId ?? string.Empty,
+                    IsActive              = d.IsActive,
+                    ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
+                    HasOPDDept            = d.HasOPDDept,
+                    IsReferralDoctor      = d.IsReferralDoctor
+                }).ToList(),
+                TotalDoctors = result.TotalDoctors,
+                ActiveDoctors = result.ActiveDoctors,
+                InactiveDoctors = result.InactiveDoctors,
+                OpdDoctors = result.OpdDoctors,
+                WithFees = result.WithFees,
+                FilteredCount = result.FilteredCount,
+                Page = page,
+                PageSize = pageSize,
+                Search = search,
+                Status = status,
+                Referral = referral,
+                Speciality = speciality,
+                Department = department,
+                DoctorId = oneDoctor,
+                Specialities = result.Specialities,
+                Departments = result.Departments.Select(d => (d.Name, d.Type)).ToList()
+            };
+            return View(model);
         }
         catch (HttpRequestException)
         {

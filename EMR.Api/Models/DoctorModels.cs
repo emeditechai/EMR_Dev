@@ -72,3 +72,25 @@ public class DoctorUpdateRequest : DoctorCreateRequest
 {
     public int DoctorId { get; set; }
 }
+
+/// <summary>Master > Doctor Master list, paged on the server (SQLScripts/2315).</summary>
+public class DoctorPagedList
+{
+    public int TotalDoctors { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int InactiveDoctors { get; set; }
+    public int OpdDoctors { get; set; }
+    public int WithFees { get; set; }
+    public int FilteredCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<DoctorListItem> Items { get; set; } = [];
+    public List<string> Specialities { get; set; } = [];
+    public List<DoctorDeptOption> Departments { get; set; } = [];
+}
+
+public class DoctorDeptOption
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "";
+}

@@ -1,0 +1,227 @@
+@model EMR.Web.ApiClients.Models.TermPaged<EMR.Web.ApiClients.Models.LoincConceptRow>
+@{
+    ViewData["Title"] = "Standard Test Search";
+    ViewData["ApiDataPage"] = "Search";
+    var classes = ViewBag.Classes as List<EMR.Web.ApiClients.Models.LoincClassRow> ?? new();
+    string? q = ViewBag.Q, cls = ViewBag.ClassName, status = ViewBag.Status, orderObs = ViewBag.OrderObs;
+    bool all = ViewBag.All, retired = ViewBag.Retired, online = ViewBag.Online;
+    var pages = Math.Max(1, (int)Math.Ceiling(Model.TotalCount / (double)Math.Max(1, Model.PageSize)));
+    string PageUrl(int p) => Url.Action("Search", new { q, className = cls, status, orderObs, all, retired, page = p, pageSize = Model.PageSize })!;
+    string StatusPill(string? s) => s switch { "ACTIVE" => "green", "TRIAL" => "blue", "DISCOURAGED" => "amber", "DEPRECATED" => "red", _ => "grey" };
+}
+
+<div class="container-fluid px-4 py-3">
+    <partial name="_ApiDataNav" />
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active fw-semibold" data-bs-toggle="tab" data-bs-target="#tabLocal" type="button"><i class="bi bi-hdd-stack me-1"></i>Local repository</button></li>
+        <li class="nav-item" asp-permission="UTILITY.APIDATA.SEARCH:ONLINE"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tabOnline" type="button"><i class="bi bi-globe2 me-1"></i>Online (LOINC Search API)</button></li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Local repository -->
+        <div class="tab-pane fade show active" id="tabLocal">
+            <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3">
+                <form method="get" asp-action="Search" class="row g-2 align-items-end" id="srchForm">
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+                    <div class="col-lg-4">
+                        <label class="form-label small fw-semibold text-muted mb-1">Test name, component or LOINC code</label>
+                        <div class="input-group"><span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                            <input name="q" value="@q" class="form-control" placeholder="e.g. glucose serum, hemoglobin, 2345-7" autofocus /></div>
+                    </div>
+                    <div class="col-lg-2 col-md-4">
+                        <label class="form-label small fw-semibold text-muted mb-1">LOINC class</label>
+                        <select name="className" class="form-select" onchange="this.form.submit()">
+                            <option value="">All classes</option>
+                            @foreach (var c in classes)
+                            {
+                                <option value="@c.ClassName" selected="@(cls == c.ClassName)">@c.ClassName (@c.Concepts.ToString("N0"))</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <label class="form-label small fw-semibold text-muted mb-1">Status</label>
+                        <select name="status" class="form-select" onchange="this.form.submit()">
+                            @foreach (var (v, t) in new[] { ("", "Any status"), ("ACTIVE", "Active"), ("TRIAL", "Trial"), ("DISCOURAGED", "Discouraged"), ("DEPRECATED", "Deprecated") })
+                            {
+                                <option value="@v" selected="@((status ?? "") == v)">@t</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-4 col-6">
+                        <label class="form-label small fw-semibold text-muted mb-1">Orderable / result</label>
+                        <select name="orderObs" class="form-select" onchange="this.form.submit()">
+                            @foreach (var (v, t) in new[] { ("", "Both"), ("Order", "Orderable (panels)"), ("Observation", "Results") })
+                            {
+                                <option value="@v" selected="@((orderObs ?? "") == v)">@t</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-lg-2 d-flex flex-column gap-1">
+                        <div class="form-check form-switch small mb-0"><input class="form-check-input" type="checkbox" name="all" value="true" id="chkAll" @(all ? "checked" : "") onchange="this.form.submit()" /><label class="form-check-label" for="chkAll">Non-lab concepts too</label></div>
+                        <div class="form-check form-switch small mb-0"><input class="form-check-input" type="checkbox" name="retired" value="true" id="chkRet" @(retired ? "checked" : "") onchange="this.form.submit()" /><label class="form-check-label" for="chkRet">Include retired</label></div>
+                    </div>
+                </form>
+            </div></div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold"><i class="bi bi-list-ul text-primary me-2"></i>Standard tests</span>
+                    <span class="small text-muted">@(Model.TotalCount == 0 ? "No match" : $"Showing {(Model.Page - 1) * Model.PageSize + 1:N0}–{Math.Min(Model.Page * Model.PageSize, Model.TotalCount):N0} of {Model.TotalCount:N0}")</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 ad-table">
+                        <thead><tr><th class="ps-3">LOINC</th><th>Standard name</th><th>Component / property</th><th>System</th><th>Scale / method</th><th>Units (UCUM)</th><th>Status</th><th class="text-center pe-3">Local</th></tr></thead>
+                        <tbody>
+                            @foreach (var c in Model.Items)
+                            {
+                                <tr style="cursor:pointer" data-concept="@c.LoincCode">
+                                    <td class="ps-3 ad-code">@c.LoincCode</td>
+                                    <td><div class="fw-semibold">@c.LongCommonName</div><div class="ad-note">@c.ClassName @(c.OrderObs is null ? "" : "· " + c.OrderObs)</div></td>
+                                    <td class="ad-attr">@c.Component<div class="ad-note">@c.Property · @c.TimeAspect</div></td>
+                                    <td class="ad-attr">@c.SystemName</td>
+                                    <td class="ad-attr">@c.ScaleType<div class="ad-note">@c.MethodName</div></td>
+                                    <td class="ad-attr font-monospace">@c.ExampleUcumUnits</td>
+                                    <td><span class="ad-pill @StatusPill(c.Status)">@c.Status</span>@if (c.IsRetired) { <span class="ad-pill red ms-1">Retired</span> }</td>
+                                    <td class="text-center pe-3">
+                                        @if (c.ApprovedMappings > 0) { <span class="ad-pill green" title="Approved local mappings">@c.ApprovedMappings mapped</span> }
+                                        else if (c.PendingMappings > 0) { <span class="ad-pill amber">@c.PendingMappings pending</span> }
+                                        else { <span class="text-muted small">—</span> }
+                                    </td>
+                                </tr>
+                            }
+                            @if (!Model.Items.Any())
+                            {
+                                <tr><td colspan="8" class="text-center text-muted py-5">
+                                    <i class="bi bi-search display-6 d-block mb-2"></i>
+                                    @(string.IsNullOrWhiteSpace(q) ? "No concepts in the local repository yet - import a LOINC release in Terminology Import." : "No standard test matches. Try fewer words, or the Online tab.")
+                                </td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (pages > 1)
+                {
+                    <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                        <span class="small text-muted">Page @Model.Page of @pages.ToString("N0")</span>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(Model.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(1)"><i class="bi bi-chevron-double-left"></i></a></li>
+                            <li class="page-item @(Model.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(Model.Page - 1)"><i class="bi bi-chevron-left"></i></a></li>
+                            <li class="page-item active"><span class="page-link">@Model.Page</span></li>
+                            <li class="page-item @(Model.Page >= pages ? "disabled" : "")"><a class="page-link" href="@PageUrl(Model.Page + 1)"><i class="bi bi-chevron-right"></i></a></li>
+                            <li class="page-item @(Model.Page >= pages ? "disabled" : "")"><a class="page-link" href="@PageUrl(pages)"><i class="bi bi-chevron-double-right"></i></a></li>
+                        </ul>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Online -->
+        <div class="tab-pane fade" id="tabOnline">
+            @if (!online)
+            {
+                <div class="alert alert-warning small">
+                    <i class="bi bi-info-circle me-1"></i>The LOINC Search API is not configured. Add <code>LoincSearchApi:Username</code> and <code>LoincSearchApi:Password</code>
+                    (a free loinc.org account) to the <b>API</b> settings (appsettings.json of EMR.Api) and restart it. The local repository works without it.
+                </div>
+            }
+            <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3">
+                <div class="row g-2 align-items-end">
+                    <div class="col-lg-6">
+                        <label class="form-label small fw-semibold text-muted mb-1">Search loinc.org</label>
+                        <div class="input-group"><input id="onQ" class="form-control" placeholder="e.g. hba1c, vitamin d 25" />
+                            <button class="btn btn-primary" id="onBtn" type="button"><i class="bi bi-globe2 me-1"></i>Search online</button></div>
+                    </div>
+                    <div class="col-lg-6 ad-note">Concepts found online can be added to the local repository one by one (release <b>API-LOOKUP</b>). For the full catalogue, import the official release file.</div>
+                </div>
+            </div></div>
+            <div class="card border-0 shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 ad-table">
+                        <thead><tr><th class="ps-3">LOINC</th><th>Standard name</th><th>System</th><th>Scale</th><th>Status</th><th class="text-end pe-3"></th></tr></thead>
+                        <tbody id="onBody"><tr><td colspan="6" class="text-center text-muted py-4">Search to see results from the LOINC Search API.</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="card-footer bg-white d-flex justify-content-between align-items-center"><span class="small text-muted" id="onInfo"></span>
+                    <div><button class="btn btn-sm btn-outline-secondary" id="onPrev" disabled>Previous</button> <button class="btn btn-sm btn-outline-secondary" id="onNext" disabled>Next</button></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Concept detail -->
+<div class="modal fade" id="conceptModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header"><h6 class="modal-title fw-bold" id="cmTitle"></h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body" id="cmBody"></div>
+            <div class="modal-footer py-2">
+                <a class="btn btn-sm btn-primary" asp-permission="UTILITY.APIDATA.MAPPING:VIEW" asp-action="Mapping"><i class="bi bi-diagram-3 me-1"></i>Map local investigations</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const pill = s => ({ ACTIVE: 'green', TRIAL: 'blue', DISCOURAGED: 'amber', DEPRECATED: 'red' }[s] || 'grey');
+    const modal = new bootstrap.Modal(document.getElementById('conceptModal'));
+
+    document.querySelectorAll('tr[data-concept]').forEach(tr => tr.addEventListener('click', async () => {
+        const r = await fetch('@Url.Action("Concept")?code=' + encodeURIComponent(tr.dataset.concept));
+        if (!r.ok) return;
+        const d = await r.json(), c = d.concept;
+        document.getElementById('cmTitle').innerHTML = '<span class="ad-code me-2">' + esc(c.loincCode) + '</span>' + esc(c.longCommonName);
+        const row = (k, v) => v ? '<tr><th class="text-muted fw-semibold small" style="width:30%">' + k + '</th><td class="small">' + esc(v) + '</td></tr>' : '';
+        document.getElementById('cmBody').innerHTML =
+            '<table class="table table-sm mb-3">' + row('Short name', c.shortName) + row('Component', c.component) + row('Property', c.property) + row('Time', c.timeAspect) +
+            row('System (specimen)', c.systemName) + row('Scale', c.scaleType) + row('Method', c.methodName) + row('Class', c.className) +
+            row('Order / observation', c.orderObs) + row('Example units', c.exampleUnits) + row('UCUM units', c.exampleUcumUnits) +
+            '<tr><th class="text-muted fw-semibold small">Status</th><td><span class="ad-pill ' + pill(c.status) + '">' + esc(c.status) + '</span>' + (c.isRetired ? ' <span class="ad-pill red">Retired</span>' : '') + '</td></tr>' +
+            row('Release', (c.sourceVersion || '') + (c.firstVersion ? ' (first seen ' + c.firstVersion + ')' : '')) + '</table>' +
+            '<h6 class="fw-bold small text-uppercase text-muted">Local investigations mapped</h6>' +
+            ((d.mappings || []).length ? '<ul class="small">' + d.mappings.map(m => '<li>' + esc(m.testName) + ' <span class="text-muted">(' + esc(m.testCode) + ')</span> <span class="ad-pill ' +
+                (m.mappingStatus === 'Approved' ? 'green' : m.mappingStatus === 'Pending' ? 'amber' : 'grey') + '">' + esc(m.mappingStatus) + '</span>' + (m.isPreferred ? ' <span class="ad-pill violet">Preferred</span>' : '') + '</li>').join('') + '</ul>'
+                : '<div class="small text-muted mb-2">None yet.</div>') +
+            ((d.history || []).length ? '<h6 class="fw-bold small text-uppercase text-muted mt-3">Release history</h6><ul class="small">' +
+                d.history.map(h => '<li>' + esc(h.versionCode) + ': ' + esc(h.changeType) + (h.changedFields ? ' (' + esc(h.changedFields) + ')' : '') + '</li>').join('') + '</ul>' : '') +
+            '<div class="ad-note mt-3">Reference ranges, prices, sample rules and report layouts are local decisions - they are never taken from a standard code.</div>';
+        modal.show();
+    }));
+
+    // ── online ─────────────────────────────────────────────────────────────────────────────────────
+    const q = document.getElementById('onQ');
+    if (!q) return;
+    let page = 1, last = [];
+    async function online() {
+        if (!q.value.trim()) return;
+        const body = document.getElementById('onBody');
+        body.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Searching loinc.org…</td></tr>';
+        const r = await fetch('@Url.Action("OnlineSearch")?q=' + encodeURIComponent(q.value.trim()) + '&page=' + page);
+        const j = await r.json();
+        last = j.items || [];
+        if (!j.success) { body.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">' + esc(j.message || 'The search failed.') + '</td></tr>'; return; }
+        body.innerHTML = last.map((c, i) => '<tr><td class="ps-3 ad-code">' + esc(c.loincCode) + '</td><td><div class="fw-semibold">' + esc(c.longCommonName) + '</div><div class="ad-note">' + esc(c.className || '') + '</div></td><td class="ad-attr">' +
+            esc(c.systemName) + '</td><td class="ad-attr">' + esc(c.scaleType) + '</td><td><span class="ad-pill ' + pill(c.status) + '">' + esc(c.status) + '</span></td><td class="text-end pe-3">' +
+            (c.inLocal ? '<span class="ad-pill green">In local repository</span>' : '<button class="btn btn-sm btn-outline-primary" data-add="' + i + '"><i class="bi bi-plus-lg me-1"></i>Add to local</button>') + '</td></tr>').join('') ||
+            '<tr><td colspan="6" class="text-center text-muted py-4">No result.</td></tr>';
+        document.getElementById('onInfo').textContent = (j.totalFound || 0).toLocaleString() + ' found · page ' + page;
+        document.getElementById('onPrev').disabled = page <= 1;
+        document.getElementById('onNext').disabled = page * 20 >= (j.totalFound || 0);
+        body.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', async () => {
+            b.disabled = true;
+            const rr = await fetch('@Url.Action("SaveLookup")', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(last[+b.dataset.add]) });
+            const jj = await rr.json();
+            if (jj.success) b.outerHTML = '<span class="ad-pill green">Added</span>';
+            else { b.disabled = false; Swal.fire({ icon: 'error', title: 'Not added', text: jj.error || 'Please try again.' }); }
+        }));
+    }
+    document.getElementById('onBtn').addEventListener('click', () => { page = 1; online(); });
+    q.addEventListener('keydown', e => { if (e.key === 'Enter') { page = 1; online(); } });
+    document.getElementById('onPrev').addEventListener('click', () => { page--; online(); });
+    document.getElementById('onNext').addEventListener('click', () => { page++; online(); });
+})();
+</script>
+}

@@ -12,6 +12,19 @@ public class DoctorApiClient : IDoctorApiClient
         _http = factory.CreateClient("EmrApi");
     }
 
+    public async Task<DoctorPagedList> GetPagedListAsync(int? companyId, int? branchId, string? search, string? status, string? referral,
+        string? speciality, string? department, int? doctorId, int pageNumber, int pageSize)
+    {
+        var q = new List<string> { $"pageNumber={pageNumber}", $"pageSize={pageSize}" };
+        if (companyId is > 0) q.Add($"companyId={companyId}");
+        if (branchId.HasValue) q.Add($"branchId={branchId}");
+        if (doctorId is > 0) q.Add($"doctorId={doctorId}");
+        void Add(string k, string? v) { if (!string.IsNullOrWhiteSpace(v)) q.Add($"{k}={Uri.EscapeDataString(v.Trim())}"); }
+        Add("search", search); Add("status", status); Add("referral", referral); Add("speciality", speciality); Add("department", department);
+        var response = await _http.GetFromJsonAsync<ApiResponse<DoctorPagedList>>("api/doctors/paged?" + string.Join("&", q));
+        return response?.Data ?? new DoctorPagedList();
+    }
+
     public async Task<PagedResult<DoctorListItem>> GetListAsync(int? branchId = null, string? searchQuery = null, int pageNumber = 1, int pageSize = 10, int? companyId = null)
     {
         var url = "api/doctors";

@@ -26,6 +26,28 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         };
     }
 
+    public async Task<DoctorPagedList> GetPagedListAsync(int? companyId, int? branchId, string? search, string? status, string? referral,
+        string? speciality, string? department, int? doctorId, int pageNumber, int pageSize)
+    {
+        var page = Math.Max(1, pageNumber);
+        var size = pageSize is < 1 or > 200 ? 25 : pageSize;
+        using var con = db.CreateConnection();
+        using var multi = await con.QueryMultipleAsync("usp_Api_Doctor_GetPagedList", new
+        {
+            CompanyId = companyId, BranchId = branchId, Search = search, Status = status, Referral = referral,
+            Speciality = speciality, Department = department, DoctorId = doctorId, PageNumber = page, PageSize = size
+        }, commandType: CommandType.StoredProcedure);
+
+        var result = await multi.ReadSingleAsync<DoctorPagedList>();
+        result.FilteredCount = await multi.ReadSingleAsync<int>();
+        result.Items = (await multi.ReadAsync<DoctorListItem>()).ToList();
+        result.Specialities = (await multi.ReadAsync<string>()).ToList();
+        result.Departments = (await multi.ReadAsync<DoctorDeptOption>()).ToList();
+        result.Page = page;
+        result.PageSize = size;
+        return result;
+    }
+
     // ─── GET BY ID ────────────────────────────────────────────────────────────
 
     public async Task<DoctorDetail?> GetByIdAsync(int doctorId, int? branchId = null, int? companyId = null)

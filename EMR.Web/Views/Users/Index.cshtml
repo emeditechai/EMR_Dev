@@ -1,13 +1,18 @@
-@model IEnumerable<EMR.Web.Models.ViewModels.UserListItemViewModel>
+@model EMR.Web.Models.ViewModels.UserListPageViewModel
 @{
     ViewData["Title"] = "User Master";
-    var users = Model.ToList();
-    var total = users.Count;
-    var active = users.Count(x => x.IsActive);
-    var inactive = total - active;
-    var pathologists = users.Count(x => x.IsPathologist);
-    var signed = users.Count(x => x.IsPathologist && x.HasSignature);
-    var labTechs = users.Count(x => x.IsLabTechnician);
+    // one page of users from the server (SQLScripts/2314); the KPI cards count every user this login may see
+    var users = Model.Items;
+    var total = Model.TotalUsers;
+    var active = Model.ActiveUsers;
+    var inactive = Model.InactiveUsers;
+    var pathologists = Model.Pathologists;
+    var signed = Model.PathologistsSigned;
+    var labTechs = Model.LabTechnicians;
+    var firstRow = Model.FilteredCount == 0 ? 0 : (Model.Page - 1) * Model.PageSize + 1;
+    var lastRow = Math.Min(Model.Page * Model.PageSize, Model.FilteredCount);
+    // links keep the filter
+    string PageUrl(int p, int? size = null) => Url.Action("Index", new { search = Model.Search, userType = Model.UserType, status = Model.Status, role = Model.Role, page = p, pageSize = size ?? Model.PageSize })!;
     var avatarColors = new[] { "#2563eb", "#7c3aed", "#0d9488", "#d97706", "#db2777", "#0891b2" };
 }
 
@@ -24,6 +29,8 @@
     .um-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
     .um-kpi .um-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
     .um-kpi .um-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
+    .um-pager .page-link { min-width: 2.25rem; text-align: center; }
+    .um-loading { opacity: .55; pointer-events: none; transition: opacity .15s; }
 </style>
 
 <div class="container-fluid px-4 py-3">
@@ -110,50 +117,49 @@
         </div>
     </div>
 
-    <!-- Filters (applied instantly in the browser) -->
+    <!-- Filters (applied on the server: the lists drop-downs apply at once, the search after a short pause) -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body p-3">
-            <div class="row g-3 align-items-end">
+            <form method="get" asp-action="Index" id="umFilter" class="row g-3 align-items-end">
+                <input type="hidden" name="pageSize" value="@Model.PageSize" />
                 <div class="col-md-3">
                     <label class="form-label small fw-semibold text-muted mb-1">Search</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
-                        <input type="text" id="umSearch" class="form-control border-start-0" placeholder="Name, username, email, employee code, department or branch..." autocomplete="off" />
+                        <input type="text" id="umSearch" name="search" value="@Model.Search" class="form-control border-start-0" placeholder="Name, username, email, employee code, department or branch..." autocomplete="off" />
                     </div>
                 </div>
                 <div class="col-md-2 col-6">
                     <label class="form-label small fw-semibold text-muted mb-1">User Type</label>
-                    <select id="umType" class="form-select">
-                        <option value="">All types</option>
-                        <option value="U">General user</option>
-                        <option value="D">Doctor</option>
-                        <option value="F">Franchise</option>
-                        <option value="C">Company</option>
+                    <select id="umType" name="userType" class="form-select">
+                        @foreach (var (v, t) in new[] { ("", "All types"), ("U", "General user"), ("D", "Doctor"), ("F", "Franchise"), ("C", "Company") })
+                        {
+                            <option value="@v" selected="@((Model.UserType ?? "") == v)">@t</option>
+                        }
                     </select>
                 </div>
                 <div class="col-md-2 col-6">
                     <label class="form-label small fw-semibold text-muted mb-1">Status</label>
-                    <select id="umStatus" class="form-select">
-                        <option value="">All statuses</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
+                    <select id="umStatus" name="status" class="form-select">
+                        @foreach (var (v, t) in new[] { ("", "All statuses"), ("active", "Active"), ("inactive", "Inactive") })
+                        {
+                            <option value="@v" selected="@((Model.Status ?? "") == v)">@t</option>
+                        }
                     </select>
                 </div>
                 <div class="col-md-3 col-6">
                     <label class="form-label small fw-semibold text-muted mb-1">Role / Designation</label>
-                    <select id="umRole" class="form-select">
-                        <option value="">All roles</option>
-                        <option value="nurse">Nurse</option>
-                        <option value="phlebotomist">Phlebotomist</option>
-                        <option value="pathologist">Pathologist</option>
-                        <option value="labtech">Lab Technician</option>
-                        <option value="logistics">Logistics Boy</option>
+                    <select id="umRole" name="role" class="form-select">
+                        @foreach (var (v, t) in new[] { ("", "All roles"), ("nurse", "Nurse"), ("phlebotomist", "Phlebotomist"), ("pathologist", "Pathologist"), ("labtech", "Lab Technician"), ("logistics", "Logistics Boy") })
+                        {
+                            <option value="@v" selected="@((Model.Role ?? "") == v)">@t</option>
+                        }
                     </select>
                 </div>
                 <div class="col-md-2 d-flex gap-2">
-                    <button type="button" id="umReset" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+                    <a href="@Url.Action("Index", new { pageSize = Model.PageSize })" id="umReset" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</a>
                 </div>
-            </div>
+            </form>
         </div>
     </div>
 
@@ -161,7 +167,16 @@
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
             <span class="fw-bold text-dark"><i class="bi bi-list-ul text-primary me-2"></i>Users</span>
-            <span class="text-muted small" id="umCount">Showing @total of @total</span>
+            <span class="text-muted small" id="umCount">
+                @if (Model.FilteredCount == 0)
+                {
+                    <text>No users</text>
+                }
+                else
+                {
+                    <text>Showing <strong>@firstRow&ndash;@lastRow</strong> of <strong>@Model.FilteredCount</strong>@(Model.HasFilter ? $" matching (of {total})" : "")</text>
+                }
+            </span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -189,11 +204,10 @@
                             if (item.IsPathologist) { roles.Add("pathologist"); }
                             if (item.IsLabTechnician) { roles.Add("labtech"); }
                             if (item.IsLogisticsBoy) { roles.Add("logistics"); }
-                            var searchText = string.Join(' ', new[] { item.Username, item.FullName, item.Email, item.EmployeeCode, item.DepartmentNames, item.Branches, item.ReferenceName }).ToLowerInvariant();
                             var depts = (item.DepartmentNames ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries);
                             var branches = (item.Branches ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries);
 
-                            <tr class="@(item.IsActive ? "" : "um-inactive")" data-search="@searchText" data-status="@(item.IsActive ? "active" : "inactive")" data-roles="@string.Join(' ', roles)" data-type="@item.UserType">
+                            <tr class="@(item.IsActive ? "" : "um-inactive")">
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center gap-3">
                                         @if (!string.IsNullOrWhiteSpace(item.ProfilePicturePath))
@@ -317,57 +331,76 @@
                                 </td>
                             </tr>
                         }
-                        <tr id="umEmpty" style="@(users.Any() ? "display:none;" : "")">
-                            <td colspan="7" class="text-center py-5 text-muted">
-                                <i class="bi bi-people display-6 d-block mb-2 text-secondary"></i>
-                                <span id="umEmptyText">@(users.Any() ? "No users match your filters." : "No users found.")</span>
-                            </td>
-                        </tr>
+                        @if (!users.Any())
+                        {
+                            <tr id="umEmpty">
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="bi bi-people display-6 d-block mb-2 text-secondary"></i>
+                                    <span id="umEmptyText">@(Model.HasFilter ? "No users match your filters." : "No users found.")</span>
+                                </td>
+                            </tr>
+                        }
                     </tbody>
                 </table>
             </div>
         </div>
+        @if (Model.FilteredCount > 0)
+        {
+            <div class="card-footer bg-white border-top py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 small text-muted">
+                    <span>Rows per page</span>
+                    <select class="form-select form-select-sm" style="width:auto;" id="umPageSize" aria-label="Rows per page">
+                        @foreach (var size in new[] { 10, 25, 50, 100 })
+                        {
+                            <option value="@PageUrl(1, size)" selected="@(Model.PageSize == size)">@size</option>
+                        }
+                    </select>
+                    <span class="ms-2">Page <strong>@Model.Page</strong> of <strong>@Model.TotalPages</strong></span>
+                </div>
+                @if (Model.TotalPages > 1)
+                {
+                    var startPage = Math.Max(1, Model.Page - 2);
+                    var endPage = Math.Min(Model.TotalPages, startPage + 4);
+                    startPage = Math.Max(1, endPage - 4);
+                    <nav aria-label="User pages">
+                        <ul class="pagination pagination-sm mb-0 um-pager">
+                            <li class="page-item @(Model.Page == 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(1)" title="First page"><i class="bi bi-chevron-double-left"></i></a></li>
+                            <li class="page-item @(Model.Page == 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(Math.Max(1, Model.Page - 1))" title="Previous page"><i class="bi bi-chevron-left"></i></a></li>
+                            @for (var p = startPage; p <= endPage; p++)
+                            {
+                                <li class="page-item @(p == Model.Page ? "active" : "")"><a class="page-link" href="@PageUrl(p)">@p</a></li>
+                            }
+                            <li class="page-item @(Model.Page == Model.TotalPages ? "disabled" : "")"><a class="page-link" href="@PageUrl(Math.Min(Model.TotalPages, Model.Page + 1))" title="Next page"><i class="bi bi-chevron-right"></i></a></li>
+                            <li class="page-item @(Model.Page == Model.TotalPages ? "disabled" : "")"><a class="page-link" href="@PageUrl(Model.TotalPages)" title="Last page"><i class="bi bi-chevron-double-right"></i></a></li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+        }
     </div>
 </div>
 
 @section Scripts {
     <script>
         (function () {
-            const rows = [...document.querySelectorAll('#umTable tbody tr[data-search]')];
-            const $search = document.getElementById('umSearch');
-            const $status = document.getElementById('umStatus');
-            const $role = document.getElementById('umRole');
-            const $type = document.getElementById('umType');
-            const $count = document.getElementById('umCount');
-            const $empty = document.getElementById('umEmpty');
-
-            function apply() {
-                const term = $search.value.toLowerCase().trim();
-                const status = $status.value;
-                const role = $role.value;
-                const type = $type.value;
-                let shown = 0;
-
-                rows.forEach(r => {
-                    const ok = (!term || r.dataset.search.includes(term))
-                        && (!status || r.dataset.status === status)
-                        && (!role || r.dataset.roles.split(' ').includes(role))
-                        && (!type || r.dataset.type === type);
-                    r.style.display = ok ? '' : 'none';
-                    if (ok) shown++;
-                });
-
-                $count.textContent = 'Showing ' + shown + ' of ' + rows.length;
-                $empty.style.display = (rows.length > 0 && shown === 0) ? '' : 'none';
-            }
-
-            $search.addEventListener('input', apply);
-            $status.addEventListener('change', apply);
-            $role.addEventListener('change', apply);
-            $type.addEventListener('change', apply);
-            document.getElementById('umReset').addEventListener('click', () => {
-                $search.value = ''; $status.value = ''; $role.value = ''; $type.value = ''; apply(); $search.focus();
+            // filters run on the server: the drop-downs submit at once, the search after a short pause (from page 1)
+            const form = document.getElementById('umFilter');
+            const search = document.getElementById('umSearch');
+            const table = document.getElementById('umTable');
+            let timer = null;
+            function submit() { if (table) table.classList.add('um-loading'); form.submit(); }
+            ['umType', 'umStatus', 'umRole'].forEach(id => document.getElementById(id).addEventListener('change', submit));
+            search.addEventListener('input', () => {
+                clearTimeout(timer);
+                const v = search.value.trim();
+                if (v.length === 1) return;          // wait for at least two characters (or an empty box)
+                timer = setTimeout(submit, 550);
             });
+            search.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); submit(); } });
+            // keep the caret at the end of the search box after the page reloads
+            if (search.value) { search.focus(); const n = search.value.length; search.setSelectionRange(n, n); }
+            const size = document.getElementById('umPageSize');
+            if (size) size.addEventListener('change', () => { if (table) table.classList.add('um-loading'); location.href = size.value; });
         })();
     </script>
 }

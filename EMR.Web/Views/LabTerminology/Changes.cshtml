@@ -1,0 +1,109 @@
+@model EMR.Web.ApiClients.Models.TermChangesResult
+@{
+    ViewData["Title"] = "Release Changes";
+    ViewData["ApiDataPage"] = "Changes";
+    var releases = ViewBag.Releases as List<EMR.Web.ApiClients.Models.TermReleaseRow> ?? new();
+    int? rid = ViewBag.ReleaseId;
+    string? type = ViewBag.Type, search = ViewBag.Search;
+    var p = Model.Page;
+    var pages = Math.Max(1, (int)Math.Ceiling(p.TotalCount / (double)Math.Max(1, p.PageSize)));
+    string Url_(string? t, int pg = 1) => Url.Action("Changes", new { releaseId = rid, type = t, search, page = pg })!;
+    int C(string t) => Model.Counts.TryGetValue(t, out var n) ? n : 0;
+    var rel = releases.FirstOrDefault(r => r.ReleaseId == rid);
+}
+
+<div class="container-fluid px-4 py-3">
+    <partial name="_ApiDataNav" />
+
+    @if (!releases.Any())
+    {
+        <div class="alert alert-info small"><i class="bi bi-info-circle me-1"></i>No validated or published release yet - import one in <a asp-action="Releases">Terminology Import</a>.</div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3">
+            <form method="get" asp-action="Changes" class="row g-2 align-items-end">
+                <input type="hidden" name="type" value="@type" />
+                <div class="col-lg-3 col-md-6">
+                    <label class="form-label small fw-semibold text-muted mb-1">Release</label>
+                    <select name="releaseId" class="form-select" onchange="this.form.submit()">
+                        @foreach (var r in releases)
+                        {
+                            <option value="@r.ReleaseId" selected="@(r.ReleaseId == rid)">@r.SystemCode @r.VersionCode - @r.Status</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-5 col-md-6">
+                    <label class="form-label small fw-semibold text-muted mb-1">Search</label>
+                    <input name="search" value="@search" class="form-control" placeholder="LOINC code or name" />
+                </div>
+                <div class="col-lg-2 col-6"><button class="btn btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filter</button></div>
+                <div class="col-lg-2 col-6"><a asp-action="Changes" asp-route-releaseId="@rid" class="btn btn-outline-secondary w-100">Reset</a></div>
+            </form>
+            @if (rel?.Status == "Validated")
+            {
+                <div class="small text-warning-emphasis mt-2"><i class="bi bi-hourglass-split me-1"></i>This release is validated but <b>not published</b> - these are the changes publishing would make.</div>
+            }
+        </div></div>
+
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            @foreach (var (t, label, cls) in new (string?, string, string)[] { (null, "All", "btn-outline-dark"), ("ADDED", "New", "btn-outline-success"), ("MODIFIED", "Changed", "btn-outline-primary"),
+                ("STATUS", "Status changed", "btn-outline-warning"), ("RETIRED", "Missing / retired", "btn-outline-danger") })
+            {
+                var n = t is null ? Model.Counts.Values.Sum() : C(t);
+                <a href="@Url_(t)" class="btn btn-sm @cls @((type ?? "") == (t ?? "") ? "active" : "")">@label <span class="badge bg-light text-dark ms-1">@n.ToString("N0")</span></a>
+            }
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 ad-table">
+                    <thead><tr><th class="ps-3">LOINC</th><th>Change</th><th>Name</th><th>Fields</th><th>Status</th><th class="text-center pe-3">Local mappings</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in p.Items)
+                        {
+                            var pill = c.ChangeType switch { "ADDED" => "green", "MODIFIED" => "blue", "STATUS" => "amber", _ => "red" };
+                            <tr>
+                                <td class="ps-3 ad-code">@c.LoincCode</td>
+                                <td><span class="ad-pill @pill">@c.ChangeType</span></td>
+                                <td>
+                                    <div class="fw-semibold">@(c.NewName ?? c.OldName)</div>
+                                    @if (c.OldName is not null && c.NewName is not null && c.OldName != c.NewName)
+                                    {
+                                        <div class="ad-note"><s>@c.OldName</s></div>
+                                    }
+                                </td>
+                                <td class="ad-attr">@c.ChangedFields</td>
+                                <td class="small">@(c.OldStatus is not null && c.OldStatus != c.NewStatus ? $"{c.OldStatus} → {c.NewStatus ?? "—"}" : c.NewStatus ?? c.OldStatus)</td>
+                                <td class="text-center pe-3">
+                                    @if (c.LocalMappings > 0)
+                                    {
+                                        <a asp-action="Mapping" asp-route-state="REVIEW" class="ad-pill red text-decoration-none" title="Local investigations mapped to this code">@c.LocalMappings to review</a>
+                                    }
+                                    else { <span class="text-muted small">—</span> }
+                                </td>
+                            </tr>
+                        }
+                        @if (!p.Items.Any())
+                        {
+                            <tr><td colspan="6" class="text-center text-muted py-5">No change in this view.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (pages > 1)
+            {
+                <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                    <span class="small text-muted">@p.TotalCount.ToString("N0") changes · page @p.Page of @pages.ToString("N0")</span>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item @(p.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@Url_(type, 1)"><i class="bi bi-chevron-double-left"></i></a></li>
+                        <li class="page-item @(p.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@Url_(type, p.Page - 1)"><i class="bi bi-chevron-left"></i></a></li>
+                        <li class="page-item active"><span class="page-link">@p.Page</span></li>
+                        <li class="page-item @(p.Page >= pages ? "disabled" : "")"><a class="page-link" href="@Url_(type, p.Page + 1)"><i class="bi bi-chevron-right"></i></a></li>
+                        <li class="page-item @(p.Page >= pages ? "disabled" : "")"><a class="page-link" href="@Url_(type, pages)"><i class="bi bi-chevron-double-right"></i></a></li>
+                    </ul>
+                </div>
+            }
+        </div>
+    }
+</div>

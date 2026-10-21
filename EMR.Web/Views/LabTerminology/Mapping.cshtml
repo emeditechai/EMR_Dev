@@ -1,0 +1,251 @@
+@model EMR.Web.ApiClients.Models.TermInvestigationsResult
+@{
+    ViewData["Title"] = "Investigation Mapping";
+    ViewData["ApiDataPage"] = "Mapping";
+    var k = Model.Kpis;
+    var stats = ViewBag.Stats as EMR.Web.ApiClients.Models.TermRepositoryStats;
+    string? search = ViewBag.Search, state = ViewBag.State;
+    int? dept = ViewBag.DepartmentId, open = ViewBag.Open;
+    var p = Model.Page;
+    var pages = Math.Max(1, (int)Math.Ceiling(p.TotalCount / (double)Math.Max(1, p.PageSize)));
+    string PageUrl(int pg) => Url.Action("Mapping", new { search, state, departmentId = dept, page = pg, pageSize = p.PageSize })!;
+    string StateUrl(string? st) => Url.Action("Mapping", new { search, state = st, departmentId = dept, pageSize = p.PageSize })!;
+}
+
+<style>
+    .mp-state { text-decoration: none; }
+    .mp-state.active .card { box-shadow: 0 0 0 2px var(--k) !important; }
+    #mapPanel { width: min(760px, 100vw); }
+    .mp-cand { border: 1px solid #e2e8f0; border-radius: .6rem; padding: .55rem .7rem; margin-bottom: .45rem; background: #fff; }
+    .mp-cand:hover { border-color: #93c5fd; background: #f8fbff; }
+    .mp-match { color: #15803d; } .mp-diff { color: #b45309; }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <partial name="_ApiDataNav" />
+
+    @if ((stats?.Concepts ?? 0) == 0)
+    {
+        <div class="alert alert-warning small"><i class="bi bi-info-circle me-1"></i>The local LOINC repository is empty - import and publish a release in <a asp-action="Releases">Terminology Import</a> (or add concepts from the Online search) before mapping.</div>
+    }
+
+    <div class="row g-3 mb-3">
+        @foreach (var (st, label, num, color) in new (string?, string, int, string)[] {
+            (null, "Local investigations", k.Total, "#2563eb"), ("APPROVED", "Mapped (approved)", k.Mapped ?? 0, "#16a34a"),
+            ("PENDING", "Waiting for approval", k.PendingOnly ?? 0, "#d97706"), ("UNMAPPED", "Not mapped", k.Unmapped ?? 0, "#64748b"),
+            ("REVIEW", "Need review", k.NeedReview ?? 0, "#dc2626") })
+        {
+            <div class="col-xl col-md-4 col-6">
+                <a href="@StateUrl(st)" class="mp-state @((state ?? "") == (st ?? "") ? "active" : "")">
+                    <div class="card shadow-sm ad-kpi h-100" style="--k:@color"><div class="card-body p-3"><div class="lbl">@label</div><div class="num mt-1">@num</div></div></div>
+                </a>
+            </div>
+        }
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3">
+        <form method="get" asp-action="Mapping" class="row g-2 align-items-end" id="mpFilter">
+            <input type="hidden" name="state" value="@state" />
+            <input type="hidden" name="pageSize" value="@p.PageSize" />
+            <div class="col-lg-5">
+                <label class="form-label small fw-semibold text-muted mb-1">Search local investigations</label>
+                <div class="input-group"><span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                    <input name="search" value="@search" class="form-control" placeholder="Test name or code" /></div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <label class="form-label small fw-semibold text-muted mb-1">Department</label>
+                <select name="departmentId" class="form-select" onchange="this.form.submit()">
+                    <option value="">All departments</option>
+                    @foreach (var d in Model.Departments)
+                    {
+                        <option value="@d.DeptId" selected="@(dept == d.DeptId)">@d.DeptName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-2 col-md-3 col-6"><button class="btn btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filter</button></div>
+            <div class="col-lg-2 col-md-3 col-6"><a asp-action="Mapping" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</a></div>
+        </form>
+    </div></div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <span class="fw-bold"><i class="bi bi-list-ul text-primary me-2"></i>Local investigations <span class="ad-note fw-normal">(read only - your Investigation Master is not changed)</span></span>
+            <span class="small text-muted">@(p.TotalCount == 0 ? "None" : $"Showing {(p.Page - 1) * p.PageSize + 1}–{Math.Min(p.Page * p.PageSize, p.TotalCount)} of {p.TotalCount}")</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 ad-table">
+                <thead><tr><th class="ps-3">Investigation</th><th>Department / category</th><th>Sample / container</th><th>Unit</th><th>Standard (LOINC)</th><th class="text-end pe-3"></th></tr></thead>
+                <tbody>
+                    @foreach (var i in p.Items)
+                    {
+                        <tr>
+                            <td class="ps-3"><div class="fw-semibold">@i.TestName @if (i.IsProfile) { <span class="ad-pill violet ms-1">Profile</span> } @if (!i.IsActive) { <span class="ad-pill grey ms-1">Inactive</span> }</div><div class="ad-note font-monospace">@i.TestCode</div></td>
+                            <td class="ad-attr">@i.DepartmentName<div class="ad-note">@i.CategoryName</div></td>
+                            <td class="ad-attr">@i.SampleName<div class="ad-note">@i.ContainerType</div></td>
+                            <td class="ad-attr">@i.UnitName</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(i.PreferredLoinc)) { <div class="small"><span class="ad-pill green me-1">Approved</span>@i.PreferredLoinc</div> }
+                                @if (i.Pending > 0) { <span class="ad-pill amber">@i.Pending pending</span> }
+                                @if (i.Review > 0) { <span class="ad-pill red ms-1">Review</span> }
+                                @if (i.Approved == 0 && i.Pending == 0) { <span class="text-muted small">Not mapped</span> }
+                            </td>
+                            <td class="text-end pe-3"><button type="button" class="btn btn-sm btn-outline-primary" data-open="@i.InvestigationId"><i class="bi bi-diagram-3 me-1"></i>Map</button></td>
+                        </tr>
+                    }
+                    @if (!p.Items.Any())
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-5">No investigation matches.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (pages > 1)
+        {
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <span class="small text-muted">Page @p.Page of @pages</span>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(p.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(1)"><i class="bi bi-chevron-double-left"></i></a></li>
+                    <li class="page-item @(p.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(p.Page - 1)"><i class="bi bi-chevron-left"></i></a></li>
+                    <li class="page-item active"><span class="page-link">@p.Page</span></li>
+                    <li class="page-item @(p.Page >= pages ? "disabled" : "")"><a class="page-link" href="@PageUrl(p.Page + 1)"><i class="bi bi-chevron-right"></i></a></li>
+                    <li class="page-item @(p.Page >= pages ? "disabled" : "")"><a class="page-link" href="@PageUrl(pages)"><i class="bi bi-chevron-double-right"></i></a></li>
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Mapping panel -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="mapPanel">
+    <div class="offcanvas-header border-bottom">
+        <div><h6 class="offcanvas-title fw-bold mb-0" id="mpTitle"></h6><div class="ad-note" id="mpSub"></div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body" id="mpBody"></div>
+</div>
+
+<div id="mpPerm" class="d-none">
+    <span asp-permission="UTILITY.APIDATA.MAPPING:PROPOSE" data-can="propose"></span>
+    <span asp-permission="UTILITY.APIDATA.MAPPING:APPROVE" data-can="approve"></span>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const can = w => !!document.querySelector('#mpPerm [data-can="' + w + '"]');
+    const panel = new bootstrap.Offcanvas(document.getElementById('mapPanel'));
+    let invId = 0, inv = null, changed = false;
+    document.getElementById('mapPanel').addEventListener('hidden.bs.offcanvas', () => { if (changed) location.reload(); });
+
+    // compare one local attribute with the LOINC concept: green when it looks the same, amber when it differs
+    const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    function cmp(local, std) {
+        if (!local || !std) return '';
+        const a = norm(local), b = norm(std);
+        const same = a && b && (a.includes(b) || b.includes(a) || (a.slice(0, 3) === b.slice(0, 3)));
+        return same ? '<i class="bi bi-check-circle-fill mp-match ms-1" title="Matches the local investigation"></i>' : '<i class="bi bi-exclamation-circle-fill mp-diff ms-1" title="Differs from the local investigation (' + esc(local) + ')"></i>';
+    }
+    function candHtml(c, extra) {
+        return '<div class="mp-cand"><div class="d-flex justify-content-between gap-2"><div><span class="ad-code me-2">' + esc(c.loincCode) + '</span><b>' + esc(c.longCommonName) + '</b></div>' + (extra || '') + '</div>' +
+            '<div class="ad-attr mt-1">Component <b>' + esc(c.component) + '</b> · System <b>' + esc(c.systemName) + '</b>' + cmp(inv.sampleName, c.systemName) +
+            ' · Scale <b>' + esc(c.scaleType) + '</b>' + (c.methodName ? ' · Method <b>' + esc(c.methodName) + '</b>' : '') +
+            (c.exampleUcumUnits ? ' · Units <b>' + esc(c.exampleUcumUnits) + '</b>' + cmp(inv.unitName, c.exampleUcumUnits) : '') +
+            (c.status && c.status !== 'ACTIVE' ? ' · <span class="ad-pill amber">' + esc(c.status) + '</span>' : '') + '</div></div>';
+    }
+    const proposeBtn = (code, method) => can('propose') ? '<button class="btn btn-sm btn-outline-primary text-nowrap" data-propose="' + esc(code) + '" data-method="' + method + '"><i class="bi bi-plus-lg me-1"></i>Propose</button>' : '';
+
+    async function openInv(id) {
+        invId = id;
+        document.getElementById('mpBody').innerHTML = '<div class="text-center py-5"><span class="spinner-border"></span></div>';
+        panel.show();
+        const r = await fetch('@Url.Action("MappingDetail")?id=' + id);
+        if (!r.ok) { document.getElementById('mpBody').innerHTML = '<div class="text-danger">Could not load.</div>'; return; }
+        const d = await r.json(); inv = d.investigation;
+        document.getElementById('mpTitle').textContent = inv.testName;
+        document.getElementById('mpSub').textContent = [inv.testCode, inv.departmentName, inv.categoryName].filter(Boolean).join(' · ');
+        const st = s => ({ Approved: 'green', Pending: 'amber', Rejected: 'grey' }[s] || 'grey');
+        let h = '<div class="card bg-light border-0 mb-3"><div class="card-body py-2 ad-attr">Local: sample <b>' + esc(inv.sampleName || '—') + '</b> (' + esc(inv.containerType || '—') + ') · unit <b>' + esc(inv.unitName || '—') + '</b>' +
+            (inv.isProfile ? ' · <span class="ad-pill violet">Profile</span> - map the profile to a LOINC panel; its result components are mapped one by one' : '') + '</div></div>';
+
+        h += '<h6 class="fw-bold small text-uppercase text-muted">Mappings</h6>';
+        h += (d.mappings || []).length ? d.mappings.map(m => {
+            let actions = '';
+            if (can('approve')) {
+                if (m.mappingStatus === 'Pending') actions += '<button class="btn btn-sm btn-success me-1" data-decide="APPROVE" data-id="' + m.mappingId + '"><i class="bi bi-check2 me-1"></i>Approve</button>';
+                if (m.mappingStatus !== 'Rejected') actions += '<button class="btn btn-sm btn-outline-danger me-1" data-decide="REJECT" data-id="' + m.mappingId + '">Reject</button>';
+                if (m.mappingStatus === 'Approved' && !m.isPreferred) actions += '<button class="btn btn-sm btn-outline-secondary me-1" data-decide="PREFERRED" data-id="' + m.mappingId + '">Make preferred</button>';
+                if (m.needsReview && m.mappingStatus !== 'Rejected') actions += '<button class="btn btn-sm btn-outline-warning" data-decide="REVIEWED" data-id="' + m.mappingId + '">Mark reviewed</button>';
+            }
+            if (m.mappingStatus === 'Rejected' && can('propose')) actions += proposeBtn(m.loincCode, 'Manual').replace('Propose', 'Propose again');
+            return '<div class="mp-cand"><div class="d-flex justify-content-between flex-wrap gap-2"><div><span class="ad-code me-2">' + esc(m.loincCode) + '</span><b>' + esc(m.longCommonName) + '</b></div><div>' +
+                '<span class="ad-pill ' + st(m.mappingStatus) + '">' + esc(m.mappingStatus) + '</span>' + (m.isPreferred ? ' <span class="ad-pill violet">Preferred</span>' : '') +
+                (m.isRetired ? ' <span class="ad-pill red">Retired</span>' : '') + (m.needsReview ? ' <span class="ad-pill red" title="' + esc(m.reviewReason) + '">Review</span>' : '') + '</div></div>' +
+                '<div class="ad-attr mt-1">System <b>' + esc(m.systemName) + '</b>' + cmp(inv.sampleName, m.systemName) + ' · Scale <b>' + esc(m.scaleType) + '</b>' + (m.exampleUcumUnits ? ' · Units <b>' + esc(m.exampleUcumUnits) + '</b>' + cmp(inv.unitName, m.exampleUcumUnits) : '') + '</div>' +
+                '<div class="ad-note mt-1">' + esc(m.mappingMethod) + ' · proposed by ' + esc(m.proposedByName || '—') + ' ' + new Date(m.proposedAt).toLocaleString() +
+                (m.approvedAt ? ' · decided by ' + esc(m.approvedByName || '—') + ' ' + new Date(m.approvedAt).toLocaleString() : '') + '</div>' +
+                (m.notes ? '<div class="small mt-1"><i class="bi bi-chat-left-text me-1"></i>' + esc(m.notes) + '</div>' : '') +
+                (m.decisionNote ? '<div class="small mt-1 text-muted"><i class="bi bi-reply me-1"></i>' + esc(m.decisionNote) + '</div>' : '') +
+                (m.needsReview ? '<div class="small mt-1 text-danger"><i class="bi bi-exclamation-triangle me-1"></i>' + esc(m.reviewReason) + '</div>' : '') +
+                (actions ? '<div class="mt-2">' + actions + '</div>' : '') + '</div>';
+        }).join('') : '<div class="small text-muted mb-3">No mapping yet.</div>';
+
+        if (can('propose')) {
+            h += '<h6 class="fw-bold small text-uppercase text-muted mt-3">Suggestions <span class="fw-normal text-lowercase">(by name - review before proposing)</span></h6>';
+            h += (d.suggestions || []).length ? d.suggestions.map(s => candHtml(s, proposeBtn(s.loincCode, 'Suggested'))).join('') : '<div class="small text-muted mb-2">No suggestion - search below.</div>';
+            h += '<h6 class="fw-bold small text-uppercase text-muted mt-3">Search the standard</h6>' +
+                 '<div class="input-group input-group-sm mb-2"><input id="mpQ" class="form-control" placeholder="e.g. glucose serum, hemoglobin, 2345-7 (abbreviations like FBS, SGPT, TSH work)"><button class="btn btn-outline-primary" id="mpGo"><i class="bi bi-search"></i></button></div><div id="mpRes"></div>';
+        }
+        if ((d.audit || []).length)
+            h += '<h6 class="fw-bold small text-uppercase text-muted mt-3">History</h6><ul class="small ps-3">' + d.audit.map(a => '<li>' + new Date(a.at).toLocaleString() + ' · <b>' + esc(a.action) + '</b> ' + esc(a.loincCode) +
+                ' by ' + esc(a.userName || '—') + (a.note ? ' - ' + esc(a.note) : '') + '</li>').join('') + '</ul>';
+        document.getElementById('mpBody').innerHTML = h;
+
+        const go = document.getElementById('mpGo');
+        if (go) {
+            const run = async () => {
+                const rr = await fetch('@Url.Action("SearchJson")?q=' + encodeURIComponent(document.getElementById('mpQ').value.trim()));
+                const jj = await rr.json();
+                document.getElementById('mpRes').innerHTML = (jj.items || []).map(c => candHtml(c, proposeBtn(c.loincCode, 'Manual'))).join('') || '<div class="small text-muted">No match.</div>';
+            };
+            go.addEventListener('click', run);
+            document.getElementById('mpQ').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+        }
+    }
+
+    document.getElementById('mpBody').addEventListener('click', async e => {
+        const pb = e.target.closest('[data-propose]');
+        if (pb) {
+            const n = await Swal.fire({ title: 'Propose ' + pb.dataset.propose + '?', input: 'textarea', inputLabel: 'Rationale (why this standard test matches)', inputPlaceholder: 'e.g. same analyte, serum specimen, quantitative result in mg/dL',
+                showCancelButton: true, confirmButtonText: 'Propose' });
+            if (!n.isConfirmed) return;
+            const r = await fetch('@Url.Action("Propose")', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ investigationId: invId, loincCode: pb.dataset.propose, method: pb.dataset.method, notes: n.value || null }) });
+            const j = await r.json();
+            if (j.success) { changed = true; openInv(invId); } else Swal.fire({ icon: 'error', title: 'Not proposed', text: j.error });
+            return;
+        }
+        const db = e.target.closest('[data-decide]');
+        if (db) {
+            const dec = db.dataset.decide;
+            let note = null;
+            if (dec === 'REJECT' || dec === 'APPROVE') {
+                const n = await Swal.fire({ title: dec === 'REJECT' ? 'Reject this mapping?' : 'Approve this mapping?', input: 'textarea',
+                    inputLabel: dec === 'REJECT' ? 'Reason (required)' : 'Note (optional)', showCancelButton: true, confirmButtonText: dec === 'REJECT' ? 'Reject' : 'Approve',
+                    confirmButtonColor: dec === 'REJECT' ? '#dc2626' : '#16a34a', inputValidator: v => dec === 'REJECT' && !v ? 'Give the reason' : undefined });
+                if (!n.isConfirmed) return;
+                note = n.value || null;
+            }
+            const r = await fetch('@Url.Action("Decide")', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mappingId: +db.dataset.id, decision: dec, note }) });
+            const j = await r.json();
+            if (j.success) { changed = true; openInv(invId); } else Swal.fire({ icon: 'error', title: 'Not saved', text: j.error });
+        }
+    });
+
+    document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => openInv(+b.dataset.open)));
+    @if (open is > 0)
+    {
+        <text>openInv(@open);</text>
+    }
+})();
+</script>
+}

@@ -24,7 +24,8 @@ public class UsersController(
     IStateService stateService,
     ICityService cityService,
     IAreaService areaService,
-    ILabTestCategoryApiClient labTestCategoryApiClient) : Controller
+    ILabTestCategoryApiClient labTestCategoryApiClient,
+    IUserListApiClient userListApiClient) : Controller
 {
     /// <summary>
     /// Which users this login may see and manage. Signed in to the head office (Branchmaster.IsHOBranch): every user of
@@ -49,7 +50,9 @@ public class UsersController(
         return await dbContext.UserBranches.AnyAsync(ub => ub.UserId == userId && ub.IsActive && ids.Contains(ub.BranchId));
     }
 
-    public async Task<IActionResult> Index()
+    /// <summary>User Master list, paged and filtered on the server (SQLScripts/2314). Scope as before: the login's company
+    /// (every company for Super Admin) and, away from the head office, only users of the visible branches.</summary>
+    public async Task<IActionResult> Index(string? search, string? userType, string? status, string? role, int page = 1, int pageSize = 25)
     {
         if (!CanManage())
         {
@@ -57,64 +60,36 @@ public class UsersController(
         }
 
         var branchId = User.GetCurrentBranchId();
-        var companyId = User.GetCompanyId();
+        if (page < 1) page = 1;
+        if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 25;
+        userType = userType?.Trim() is "U" or "D" or "F" or "C" ? userType.Trim() : null;
+        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" ? status.Trim().ToLowerInvariant() : null;
+        role = role?.Trim().ToLowerInvariant() is "nurse" or "phlebotomist" or "pathologist" or "labtech" or "logistics" ? role.Trim().ToLowerInvariant() : null;
+        search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
 
-        var query = dbContext.Users
-            .Include(x => x.UserBranches)
-                .ThenInclude(x => x.Branch)
-            .OrderBy(x => x.Username)
-            .AsQueryable();
-
-        if (!User.IsSuperAdmin())
+        UserListPageDto result;
+        try
         {
-            query = query.Where(x => x.CompanyId == companyId);
+            result = await userListApiClient.GetPagedAsync(User.IsSuperAdmin() ? null : User.GetCompanyId(),
+                await VisibleBranchIdsAsync(), branchId, search, userType, status, role, page, pageSize);
+            // a page past the end (e.g. after narrowing the filter): show the last page instead of an empty one
+            var lastPage = Math.Max(1, (int)Math.Ceiling(result.FilteredCount / (double)pageSize));
+            if (page > lastPage)
+            {
+                page = lastPage;
+                result = await userListApiClient.GetPagedAsync(User.IsSuperAdmin() ? null : User.GetCompanyId(),
+                    await VisibleBranchIdsAsync(), branchId, search, userType, status, role, page, pageSize);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "User Master";
+            return View("ApiDown");
         }
 
-        if (await VisibleBranchIdsAsync() is { } myBranchIds)
-            query = query.Where(x => x.UserBranches.Any(ub => ub.IsActive && myBranchIds.Contains(ub.BranchId)));
-
-        var deptDict = await dbContext.DepartmentMasters
-            .ToDictionaryAsync(d => d.DeptId, d => d.DeptName);
-
-        var rawUsers = await query
-            .Select(x => new
-            {
-                x.Id,
-                x.Username,
-                EmployeeCode = branchId.HasValue
-                    ? (x.UserBranches.Where(ub => ub.IsActive && ub.BranchId == branchId.Value).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty)
-                    : (x.UserBranches.Where(ub => ub.IsActive).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty),
-                FullName = x.FullName ?? string.Concat(x.FirstName, " ", x.LastName),
-                Email = x.Email ?? string.Empty,
-                x.IsActive,
-                x.IsNursingStaff,
-                x.IsPhlebotomist,
-                x.IsPathologist,
-                x.IsLabTechnician,
-                x.IsLogisticsBoy,
-                x.DepartmentIds,
-                x.ProfilePicturePath,
-                HasSignature = x.SignaturePath != null && x.SignaturePath != "",
-                x.UserType,
-                x.ReferenceUserId,
-                Branches = string.Join(", ", x.UserBranches.Where(b => b.IsActive).Select(b => b.Branch.BranchName))
-            })
-            .ToListAsync();
-        var referenceNames = await ReferenceNamesAsync(rawUsers.Select(x => (x.UserType, x.ReferenceUserId)));
-
-        var users = rawUsers.Select(x =>
+        var model = new UserListPageViewModel
         {
-            var deptNames = string.Empty;
-            if (!string.IsNullOrWhiteSpace(x.DepartmentIds))
-            {
-                var ids = x.DepartmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => int.TryParse(s.Trim(), out var did) ? did : 0)
-                    .Where(did => did > 0 && deptDict.ContainsKey(did))
-                    .Select(did => deptDict[did]);
-                deptNames = string.Join(", ", ids);
-            }
-
-            return new UserListItemViewModel
+            Items = result.Items.Select(x => new UserListItemViewModel
             {
                 Id = x.Id,
                 Username = x.Username,
@@ -128,20 +103,33 @@ public class UsersController(
                 IsLabTechnician = x.IsLabTechnician,
                 IsLogisticsBoy = x.IsLogisticsBoy,
                 Branches = x.Branches,
-                DepartmentNames = deptNames,
+                DepartmentNames = x.DepartmentNames,
                 ProfilePicturePath = x.ProfilePicturePath,
                 HasSignature = x.HasSignature,
                 UserType = x.UserType,
                 ReferenceUserId = x.ReferenceUserId,
-                ReferenceName = x.ReferenceUserId.HasValue ? referenceNames.GetValueOrDefault((x.UserType, x.ReferenceUserId.Value)) : null
-            };
-        }).ToList();
+                ReferenceName = x.ReferenceName
+            }).ToList(),
+            TotalUsers = result.Kpis.TotalUsers,
+            ActiveUsers = result.Kpis.ActiveUsers,
+            InactiveUsers = result.Kpis.InactiveUsers,
+            Pathologists = result.Kpis.Pathologists,
+            PathologistsSigned = result.Kpis.PathologistsSigned,
+            LabTechnicians = result.Kpis.LabTechnicians,
+            FilteredCount = result.FilteredCount,
+            Page = page,
+            PageSize = pageSize,
+            Search = search,
+            UserType = userType,
+            Status = status,
+            Role = role
+        };
 
         ViewBag.BranchName = branchId.HasValue
             ? (await dbContext.BranchMasters.FindAsync(branchId.Value))?.BranchName
             : null;
 
-        return View(users);
+        return View(model);
     }
 
     [HttpGet]

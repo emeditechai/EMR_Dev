@@ -32,6 +32,28 @@ public class UserListItemViewModel
     public bool HasSignature { get; set; }
 }
 
+/// <summary>Settings > User Master list, one page of users from the server (SQLScripts/2314).</summary>
+public class UserListPageViewModel
+{
+    public List<UserListItemViewModel> Items { get; set; } = new();
+    public int TotalUsers { get; set; }
+    public int ActiveUsers { get; set; }
+    public int InactiveUsers { get; set; }
+    public int Pathologists { get; set; }
+    public int PathologistsSigned { get; set; }
+    public int LabTechnicians { get; set; }
+    /// <summary>Users matching the filter (all pages).</summary>
+    public int FilteredCount { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 25;
+    public string? Search { get; set; }
+    public string? UserType { get; set; }
+    public string? Status { get; set; }
+    public string? Role { get; set; }
+    public int TotalPages => PageSize > 0 ? Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)PageSize)) : 1;
+    public bool HasFilter => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(UserType) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Role);
+}
+
 public class UserFormViewModel
 {
     public int Id { get; set; }

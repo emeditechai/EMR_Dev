@@ -26,6 +26,21 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
         return Ok(ApiResponse<PagedResult<DoctorListItem>>.Ok(data));
     }
 
+    // GET api/doctors/paged - Doctor Master list paged and filtered on the server (SQLScripts/2315)
+    [HttpGet("paged")]
+    [ProducesResponseType(typeof(ApiResponse<DoctorPagedList>), 200)]
+    public async Task<IActionResult> GetPagedList(
+        [FromQuery] int? companyId, [FromQuery] int? branchId, [FromQuery] string? search = null, [FromQuery] string? status = null,
+        [FromQuery] string? referral = null, [FromQuery] string? speciality = null, [FromQuery] string? department = null,
+        [FromQuery] int? doctorId = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 25)
+    {
+        var data = await doctorService.GetPagedListAsync(companyId, branchId, search?.Trim(),
+            status?.Trim().ToLowerInvariant() is "active" or "inactive" ? status.Trim().ToLowerInvariant() : null,
+            referral?.Trim().ToLowerInvariant() is "yes" or "no" ? referral.Trim().ToLowerInvariant() : null,
+            speciality?.Trim(), department?.Trim(), doctorId, pageNumber, pageSize);
+        return Ok(ApiResponse<DoctorPagedList>.Ok(data));
+    }
+
     // ── GET /api/doctors/5 ───────────────────────────────────────────────────
 
     /// <summary>Get a single doctor by ID.</summary>

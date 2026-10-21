@@ -48,6 +48,7 @@ wwwroot/uploads/
 
 # Uploaded pathologist signatures (kept outside the public web root)
 EMR.Web/App_Data/
+EMR.Api/App_Data/
 
 # Runtime uploads of LAB compliance documents (patient files, not source)
 EMR.Web/wwwroot/uploads/lab-compliance/

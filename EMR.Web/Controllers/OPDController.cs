@@ -1196,6 +1196,14 @@ public class OPDController(
         }
         ViewBag.DoctorRoomMap = doctorRoomMap;
 
+        // branding for the display header (Hospital Settings of this branch)
+        var hs = await dbContext.HospitalSettings.AsNoTracking()
+            .Where(x => x.BranchId == branchId.Value).OrderByDescending(x => x.IsActive).ThenByDescending(x => x.Id)
+            .Select(x => new { x.HospitalName, x.LogoPath }).FirstOrDefaultAsync();
+        ViewBag.HospitalName = string.IsNullOrWhiteSpace(hs?.HospitalName) ? "OPD" : hs!.HospitalName;
+        ViewBag.LogoPath = hs?.LogoPath;
+        ViewBag.BranchName = User.FindFirst("BranchName")?.Value;
+
         return View();
     }
 
