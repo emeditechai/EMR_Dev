@@ -71,9 +71,21 @@
             <small class="text-muted">Branch: <strong class="text-primary">@Model.BranchName</strong></small>
         </div>
     </div>
-    <a asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="Edit" class="btn btn-primary btn-sm px-3 shadow-sm">
-        <i class="bi bi-pencil-square me-1"></i> Edit Settings
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        @if (ViewBag.IsHeadOffice is false && ViewBag.HeadOfficeName is string hoName)
+        {
+            @* Copy from Head Office (SQLScripts/2318): only on a branch, never on the head office *@
+            <form asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="CopyFromHeadOffice" method="post" id="frmCopyHo" class="m-0">
+                @Html.AntiForgeryToken()
+                <button type="button" class="btn btn-outline-primary btn-sm px-3 shadow-sm" id="btnCopyHo" data-ho="@hoName" data-branch="@Model.BranchName">
+                    <i class="bi bi-files me-1"></i> Copy from @hoName
+                </button>
+            </form>
+        }
+        <a asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="Edit" class="btn btn-primary btn-sm px-3 shadow-sm">
+            <i class="bi bi-pencil-square me-1"></i> Edit Settings
+        </a>
+    </div>
 </div>
 
 @if (Model.Id == 0)
@@ -665,3 +677,20 @@ else
 
     </div>
 }
+
+<script>
+    (function () {
+        const btn = document.getElementById('btnCopyHo');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            const r = await Swal.fire({
+                icon: 'warning',
+                title: 'Copy all settings from ' + btn.dataset.ho + '?',
+                html: 'Every Hospital Settings value of <b>' + btn.dataset.ho + '</b> - hospital name, logo, address, contacts, NABH and all OPD / IPD / LAB / MED parameters - ' +
+                      'replaces the settings of <b>' + btn.dataset.branch + '</b>.<br><br>The branch keeps its own day-closing start date. Its current values are saved in the audit log.',
+                showCancelButton: true, confirmButtonText: 'Copy settings', confirmButtonColor: '#0d6efd'
+            });
+            if (r.isConfirmed) document.getElementById('frmCopyHo').submit();
+        });
+    })();
+</script>

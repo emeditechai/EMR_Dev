@@ -59,6 +59,8 @@ builder.Services.AddScoped<IDoctorService, DoctorService>();
 // LAB billing AI assist: Tesseract OCR on this server + ML.NET test matching (PrescriptionAssist section)
 builder.Services.Configure<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions>(builder.Configuration.GetSection(EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions.SectionName));
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("GeoAddress");
+builder.Services.AddScoped<EMR.Web.Services.GeoAddressService>();   // Home Collection Address search (Google Places / OpenStreetMap)
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IHandwritingRecognizer, EMR.Web.Services.PrescriptionAssist.HandwritingRecognizer>();
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine, EMR.Web.Services.PrescriptionAssist.TesseractOcrEngine>();
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher, EMR.Web.Services.PrescriptionAssist.PrescriptionTestMatcher>();

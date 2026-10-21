@@ -3775,123 +3775,54 @@
             return (text.startsWith('--') || text === '') ? '' : text;
         }
 
+        // Home Collection Address search: one server call (Google Places when configured, else OpenStreetMap - ranked,
+        // biased to the chosen district / city, cached). A newer search cancels the older one; one Google session token
+        // covers typing and the pick (cheapest billing).
+        let addrAbort = null;
+        let addrSession = null;
+        function addrSessionToken() {
+            if (!addrSession) addrSession = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+            return addrSession;
+        }
         async function fetchAddressSuggestions(query) {
-            const country  = getSelectedDropdownText('ddlCountry');
-            const state    = getSelectedDropdownText('ddlState');
-            const district = getSelectedDropdownText('ddlDistrict');
-            const city     = getSelectedDropdownText('ddlCity');
-
+            const ddl = id => (typeof getSelectedDropdownText === 'function' ? getSelectedDropdownText(id) : '');
             const qs = new URLSearchParams({
-                query: query,
-                country: country,
-                state: state,
-                district: district,
-                city: city
+                query: query, country: ddl('ddlCountry'), state: ddl('ddlState'), district: ddl('ddlDistrict'), city: ddl('ddlCity'),
+                sessionToken: addrSessionToken()
             });
-
-            // 1. Try server-side controller proxy (uses country/state/district context for high precision)
+            if (addrAbort) addrAbort.abort();
+            addrAbort = new AbortController();
             try {
-                const res = await fetch(`/LabOrderBooking/SearchAddressGeoSuggestions?${qs.toString()}`);
+                const res = await fetch(`/LabOrderBooking/SearchAddressGeoSuggestions?${qs.toString()}`, { signal: addrAbort.signal });
                 if (res.ok) {
                     const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0) {
-                        return data;
-                    }
+                    if (Array.isArray(data)) return data;
                 }
             } catch (e) {
-                console.warn('Server address search error, attempting client-side fallback...', e);
+                if (e.name === 'AbortError') return null;      // a newer search is running
+                console.warn('Address search error', e);
             }
-
-            // 2. Client-side fallback: Try Nominatim first, then Photon
-            try {
-                const nomQ = [query, district, state].filter(Boolean).join(' ');
-                const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(nomQ)}&format=json&addressdetails=1&countrycodes=in&limit=6`);
-                if (nomRes.ok) {
-                    const nomList = await nomRes.json();
-                    if (Array.isArray(nomList) && nomList.length > 0) {
-                        return nomList.map(item => {
-                            const addr = item.address || {};
-                            const name = item.name || (item.display_name ? item.display_name.split(',')[0] : '');
-                            const road = addr.road || '';
-                            const sub = addr.suburb || addr.neighbourhood || '';
-                            const dist = addr.county || addr.state_district || '';
-                            const st = addr.state || '';
-                            const pc = addr.postcode || '';
-                            const cnt = addr.country || 'India';
-
-                            const subParts = [];
-                            if (road && road !== name) subParts.push(road);
-                            if (sub && sub !== name) subParts.push(sub);
-                            if (dist && dist !== name) subParts.push(dist);
-                            if (st) subParts.push(pc ? `${st} ${pc}` : st);
-                            if (cnt) subParts.push(cnt);
-
-                            const secondary = subParts.filter((v, i, a) => a.indexOf(v) === i).join(', ');
-                            const fullAddress = secondary ? `${name}, ${secondary}` : name;
-
-                            return {
-                                name: name || fullAddress,
-                                secondary,
-                                fullAddress,
-                                latitude: parseFloat(item.lat),
-                                longitude: parseFloat(item.lon),
-                                city: dist,
-                                district: dist,
-                                state: st,
-                                postcode: pc,
-                                country: cnt
-                            };
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn('Client-side Nominatim search error:', e);
-            }
-
-            // 3. Photon Fallback
-            try {
-                const parts = [query];
-                if (district && !query.toLowerCase().includes(district.toLowerCase())) parts.push(district);
-                if (state && !query.toLowerCase().includes(state.toLowerCase())) parts.push(state);
-
-                const photonQuery = parts.join(' ');
-                const clientRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(photonQuery)}&limit=8`);
-                if (clientRes.ok) {
-                    const geojson = await clientRes.json();
-                    if (geojson?.features?.length) {
-                        return geojson.features.map(feat => {
-                            const props = feat.properties || {};
-                            const coords = feat.geometry?.coordinates || [0, 0];
-                            const name = props.name || '';
-                            const subParts = [];
-                            if (props.street && props.street !== name) subParts.push(props.housenumber ? `${props.housenumber} ${props.street}` : props.street);
-                            if (props.district && props.district !== name) subParts.push(props.district);
-                            if (props.city && props.city !== name) subParts.push(props.city);
-                            if (props.county && props.county !== props.city && props.county !== name) subParts.push(props.county);
-                            if (props.state) subParts.push(props.postcode ? `${props.state} ${props.postcode}` : props.state);
-                            if (props.country) subParts.push(props.country);
-                            const secondary = subParts.filter((v, i, a) => a.indexOf(v) === i).join(', ');
-                            const fullAddress = secondary ? `${name}, ${secondary}` : name;
-                            return {
-                                name: name || fullAddress,
-                                secondary,
-                                fullAddress,
-                                latitude: coords[1],
-                                longitude: coords[0],
-                                city: props.city || '',
-                                district: props.district || '',
-                                state: props.state || '',
-                                postcode: props.postcode || '',
-                                country: props.country || ''
-                            };
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn('Client-side photon search error:', e);
-            }
-
             return [];
+        }
+
+        // pick a suggestion: a Google one gets its coordinates from the place details first
+        async function pickAddressSuggestion(el, lat, lon, addr) {
+            const placeId = el && el.dataset ? el.dataset.place : '';
+            if (placeId && (!Number(lat) || !Number(lon))) {
+                try {
+                    const r = await fetch(`/LabOrderBooking/AddressPlaceDetails?placeId=${encodeURIComponent(placeId)}&sessionToken=${encodeURIComponent(addrSessionToken())}`);
+                    if (r.ok) {
+                        const d = await r.json();
+                        lat = d.latitude; lon = d.longitude; addr = d.fullAddress || addr;
+                    }
+                } catch (e) { console.warn('Place details error', e); }
+                addrSession = null;   // the session ends with the pick
+            }
+            if (Number(lat) && Number(lon)) selectAddressSuggestion(lat, lon, addr);
+            else {
+                if (homeAddrInput) homeAddrInput.value = addr;
+                if (homeAddrDrop) homeAddrDrop.style.display = 'none';
+            }
         }
 
         if (homeAddrInput && homeAddrDrop) {
@@ -3902,7 +3833,7 @@
                 clearTimeout(addrDebounceTimer);
                 addrKbdIndex = -1;
 
-                if (val.length < 2) {
+                if (val.length < 3) {
                     homeAddrDrop.style.display = 'none';
                     if (iconSearch) iconSearch.className = 'bi bi-search';
                     return;
@@ -3918,6 +3849,7 @@
 
                 addrDebounceTimer = setTimeout(async () => {
                     const results = await fetchAddressSuggestions(val);
+                    if (results === null) return;   // replaced by a newer search
                     if (iconSearch) iconSearch.className = 'bi bi-search';
 
                     if (!results.length) {
@@ -3935,6 +3867,7 @@
                                 class="list-group-item list-group-item-action py-2.5 px-3 geo-addr-sug ${idx === 0 ? 'kbd-active' : ''}"
                                 data-lat="${item.latitude}"
                                 data-lon="${item.longitude}"
+                                data-place="${escapeHtml(item.placeId || '')}"
                                 data-address="${escapeHtml(item.fullAddress)}"
                                 tabindex="-1">
                             <div class="d-flex align-items-start gap-2">
@@ -3943,7 +3876,7 @@
                                     <div class="d-flex justify-content-between align-items-baseline gap-2">
                                         <span class="fw-bold text-dark text-truncate">${escapeHtml(item.name)}</span>
                                         <span class="badge bg-light text-secondary border font-monospace flex-shrink-0" style="font-size:0.7rem;">
-                                            <i class="bi bi-pin-map-fill text-danger me-0.5"></i>${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}
+                                            ${item.placeId ? '<i class="bi bi-google text-primary me-0.5"></i>Google' : `<i class="bi bi-pin-map-fill text-danger me-0.5"></i>${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}`}
                                         </span>
                                     </div>
                                     <div class="small text-muted text-truncate mt-0.5" title="${escapeHtml(item.secondary || item.fullAddress)}">
@@ -3955,7 +3888,7 @@
                     `).join('');
                     homeAddrDrop.style.display = 'block';
                     addrKbdIndex = 0;
-                }, 300);
+                }, 350);
             });
 
             // Keyboard navigation (ArrowDown, ArrowUp, Enter, Escape)
@@ -3980,7 +3913,7 @@
                         const lat  = items[targetIdx].dataset.lat;
                         const lon  = items[targetIdx].dataset.lon;
                         const addr = items[targetIdx].dataset.address;
-                        selectAddressSuggestion(lat, lon, addr);
+                        pickAddressSuggestion(items[targetIdx], lat, lon, addr);
                         // Move focus to next form field
                         if (typeof getNextFieldId === 'function' && typeof focusField === 'function') {
                             focusField(getNextFieldId('HomeCollectionAddress'));
@@ -3998,7 +3931,7 @@
                 const lat  = this.dataset.lat;
                 const lon  = this.dataset.lon;
                 const addr = this.dataset.address;
-                selectAddressSuggestion(lat, lon, addr);
+                pickAddressSuggestion(this, lat, lon, addr);
                 if (homeAddrInput) homeAddrInput.focus();
             });
 
@@ -4231,7 +4164,7 @@
 
         // In-Modal Search functionality
         async function searchLocationInsideMap(query) {
-            if (!query || query.trim().length < 2) return;
+            if (!query || query.trim().length < 3) return;
             $('#mapLoadingOverlay').css('display', 'flex');
 
             const country = getSelectedDropdownText('ddlCountry');
@@ -4251,6 +4184,13 @@
                     const list = await res.json();
                     if (Array.isArray(list) && list.length > 0) {
                         const first = list[0];
+                        if (first.placeId && !(Number(first.latitude) && Number(first.longitude))) {
+                            // a Google suggestion: its coordinates come from the place details
+                            try {
+                                const dr = await fetch(`/LabOrderBooking/AddressPlaceDetails?placeId=${encodeURIComponent(first.placeId)}`);
+                                if (dr.ok) { const d = await dr.json(); first.latitude = d.latitude; first.longitude = d.longitude; first.fullAddress = d.fullAddress || first.fullAddress; }
+                            } catch (e) { console.warn('Place details error', e); }
+                        }
                         if (first.latitude && first.longitude && leafletMap) {
                             leafletMap.setView([first.latitude, first.longitude], 16);
                             mapMarker.setLatLng([first.latitude, first.longitude]);

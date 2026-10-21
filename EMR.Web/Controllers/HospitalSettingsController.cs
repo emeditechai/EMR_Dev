@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Models.DTOs;
@@ -173,6 +174,10 @@ public class HospitalSettingsController(
         }
 
         var branch = await dbContext.BranchMasters.FindAsync(branchId.Value);
+        // Copy from Head Office (SQLScripts/2318) is offered only on a branch
+        ViewBag.IsHeadOffice = branch?.IsHOBranch ?? false;
+        ViewBag.HeadOfficeName = branch is null ? null : await dbContext.BranchMasters
+            .Where(b => b.CompanyId == branch.CompanyId && b.IsHOBranch).Select(b => b.BranchName).FirstOrDefaultAsync();
         var settings = await dbContext.HospitalSettings
             .FirstOrDefaultAsync(x => x.BranchId == branchId.Value);
 
@@ -188,6 +193,51 @@ public class HospitalSettingsController(
 
         var model = MapToViewModel(settings, branch?.BranchName ?? string.Empty);
         return View(model);
+    }
+
+    /// <summary>
+    /// Copy from Head Office (SQLScripts/2318): every Hospital Settings value of the head office onto the branch signed in
+    /// to (not on the head office itself). The branch's previous values go to the audit log.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CopyFromHeadOffice([FromServices] IHttpClientFactory httpFactory)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) { TempData["Error"] = "No active branch found."; return RedirectToAction(nameof(Index)); }
+        try
+        {
+            var http = httpFactory.CreateClient("EmrApi");
+            var res = await http.PostAsJsonAsync("api/hospital-settings/copy-from-ho", new { targetBranchId = branchId.Value, userId = User.GetUserId() });
+            System.Text.Json.JsonElement body = default;
+            try { body = await res.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(); } catch (System.Text.Json.JsonException) { }
+            var ok = res.IsSuccessStatusCode && body.ValueKind == System.Text.Json.JsonValueKind.Object
+                     && body.TryGetProperty("success", out var sv) && sv.GetBoolean();
+            if (!ok)
+            {
+                TempData["Error"] = body.ValueKind == System.Text.Json.JsonValueKind.Object && body.TryGetProperty("message", out var m)
+                    ? m.GetString() : "The settings could not be copied - nothing was changed.";
+                return RedirectToAction(nameof(Index));
+            }
+            var data = body.GetProperty("data");
+            var source = data.TryGetProperty("sourceBranchName", out var sn) ? sn.GetString() : "Head Office";
+            var previous = data.TryGetProperty("previousValuesJson", out var pv) && pv.ValueKind == System.Text.Json.JsonValueKind.String ? pv.GetString() : null;
+            // the branch's previous values go into the metadata (no length limit), so they can be restored if needed
+            await auditLogService.LogActivityAsync(
+                eventType: "Update",
+                actionName: "HospitalSettings.CopyFromHeadOffice",
+                description: $"Hospital settings of branch {branchId} copied from {source} ({(data.TryGetProperty("columnsCopied", out var cc) ? cc.GetInt32() : 0)} settings). Previous values are in the metadata.",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "SETTINGS",
+                metadata: new { SourceBranch = source, PreviousValues = previous is null ? (System.Text.Json.JsonElement?)null : System.Text.Json.JsonDocument.Parse(previous).RootElement });
+            TempData["Success"] = $"All settings copied from {source}. Review them and use Edit Settings for anything this branch needs different (address, contacts, logo).";
+        }
+        catch (HttpRequestException)
+        {
+            TempData["Error"] = "The API is not reachable - nothing was copied.";
+        }
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]

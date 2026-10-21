@@ -262,6 +262,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         UpdateAsync(PatientMaster patient, PatientOPDService opdBill, string lineItemsJson, int? userId)
     {
         using var con = db.CreateConnection();
+        await KeepIdentificationAsync(con, patient);
 
         var p = new DynamicParameters();
         p.Add("@PatientId", patient.PatientId);
@@ -330,9 +331,33 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
 
     // ─── Demographics-only Update ────────────────────────────────────
 
+    /// <summary>
+    /// The identification (ID type, ID number, ID document) is one set. A booking / registration form that sends none of
+    /// it keeps what the patient already has - it used to keep the document but blank the type and number. What the user
+    /// enters still replaces it (a new type or number; a new document).
+    /// </summary>
+    private static async Task KeepIdentificationAsync(IDbConnection con, PatientMaster patient)
+    {
+        if (patient.PatientId <= 0) return;
+        var noType = patient.IdentificationTypeId is null or <= 0;
+        var noNumber = string.IsNullOrWhiteSpace(patient.IdentificationNumber);
+        var noFile = string.IsNullOrWhiteSpace(patient.IdentificationFilePath);
+        if (!noType && !noNumber && !noFile) return;
+        var cur = await con.QuerySingleOrDefaultAsync<(int? TypeId, string? Number, string? File)>(
+            "SELECT IdentificationTypeId, IdentificationNumber, IdentificationFilePath FROM PatientMaster WHERE PatientId = @PatientId",
+            new { patient.PatientId });
+        if (noType && noNumber)
+        {
+            patient.IdentificationTypeId = cur.TypeId;
+            patient.IdentificationNumber = cur.Number;
+        }
+        if (noFile) patient.IdentificationFilePath = cur.File;
+    }
+
     public async Task UpdateDemographicsAsync(PatientMaster patient, int? userId)
     {
         using var con = db.CreateConnection();
+        await KeepIdentificationAsync(con, patient);
         patient.ModifiedBy   = userId;
         patient.ModifiedDate = DateTime.Now;
         await con.ExecuteAsync(@"
