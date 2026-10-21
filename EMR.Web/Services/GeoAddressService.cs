@@ -63,21 +63,60 @@ public class GeoAddressService(IHttpClientFactory httpFactory, IConfiguration co
         if (cache.TryGetValue(key, out List<GeoAddressSuggestion>? cached) && cached is not null) return cached;
 
         var bias = await BiasAsync(state, district, city, ct);
+        // postal-style text ("C/O: name, locality, P.O - x, P.S: y, district - pin") -> search forms, fullest first
+        var forms = SearchForms(query, district);
         List<GeoAddressSuggestion> result = [];
         if (useGoogle)
         {
-            try { result = await GoogleAutocompleteAsync(query, bias, sessionToken, ct); }
+            try
+            {
+                foreach (var form in forms)
+                {
+                    result = await GoogleAutocompleteAsync(form, bias, sessionToken, ct);
+                    if (result.Count > 0) break;
+                }
+            }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
             {
                 log.LogWarning(ex, "Google Places autocomplete failed - using OpenStreetMap");
             }
         }
-        if (result.Count == 0) result = await OsmSearchAsync(query, state, district, city, bias, ct);
+        if (result.Count == 0)
+        {
+            result = await OsmSearchAsync(forms.Count > 1 ? forms[^1] : forms[0], state, district, city, bias, ct);
+            // the free services also return same-named places far away: keep the chosen state's when there are some
+            if (state is not null && result.Any(r => r.State.Equals(state, StringComparison.OrdinalIgnoreCase)))
+                result = result.Where(r => r.State.Equals(state, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
 
         // Google suggestions are not cached (session billing); free results are, for an hour
         if (result.Count > 0 && result.All(r => r.PlaceId is null))
             cache.Set(key, result, TimeSpan.FromHours(1));
         return result;
+    }
+
+    /// <summary>
+    /// Search forms of an Indian postal-style address, fullest first: the care-of name (C/O, S/O, D/O, W/O) is dropped and
+    /// the P.O / P.S / Dist / Pin labels split the parts - e.g. "C/O :Jolly Mitra Unsani kachari para P.O -Unsani P.S :
+    /// Jagacha Howrah -711302" -> "Unsani kachari para, Unsani, Jagacha Howrah 711302", "Unsani kachari para, Howrah 711302",
+    /// "Unsani kachari para".
+    /// </summary>
+    internal static List<string> SearchForms(string query, string? district)
+    {
+        var q = System.Text.RegularExpressions.Regex.Replace(query, @"(?i)\b[cswd]\s*/\s*o\b\s*[:.\-]?\s*([A-Za-z.]+\s*){1,2}", " ");
+        var pin = System.Text.RegularExpressions.Regex.Match(q, @"\b\d{6}\b").Value;
+        var parts = System.Text.RegularExpressions.Regex.Split(q, @"(?i)\b(?:p\s*\.?\s*o|p\s*\.?\s*s|dist(?:rict)?|vill(?:age)?|pin(?:\s*code)?)\b\s*[.:\-]*")
+            .Select(x => System.Text.RegularExpressions.Regex.Replace(x, @"[:\-,]+", " "))
+            .Select(x => System.Text.RegularExpressions.Regex.Replace(x, @"\s+", " ").Trim().Trim('.', ','))
+            .Where(x => x.Length > 0).ToList();
+        if (parts.Count == 0) return [query.Trim()];
+        var forms = new List<string> { string.Join(", ", parts) };
+        var first = System.Text.RegularExpressions.Regex.Replace(parts[0], @"\b\d{6}\b", "").Trim();
+        var area = district ?? parts.Skip(1).LastOrDefault(p => !p.Any(char.IsDigit));
+        var withArea = string.Join(", ", new[] { first, area, pin }.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+        if (!forms.Contains(withArea, StringComparer.OrdinalIgnoreCase)) forms.Add(withArea);
+        if (first.Length >= 3 && !forms.Contains(first, StringComparer.OrdinalIgnoreCase)) forms.Add(first);
+        return forms;
     }
 
     // ── Google Places (New) ─────────────────────────────────────────────────────────────────────────────────
