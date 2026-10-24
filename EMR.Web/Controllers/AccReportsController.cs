@@ -69,6 +69,49 @@ public class AccReportsController(IAccountsService accounts) : AccountsControlle
     public async Task<IActionResult> PostingAudit(DateTime? fromDate, DateTime? toDate, int? branchId)
         => View(await AuditAsync(fromDate, toDate, branchId));
 
+    /// <summary>
+    /// Bill Reconciliation (SQLScripts/2322): the patient / franchise / corporate receivable ledgers against the bills, every
+    /// bill whose entries do not agree with the reason, and which of them the repair can fix.
+    /// </summary>
+    [HttpGet]
+    [RequiresPermission(PageCode, PermissionControls.View)]
+    public async Task<IActionResult> Reconciliation(int? branchId)
+    {
+        var scope = ScopeBranch(branchId);
+        var (ledgers, issues) = await accounts.GetReconAsync(CompanyId, scope);
+        return View(new AccReconViewModel
+        {
+            BranchId = scope, CanPickBranch = SeesAllBranches, Branches = SeesAllBranches ? await accounts.GetBranchesAsync(CompanyId) : [],
+            Ledgers = ledgers, Issues = issues
+        });
+    }
+
+    /// <summary>Posts what was never posted and reverses old duplicate / orphan entries (control REPAIR). Nothing is deleted.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequiresPermission(PageCode, "REPAIR")]
+    public async Task<IActionResult> Repair(int? branchId, [FromServices] IAuditLogService audit)
+    {
+        var scope = ScopeBranch(branchId);
+        try
+        {
+            var r = await accounts.RepairPostingsAsync(CompanyId, scope, UserId);
+            await audit.LogAsync("Repair Ledger Postings", "Accounts.Reconciliation",
+                $"Bills {r.BillsPosted}, receipts {r.ReceiptsPosted}, refunds {r.RefundsPosted}, cancellations {r.CancellationsPosted} posted; " +
+                $"{r.DuplicatesReversed} duplicate / orphan entr{(r.DuplicatesReversed == 1 ? "y" : "ies")} reversed{(scope is > 0 ? $" (branch #{scope})" : "")}.",
+                UserId, scope);
+            TempData["SuccessMessage"] = r.Total == 0
+                ? "Nothing to repair - every fixable entry is already in the ledger."
+                : $"Repaired: {r.BillsPosted} bill(s), {r.ReceiptsPosted} receipt(s), {r.RefundsPosted} refund(s), {r.CancellationsPosted} cancellation(s) posted; " +
+                  $"{r.DuplicatesReversed} duplicate entr{(r.DuplicatesReversed == 1 ? "y" : "ies")} reversed.";
+        }
+        catch (Exception ex)
+        {
+            TempData["ErrorMessage"] = Msg(ex);
+        }
+        return RedirectToAction(nameof(Reconciliation), new { branchId });
+    }
+
     /// <summary>The report on screen, with the same filters, as Excel (format = xlsx) or PDF (format = pdf).</summary>
     [HttpGet]
     [RequiresPermission(PageCode, PermissionControls.Export)]

@@ -1,0 +1,104 @@
+@model EMR.Web.Models.ViewModels.AccReconViewModel
+@{
+    ViewData["Title"] = "Bill Reconciliation";
+    ViewData["AccIcon"] = "bi-arrow-left-right";
+    ViewData["AccSubtitle"] = "The receivable ledgers against the bills: every bill whose ledger entries do not agree with what it is owed, and why.";
+    var patient = Model.Ledgers.FirstOrDefault(l => l.Ledger == "Patient Receivable");
+    var gap = patient is null ? 0 : patient.LedgerBalance - (patient.BillsBalance ?? 0);
+    var fixable = Model.Issues.Where(i => i.Fixable).ToList();
+    var review = Model.Issues.Where(i => !i.Fixable).ToList();
+    (string Label, string Help, string Css) Why(string r) => r switch
+    {
+        "BILL_NOT_POSTED" => ("Bill not posted", "The bill's revenue entry is missing; its payments are posted.", "danger"),
+        "RECEIPT_NOT_POSTED" => ("Receipt not posted", "A payment on the bill is not in the cash / bank ledger.", "danger"),
+        "REFUND_NOT_POSTED" => ("Refund not posted", "A refund on the bill is not in the ledger.", "danger"),
+        "CANCEL_NOT_POSTED" => ("Cancellation not posted", "A cancellation is not reversed in the ledger.", "danger"),
+        "DUPLICATE_B2B" => ("Posted twice (B2B)", "Posted once as a patient bill (before B2B posting) and again as a B2B bill.", "danger"),
+        "BILL_DELETED" => ("Bill deleted", "The bill no longer exists but its entry is still in the ledger.", "danger"),
+        "PAYMENT_RECORD_MISMATCH" => ("Payment rows do not agree", "The bill's payment rows do not add up to its Total Paid (stray or test rows). Check the bill.", "warning"),
+        "NO_PAYMENT_RECORD" => ("No payment record", "The bill has no payment record - it can neither be collected nor shows as due. Collect it or cancel the bill.", "warning"),
+        _ => ("Other difference", "Not explained by the checks above - look at the bill's entries.", "secondary")
+    };
+}
+
+<div class="container-fluid px-4 py-3 acc-rpt">
+    <div class="mb-3 acc-noprint"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+
+    @if (Model.CanPickBranch)
+    {
+        <form method="get" class="card border-0 shadow-sm mb-3 acc-noprint">
+            <div class="card-body row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold text-muted mb-1">Branch</label>
+                    <select name="branchId" class="form-select" onchange="this.form.submit()">
+                        <option value="">All branches</option>
+                        @foreach (var b in Model.Branches) { <option value="@b.Id" selected="@(b.Id == Model.BranchId)">@b.Name</option> }
+                    </select>
+                </div>
+            </div>
+        </form>
+    }
+
+    <div class="row g-3 mb-3">
+        @foreach (var l in Model.Ledgers)
+        {
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm h-100"><div class="card-body">
+                    <div class="small text-muted text-uppercase fw-semibold">@l.Ledger</div>
+                    <div class="fs-4 fw-bold">₹@l.LedgerBalance.ToString("N2")</div>
+                    @if (l.BillsBalance is { } bills)
+                    {
+                        <div class="small">Bills say <strong>₹@bills.ToString("N2")</strong>
+                            @if (Math.Abs(gap) < 0.01m) { <span class="badge bg-success-subtle text-success border border-success-subtle ms-1"><i class="bi bi-check-lg"></i> agrees</span> }
+                            else { <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-1">differs by ₹@gap.ToString("N2")</span> }
+                        </div>
+                        @if (l.PatientCredits is < 0)
+                        {
+                            <div class="small text-muted">Includes ₹@Math.Abs(l.PatientCredits.Value).ToString("N2") patient credit (paid but not refunded after a cancellation / over-payment).</div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="small text-muted">Settled by partner, not bill by bill - see the B2B partner statements.</div>
+                    }
+                </div></div>
+            </div>
+        }
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                <h6 class="fw-bold mb-0"><i class="bi bi-wrench-adjustable me-2 text-danger"></i>Can be repaired (@fixable.Count)</h6>
+                <div class="small text-muted">Missing entries are posted on their own date; wrong ones are reversed by a new entry. Nothing is edited or deleted.</div>
+            </div>
+            @if (fixable.Count > 0)
+            {
+                <form asp-action="Repair" method="post" asp-permission="REPORTS.ACCOUNTS:REPAIR" class="acc-noprint"
+                      onsubmit="return confirm('Post the missing entries and reverse the duplicates listed here?');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="branchId" value="@Model.BranchId" />
+                    <button type="submit" class="btn btn-danger shadow-sm"><i class="bi bi-wrench-adjustable me-1"></i>Repair @fixable.Count entr@(fixable.Count == 1 ? "y" : "ies")</button>
+                </form>
+            }
+        </div>
+        <partial name="_ReconTable" model="fixable" />
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-person-check me-2 text-warning"></i>Needs a person to check (@review.Count)</h6>
+            <div class="small text-muted">Not changed by the repair - each needs a decision on the bill itself.</div>
+        </div>
+        <partial name="_ReconTable" model="review" />
+    </div>
+
+    <div class="small text-muted mt-3">
+        @foreach (var r in Model.Issues.Select(x => x.Reason).Distinct())
+        {
+            var w = Why(r);
+            <div><span class="badge bg-@w.Css-subtle text-@(w.Css == "secondary" ? "dark" : w.Css) border border-@w.Css-subtle me-1">@w.Label</span>@w.Help</div>
+        }
+    </div>
+</div>

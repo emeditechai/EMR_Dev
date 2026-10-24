@@ -1,0 +1,109 @@
+@model EMR.Web.Models.ViewModels.AccOpeningPageViewModel
+@{
+    ViewData["Title"] = "Opening Balances";
+    ViewData["AccIcon"] = "bi-journal-arrow-up";
+    ViewData["AccSubtitle"] = "Balances of cash, bank, receivables, payables and capital on the day the books start here - per branch. Income and expense ledgers start at zero.";
+    const string Page = "UTILITY.ACCOUNTS.OPENING";
+    var i = 0;
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3"><partial name="_AccHeader" /></div>
+    <partial name="_AccAlerts" />
+
+    <form asp-action="Save" method="post" id="obForm">
+        @Html.AntiForgeryToken()
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-body row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold">Branch</label>
+                    @if (Model.CanPickBranch)
+                    {
+                        <select name="BranchId" class="form-select" onchange="location.href='@Url.Action("Index")?branchId=' + this.value">
+                            @foreach (var b in Model.Branches) { <option value="@b.Id" selected="@(b.Id == Model.BranchId)">@b.Name</option> }
+                        </select>
+                    }
+                    else
+                    {
+                        <input type="hidden" name="BranchId" value="@Model.BranchId" />
+                        <input class="form-control" value="@Model.BranchName" disabled />
+                    }
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">Opening as of</label>
+                    <input type="date" name="AsOfDate" class="form-control" value="@Model.AsOfDate.ToString("yyyy-MM-dd")" required />
+                    <div class="form-text">Usually the first day of the financial year, or the go-live date.</div>
+                </div>
+                <div class="col-md-5 small text-muted">
+                    @if (Model.Header is { } h)
+                    {
+                        <div><i class="bi bi-check-circle text-success me-1"></i>Posted as <a asp-controller="AccReports" asp-action="Voucher" asp-route-id="@h.TransactionId" class="font-monospace">@h.VoucherNo</a>
+                            on @h.CreatedDate.ToString("dd-MMM-yyyy HH:mm")@(h.ByUser is null ? "" : " by " + h.ByUser).</div>
+                        <div>Saving again replaces it (the old entry is cancelled, not deleted).</div>
+                    }
+                    else
+                    {
+                        <div><i class="bi bi-info-circle me-1"></i>No opening balances entered for this branch yet.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" id="obTable">
+                    <thead class="bg-light"><tr><th class="ps-4">Ledger</th><th>Group</th><th class="text-end" style="width:170px;">Debit (₹)</th><th class="text-end pe-4" style="width:170px;">Credit (₹)</th></tr></thead>
+                    <tbody>
+                        @foreach (var grp in Model.Lines.Where(l => l.LedgerName != "Opening Balance Difference").GroupBy(l => l.GroupType))
+                        {
+                            <tr class="table-light"><td colspan="4" class="ps-4 small fw-bold text-uppercase text-muted">@(grp.Key == "Asset" ? "Assets (usually debit)" : "Liabilities and capital (usually credit)")</td></tr>
+                            @foreach (var l in grp)
+                            {
+                                <tr>
+                                    <td class="ps-4">@l.LedgerName @if (!string.IsNullOrEmpty(l.LedgerCode)) { <span class="text-muted small font-monospace">@l.LedgerCode</span> }
+                                        <input type="hidden" name="Lines[@i].LedgerId" value="@l.LedgerId" /></td>
+                                    <td class="small text-muted">@l.GroupName</td>
+                                    <td><input type="number" step="0.01" min="0" name="Lines[@i].Debit" value="@(l.Debit == 0 ? "" : l.Debit.ToString("0.00"))" class="form-control form-control-sm text-end ob-dr" /></td>
+                                    <td class="pe-4"><input type="number" step="0.01" min="0" name="Lines[@i].Credit" value="@(l.Credit == 0 ? "" : l.Credit.ToString("0.00"))" class="form-control form-control-sm text-end ob-cr" /></td>
+                                </tr>
+                                i++;
+                            }
+                        }
+                    </tbody>
+                    <tfoot class="bg-light fw-bold">
+                        <tr><td class="ps-4" colspan="2">Total</td><td class="text-end" id="obDr">0.00</td><td class="text-end pe-4" id="obCr">0.00</td></tr>
+                        <tr><td class="ps-4" colspan="2">Difference</td><td colspan="2" class="text-end pe-4" id="obDiff"></td></tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="card-footer bg-white d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                <span class="small text-muted">Debits must equal credits. A difference is posted to "Opening Balance Difference" (Capital Account) until it is corrected.</span>
+                <button asp-permission="@(Page + ":EDIT")" type="submit" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-save me-1"></i>Save Opening Balances</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const fmt = v => v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            function totals() {
+                let dr = 0, cr = 0;
+                document.querySelectorAll('.ob-dr').forEach(x => dr += parseFloat(x.value) || 0);
+                document.querySelectorAll('.ob-cr').forEach(x => cr += parseFloat(x.value) || 0);
+                document.getElementById('obDr').textContent = fmt(dr);
+                document.getElementById('obCr').textContent = fmt(cr);
+                const d = Math.round((dr - cr) * 100) / 100, el = document.getElementById('obDiff');
+                el.innerHTML = d === 0 ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Balanced</span>'
+                    : `<span class="text-danger">${fmt(Math.abs(d))} ${d > 0 ? 'more debit' : 'more credit'}</span>`;
+            }
+            document.getElementById('obTable').addEventListener('input', totals);
+            totals();
+            document.getElementById('obForm').addEventListener('submit', e => {
+                const d = document.getElementById('obDiff').textContent;
+                if (!d.includes('Balanced') && !confirm('Debits and credits differ. Save anyway? The difference goes to "Opening Balance Difference".')) e.preventDefault();
+            });
+        })();
+    </script>
+}

@@ -1644,6 +1644,11 @@ public class OPDController(
         var (billNo, tokenNo, newSvcId) = await patientService.CreateServiceBookingOnlyAsync(
             bill, model.LineItemsJson ?? "[]", userId);
 
+        // Ledger Entry (SQLScripts/2322: this screen used to skip it - the bill's revenue was missing from the books).
+        // The amount is the bill as saved; a failure is logged and the Reconciliation report can post it later.
+        var billTotal = await OpdBillTotalAsync(newSvcId);
+        await ledgerService.PostOpdBillLedgerAsync(newSvcId, billTotal, branchId, User.GetCompanyId(), userId, billNo);
+
         TempData["OPDBillNo"]      = billNo;
         TempData["TokenNo"]        = tokenNo;                          // null unless ₹0 bill
         TempData["TokenPending"]   = string.IsNullOrEmpty(tokenNo);    // true = needs payment
@@ -1674,6 +1679,13 @@ public class OPDController(
         TriggerBookingEmail(branchId, newSvcId, $"{Request.Scheme}://{Request.Host}");
 
         return RedirectToAction(nameof(ServiceBooking));
+    }
+
+    /// <summary>The saved total of an OPD bill (PatientOPDService.TotalAmount), for its ledger entry.</summary>
+    private async Task<decimal> OpdBillTotalAsync(int opdServiceId)
+    {
+        using var con = db.CreateConnection();
+        return await con.ExecuteScalarAsync<decimal?>("SELECT TotalAmount FROM dbo.PatientOPDService WHERE OPDServiceId = @opdServiceId", new { opdServiceId }) ?? 0;
     }
 
     // ─── AJAX APIs ────────────────────────────────────────────────────────────

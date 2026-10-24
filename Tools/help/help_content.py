@@ -82,7 +82,9 @@ MODULES = [
          summary="Audit and email logs, email templates, campaigns, approvals, franchise top-up, patient portal, petty cash and accounts.",
          setup=[("SETTINGS.SMTPCONFIG", "Mail settings (for templates and campaigns)"),
                 ("UTILITY.EMAILTEMPLATE", "Email templates"),
-                ("UTILITY.ACCOUNTS.SETTINGS", "Accounts settings before petty cash and vouchers")]),
+                ("UTILITY.ACCOUNTS.SETTINGS", "Accounts settings before petty cash and vouchers"),
+                ("UTILITY.ACCOUNTS.LEDGERS", "Bank ledgers (one per real bank account) under Bank Accounts"),
+                ("UTILITY.ACCOUNTS.OPENING", "Opening balances of each branch on the go-live date")]),
 ]
 
 ARTICLES = []
@@ -584,6 +586,87 @@ guide("UT.PETTY", "UTILITY", "Petty cash and vouchers",
              "UTILITY.ACCOUNTS.LEDGERS", "UTILITY.ACCOUNTS.EXPENSEHEADS", "UTILITY.ACCOUNTS.PAYEES", "UTILITY.ACCOUNTS.SETTINGS"],
       prereq=["UTILITY.ACCOUNTS.SETTINGS"], keywords="petty cash expense voucher ledger accounts payee closing")
 
+guide("ACC.SETUP", "UTILITY", "Set up Accounts: bank ledgers and payment mode ledgers",
+      "Decide which cash or bank ledger each payment method (Cash, Card, UPI, NEFT, Cheque, Wallet) posts to - once, from the head office.",
+      ["Utility > Accounts > Ledgers and Groups: create one ledger for each real bank account (e.g. \"HDFC Current A/c\") under the group Bank Accounts. "
+       "For card / UPI money that reaches the bank a day later you may also create a clearing ledger (e.g. \"Card / UPI Clearing\") under Bank Accounts.",
+       "Utility > Accounts > Accounts Settings > Payment Mode Ledgers: for every payment method choose the ledger in the column All branches "
+       "(Cash -> Cash Account, Card / UPI -> your bank or clearing ledger, NEFT / Cheque -> your bank).",
+       "If a branch banks elsewhere, choose its own ledger in that branch's column; leave \"Same as all branches\" otherwise.",
+       "Click Save Payment Mode Ledgers. Every new receipt, refund, B2B settlement, franchise wallet top-up and membership card payment posts to the chosen ledger.",
+       "Check the next day in Reports > Accounts > Cash Book / Bank Book that the money is in the right book."],
+      pages=["UTILITY.ACCOUNTS.SETTINGS", "UTILITY.ACCOUNTS.LEDGERS"], prereq=["UTILITY.ACCOUNTS.SETTINGS"], next=["UTILITY.ACCOUNTS.OPENING"],
+      tips=["Only the head office can change the mapping; branches see it read-only.",
+            "Entries already posted keep their ledger - the mapping applies from the next entry.",
+            "Cash deposited into the bank: Voucher Entry > Contra (Dr the bank ledger, Cr Cash Account)."],
+      keywords="payment mode ledger bank account cash upi card neft cheque mapping bank book cash book contra deposit clearing")
+
+guide("ACC.OPENING", "UTILITY", "Enter opening balances (go-live)",
+      "Bring the balances of the day the books start here - cash, bank, receivables, payables, capital - branch by branch.",
+      ["Utility > Accounts > Opening Balances. The head office chooses the branch; a branch user sees only its own.",
+       "Set Opening as of: the first day of the financial year, or the go-live date.",
+       "Enter each balance on its side: assets (cash, bank, receivables, advances) usually under Debit; liabilities and capital (payables, loans, capital) under Credit. Leave the rest blank.",
+       "Watch Difference at the bottom: it should read Balanced. Then click Save Opening Balances.",
+       "The balances are posted as one Opening Balance voucher (OPN/...); the Trial Balance, Ledger Statement, Cash Book and Bank Book start from them."],
+      pages=["UTILITY.ACCOUNTS.OPENING"], prereq=["UTILITY.ACCOUNTS.LEDGERS", "UTILITY.ACCOUNTS.SETTINGS"], next=["REPORTS.ACCOUNTS"],
+      tips=["Saving again replaces the branch's opening entry: the old one is cancelled (kept for audit), never deleted.",
+            "If debits and credits differ, the difference is held in \"Opening Balance Difference\" (Capital Account) and the screen warns you - correct it before closing the first month.",
+            "Income and expense ledgers always start at zero - they are not on this screen.",
+            "A branch whose books are locked on or after the opening date cannot take the entry: unlock it first in Accounts Settings."],
+      keywords="opening balance go live start books brought forward capital difference first day financial year")
+
+guide("ACC.RECON", "REPORTS", "Reconcile bills with the ledger (Bill Reconciliation)",
+      "Make sure what the books say patients owe is exactly what the bills say - and fix what was missed.",
+      ["Reports > Accounts > Bill Reconciliation. The head office can pick a branch or see all.",
+       "Look at the Patient Receivable card: \"agrees\" means the books and the bills match. \"differs by\" shows the gap.",
+       "Can be repaired lists bills whose entries are missing or wrong - a bill, receipt, refund or cancellation that was not posted, "
+       "a B2B bill posted twice, or an entry left behind by a deleted bill.",
+       "Click Repair. Missing entries are posted on their own date; wrong ones are reversed by a new entry. Nothing is edited or deleted, and running it again changes nothing.",
+       "Needs a person to check lists bills the repair does not touch: a bill without a payment record (collect it or cancel the bill) and a bill whose payment rows do not add up to its Total Paid (stray or test rows - check the bill).",
+       "Open any bill from the list (the bill number opens its print) to check it."],
+      pages=["REPORTS.ACCOUNTS"], next=["REPORTS.ACCOUNTS"],
+      tips=["Run it at least once a month, before locking the books.",
+            "Patient credit: money kept after a cancellation or an over-payment is shown as a credit the patient is owed - refund it from the bill.",
+            "Repair needs the Repair permission on Reports > Accounts (Settings > Security > Role Permissions)."],
+      keywords="reconciliation reconcile receivable ledger mismatch difference repair missing posting duplicate patient receivable books bills")
+
+guide("ACC.MONTHEND", "REPORTS", "Month-end: check and close the books",
+      "The checks to run before a month is final, then lock it.",
+      ["Reports > Accounts > Bill Reconciliation: Patient Receivable agrees with the bills (Repair what can be repaired).",
+       "Reports > Accounts > Ledger Posting Audit for the month: no document left unposted.",
+       "Reports > Accounts > Cash Book and Bank Book: closing balances match the counted cash and the bank statement.",
+       "Reports > Accounts > Trial Balance: debits equal credits and no unbalanced voucher is reported.",
+       "Utility > Accounts > Accounts Settings > Books Lock: lock each branch up to the last day of the month."],
+      pages=["REPORTS.ACCOUNTS", "UTILITY.ACCOUNTS.SETTINGS"], prereq=["UTILITY.ACCOUNTS.OPENING"],
+      tips=["A locked branch takes no voucher, petty expense or closing dated on or before the lock date; billing is never stopped.",
+            "Voucher numbers restart every financial year: RCT/HO/26-27/00001, then RCT/HO/27-28/00001."],
+      keywords="month end closing lock books trial balance cash book bank book reconcile audit period close")
+
+guide("SET.LOGINRETRY", "SETTINGS", "Lock accounts after wrong passwords and unlock a user",
+      "Set how many wrong passwords are allowed before an account is locked for 10 minutes, and unlock a user early.",
+      ["Settings > Hospital Settings > OPD Configuration > Login Retry Count: 0 (default) means no lock; any number from 1 to 20 is the wrong passwords allowed.",
+       "After each wrong password the user sees how many attempts are left. When they run out, the account is locked for 10 minutes.",
+       "To unlock early: Settings > User Master, filter Status = Locked (the count is shown in the filter). A locked user has a \"Locked till\" badge.",
+       "Click the unlock button on the user's row, confirm the user's identity, enter the reason and click Unlock. The user can sign in at once; the reason is kept in the audit log."],
+      pages=["SETTINGS.HOSPITALSETTINGS", "SETTINGS.USERS"],
+      tips=["A user in several branches gets the strictest count of those branches; a user without a branch (Super Admin) gets the head office's.",
+            "Unlock needs its own permission (User Master > Unlock) - give it only to administrators.",
+            "Unlock does not change an Inactive user - activate the user in User Master for that."],
+      keywords="login retry wrong password attempts lock lockout unlock locked user security brute force")
+
+guide("AI.DATA", "GENERAL", "Ask AI: find a bill, open screens and see today's numbers",
+      "Ask AI also answers from live data - only what your role may see, only in your branch.",
+      ["Type a bill number (LAB/HO2627000295 or just HO2627000295): the bill card shows the patient, amount, paid, due, samples and reports, with buttons for the bill's screens.",
+       "Add what you want to open: \"... open bill\", \"... lab reporting entry\", \"... print report\", \"... sample collection\", \"... barcode\". "
+       "That screen opens at once (Report Entry opens the right one for the bill's tests: Lab, Image or Microbiology).",
+       "A token (\"token LAB-HO-0003\"), a phone number or a Patient ID finds the bill or patient.",
+       "Numbers of a period: \"today's collection\", \"opd revenue this month\", \"how many bills last month\", \"pending dues\", \"pending samples today\", \"reports pending approval\".",
+       "How-to questions (\"how do I collect a due\") still get the help guides."],
+      pages=["HOME.DASHBOARD"],
+      tips=["Spelling mistakes are understood (\"colection yesturday\").",
+            "Every night Ask AI learns the answers several users chose for the same question; administrators see it in Help Insights."],
+      keywords="ask ai data bill number open bill report entry sample collection barcode collection revenue dues today token patient search")
+
 # ════════════════════════════════ FAQ ════════════════════════════════
 faq("FAQ.MENU.MISSING", "GENERAL", "Why can't I see a menu or page?",
     "Menus show only the pages your role may open. Ask your administrator to give the page to your role in Settings > Security > Role Permissions (or to you in User Permissions). Lab Reporting also needs the Lab Technician or Pathologist tick in User Master.",
@@ -595,8 +678,24 @@ faq("FAQ.SESSION", "GENERAL", "Why was I signed out?",
     "For safety you are signed out after a period without activity, or when the browser tab session ends. Sign in again; unsaved work on the page is lost, so save often.",
     keywords="logout signed out session timeout idle")
 faq("FAQ.LOCKED", "GENERAL", "My account is locked. What do I do?",
-    "Several wrong passwords lock the account for a while - wait and try again, or reset the password with Forgot password?. If it says 'locked by the administrator', ask the administrator to unlock it in User Master.",
-    keywords="locked account wrong password attempts lockout")
+    "When your branch has a Login Retry Count, that many wrong passwords lock the account for 10 minutes - the message shows when you can try again. "
+    "Wait, reset the password with Forgot password?, or ask an administrator to unlock you in User Master (filter Status = Locked).",
+    pages=["SETTINGS.USERS", "SETTINGS.HOSPITALSETTINGS"], keywords="locked account wrong password attempts lockout unlock retry")
+faq("FAQ.ACC.VOUCHERNO", "UTILITY", "How are voucher numbers formed?",
+    "Type / branch / financial year / number - e.g. RCT/HO/26-27/00042 is the 42nd Receipt of Head Office in 2026-27. "
+    "SLS = sales (bills), RCT = receipts and refunds, CN = discounts, cancellations and reversals, PMT / CTR / JRN = manual payment, contra and journal, "
+    "PCV = petty cash, OPN = opening balances. Every entry has its own number; it restarts each financial year. "
+    "Entries made before October 2026 were renumbered this way; their old number (VCH-...) is kept with them.",
+    pages=["REPORTS.ACCOUNTS"], keywords="voucher number numbering format prefix financial year rct sls cn vch")
+faq("FAQ.TOKEN.SEQ", "OPD", "Why do OPD and LAB tokens have their own numbers?",
+    "Each kind of bill has its own daily token sequence per branch: OPD (HO-0001), B2C LAB (LAB-HO-0001) and B2B LAB (B2B-LAB-HO-0001). "
+    "An OPD bill never uses up a LAB token number, so each sequence runs without gaps; all restart at 0001 every day.",
+    pages=["OPD.SERVICEBOOKING", "LAB.LABORDERBOOKING.B2CBOOKING"], keywords="token number gap sequence opd lab b2b skip missing")
+faq("FAQ.ACC.RECEIVABLE", "UTILITY", "Why does Patient Receivable not match the dues report?",
+    "The ledger counts every patient's balance, including credits (money kept after a cancellation or over-payment), while the dues report shows only amounts owed. "
+    "Reports > Accounts > Bill Reconciliation explains every difference bill by bill and repairs missing or duplicate entries.",
+    pages=["REPORTS.ACCOUNTS"], keywords="patient receivable mismatch dues ledger difference credit reconciliation")
+
 faq("FAQ.PASSWORD.RULES", "GENERAL", "What are the password rules?",
     "At least 8 characters with at least one letter and one number. Choose one you do not use elsewhere.",
     keywords="password rules length strong")
@@ -713,6 +812,17 @@ trouble("TS.PRINT.WRONG", "LAB", "The bill prints on the wrong page size",
         ["Settings > Hospital Settings > LAB > Printing: choose A4 or A5 landscape.",
          "In the print dialog choose the same paper size, scale 100% and no headers / footers."],
         pages=["SETTINGS.HOSPITALSETTINGS"], keywords="print size wrong page a4 a5 printer bill")
+trouble("TS.ACC.BILL.MISSING", "UTILITY", "A bill or receipt is missing from the Cash Book / ledger",
+        "The ledger entry is posted right after the bill or payment is saved; if that step failed (for example the connection dropped), the document is saved but its entry is not.",
+        ["Reports > Accounts > Bill Reconciliation (or Ledger Posting Audit for the period) lists it.",
+         "Click Repair on Bill Reconciliation: the missing entry is posted on the document's own date.",
+         "If it stays under \"Needs a person to check\", open the bill - its payment rows do not agree with its Total Paid, or it has no payment record."],
+        pages=["REPORTS.ACCOUNTS"], keywords="missing ledger entry cash book bill not posted receipt not posted repair reconciliation")
+trouble("TS.ACC.WRONG.BOOK", "UTILITY", "Card / UPI money shows in the wrong bank (or in cash)",
+        "Each payment method posts to the ledger chosen in Accounts Settings > Payment Mode Ledgers; it was set to another ledger when the payment was saved.",
+        ["Head office: Utility > Accounts > Accounts Settings > Payment Mode Ledgers - choose the right ledger for the method (and branch) and save; new payments follow it.",
+         "Entries already posted: move them with a Contra voucher (Dr the right ledger, Cr the wrong one) in Voucher Entry."],
+        pages=["UTILITY.ACCOUNTS.SETTINGS", "UTILITY.ACCOUNTS.VOUCHERS"], keywords="wrong bank ledger upi card cash book bank book payment mode mapping")
 trouble("TS.SAVE.ERROR", "GENERAL", "Saving fails with an error",
         "The message says why; usually a required field, a rule (approval, duplicate) or a lost connection.",
         ["Read the message and fill / correct the highlighted fields.",
@@ -854,3 +964,22 @@ workflow("FLOW.EMAIL", "UTILITY", "Emails to patients: from mail settings to cam
                optional=True, when="for bulk or one-off emails"),
           step("UTILITY.EMAILLOGS", "Check what was sent", "See sent and failed emails and the reason.", "UT.AUDIT")],
          keywords="email mail smtp template campaign", primary=True)
+
+workflow("FLOW.ACC.GOLIVE", "UTILITY", "Accounts go-live: from setup to the first trial balance",
+         "Everything to do once before the books of a branch can be trusted.",
+         [step("UTILITY.ACCOUNTS.SETTINGS", "Set the accounts rules", "Financial year start, petty cash limits and approvals.", "UT.PETTY"),
+          step("UTILITY.ACCOUNTS.LEDGERS", "Create the bank ledgers", "One ledger per real bank account under Bank Accounts.", "ACC.SETUP"),
+          step("UTILITY.ACCOUNTS.SETTINGS", "Map payment modes to ledgers", "Cash, Card, UPI, NEFT, Cheque, Wallet -> their ledger.", "ACC.SETUP"),
+          step("UTILITY.ACCOUNTS.OPENING", "Enter the opening balances", "Each branch's balances on the go-live date; Difference = Balanced.", "ACC.OPENING"),
+          step("REPORTS.ACCOUNTS", "Reconcile bills with the ledger", "Bill Reconciliation: agrees, or Repair.", "ACC.RECON"),
+          step("REPORTS.ACCOUNTS", "Check the Trial Balance", "Debits equal credits, no unbalanced voucher.", "ACC.MONTHEND")],
+         keywords="accounts go live setup ledger bank opening balance payment mode trial balance start books")
+
+workflow("FLOW.ACC.MONTHEND", "UTILITY", "Accounts month-end close",
+         "The monthly checks before the books of a month are locked.",
+         [step("REPORTS.ACCOUNTS", "Reconcile bills with the ledger", "Bill Reconciliation: repair what can be repaired, check the rest.", "ACC.RECON"),
+          step("REPORTS.ACCOUNTS", "Run the Ledger Posting Audit", "No document of the month left unposted.", "ACC.MONTHEND"),
+          step("REPORTS.ACCOUNTS", "Tally the Cash Book and Bank Book", "Closing balances against counted cash and the bank statement.", "ACC.MONTHEND"),
+          step("REPORTS.ACCOUNTS", "Check the Trial Balance", "Debits equal credits.", "ACC.MONTHEND"),
+          step("UTILITY.ACCOUNTS.SETTINGS", "Lock the month", "Books Lock: each branch up to the month's last day.", "ACC.MONTHEND")],
+         keywords="month end close lock books reconcile trial balance cash book bank book audit")
