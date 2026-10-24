@@ -123,7 +123,6 @@ public class LabTerminologyController(ITerminologyApiClient api, IAuditLogServic
             ViewBag.Q = q; ViewBag.ClassName = className; ViewBag.Status = status; ViewBag.OrderObs = orderObs;
             ViewBag.All = all; ViewBag.Retired = retired;
             ViewBag.Classes = await api.ClassesAsync();
-            ViewBag.Online = (await api.ReleasesAsync()).OnlineConfigured;
             return View(await api.SearchAsync(q, className, !all, retired, status, orderObs, Math.Max(1, page), pageSize));
         }
         catch (HttpRequestException) { return Down("Standard Test Search"); }

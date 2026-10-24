@@ -4,7 +4,7 @@
     ViewData["ApiDataPage"] = "Search";
     var classes = ViewBag.Classes as List<EMR.Web.ApiClients.Models.LoincClassRow> ?? new();
     string? q = ViewBag.Q, cls = ViewBag.ClassName, status = ViewBag.Status, orderObs = ViewBag.OrderObs;
-    bool all = ViewBag.All, retired = ViewBag.Retired, online = ViewBag.Online;
+    bool all = ViewBag.All, retired = ViewBag.Retired;
     var pages = Math.Max(1, (int)Math.Ceiling(Model.TotalCount / (double)Math.Max(1, Model.PageSize)));
     string PageUrl(int p) => Url.Action("Search", new { q, className = cls, status, orderObs, all, retired, page = p, pageSize = Model.PageSize })!;
     string StatusPill(string? s) => s switch { "ACTIVE" => "green", "TRIAL" => "blue", "DISCOURAGED" => "amber", "DEPRECATED" => "red", _ => "grey" };
@@ -12,11 +12,6 @@
 
 <div class="container-fluid px-4 py-3">
     <partial name="_ApiDataNav" />
-
-    <ul class="nav nav-tabs mb-3" role="tablist">
-        <li class="nav-item"><button class="nav-link active fw-semibold" data-bs-toggle="tab" data-bs-target="#tabLocal" type="button"><i class="bi bi-hdd-stack me-1"></i>Local repository</button></li>
-        <li class="nav-item" asp-permission="UTILITY.APIDATA.SEARCH:ONLINE"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tabOnline" type="button"><i class="bi bi-globe2 me-1"></i>Online (LOINC Search API)</button></li>
-    </ul>
 
     <div class="tab-content">
         <!-- Local repository -->
@@ -94,7 +89,7 @@
                             {
                                 <tr><td colspan="8" class="text-center text-muted py-5">
                                     <i class="bi bi-search display-6 d-block mb-2"></i>
-                                    @(string.IsNullOrWhiteSpace(q) ? "No concepts in the local repository yet - import a LOINC release in Terminology Import." : "No standard test matches. Try fewer words, or the Online tab.")
+                                    @(string.IsNullOrWhiteSpace(q) ? "No concepts in the local repository yet - import a LOINC release in Terminology Import." : "No standard test matches. Try fewer words or an abbreviation (FBS, SGPT, TSH).")
                                 </td></tr>
                             }
                         </tbody>
@@ -116,36 +111,6 @@
             </div>
         </div>
 
-        <!-- Online -->
-        <div class="tab-pane fade" id="tabOnline">
-            @if (!online)
-            {
-                <div class="alert alert-warning small">
-                    <i class="bi bi-info-circle me-1"></i>The LOINC Search API is not configured. Add <code>LoincSearchApi:Username</code> and <code>LoincSearchApi:Password</code>
-                    (a free loinc.org account) to the <b>API</b> settings (appsettings.json of EMR.Api) and restart it. The local repository works without it.
-                </div>
-            }
-            <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3">
-                <div class="row g-2 align-items-end">
-                    <div class="col-lg-6">
-                        <label class="form-label small fw-semibold text-muted mb-1">Search loinc.org</label>
-                        <div class="input-group"><input id="onQ" class="form-control" placeholder="e.g. hba1c, vitamin d 25" />
-                            <button class="btn btn-primary" id="onBtn" type="button"><i class="bi bi-globe2 me-1"></i>Search online</button></div>
-                    </div>
-                    <div class="col-lg-6 ad-note">Concepts found online can be added to the local repository one by one (release <b>API-LOOKUP</b>). For the full catalogue, import the official release file.</div>
-                </div>
-            </div></div>
-            <div class="card border-0 shadow-sm">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 ad-table">
-                        <thead><tr><th class="ps-3">LOINC</th><th>Standard name</th><th>System</th><th>Scale</th><th>Status</th><th class="text-end pe-3"></th></tr></thead>
-                        <tbody id="onBody"><tr><td colspan="6" class="text-center text-muted py-4">Search to see results from the LOINC Search API.</td></tr></tbody>
-                    </table>
-                </div>
-                <div class="card-footer bg-white d-flex justify-content-between align-items-center"><span class="small text-muted" id="onInfo"></span>
-                    <div><button class="btn btn-sm btn-outline-secondary" id="onPrev" disabled>Previous</button> <button class="btn btn-sm btn-outline-secondary" id="onNext" disabled>Next</button></div></div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -191,37 +156,6 @@
         modal.show();
     }));
 
-    // ── online ─────────────────────────────────────────────────────────────────────────────────────
-    const q = document.getElementById('onQ');
-    if (!q) return;
-    let page = 1, last = [];
-    async function online() {
-        if (!q.value.trim()) return;
-        const body = document.getElementById('onBody');
-        body.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm me-2"></span>Searching loinc.org…</td></tr>';
-        const r = await fetch('@Url.Action("OnlineSearch")?q=' + encodeURIComponent(q.value.trim()) + '&page=' + page);
-        const j = await r.json();
-        last = j.items || [];
-        if (!j.success) { body.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">' + esc(j.message || 'The search failed.') + '</td></tr>'; return; }
-        body.innerHTML = last.map((c, i) => '<tr><td class="ps-3 ad-code">' + esc(c.loincCode) + '</td><td><div class="fw-semibold">' + esc(c.longCommonName) + '</div><div class="ad-note">' + esc(c.className || '') + '</div></td><td class="ad-attr">' +
-            esc(c.systemName) + '</td><td class="ad-attr">' + esc(c.scaleType) + '</td><td><span class="ad-pill ' + pill(c.status) + '">' + esc(c.status) + '</span></td><td class="text-end pe-3">' +
-            (c.inLocal ? '<span class="ad-pill green">In local repository</span>' : '<button class="btn btn-sm btn-outline-primary" data-add="' + i + '"><i class="bi bi-plus-lg me-1"></i>Add to local</button>') + '</td></tr>').join('') ||
-            '<tr><td colspan="6" class="text-center text-muted py-4">No result.</td></tr>';
-        document.getElementById('onInfo').textContent = (j.totalFound || 0).toLocaleString() + ' found · page ' + page;
-        document.getElementById('onPrev').disabled = page <= 1;
-        document.getElementById('onNext').disabled = page * 20 >= (j.totalFound || 0);
-        body.querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', async () => {
-            b.disabled = true;
-            const rr = await fetch('@Url.Action("SaveLookup")', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(last[+b.dataset.add]) });
-            const jj = await rr.json();
-            if (jj.success) b.outerHTML = '<span class="ad-pill green">Added</span>';
-            else { b.disabled = false; Swal.fire({ icon: 'error', title: 'Not added', text: jj.error || 'Please try again.' }); }
-        }));
-    }
-    document.getElementById('onBtn').addEventListener('click', () => { page = 1; online(); });
-    q.addEventListener('keydown', e => { if (e.key === 'Enter') { page = 1; online(); } });
-    document.getElementById('onPrev').addEventListener('click', () => { page--; online(); });
-    document.getElementById('onNext').addEventListener('click', () => { page++; online(); });
 })();
 </script>
 }

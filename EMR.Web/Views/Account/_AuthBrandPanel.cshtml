@@ -1,23 +1,50 @@
-@* Login / Forgot password / Reset password: the brand panel on the left (hidden on phones). *@
+@* Login / Forgot password / Reset password: the brand panel on the left (hidden on phones) - the hospital modules
+   (OPD / IPD / LAB), the daily workflow and a heartbeat line, in the application's purple-pink colours. *@
 <div class="col-lg-6 auth-left d-none d-lg-flex">
     <div class="al-pattern" aria-hidden="true"></div>
 
-    <div class="al-top">
-        <span class="al-mark"><i class="bi bi-plus-lg"></i></span>
-        <span class="al-mark-text">Hospital Information System</span>
-    </div>
-
     <div class="al-body">
         <h1 class="auth-left-title"><span class="brand-eclinic">eCare360</span><span class="brand-plus">Plus</span><span class="brand-plussign">+</span></h1>
-        <p class="auth-left-sub">Electronic Medical Records</p>
-        <p class="al-lead">One secure workspace for patient care, diagnostics and billing across all your branches.</p>
+        <p class="auth-left-sub">OPD &middot; IPD &middot; LAB &middot; Billing</p>
+        <p class="al-lead2">From the patient's first visit to the signed lab report - one secure workspace for every branch.</p>
 
-        <ul class="al-features">
-            <li><span class="al-ico"><i class="bi bi-diagram-3-fill"></i></span><div><strong>Multi-branch access</strong><small>Work across branches with one login</small></div></li>
-            <li><span class="al-ico"><i class="bi bi-shield-check"></i></span><div><strong>Role-based permissions</strong><small>Every user sees only what they need</small></div></li>
-            <li><span class="al-ico"><i class="bi bi-person-vcard-fill"></i></span><div><strong>Centralized patient records</strong><small>One history from registration to report</small></div></li>
-            <li><span class="al-ico"><i class="bi bi-hospital-fill"></i></span><div><strong>OPD, IPD &amp; LAB management</strong><small>Clinical and billing workflows together</small></div></li>
-        </ul>
+        <div class="al-mods">
+            <div class="al-mod">
+                <span class="al-mod-ico" style="--c:#60a5fa"><i class="bi bi-heart-pulse-fill"></i></span>
+                <strong>OPD</strong>
+                <small>Registration &middot; Tokens &middot; Consultation</small>
+            </div>
+            <div class="al-mod">
+                <span class="al-mod-ico" style="--c:#34d399"><i class="bi bi-hospital-fill"></i></span>
+                <strong>IPD</strong>
+                <small>Admission &middot; Beds &middot; Discharge</small>
+            </div>
+            <div class="al-mod">
+                <span class="al-mod-ico" style="--c:#fbbf24"><i class="bi bi-droplet-half"></i></span>
+                <strong>LAB</strong>
+                <small>Billing &middot; Samples &middot; Reports</small>
+            </div>
+        </div>
+
+        <div class="al-flow" aria-label="Daily workflow">
+            <span><i class="bi bi-person-plus-fill"></i>Register</span><i class="bi bi-chevron-right al-flow-sep"></i>
+            <span><i class="bi bi-receipt"></i>Bill</span><i class="bi bi-chevron-right al-flow-sep"></i>
+            <span><i class="bi bi-upc-scan"></i>Sample</span><i class="bi bi-chevron-right al-flow-sep"></i>
+            <span><i class="bi bi-clipboard2-pulse-fill"></i>Report</span><i class="bi bi-chevron-right al-flow-sep"></i>
+            <span><i class="bi bi-send-check-fill"></i>Deliver</span>
+        </div>
+
+        @* heartbeat line *@
+        <svg class="al-ecg" viewBox="0 0 600 60" preserveAspectRatio="none" aria-hidden="true">
+            <polyline fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+                  points="0,34 120,34 140,34 150,22 160,46 172,6 186,54 198,34 260,34 290,34 300,26 310,40 320,34 400,34 420,34 430,22 440,46 452,6 466,54 478,34 600,34" />
+        </svg>
+
+        <div class="al-trust">
+            <span><i class="bi bi-diagram-3-fill"></i>Multi-branch</span>
+            <span><i class="bi bi-shield-check"></i>Role-based access</span>
+            <span><i class="bi bi-patch-check-fill"></i>NABH-ready</span>
+        </div>
     </div>
 
     <div class="al-foot">&copy; @DateTime.Now.Year eCare360Plus+ &middot; All rights reserved</div>
