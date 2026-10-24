@@ -328,6 +328,16 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#dc2626;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-shield-lock"></i></div>
+                        <div>
+                            <div class="lp-label">Login Retry Count</div>
+                            <div class="lp-desc">Wrong passwords allowed before a 10-minute lock. 0 means no lock.</div>
+                            <span class="lp-pill @(Model.LoginRetryCount > 0 ? "yes" : "no")"><i class="bi @(Model.LoginRetryCount > 0 ? "bi-lock-fill" : "bi-unlock")"></i>@(Model.LoginRetryCount > 0 ? Model.LoginRetryCount + " ATTEMPTS" : "OFF (0)")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

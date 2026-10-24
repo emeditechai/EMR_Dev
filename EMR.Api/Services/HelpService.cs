@@ -23,6 +23,10 @@ public interface IHelpService
     Task<HelpLearningStats> LearningStatsAsync(int companyId);
     Task TeachAsync(HelpTeachRequest request);
     Task<bool> ForgetAsync(int companyId, int learnedId, int? userId);
+    /// <summary>Help Insights: questions answered weakly (SQLScripts/2321) and the last nightly learning pass.</summary>
+    Task<HelpGapsView> GapsAsync(int companyId);
+    /// <summary>The nightly learning pass (SQLScripts/2321); the catalogs (and their ML.NET models) are rebuilt after it.</summary>
+    Task<(int Promoted, int Demoted)> LearnNightlyAsync();
 }
 
 public partial class HelpService(IDbConnectionFactory connectionFactory, IMemoryCache cache, IHttpClientFactory httpFactory,
@@ -100,6 +104,8 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
         {
             var admin = g.FirstOrDefault(l => l.Source == "ADMIN");
             if (admin is not null) c.Memory[g.Key] = (admin.TargetCode!, true);
+            // confirmed by 2+ different users (the nightly learning pass, SQLScripts/2321)
+            else if (g.Where(l => l.Source == "AUTO").OrderByDescending(Net).FirstOrDefault() is { } auto) c.Memory[g.Key] = (auto.TargetCode!, false);
             else if (g.Where(l => Net(l) >= 2).OrderByDescending(Net).FirstOrDefault() is { } best) c.Memory[g.Key] = (best.TargetCode!, false);
             foreach (var bad in g.Where(l => l.Source != "ADMIN" && l.DownVotes - l.UpVotes >= 2)) c.Rejected.Add(g.Key + "|" + bad.TargetCode);
         }
@@ -473,6 +479,19 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
                 var best = ix.Vocab.Where(v => Math.Abs(v.Length - t.Length) <= max).Select(v => (v, d: Distance(v, t, max))).Where(x => x.d <= max)
                                    .OrderBy(x => x.d).ThenByDescending(x => ix.Df[x.v]).FirstOrDefault();
                 if (best.v is not null) t = best.v;
+                // two words typed together ("duecollection", "samplecollect"): both halves when each is a known word
+                else if (t.Length >= 7 && Enumerable.Range(3, t.Length - 5).Select(i => (A: Stem(t[..i]), B: Stem(t[i..])))
+                                                    .FirstOrDefault(x => ix.Vocab.Contains(x.A) && ix.Vocab.Contains(x.B)) is { A: not null } split)
+                {
+                    terms[split.A] = Math.Max(terms.GetValueOrDefault(split.A), 1);
+                    t = split.B;
+                }
+            }
+            else if (!ix.Vocab.Contains(t) && t.Length == 3)
+            {
+                // a short word: corrected only when exactly one known 3-letter word is one edit away (e.g. "lba" -> "lab")
+                var near = ix.Vocab.Where(v => v.Length == 3 && Distance(v, t, 1) <= 1).Take(2).ToList();
+                if (near.Count == 1) t = near[0];
             }
             terms[t] = Math.Max(terms.GetValueOrDefault(t), 1);
             if (Synonyms.TryGetValue(raw, out var syn) || Synonyms.TryGetValue(t, out syn))
@@ -484,6 +503,7 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
     private static int Distance(string a, string b, int max)
     {
         var prev = Enumerable.Range(0, b.Length + 1).ToArray();
+        int[]? prevPrev = null;
         for (var i = 1; i <= a.Length; i++)
         {
             var cur = new int[b.Length + 1];
@@ -492,9 +512,12 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
             for (var j = 1; j <= b.Length; j++)
             {
                 cur[j] = Math.Min(Math.Min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1));
+                // two letters swapped ("colelct") count as one edit
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] && prevPrev is not null) cur[j] = Math.Min(cur[j], prevPrev[j - 2] + 1);
                 rowMin = Math.Min(rowMin, cur[j]);
             }
             if (rowMin > max) return max + 1;
+            prevPrev = prev;
             prev = cur;
         }
         return prev[b.Length];
@@ -871,6 +894,23 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
     {
         var question = (r.Question ?? "").Trim();
         if (question.Length > 400) question = question[..400];
+
+        // a question about live data (a bill number, today's collection, dues...): answered from the database (SQLScripts/2321)
+        HelpAnswer? data = null;
+        try
+        {
+            using var ddb = connectionFactory.CreateConnection();
+            data = await HelpData.AnswerAsync(ddb, r, DateTime.Today);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "Help assistant: data answer failed; a help answer is given instead."); }
+        if (data is not null)
+        {
+            data.Intent = "DATA";
+            data.Confidence = 1;
+            await LogAskAsync(r, question, "DATA", data);
+            return data;
+        }
+
         var c = await CatalogAsync(r.CompanyId);
         var hits = Blend(c, question, r.PageCode);
         var key = QuestionKey(question);
@@ -959,18 +999,23 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
             }
         }
         answer.Intent = intent;
+        await LogAskAsync(r, question, intent, answer);
+        logger.LogDebug("Help assistant: \"{Q}\" -> intent {Intent} ({P:0.00}), answer {Code}", question, intent, intentP, answer.Code);
+        return answer;
+    }
+
+    private async Task LogAskAsync(HelpAskRequest r, string question, string? intent, HelpAnswer answer)
+    {
         try
         {
             using var db = connectionFactory.CreateConnection();
             await db.ExecuteAsync("dbo.usp_Help_Ask_Log", new
             {
-                r.CompanyId, Question = question, Intent = intent, AnswerCode = answer.Found ? answer.Code : null, answer.Found,
+                r.CompanyId, Question = question, Intent = intent is { Length: > 10 } ? intent[..10] : intent, AnswerCode = answer.Found ? answer.Code : null, answer.Found,
                 Confidence = (decimal)Math.Round(answer.Confidence, 2), PageCode = string.IsNullOrWhiteSpace(r.PageCode) ? null : r.PageCode, r.UserId
             }, commandType: Sp);
         }
         catch (Exception ex) { logger.LogWarning(ex, "Help assistant: the question could not be logged."); }
-        logger.LogDebug("Help assistant: \"{Q}\" -> intent {Intent} ({P:0.00}), answer {Code}", question, intent, intentP, answer.Code);
-        return answer;
     }
 
     private static HelpLink Link(Catalog c, Doc d) => d.Article is not null
@@ -1053,6 +1098,37 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
             Intent = click ? null : r.Intent,
             Signal = click ? "CLICK" : r.Helpful == true ? "UP" : "DOWN", r.UserId
         }, commandType: Sp);
+        // kept per user for the nightly learning pass (an answer is learned when several different users choose it)
+        if (Code120(r.ArticleCode) is { } target && !target.StartsWith("DATA:") && !(flowAnswer && !click))
+            try
+            {
+                await db.ExecuteAsync("dbo.usp_Help_Signal_Log", new
+                {
+                    r.CompanyId, QuestionKey = key, TargetCode = target, Signal = click ? "CLICK" : r.Helpful == true ? "UP" : "DOWN", r.UserId
+                }, commandType: Sp);
+            }
+            catch (Exception ex) { logger.LogWarning(ex, "Help assistant: the signal could not be logged (is SQLScripts/2321 applied?)."); }
+    }
+
+    public async Task<HelpGapsView> GapsAsync(int companyId)
+    {
+        using var db = connectionFactory.CreateConnection();
+        using var multi = await db.QueryMultipleAsync("dbo.usp_Help_Gaps", new { CompanyId = companyId }, commandType: Sp);
+        return new HelpGapsView
+        {
+            Gaps = (await multi.ReadAsync<HelpGapRow>()).ToList(),
+            LastRun = await multi.ReadSingleOrDefaultAsync<HelpLearningRunRow>()
+        };
+    }
+
+    public async Task<(int Promoted, int Demoted)> LearnNightlyAsync()
+    {
+        using var db = connectionFactory.CreateConnection();
+        var r = await db.QuerySingleAsync<(int Promoted, int Demoted)>("dbo.usp_Help_Learn_Nightly", commandType: Sp, commandTimeout: 300);
+        // each company's catalog is rebuilt on its next question: the ML.NET models retrain with what was learned
+        foreach (var companyId in await db.QueryAsync<int>("SELECT DISTINCT CompanyId FROM dbo.HelpLearned"))
+            cache.Remove(CatalogKey(companyId));
+        return r;
     }
 
     private static string? Code120(string? code) => string.IsNullOrWhiteSpace(code) ? null : code.Length > 120 ? code[..120] : code;

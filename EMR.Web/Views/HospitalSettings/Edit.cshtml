@@ -371,6 +371,17 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#dc2626;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-shield-lock"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Login Retry Count</div>
+                            <div class="lp-desc">Wrong passwords allowed before the account is locked for 10 minutes. 0: no lock. An administrator can unlock a user from User Master.</div>
+                            <input asp-for="LoginRetryCount" type="number" min="0" max="20" step="1" class="form-control form-control-sm mt-2" placeholder="0" />
+                            <span asp-validation-for="LoginRetryCount" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

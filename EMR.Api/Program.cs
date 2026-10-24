@@ -138,6 +138,7 @@ builder.Services.AddScoped<ICampaignService, CampaignService>();   // Utility > 
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("Anthropic");
 builder.Services.AddScoped<IHelpService, HelpService>();
+builder.Services.AddHostedService<HelpLearningWorker>();   // Ask AI daily learning (SQLScripts/2321)
 builder.Services.AddScoped<ILabDefaultSignatoryService,           LabDefaultSignatoryService>();
 builder.Services.AddScoped<ILabApprovalFlowService,                LabApprovalFlowService>();
 builder.Services.AddScoped<IB2BBillingService,              B2BBillingService>();

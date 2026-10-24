@@ -17,6 +17,10 @@ public interface ILoginSecurity
     /// <summary>Counts a wrong password; returns the unlock time when this attempt locked the account.</summary>
     Task<DateTime?> RecordFailureAsync(int userId);
 
+    /// <summary>Counts a wrong password (Hospital Settings > Login Retry Count, SQLScripts/2320): the unlock time when this
+    /// attempt locked the account, and the attempts left before the lock (null when wrong passwords are not counted).</summary>
+    Task<(DateTime? LockedUntil, int? AttemptsLeft)> RecordFailureDetailAsync(int userId);
+
     Task RecordSuccessAsync(int userId);
 }
 
@@ -29,15 +33,20 @@ public sealed class SqlLoginSecurity(string connectionString, IOptionsMonitor<Ap
         return until > DateTime.Now ? until : null;
     }
 
-    public async Task<DateTime?> RecordFailureAsync(int userId)
+    public async Task<DateTime?> RecordFailureAsync(int userId) => (await RecordFailureDetailAsync(userId)).LockedUntil;
+
+    public async Task<(DateTime? LockedUntil, int? AttemptsLeft)> RecordFailureDetailAsync(int userId)
     {
         var o = options.CurrentValue;
         await using var con = new SqlConnection(connectionString);
-        var row = await con.QuerySingleOrDefaultAsync<(int FailedLoginAttempts, DateTime? Lockout_Until)>(
+        // the limit and the 10-minute lock come from Hospital Settings; the configured values are passed for older databases
+        var row = await con.QuerySingleOrDefaultAsync<(int? FailedLoginAttempts, DateTime? Lockout_Until, int? RetryCount)>(
             "dbo.usp_Auth_Login_RecordFailure",
             new { UserId = userId, MaxAttempts = Math.Max(1, o.MaxFailedAttempts), LockMinutes = Math.Max(1, o.LockoutMinutes) },
             commandType: CommandType.StoredProcedure);
-        return row.Lockout_Until > DateTime.Now ? row.Lockout_Until : null;
+        var locked = row.Lockout_Until > DateTime.Now ? row.Lockout_Until : null;
+        int? left = row.RetryCount is > 0 ? Math.Max(0, row.RetryCount.Value - (row.FailedLoginAttempts ?? 0)) : null;
+        return (locked, left);
     }
 
     public async Task RecordSuccessAsync(int userId)

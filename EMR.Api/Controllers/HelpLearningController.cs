@@ -16,6 +16,10 @@ public class HelpLearningController(IHelpService service) : ControllerBase
     [HttpGet("stats")]
     public async Task<IActionResult> Stats([FromQuery] int companyId) => Ok(await service.LearningStatsAsync(companyId));
 
+    // questions answered weakly in the last 14 days + the last nightly learning pass (SQLScripts/2321)
+    [HttpGet("gaps")]
+    public async Task<IActionResult> Gaps([FromQuery] int companyId) => Ok(await service.GapsAsync(companyId));
+
     [HttpPost("teach")]
     public async Task<IActionResult> Teach([FromBody] HelpTeachRequest request)
     {

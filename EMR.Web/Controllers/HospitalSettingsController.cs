@@ -364,6 +364,7 @@ public class HospitalSettingsController(
             existing.DayClosingBlockBilling = model.DayClosingBlockBilling;
             existing.DayClosingAllowSelfVerify = model.DayClosingAllowSelfVerify;
             existing.DayClosingLoginReminder = model.DayClosingLoginReminder;
+            existing.LoginRetryCount = model.LoginRetryCount;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -442,6 +443,7 @@ public class HospitalSettingsController(
             DayClosingBlockBilling = s.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = s.DayClosingAllowSelfVerify,
             DayClosingLoginReminder = s.DayClosingLoginReminder,
+            LoginRetryCount = s.LoginRetryCount,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -507,6 +509,7 @@ public class HospitalSettingsController(
             DayClosingBlockBilling = m.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = m.DayClosingAllowSelfVerify,
             DayClosingLoginReminder = m.DayClosingLoginReminder,
+            LoginRetryCount = m.LoginRetryCount,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

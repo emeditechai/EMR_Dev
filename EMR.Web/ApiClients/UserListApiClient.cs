@@ -8,6 +8,9 @@ public interface IUserListApiClient
 {
     Task<UserListPageDto> GetPagedAsync(int? companyId, IEnumerable<int>? visibleBranchIds, int? currentBranchId,
         string? search, string? userType, string? status, string? role, int page, int pageSize);
+
+    /// <summary>Unlock a user locked after wrong passwords: (found, was locked).</summary>
+    Task<(bool Found, bool WasLocked)> UnlockAsync(int userId);
 }
 
 public class UserListKpisDto
@@ -18,6 +21,7 @@ public class UserListKpisDto
     public int Pathologists { get; set; }
     public int PathologistsSigned { get; set; }
     public int LabTechnicians { get; set; }
+    public int LockedUsers { get; set; }
 }
 
 public class UserListRowDto
@@ -40,6 +44,8 @@ public class UserListRowDto
     public string? ReferenceName { get; set; }
     public string Branches { get; set; } = "";
     public string DepartmentNames { get; set; } = "";
+    public int FailedLoginAttempts { get; set; }
+    public DateTime? LockedUntil { get; set; }
 }
 
 public class UserListPageDto
@@ -70,5 +76,16 @@ public class UserListApiClient(IHttpClientFactory httpClientFactory) : IUserList
         qs["page"] = page.ToString();
         qs["pageSize"] = pageSize.ToString();
         return await Client.GetFromJsonAsync<UserListPageDto>("api/users-list?" + qs) ?? new UserListPageDto();
+    }
+
+    private sealed class UnlockDto { public bool Found { get; set; } public bool WasLocked { get; set; } }
+
+    public async Task<(bool Found, bool WasLocked)> UnlockAsync(int userId)
+    {
+        var res = await Client.PostAsync($"api/users-list/{userId}/unlock", null);
+        if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return (false, false);
+        res.EnsureSuccessStatusCode();
+        var dto = await res.Content.ReadFromJsonAsync<UnlockDto>();
+        return (dto?.Found ?? false, dto?.WasLocked ?? false);
     }
 }

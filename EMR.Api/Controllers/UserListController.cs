@@ -27,10 +27,18 @@ public class UserListController(IUserListService service) : ControllerBase
             CurrentBranchId = currentBranchId,
             Search = search?.Trim(),
             UserType = userType?.Trim() is "U" or "D" or "F" or "C" ? userType.Trim() : null,
-            Status = status?.Trim().ToLowerInvariant() is "active" or "inactive" ? status.Trim().ToLowerInvariant() : null,
+            Status = status?.Trim().ToLowerInvariant() is "active" or "inactive" or "locked" ? status.Trim().ToLowerInvariant() : null,
             Role = role?.Trim().ToLowerInvariant() is "nurse" or "phlebotomist" or "pathologist" or "labtech" or "logistics" ? role.Trim().ToLowerInvariant() : null,
             Page = page,
             PageSize = pageSize
         }));
+    }
+
+    // POST api/users-list/5/unlock - User Master > Unlock (SQLScripts/2320), its own permission control
+    [HttpPost("{id:int}/unlock")]
+    public async Task<IActionResult> Unlock(int id)
+    {
+        var r = await service.UnlockAsync(id);
+        return r.Found ? Ok(r) : NotFound();
     }
 }

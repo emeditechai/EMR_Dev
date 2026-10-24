@@ -30,6 +30,9 @@ public class UserListItemViewModel
     public string? ProfilePicturePath { get; set; }
     /// <summary>True when a pathologist signature image has been uploaded.</summary>
     public bool HasSignature { get; set; }
+    public int FailedLoginAttempts { get; set; }
+    /// <summary>Set while the account is locked after wrong passwords (SQLScripts/2320).</summary>
+    public DateTime? LockedUntil { get; set; }
 }
 
 /// <summary>Settings > User Master list, one page of users from the server (SQLScripts/2314).</summary>
@@ -42,6 +45,7 @@ public class UserListPageViewModel
     public int Pathologists { get; set; }
     public int PathologistsSigned { get; set; }
     public int LabTechnicians { get; set; }
+    public int LockedUsers { get; set; }
     /// <summary>Users matching the filter (all pages).</summary>
     public int FilteredCount { get; set; }
     public int Page { get; set; } = 1;

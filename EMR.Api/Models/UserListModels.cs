@@ -24,6 +24,8 @@ public class UserListKpis
     public int Pathologists { get; set; }
     public int PathologistsSigned { get; set; }
     public int LabTechnicians { get; set; }
+    /// <summary>Locked right now after wrong passwords (SQLScripts/2320).</summary>
+    public int LockedUsers { get; set; }
 }
 
 public class UserListRow
@@ -46,6 +48,15 @@ public class UserListRow
     public string? ReferenceName { get; set; }
     public string Branches { get; set; } = "";
     public string DepartmentNames { get; set; } = "";
+    public int FailedLoginAttempts { get; set; }
+    /// <summary>Set while the account is locked after wrong passwords (SQLScripts/2320).</summary>
+    public DateTime? LockedUntil { get; set; }
+}
+
+public class UserUnlockResult
+{
+    public bool Found { get; set; }
+    public bool WasLocked { get; set; }
 }
 
 public class UserListPage

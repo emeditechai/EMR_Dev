@@ -201,6 +201,10 @@ public class HospitalSettingsViewModel
     [Display(Name = "Remind Day Closing Notification")]
     public bool DayClosingLoginReminder { get; set; } = true;
 
+    [Display(Name = "Login Retry Count")]
+    [Range(0, 20, ErrorMessage = "Login Retry Count must be between 0 and 20 (0 = no lock).")]
+    public int LoginRetryCount { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

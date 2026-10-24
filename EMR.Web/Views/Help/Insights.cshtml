@@ -107,11 +107,35 @@
                                 {
                                     <tr>
                                         <td class="small">@l.Question
-                                            <div class="hp-muted">@(l.Source == "ADMIN" ? "Taught" + (l.ByUser is null ? "" : " by " + l.ByUser) : "From users") · @l.ModifiedDate.ToString("dd MMM")</div></td>
+                                            <div class="hp-muted">@(l.Source == "ADMIN" ? "Taught" + (l.ByUser is null ? "" : " by " + l.ByUser) : l.Source == "AUTO" ? "Learned overnight (chosen by several users)" : "From users") · @l.ModifiedDate.ToString("dd MMM")</div></td>
                                         <td class="small">@(l.TargetTitle ?? (l.Intent is null ? "-" : "Understands: " + l.Intent switch { "NEXT" => "what comes next", "BEFORE" => "what comes before", "FLOW" => "the whole workflow", "PROBLEM" => "a problem", "WHERE" => "where a screen is", _ => "how to do it" }))</td>
                                         <td class="small text-end text-nowrap"><span class="text-success">@l.UpVotes <i class="bi bi-hand-thumbs-up"></i></span> <span class="text-danger">@l.DownVotes <i class="bi bi-hand-thumbs-down"></i></span>@if (l.Clicks > 0) { <span class="hp-muted"> · @l.Clicks <i class="bi bi-cursor"></i></span> }</td>
                                         <td class="text-end"><button type="button" class="btn btn-sm btn-outline-secondary hp-forget" data-id="@l.LearnedId" title="Forget this">Forget</button></td>
                                     </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            @{ var gaps = ViewBag.Gaps as EMR.Web.ApiClients.HelpGapsView ?? new(); }
+            <div class="hp-card p-3 mb-3">
+                <div class="hp-section-title"><i class="bi bi-activity"></i>Asked often, answered weakly - last 14 days</div>
+                <div class="hp-muted small mb-2">
+                    Daily learning runs every night: an answer chosen by 2 or more different users for the same question is learned automatically (you can Forget it above).
+                    @if (gaps.LastRun is { } run) { <span>Last run @run.RunDate.ToString("dd MMM HH:mm") - @run.Promoted learned, @run.Demoted withdrawn.</span> }
+                </div>
+                @if (gaps.Gaps.Count == 0) { <p class="hp-muted mb-0">No weak answers in the last 14 days.</p> }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Question</th><th class="text-end">Asked</th><th class="text-end">Users</th><th class="text-end">Not found</th></tr></thead>
+                            <tbody>
+                                @foreach (var g in gaps.Gaps)
+                                {
+                                    <tr><td class="small">@g.Question<div class="hp-muted">last @g.LastAsked.ToString("dd MMM HH:mm") · confidence @g.AvgConfidence.ToString("0.00")</div></td>
+                                        <td class="text-end small">@g.Asked</td><td class="text-end small">@g.Users</td><td class="text-end small">@g.NotFound</td></tr>
                                 }
                             </tbody>
                         </table>

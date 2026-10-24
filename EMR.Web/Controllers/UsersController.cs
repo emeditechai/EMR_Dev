@@ -63,7 +63,7 @@ public class UsersController(
         if (page < 1) page = 1;
         if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 25;
         userType = userType?.Trim() is "U" or "D" or "F" or "C" ? userType.Trim() : null;
-        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" ? status.Trim().ToLowerInvariant() : null;
+        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" or "locked" ? status.Trim().ToLowerInvariant() : null;
         role = role?.Trim().ToLowerInvariant() is "nurse" or "phlebotomist" or "pathologist" or "labtech" or "logistics" ? role.Trim().ToLowerInvariant() : null;
         search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
 
@@ -108,7 +108,9 @@ public class UsersController(
                 HasSignature = x.HasSignature,
                 UserType = x.UserType,
                 ReferenceUserId = x.ReferenceUserId,
-                ReferenceName = x.ReferenceName
+                ReferenceName = x.ReferenceName,
+                FailedLoginAttempts = x.FailedLoginAttempts,
+                LockedUntil = x.LockedUntil
             }).ToList(),
             TotalUsers = result.Kpis.TotalUsers,
             ActiveUsers = result.Kpis.ActiveUsers,
@@ -116,6 +118,7 @@ public class UsersController(
             Pathologists = result.Kpis.Pathologists,
             PathologistsSigned = result.Kpis.PathologistsSigned,
             LabTechnicians = result.Kpis.LabTechnicians,
+            LockedUsers = result.Kpis.LockedUsers,
             FilteredCount = result.FilteredCount,
             Page = page,
             PageSize = pageSize,
@@ -667,6 +670,41 @@ public class UsersController(
         TempData["Success"] = "User status updated.";
 
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Unlock a user locked after too many wrong passwords (Hospital Settings > Login Retry Count, SQLScripts/2320).
+    /// Needs the SETTINGS.USERS:UNLOCK permission and a reason; audited. The administrator's own lock (inactive user) is not changed.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Unlock(int id, string? reason, string? returnUrl)
+    {
+        IActionResult Back() => Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl!) : RedirectToAction(nameof(Index));
+        reason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length < 3)
+        {
+            TempData["Error"] = "Enter a reason to unlock the user.";
+            return Back();
+        }
+        if (reason.Length > 300) reason = reason[..300];
+        if (!await MaySeeUserAsync(id)) return NotFound();
+        var username = await dbContext.Users.Where(x => x.Id == id).Select(x => x.Username).FirstOrDefaultAsync();
+        if (username is null) return NotFound();
+
+        try
+        {
+            var (found, wasLocked) = await userListApiClient.UnlockAsync(id);
+            if (!found) return NotFound();
+            await auditLogService.LogAsync("MasterData", "Users.Unlock",
+                $"Unlocked user: {username}{(wasLocked ? "" : " (lock had already expired)")}. Reason: {reason}", id);
+            TempData["Success"] = wasLocked ? $"'{username}' is unlocked and can sign in now." : $"'{username}' was not locked any more; the wrong-password count is reset.";
+        }
+        catch (HttpRequestException)
+        {
+            TempData["Error"] = "The API is not reachable. Try again.";
+        }
+        return Back();
     }
 
     /// <summary>Names of the records logins belong to: doctor (Doctor Master), franchise, company.</summary>

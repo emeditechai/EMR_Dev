@@ -83,6 +83,9 @@ public class HospitalSettings
     /// closed; No = no pop-up (the bell notification stays).</summary>
     public bool DayClosingLoginReminder { get; set; } = true;
 
+    /// <summary>SQLScripts/2320: wrong passwords allowed before the account is locked for 10 minutes; 0 (default) = no lock.</summary>
+    public int LoginRetryCount { get; set; }
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;

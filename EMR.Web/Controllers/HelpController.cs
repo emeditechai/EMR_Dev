@@ -12,8 +12,31 @@ namespace EMR.Web.Controllers;
 /// </summary>
 [Authorize]
 [EMR.Shared.Security.PublicEndpoint]   // help is for everyone who is signed in, whatever their role
-public class HelpController(IHelpApiClient api, EMR.Web.Services.IAskAiFeatures askAi) : Controller
+public class HelpController(IHelpApiClient api, EMR.Web.Services.IAskAiFeatures askAi,
+    EMR.Shared.Security.IPermissionService permissions,
+    Microsoft.Extensions.Options.IOptionsMonitor<EMR.Shared.Security.EmrAuthorizationOptions> authOptions) : Controller
 {
+    /// <summary>
+    /// Ask AI data answers (SQLScripts/2321): what this user may be told, from the same page permissions as the screens -
+    /// LAB bills (B2C Order List), OPD bills (Service Booking), samples / reports (Sample Collection) and patients
+    /// (Patient Registration or B2C Booking). Asked in a branch: that branch only; a Super Admin without a branch: all.
+    /// </summary>
+    private async Task<(int? BranchId, List<string> Scopes)> DataScopeAsync()
+    {
+        var branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId();
+        if (branchId is null && !User.IsSuperAdmin()) return (null, []);
+        var opts = authOptions.CurrentValue;
+        var subject = EMR.Shared.Security.PermissionSubjectReader.FromPrincipal(User);
+        var set = subject is null ? null : await permissions.GetPermissionSetAsync(subject);
+        bool Can(params string[] pages) => pages.Any(p => set is null ? !opts.IsEnforced(p) : !set.Blocks(opts, p, EMR.Shared.Security.PermissionControls.View));
+        var scopes = new List<string>();
+        if (Can("LAB.LABORDERBOOKING.B2CORDERLIST")) scopes.Add("LAB");
+        if (Can("OPD.SERVICEBOOKING")) scopes.Add("OPD");
+        if (Can("LAB.SAMPLECOLLECTION", "LAB.LABREPORTING")) scopes.Add("SAMPLES");
+        if (Can("OPD.PATIENTREGISTRATION", "LAB.LABORDERBOOKING.B2CBOOKING")) scopes.Add("PATIENTS");
+        return (branchId, scopes);
+    }
+
     private int CompanyId => User.GetCompanyId();
     /// <summary>Hospital Settings > LAB > Enable Ask AI Features (SQLScripts/2302): the assistant on the help pages.</summary>
     private async Task SetAskAiAsync() => ViewBag.AskAi = await askAi.IsEnabledAsync(HttpContext);
@@ -71,7 +94,11 @@ public class HelpController(IHelpApiClient api, EMR.Web.Services.IAskAiFeatures 
         if (!await askAi.IsEnabledAsync(HttpContext))
             return Json(new { found = false, text = "Ask AI is switched off for this branch (Hospital Settings > LAB > Enable Ask AI Features)." });
         if (string.IsNullOrWhiteSpace(question)) return Json(new { found = false, text = "Type a question." });
-        return Json(await api.AskAsync(new HelpAskRequest { CompanyId = CompanyId, UserId = User.GetUserId(), Question = question.Trim(), PageCode = pageCode }));
+        var (branchId, scopes) = await DataScopeAsync();
+        return Json(await api.AskAsync(new HelpAskRequest
+        {
+            CompanyId = CompanyId, UserId = User.GetUserId(), Question = question.Trim(), PageCode = pageCode, BranchId = branchId, DataScopes = scopes
+        }));
     }
 
     [HttpPost]
@@ -95,6 +122,7 @@ public class HelpController(IHelpApiClient api, EMR.Web.Services.IAskAiFeatures 
     {
         if (!IsAdmin) return RedirectToAction(nameof(Index));
         ViewBag.Stats = await api.LearningStatsAsync(CompanyId);
+        ViewBag.Gaps = await api.GapsAsync(CompanyId);
         return View(await api.FeedbackListAsync(CompanyId));
     }
 

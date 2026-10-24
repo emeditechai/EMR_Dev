@@ -8,6 +8,7 @@ namespace EMR.Api.Services;
 public interface IUserListService
 {
     Task<UserListPage> GetPagedAsync(UserListQuery query);
+    Task<UserUnlockResult> UnlockAsync(int userId);
 }
 
 /// <summary>Settings > User Master list, paged and filtered on the server (SQLScripts/2314).</summary>
@@ -40,5 +41,13 @@ public class UserListService(IDbConnectionFactory connectionFactory) : IUserList
         };
         result.Items = (await multi.ReadAsync<UserListRow>()).ToList();
         return result;
+    }
+
+    /// <summary>User Master > Unlock (SQLScripts/2320): clears the lock after wrong passwords and the wrong-password count.</summary>
+    public async Task<UserUnlockResult> UnlockAsync(int userId)
+    {
+        using var db = connectionFactory.CreateConnection();
+        return await db.QuerySingleOrDefaultAsync<UserUnlockResult>("dbo.usp_Api_Users_Unlock", new { UserId = userId },
+            commandType: CommandType.StoredProcedure) ?? new UserUnlockResult();
     }
 }

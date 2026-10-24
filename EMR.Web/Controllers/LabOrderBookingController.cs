@@ -373,6 +373,23 @@ namespace EMR.Web.Controllers
                 var existing = await patientService.GetByIdAsync(model.PatientId);
                 if (string.IsNullOrWhiteSpace(model.IdentificationFilePath)) patient.IdentificationFilePath = existing?.IdentificationFilePath;
                 if (string.IsNullOrWhiteSpace(model.PhotoPath)) patient.PhotoPath = existing?.PhotoPath;
+                // The B2B form has no religion, guardian, country/state/district/city/area, occupation, marital status,
+                // language, allergies or remarks fields: keep what the patient already has (B2C / OPD may have set them).
+                if (existing is not null)
+                {
+                    patient.ReligionId = existing.ReligionId;
+                    patient.GuardianName = existing.GuardianName;
+                    patient.CountryId = existing.CountryId;
+                    patient.StateId = existing.StateId;
+                    patient.DistrictId = existing.DistrictId;
+                    patient.CityId = existing.CityId;
+                    patient.AreaId = existing.AreaId;
+                    patient.OccupationId = existing.OccupationId;
+                    patient.MaritalStatusId = existing.MaritalStatusId;
+                    patient.LanguageId = existing.LanguageId;
+                    patient.KnownAllergies = existing.KnownAllergies;
+                    patient.Remarks = existing.Remarks;
+                }
 
                 await patientService.UpdateDemographicsAsync(patient, User.GetUserId());
                 patient.PatientCode = existing?.PatientCode;   // after the save: the update itself is unchanged

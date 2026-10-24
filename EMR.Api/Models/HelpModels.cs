@@ -156,6 +156,10 @@ public class HelpAskRequest
     public int? UserId { get; set; }
     public string Question { get; set; } = "";
     public string? PageCode { get; set; }
+    /// <summary>Data answers (SQLScripts/2321): the branch (null = Super Admin without a branch: all) and what the user may
+    /// see - LAB, OPD, SAMPLES, PATIENTS - from the page permissions (EMR.Web). Empty = help answers only.</summary>
+    public int? BranchId { get; set; }
+    public List<string> DataScopes { get; set; } = [];
 }
 
 public class HelpAnswer
@@ -177,6 +181,66 @@ public class HelpAnswer
     public HelpWorkflowView? Workflow { get; set; }
     /// <summary>The answer comes from what the assistant learned (confirmed by users or taught by an administrator).</summary>
     public bool Learned { get; set; }
+    /// <summary>A data answer (Kind DATA).</summary>
+    public HelpDataView? Data { get; set; }
+    /// <summary>Opened at once ("open bill LAB/HO2627000295").</summary>
+    public string? OpenUrl { get; set; }
+}
+
+/// <summary>Ask AI data answer (SQLScripts/2321): facts, a small table and actions (e.g. Open Bill).</summary>
+public class HelpDataView
+{
+    public List<HelpDataFact> Facts { get; set; } = [];
+    public List<string> Columns { get; set; } = [];
+    public List<HelpDataRow> Rows { get; set; } = [];
+    public List<HelpDataAction> Actions { get; set; } = [];
+    public string? Note { get; set; }
+}
+
+public class HelpDataFact
+{
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
+    /// <summary>good / warn / bad (colour of the value).</summary>
+    public string? Tone { get; set; }
+}
+
+public class HelpDataRow
+{
+    public List<string> Cells { get; set; } = [];
+    public string? Url { get; set; }
+}
+
+public record HelpDataAction
+{
+    public string Title { get; set; } = "";
+    public string Url { get; set; } = "";
+    public string? Icon { get; set; }
+    public bool Primary { get; set; }
+}
+
+public class HelpGapRow
+{
+    public string Question { get; set; } = "";
+    public int Asked { get; set; }
+    public int Users { get; set; }
+    public int NotFound { get; set; }
+    public decimal AvgConfidence { get; set; }
+    public DateTime LastAsked { get; set; }
+}
+
+public class HelpLearningRunRow
+{
+    public DateTime RunDate { get; set; }
+    public int Promoted { get; set; }
+    public int Demoted { get; set; }
+    public int Signals { get; set; }
+}
+
+public class HelpGapsView
+{
+    public List<HelpGapRow> Gaps { get; set; } = [];
+    public HelpLearningRunRow? LastRun { get; set; }
 }
 
 public class HelpFeedbackRequest

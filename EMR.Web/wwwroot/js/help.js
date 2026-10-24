@@ -50,7 +50,23 @@
             <ol class="hp-flow-steps">${items}</ol></div>`;
     }
 
+    /** A data answer (SQLScripts/2321): key facts, a small table (rows open their record) and actions such as Open Bill. */
+    function dataHtml(a) {
+        const d = a.data || {};
+        const safe = u => (typeof u === 'string' && u.startsWith('/') && !u.startsWith('//')) ? u : '#';
+        const facts = (d.facts || []).length ? `<div class="hp-facts">${d.facts.map(f => `<div class="hp-fact"><span>${H(f.label)}</span><b class="${f.tone ? 'hp-tone-' + H(f.tone) : ''}">${H(f.value)}</b></div>`).join('')}</div>` : '';
+        const table = (d.rows || []).length ? `<div class="hp-data-table"><table><thead><tr>${(d.columns || []).map(c => `<th>${H(c)}</th>`).join('')}</tr></thead><tbody>${
+            d.rows.map(r => `<tr${r.url ? ` class="hp-row-link" data-url="${H(safe(r.url))}"` : ''}>${(r.cells || []).map(c => `<td>${H(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '';
+        const actions = (d.actions || []).length ? `<div class="hp-chips">${d.actions.map(x => `<a class="hp-chip${x.primary ? ' hp-chip-primary' : ''}" href="${H(safe(x.url))}"${x.primary ? ' target="_blank" rel="noopener"' : ''}><i class="bi ${H(x.icon || 'bi-box-arrow-up-right')}"></i> ${H(x.title)}</a>`).join('')}</div>` : '';
+        return `<div class="hp-answer hp-answer-data">
+            <div class="hp-answer-head"><span class="hp-kind hp-kind-DATA"><i class="bi bi-database"></i> Live data</span><span class="hp-answer-title">${H(a.title)}</span></div>
+            <div class="hp-answer-text">${H(a.text)}</div>${facts}${table}${actions}
+            ${d.note ? `<div class="hp-muted small mt-2">${H(d.note)}</div>` : ''}
+        </div>`;
+    }
+
     function answerHtml(a, question) {
+        if (a.kind === 'DATA') return dataHtml(a);
         if (!a.found) {
             return `<div class="hp-answer hp-answer-miss"><div class="hp-answer-text"><i class="bi bi-search me-1"></i>${H(a.text)}</div>
                 ${(a.related || []).length ? `<div class="hp-answer-sub">Maybe one of these:</div><ul class="hp-links">${a.related.map(l => `<li>${linkHtml(l)}</li>`).join('')}</ul>` : ''}</div>`;
@@ -97,6 +113,8 @@
             try {
                 const a = await post('/Help/Ask', { question: q, pageCode: pageCode() });
                 item.querySelector('.hp-a').innerHTML = answerHtml(a, q);
+                // "open bill LAB/HO2627000295": the bill opens at once (the Open Bill button stays if the browser blocks it)
+                if (a.openUrl && a.openUrl.startsWith('/') && !a.openUrl.startsWith('//')) { try { window.open(a.openUrl, '_blank', 'noopener'); } catch (x) { } }
             } catch (e) {
                 item.querySelector('.hp-a').innerHTML = '<div class="text-danger small">The assistant could not answer right now. Please try again.</div>';
             }
@@ -110,6 +128,11 @@
             box.innerHTML = helpful ? '<span class="text-success"><i class="bi bi-check-circle"></i> Thanks - glad it helped.</span>'
                                     : '<span class="hp-muted"><i class="bi bi-info-circle"></i> Thanks - this question is passed to the administrator to improve the help. Try other words or browse the modules.</span>';
             try { await post('/Help/Feedback', { articleCode: box.dataset.code, question: box.dataset.q, pageCode: pageCode(), helpful, kind: box.dataset.kind || '', intent: box.dataset.intent || '' }); } catch (x) { }
+        });
+        // a row of a data answer opens its record (a bill, a patient)
+        el.addEventListener('click', e => {
+            const tr = e.target.closest('.hp-row-link');
+            if (tr && tr.dataset.url && tr.dataset.url !== '#') window.open(tr.dataset.url, '_blank', 'noopener');
         });
         // a related topic opened from an answer: the assistant learns that it answers the question
         el.addEventListener('click', e => {

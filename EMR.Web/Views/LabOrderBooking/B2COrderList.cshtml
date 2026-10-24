@@ -190,7 +190,6 @@
                             <th>Patient ID</th>
                             <th>Patient Name</th>
                             <th>Phone</th>
-                            <th>Investigations</th>
                             <th class="text-center">Tests</th>
                             <th class="text-end">Total Amount</th>
                             <th>Payment</th>
@@ -234,18 +233,6 @@
                                     }
                                 </td>
                                 <td>@(o.PhoneNumber ?? "—")</td>
-                                <td style="max-width: 250px;">
-                                    @if (!string.IsNullOrEmpty(o.TestNamesSummary))
-                                    {
-                                        <span class="d-inline-block text-truncate w-100" title="@o.TestNamesSummary">
-                                            @o.TestNamesSummary
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted small">—</span>
-                                    }
-                                </td>
                                 @{
                                     // tests cancelled after billing / refunds (Services/LabBillAdjustments)
                                     var adjMap = ViewBag.Adjustments as Dictionary<int, EMR.Web.Services.LabBillAdjustment>;
@@ -356,7 +343,7 @@
                             </tr>
                         }
                         <tr id="noFilterMatch" style="display:none">
-                            <td colspan="12" class="text-center text-muted py-4">
+                            <td colspan="11" class="text-center text-muted py-4">
                                 <i class="bi bi-search me-2"></i>No rows matched your search filter.
                             </td>
                         </tr>

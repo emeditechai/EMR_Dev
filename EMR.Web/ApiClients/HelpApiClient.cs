@@ -12,6 +12,7 @@ public interface IHelpApiClient
     Task<HelpLearningStats> LearningStatsAsync(int companyId);
     Task TeachAsync(HelpTeachRequest request);
     Task ForgetAsync(int companyId, int learnedId, int? userId);
+    Task<HelpGapsView> GapsAsync(int companyId);
 }
 
 /// <summary>Utility > Help Center: EMR.Api api/help.</summary>
@@ -49,6 +50,7 @@ public class HelpApiClient(IHttpClientFactory httpClientFactory) : IHelpApiClien
     // the assistant's learning (SQLScripts/2301)
     public async Task<HelpLearningStats> LearningStatsAsync(int companyId) => await GetOrNull<HelpLearningStats>($"{Base}/learning/stats?companyId={companyId}") ?? new();
     public async Task TeachAsync(HelpTeachRequest request) => (await Client.PostAsJsonAsync($"{Base}/learning/teach", request)).EnsureSuccessStatusCode();
+    public async Task<HelpGapsView> GapsAsync(int companyId) => await GetOrNull<HelpGapsView>($"{Base}/learning/gaps?companyId={companyId}") ?? new();
     public async Task ForgetAsync(int companyId, int learnedId, int? userId) =>
         (await Client.PostAsync($"{Base}/learning/forget/{learnedId}?companyId={companyId}&userId={userId}", null)).EnsureSuccessStatusCode();
 }

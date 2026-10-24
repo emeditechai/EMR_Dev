@@ -141,7 +141,7 @@
                 <div class="col-md-2 col-6">
                     <label class="form-label small fw-semibold text-muted mb-1">Status</label>
                     <select id="umStatus" name="status" class="form-select">
-                        @foreach (var (v, t) in new[] { ("", "All statuses"), ("active", "Active"), ("inactive", "Inactive") })
+                        @foreach (var (v, t) in new[] { ("", "All statuses"), ("active", "Active"), ("inactive", "Inactive"), ("locked", $"Locked ({Model.LockedUsers})") })
                         {
                             <option value="@v" selected="@((Model.Status ?? "") == v)">@t</option>
                         }
@@ -322,11 +322,20 @@
                                     {
                                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill"><i class="bi bi-x-circle-fill me-1"></i>Inactive</span>
                                     }
+                                    @if (item.LockedUntil is { } lockedUntil)
+                                    {
+                                        <div class="mt-1"><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 rounded-pill" title="Locked after @item.FailedLoginAttempts wrong passwords"><i class="bi bi-lock-fill me-1"></i>Locked till @lockedUntil.ToString("hh:mm tt")</span></div>
+                                    }
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group btn-group-sm shadow-sm" role="group">
                                         <a asp-permission="SETTINGS.USERS:DETAILS" asp-action="Details" asp-route-id="@item.Id" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
                                         <a asp-permission="SETTINGS.USERS:EDIT" asp-action="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary" title="Edit User"><i class="bi bi-pencil"></i></a>
+                                        @if (item.LockedUntil.HasValue)
+                                        {
+                                            <button type="button" asp-permission="SETTINGS.USERS:UNLOCK" class="btn btn-outline-warning um-unlock" title="Unlock user"
+                                                    data-id="@item.Id" data-name="@item.Username" data-until="@item.LockedUntil.Value.ToString("hh:mm tt")" data-tries="@item.FailedLoginAttempts"><i class="bi bi-unlock"></i></button>
+                                        }
                                     </div>
                                 </td>
                             </tr>
@@ -380,7 +389,38 @@
     </div>
 </div>
 
+<form id="umUnlockForm" method="post" asp-action="Unlock" class="d-none">
+    <input type="hidden" name="id" />
+    <input type="hidden" name="reason" />
+    <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)" />
+</form>
+
 @section Scripts {
+    <script>
+        // User Master > Unlock (locked after too many wrong passwords): confirm with a reason, then post
+        document.querySelectorAll('.um-unlock').forEach(btn => btn.addEventListener('click', async () => {
+            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const r = await Swal.fire({
+                title: 'Unlock user?',
+                html: '<div class="small text-start"><b>' + esc(btn.dataset.name) + '</b> is locked after ' + esc(btn.dataset.tries) +
+                      ' wrong passwords until ' + esc(btn.dataset.until) + '. Confirm the identity of the user before unlocking.</div>',
+                icon: 'warning',
+                input: 'text',
+                inputLabel: 'Reason (recorded in the audit log)',
+                inputPlaceholder: 'e.g. identity verified by phone',
+                inputAttributes: { maxlength: 300 },
+                inputValidator: v => (!v || v.trim().length < 3) ? 'Enter a reason (at least 3 characters).' : undefined,
+                showCancelButton: true,
+                confirmButtonText: '<i class="bi bi-unlock me-1"></i>Unlock',
+                confirmButtonColor: '#d97706'
+            });
+            if (!r.isConfirmed) return;
+            const f = document.getElementById('umUnlockForm');
+            f.elements['id'].value = btn.dataset.id;
+            f.elements['reason'].value = r.value.trim();
+            f.submit();
+        }));
+    </script>
     <script>
         (function () {
             // filters run on the server: the drop-downs submit at once, the search after a short pause (from page 1)

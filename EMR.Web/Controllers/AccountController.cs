@@ -79,20 +79,24 @@ public class AccountController(
         if (user is not null && await loginSecurity.LockedUntilAsync(user.Id) is { } lockedUntil)
         {
             await auditLogService.LogAsync("AuthFailure", "Login", $"Sign-in refused, account temporarily locked: {user.Username}", user.Id);
-            ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {lockedUntil:hh:mm tt}.");
+            ModelState.AddModelError(string.Empty, $"Your account is locked after too many wrong passwords. Try again after {lockedUntil:hh:mm tt}, or ask the administrator to unlock it.");
             return View(model);
         }
 
         if (user is null || !passwordHasherService.VerifyPassword(model.Password, user.PasswordHash))
         {
             await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for e-mail: {model.Email}");
-            if (user is not null && await loginSecurity.RecordFailureAsync(user.Id) is { } nowLocked)
+            var failure = user is null ? default : await loginSecurity.RecordFailureDetailAsync(user.Id);
+            if (failure.LockedUntil is { } nowLocked)
             {
-                await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {user.Username}", user.Id);
-                ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {nowLocked:hh:mm tt}.");
+                await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {user!.Username}", user.Id);
+                ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Your account is locked for 10 minutes - try again after {nowLocked:hh:mm tt}, or ask the administrator to unlock it.");
                 return View(model);
             }
-            ModelState.AddModelError(string.Empty, "Invalid e-mail or password.");
+            // Hospital Settings > Login Retry Count above 0: say how many tries are left before the lock
+            ModelState.AddModelError(string.Empty, failure.AttemptsLeft is { } left
+                ? $"Invalid e-mail or password. {left} attempt{(left == 1 ? "" : "s")} left before the account is locked for 10 minutes."
+                : "Invalid e-mail or password.");
             return View(model);
         }
 
