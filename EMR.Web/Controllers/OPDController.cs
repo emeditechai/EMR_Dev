@@ -471,7 +471,9 @@ public class OPDController(
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(model.EmailId) && isSelfRelation)
+        // e-mail: checked for a new registration only; an existing patient's e-mail can always be updated
+        // (the phone number is the family identity - the database keeps only phone unique, script 2221)
+        if (!string.IsNullOrWhiteSpace(model.EmailId) && isSelfRelation && model.PatientId == 0)
         {
             var dupEmailExists = await dbContext.PatientMasters.AnyAsync(p =>
                 p.EmailId == model.EmailId.Trim() &&
