@@ -22,11 +22,11 @@
             --light-bg: #f8f9fa;
         }
         body {
-            /* login-bg.png is used when present, otherwise login-bg.jpg */
+            /* portal-bg.png is used when present, otherwise portal-bg.jpg (the staff login keeps its own login-bg.jpg) */
             background:
                 linear-gradient(135deg, rgba(34,22,74,.55) 0%, rgba(75,47,143,.35) 55%, rgba(122,58,138,.45) 100%),
-                url('/Images/login-bg.png') center / cover no-repeat fixed,
-                url('/Images/login-bg.jpg') center / cover no-repeat fixed;
+                url('/Images/portal-bg.png') center / cover no-repeat fixed,
+                url('/Images/portal-bg.jpg') center / cover no-repeat fixed;
             font-family: 'Inter', sans-serif;
             margin: 0;
             min-height: 100vh;
@@ -114,6 +114,7 @@
             color: #dc3545;
             border-radius: 12px;
         }
+            .pw-masked { -webkit-text-security: disc; }
     </style>
 </head>
 <body>
@@ -141,7 +142,7 @@
                 </div>
 
                 <div class="form-floating mb-4">
-                    <input asp-for="Password" class="form-control" id="floatingPassword" placeholder="Password" autocomplete="new-password" />
+                    <input asp-for="Password" type="text" class="form-control pw-masked" id="floatingPassword" placeholder="Password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" />
                     <label asp-for="Password"><i class="bi bi-lock me-1"></i>Password</label>
                     <span asp-validation-for="Password" class="text-danger small ms-1 mt-1 d-block"></span>
                 </div>
@@ -163,6 +164,10 @@
     </div>
 
     <!-- Scripts -->
+    <script>
+        // a text box drawn with dots: the browser offers no saved passwords; without dot support it is a normal password box
+        (function () { const i = document.getElementById('floatingPassword'); if (i && !(window.CSS && CSS.supports('-webkit-text-security', 'disc'))) { i.classList.remove('pw-masked'); i.type = 'password'; } })();
+    </script>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
