@@ -611,7 +611,7 @@ else
                         <div class="lp-icon"><i class="bi bi-person-badge-fill"></i></div>
                         <div>
                             <div class="lp-label">Required Patient Portal</div>
-                            <div class="lp-desc">Yes: a B2C lab booking creates the patient's Patient Portal login and e-mails the credentials. No: lab bookings do not create portal logins. B2B is not affected.</div>
+                            <div class="lp-desc">Yes: OPD registration / booking and B2C lab booking create the patient's Patient Portal login and send the credentials by e-mail and WhatsApp. No: no automatic logins. B2B is not affected.</div>
                             <span class="lp-pill @(Model.LabPatientPortalRequired ? "yes" : "no")"><i class="bi @(Model.LabPatientPortalRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.LabPatientPortalRequired ? "YES" : "NO")</span>
                         </div>
                     </div>

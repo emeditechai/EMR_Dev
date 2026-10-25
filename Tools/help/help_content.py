@@ -570,11 +570,17 @@ guide("UT.FRANCHISE", "UTILITY", "Franchise wallet top-up and dashboard",
       keywords="franchise wallet top up recharge balance dashboard")
 
 guide("UT.PORTAL", "UTILITY", "Patient portal login",
-      "Give a patient access to the patient portal.",
-      ["Utility > Patient Login: find the patient (must have an email).",
-       "Generate the login; the patient gets the user name and password by email.",
-       "The patient signs in to see bookings and reports and should change the password."],
-      pages=["UTILITY.PATIENTPORTAL.LOGIN"], keywords="patient portal login credentials app")
+      "Give a patient access to the patient portal: they sign in with their Patient ID and a password.",
+      ["Automatic: with Hospital Settings > LAB \"Required Patient Portal\" = Yes, OPD registration / booking and B2C lab booking create the login for a new patient and send the Patient ID and password by e-mail and WhatsApp.",
+       "By hand (first time, forgot password or locked): Master > Patient Master, click the green key on the patient's row, confirm. A new password is sent; if it cannot be sent it is shown once on screen to hand over.",
+       "The patient opens the Patient Login page, types the Patient ID (as on the bill, e.g. PHO2627000010) and the password.",
+       "At the first sign-in the patient must choose a new password (at least 8 characters with a letter and a digit)."],
+      pages=["UTILITY.PATIENTPORTAL.LOGIN", "MASTER.OPD"],
+      tips=["The patient needs a mobile number or an e-mail for the automatic login; WhatsApp needs Utility > WhatsApp set up.",
+            "5 wrong passwords lock the portal account for 10 minutes; sending a new password from Patient Master unlocks it at once.",
+            "The key button needs Role Permissions > Patient Master > \"Create / reset patient portal login\".",
+            "Sign-in is by Patient ID only, so family members sharing an e-mail never see each other's records."],
+      keywords="patient portal login password patient id credentials reset forgot locked whatsapp app")
 
 guide("UT.PETTY", "UTILITY", "Petty cash and vouchers",
       "Record small expenses and close petty cash.",

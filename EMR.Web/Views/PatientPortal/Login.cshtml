@@ -130,8 +130,8 @@
                 }
 
                 <div class="form-floating mb-3">
-                    <input asp-for="Username" class="form-control" id="floatingInput" placeholder="e.g. HO0001" />
-                    <label asp-for="Username">Patient ID (e.g. HO0001)</label>
+                    <input asp-for="Username" class="form-control" id="floatingInput" placeholder="Patient ID" autocomplete="username" autocapitalize="characters" />
+                    <label asp-for="Username">Patient ID (as on your bill, e.g. PHO2627000010)</label>
                     <span asp-validation-for="Username" class="text-danger small ms-1 mt-1 d-block"></span>
                 </div>
 
@@ -144,6 +144,9 @@
                 <button type="submit" class="btn btn-login w-100 mt-2">
                     <i class="bi bi-box-arrow-in-right me-2"></i> Log In
                 </button>
+                <p class="text-center text-muted small mt-3 mb-0">
+                    No password yet, or forgot it? Ask the hospital reception to send your portal login.
+                </p>
             </form>
         </div>
         
@@ -158,6 +161,6 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
-    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/dist/jquery.validate.unobtrusive.min.js"></script>
 </body>
 </html>

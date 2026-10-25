@@ -654,10 +654,10 @@
                         <div class="lp-icon"><i class="bi bi-person-badge-fill"></i></div>
                         <div class="lp-body">
                             <div class="lp-label">Required Patient Portal</div>
-                            <div class="lp-desc">Yes: a B2C lab booking creates the patient's Patient Portal login and e-mails the credentials (once per patient, when the patient has a mobile number and an e-mail). No: lab bookings do not create portal logins. B2B bookings are never affected.</div>
+                            <div class="lp-desc">Yes: OPD registration / booking and B2C lab booking create the patient's Patient Portal login and send the Patient ID and password by e-mail and WhatsApp (once per patient, when the patient has a mobile number or an e-mail). No: no automatic logins; staff can still send one from Patient Master. B2B bookings are never affected.</div>
                             <div class="form-check form-switch lp-switch ps-0">
                                 <input class="form-check-input" type="checkbox" role="switch" asp-for="LabPatientPortalRequired">
-                                <label class="form-check-label" asp-for="LabPatientPortalRequired">Create Patient Portal login for B2C patients</label>
+                                <label class="form-check-label" asp-for="LabPatientPortalRequired">Create Patient Portal login for OPD and B2C patients</label>
                             </div>
                             <span asp-validation-for="LabPatientPortalRequired" class="text-danger small d-block mt-1"></span>
                         </div>

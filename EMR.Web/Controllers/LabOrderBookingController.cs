@@ -1107,19 +1107,14 @@ namespace EMR.Web.Controllers
         }
 
         /// <summary>
-        /// Hospital Settings > LAB "Required Patient Portal" (B2C only, default No; script 2219): when Yes, the booked
-        /// patient gets a Patient Portal login with the credentials e-mailed, as OPD registration does (once per patient,
-        /// only with a mobile number and an e-mail). Never stops or delays the booking.
+        /// Hospital Settings "Required Patient Portal" (script 2219, checked in PatientPortalLoginService for OPD and B2C
+        /// alike): when Yes, the booked patient gets a Patient Portal login with the credentials sent, once per patient.
+        /// B2B bookings never call this. Never stops or delays the booking.
         /// </summary>
         private async Task TryCreatePortalLoginForB2CAsync(int branchId, int patientId, string? patientCode, PatientMaster patient)
         {
             try
             {
-                var required = await dbContext.HospitalSettings
-                    .Where(s => s.BranchId == branchId && s.IsActive)
-                    .Select(s => s.LabPatientPortalRequired)
-                    .FirstOrDefaultAsync();
-                if (!required) return;
                 if (string.IsNullOrWhiteSpace(patientCode)) patientCode = (await patientService.GetByIdAsync(patientId))?.PatientCode;
                 if (string.IsNullOrWhiteSpace(patientCode)) return;
                 await portalLoginService.TryGenerateAsync(patientId, patientCode, patient.PhoneNumber ?? "", patient.EmailId ?? "",

@@ -74,4 +74,14 @@ public class PatientApiClient : IPatientApiClient
         return response?.Data;
     }
 
+    public async Task<PatientPortalLoginTarget?> SetPortalLoginAsync(int patientId, string passwordHash, string salt, int? companyId = null)
+    {
+        var httpResponse = await _http.PostAsJsonAsync($"api/patients/{patientId}/portal-login",
+            new { CompanyId = companyId ?? 0, PasswordHash = passwordHash, Salt = salt });
+        if (!httpResponse.IsSuccessStatusCode)
+            return null;
+
+        var result = await httpResponse.Content.ReadFromJsonAsync<ApiResponse<PatientPortalLoginTarget>>();
+        return result?.Success == true ? result.Data : null;
+    }
 }
