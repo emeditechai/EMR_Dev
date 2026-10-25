@@ -202,6 +202,21 @@
         .field .v { font-weight: 600; margin-top: 2px; word-break: break-word; }
         .note { border-radius: 14px; padding: 14px 16px; font-size: .9rem; }
         .chart-box { position: relative; height: 320px; }
+        .vcards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .vcard { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 16px 10px; cursor: pointer; position: relative; overflow: hidden;
+                 transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+        .vcard:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -14px rgba(60,30,110,.35); }
+        .vcard.on { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+        .vcard .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .vcard .ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-size: 1.05rem; }
+        .vcard .k { font-size: .78rem; color: var(--muted); font-weight: 600; }
+        .vcard .v { font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+        .vcard .v small { font-size: .78rem; font-weight: 600; color: var(--muted); margin-left: 4px; }
+        .vcard .d { font-size: .76rem; color: var(--muted); min-height: 1.1em; }
+        .vcard .r { font-size: .74rem; color: var(--muted); opacity: .85; }
+        .vcard canvas.spark { width: 100% !important; height: 38px !important; margin-top: 6px; display: block; }
+        @@media (max-width: 991.98px) { .vcards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @@media (max-width: 575.98px) { .vcard .v { font-size: 1.4rem; } }
         table.mini { width: 100%; font-size: .85rem; }
         table.mini th { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
         table.mini td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
@@ -539,9 +554,49 @@
             <!-- ═══ Vitals ═══ -->
             <section class="pp-sec" id="sec-vitals">
                 <div class="sec-head"><div><h2>My Vitals</h2><p>Recorded at your visits.</p></div></div>
+                @{
+                    var vs = Model.VitalHistory.OrderByDescending(v => v.RecordedOn).ToList();
+                    var vNow = vs.FirstOrDefault();
+                    T? Prev<T>(Func<EMR.Web.ApiClients.Models.VitalRow, T?> f) where T : struct => vs.Skip(1).Select(f).FirstOrDefault(x => x.HasValue);
+                    string Delta(decimal? now, decimal? before, string unit) =>
+                        now is null || before is null ? "" : now == before ? "Same as last time" : $"{(now > before ? "▲" : "▼")} {Math.Abs(now.Value - before.Value):0.#} {unit} since last";
+                    (string Tone, string Text) Bp(int? s1, int? d1) => s1 is null ? ("muted", "") : s1 >= 140 || d1 >= 90 ? ("bad", "High") : s1 >= 130 || d1 >= 80 ? ("warn", "Raised") : s1 >= 120 ? ("warn", "Elevated") : s1 < 90 || d1 < 60 ? ("info", "Low") : ("ok", "Normal");
+                    (string Tone, string Text) Range(decimal? v, decimal lo, decimal hi) => v is null ? ("muted", "") : v < lo ? ("info", "Low") : v > hi ? ("bad", "High") : ("ok", "Normal");
+                }
+                @if (vNow != null)
+                {
+                    var bp = Bp(vNow.BPSystolic, vNow.BPDiastolic);
+                    var pu = Range(vNow.PulseRate, 60, 100);
+                    var sp = vNow.SpO2 is null ? ("muted", "") : vNow.SpO2 >= 95 ? ("ok", "Normal") : vNow.SpO2 >= 90 ? ("warn", "Low") : ("bad", "Very low");
+                    var tp = Range(vNow.Temperature, 97m, 99.5m);
+                    var gl = vNow.BloodGlucose is null ? ("muted", "") : string.Equals(vNow.GlucoseType, "Fasting", StringComparison.OrdinalIgnoreCase)
+                        ? Range(vNow.BloodGlucose, 70, 99) : Range(vNow.BloodGlucose, 70, 139);
+                    var bmiTone = vNow.BMICategory == "Normal" ? "ok" : string.IsNullOrEmpty(vNow.BMICategory) ? "muted" : "warn";
+                    <div class="vcards mb-3">
+                        <div class="vcard" data-metric="bp"><div class="top"><span class="ic t-bad"><i class="bi bi-heart-pulse-fill"></i></span><span class="pill @bp.Tone">@bp.Text</span></div>
+                            <div class="k">Blood pressure</div><div class="v num">@(vNow.BPSystolic.HasValue ? $"{vNow.BPSystolic}/{vNow.BPDiastolic}" : "--")<small>mmHg</small></div>
+                            <div class="d">@Delta(vNow.BPSystolic, Prev(v => v.BPSystolic), "systolic")</div><div class="r">Normal below 120/80</div><canvas class="spark" data-key="bpSystolic"></canvas></div>
+                        <div class="vcard" data-metric="pulse"><div class="top"><span class="ic t-ok"><i class="bi bi-activity"></i></span><span class="pill @pu.Tone">@pu.Text</span></div>
+                            <div class="k">Pulse</div><div class="v num">@(vNow.PulseRate?.ToString() ?? "--")<small>bpm</small></div>
+                            <div class="d">@Delta(vNow.PulseRate, Prev(v => v.PulseRate), "bpm")</div><div class="r">Normal 60 – 100 bpm</div><canvas class="spark" data-key="pulseRate"></canvas></div>
+                        <div class="vcard" data-metric="spo2"><div class="top"><span class="ic t-info"><i class="bi bi-lungs-fill"></i></span><span class="pill @sp.Item1">@sp.Item2</span></div>
+                            <div class="k">Oxygen (SpO2)</div><div class="v num">@(vNow.SpO2?.ToString("0.#") ?? "--")<small>%</small></div>
+                            <div class="d">@Delta(vNow.SpO2, Prev(v => v.SpO2), "%")</div><div class="r">Normal 95% or more</div><canvas class="spark" data-key="spO2"></canvas></div>
+                        <div class="vcard" data-metric="temp"><div class="top"><span class="ic t-warn"><i class="bi bi-thermometer-half"></i></span><span class="pill @tp.Tone">@tp.Text</span></div>
+                            <div class="k">Temperature</div><div class="v num">@(vNow.Temperature?.ToString("0.#") ?? "--")<small>°F</small></div>
+                            <div class="d">@Delta(vNow.Temperature, Prev(v => v.Temperature), "°F")</div><div class="r">Normal 97 – 99.5 °F</div><canvas class="spark" data-key="temperature"></canvas></div>
+                        <div class="vcard" data-metric="weight"><div class="top"><span class="ic t-brand"><i class="bi bi-person-arms-up"></i></span><span class="pill @bmiTone">@(string.IsNullOrEmpty(vNow.BMICategory) ? "" : $"BMI {vNow.BMI:0.0} · {vNow.BMICategory}")</span></div>
+                            <div class="k">Weight</div><div class="v num">@(vNow.Weight?.ToString("0.#") ?? "--")<small>kg</small></div>
+                            <div class="d">@Delta(vNow.Weight, Prev(v => v.Weight), "kg")</div><div class="r">Height @(vNow.Height?.ToString("0.#") ?? "--") cm</div><canvas class="spark" data-key="weight"></canvas></div>
+                        <div class="vcard" data-metric="glucose"><div class="top"><span class="ic t-info"><i class="bi bi-droplet-half"></i></span><span class="pill @gl.Item1">@gl.Item2</span></div>
+                            <div class="k">Blood glucose@(string.IsNullOrEmpty(vNow.GlucoseType) ? "" : $" ({vNow.GlucoseType})")</div><div class="v num">@(vNow.BloodGlucose?.ToString("0.#") ?? "--")<small>mg/dL</small></div>
+                            <div class="d">@Delta(vNow.BloodGlucose, Prev(v => v.BloodGlucose), "mg/dL")</div><div class="r">@(string.Equals(vNow.GlucoseType, "Fasting", StringComparison.OrdinalIgnoreCase) ? "Normal fasting 70 – 99" : "Normal 70 – 139")</div><canvas class="spark" data-key="bloodGlucose"></canvas></div>
+                    </div>
+                    <div class="small muted mb-3"><i class="bi bi-clock me-1"></i>Latest reading @vNow.RecordedOn.ToString("dd MMM yyyy, hh:mm tt") · @vs.Count reading@(vs.Count == 1 ? "" : "s") in total. Ranges are general adult guides - your doctor knows what is right for you.</div>
+                }
                 <div class="box">
                     <h3><i class="bi bi-graph-up-arrow text-danger"></i>Trend
-                        <span class="ms-auto filters" id="vitalMetric"><button class="on" data-v="bp">BP</button><button data-v="pulse">Pulse</button><button data-v="temp">Temp</button><button data-v="weight">Weight</button></span></h3>
+                        <span class="ms-auto filters" id="vitalMetric"><button class="on" data-v="bp">BP</button><button data-v="pulse">Pulse</button><button data-v="spo2">SpO2</button><button data-v="temp">Temp</button><button data-v="weight">Weight</button><button data-v="glucose">Glucose</button></span></h3>
                     <div class="chart-box"><canvas id="vitalsChart"></canvas><div class="empty" id="vitalsEmpty" style="display:none"><i class="bi bi-graph-up"></i>No vitals recorded yet.</div></div>
                 </div>
                 <div class="box">
@@ -767,25 +822,69 @@
             const baseOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } },
                                scales: { x: { grid: { display: false } }, y: { grid: { color: '#eef0f6' } } } };
 
-            // ── vitals chart ──
+            // ── vitals: main chart with the normal range shaded, sparklines on the cards ──
             let vitals = null, vChart = null, vMetric = 'bp';
+            const METRICS = {
+                bp:      { sets: [['Systolic', 'bpSystolic', '#e04563'], ['Diastolic', 'bpDiastolic', '#f0a020']], unit: 'mmHg', band: [60, 120] },
+                pulse:   { sets: [['Pulse', 'pulseRate', '#12805c']], unit: 'bpm', band: [60, 100] },
+                spo2:    { sets: [['SpO2', 'spO2', '#1d63c9']], unit: '%', band: [95, 100] },
+                temp:    { sets: [['Temperature', 'temperature', '#d68a00']], unit: '°F', band: [97, 99.5] },
+                weight:  { sets: [['Weight', 'weight', '#6d4bb0']], unit: 'kg', band: null },
+                glucose: { sets: [['Glucose', 'bloodGlucose', '#a8407a']], unit: 'mg/dL', band: [70, 139] }
+            };
+            // shades the normal range behind the lines
+            const bandPlugin = { id: 'band', beforeDatasetsDraw(c, _, o) {
+                if (!o.range) return;
+                const { ctx, chartArea: a, scales: { y } } = c;
+                const top = y.getPixelForValue(o.range[1]), bottom = y.getPixelForValue(o.range[0]);
+                ctx.save(); ctx.fillStyle = 'rgba(18,128,92,.08)'; ctx.fillRect(a.left, Math.max(top, a.top), a.right - a.left, Math.min(bottom, a.bottom) - Math.max(top, a.top));
+                ctx.fillStyle = 'rgba(18,128,92,.75)'; ctx.font = '600 11px Inter, sans-serif'; ctx.fillText('Normal range', a.left + 8, Math.max(top, a.top) + 14); ctx.restore();
+            } };
             async function loadVitals() {
                 if (loaded.vitals) return; loaded.vitals = true;
                 try { vitals = await getJson('@Url.Content("~/PatientPortal/Chart/vitals")'); } catch { vitals = []; }
                 if (!vitals || !vitals.length) { document.getElementById('vitalsEmpty').style.display = ''; document.getElementById('vitalsChart').style.display = 'none'; return; }
-                drawVitals();
+                drawSparks(); drawVitals();
+            }
+            function grad(ctx, area, color) {
+                const g = ctx.createLinearGradient(0, area.top, 0, area.bottom); g.addColorStop(0, color + '55'); g.addColorStop(1, color + '05'); return g;
             }
             function drawVitals() {
-                const line = (label, key, c) => ({ label, data: vitals.map(d => d[key]), borderColor: c, backgroundColor: c + '22', fill: true, borderWidth: 2.5, tension: .35, pointRadius: 3, spanGaps: true });
-                const sets = { bp: [line('Systolic (mmHg)', 'bpSystolic', palette.bad), line('Diastolic (mmHg)', 'bpDiastolic', palette.warn)],
-                               pulse: [line('Pulse (bpm)', 'pulseRate', palette.ok)], temp: [line('Temperature (°F)', 'temperature', palette.info)], weight: [line('Weight (kg)', 'weight', palette.brand)] };
+                const m = METRICS[vMetric];
+                const single = vitals.length === 1;
+                const datasets = m.sets.map(([label, key, color]) => ({
+                    label: `${label} (${m.unit})`, data: vitals.map(d => d[key]), borderColor: color, borderWidth: 3, tension: .4, spanGaps: true,
+                    pointRadius: single ? 7 : 4, pointHoverRadius: 8, pointBackgroundColor: '#fff', pointBorderColor: color, pointBorderWidth: 3,
+                    fill: true, backgroundColor: c => c.chart.chartArea ? grad(c.chart.ctx, c.chart.chartArea, color) : color + '22'
+                }));
+                const vals = datasets.flatMap(d => d.data).filter(v => v != null);
+                const lo = Math.min(...vals, ...(m.band || [])), hi = Math.max(...vals, ...(m.band || []));
+                const pad = Math.max(2, (hi - lo) * .15);
                 vChart?.destroy();
-                vChart = new Chart(document.getElementById('vitalsChart'), { type: 'line', data: { labels: vitals.map(d => d.recordedOn.split(',')[0]), datasets: sets[vMetric] }, options: baseOpts });
+                vChart = new Chart(document.getElementById('vitalsChart'), { type: 'line', plugins: [bandPlugin],
+                    data: { labels: vitals.map(d => d.recordedOn.split(',')[0]), datasets },
+                    options: { ...baseOpts, layout: { padding: { left: 6, right: single ? 40 : 10, top: 6 } }, interaction: { mode: 'index', intersect: false },
+                        plugins: { band: { range: m.band }, legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 18 } },
+                                   tooltip: { backgroundColor: '#1d1b2f', padding: 10, cornerRadius: 10, callbacks: { label: c => ` ${c.dataset.label}: ${c.formattedValue}` } } },
+                        scales: { x: { grid: { display: false }, offset: single }, y: { min: Math.floor(lo - pad), max: Math.ceil(hi + pad), grid: { color: '#eef0f6' }, border: { display: false } } } } });
+                document.querySelectorAll('.vcard').forEach(c => c.classList.toggle('on', c.dataset.metric === vMetric));
             }
-            document.querySelectorAll('#vitalMetric button').forEach(b => b.addEventListener('click', () => {
-                document.querySelectorAll('#vitalMetric button').forEach(x => x.classList.toggle('on', x === b));
-                vMetric = b.dataset.v; if (vitals && vitals.length) drawVitals();
-            }));
+            function drawSparks() {
+                document.querySelectorAll('canvas.spark').forEach(cv => {
+                    const data = vitals.map(d => d[cv.dataset.key]).filter(v => v != null);
+                    if (data.length < 2) { cv.style.display = 'none'; return; }
+                    const color = getComputedStyle(cv.closest('.vcard').querySelector('.ic')).color;
+                    new Chart(cv, { type: 'line', data: { labels: data.map((_, i) => i), datasets: [{ data, borderColor: color, borderWidth: 2, tension: .4, pointRadius: 0, fill: false }] },
+                        options: { responsive: false, animation: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } } });
+                });
+            }
+            function pick(metric) {
+                vMetric = metric;
+                document.querySelectorAll('#vitalMetric button').forEach(x => x.classList.toggle('on', x.dataset.v === metric));
+                if (vitals && vitals.length) drawVitals();
+            }
+            document.querySelectorAll('#vitalMetric button').forEach(b => b.addEventListener('click', () => pick(b.dataset.v)));
+            document.querySelectorAll('.vcard').forEach(c => c.addEventListener('click', () => { pick(c.dataset.metric); document.getElementById('vitalsChart').scrollIntoView({ behavior: 'smooth', block: 'center' }); }));
 
             // ── visit chart ──
             let visits = null, sChart = null, sMetric = 'amount';
@@ -889,30 +988,26 @@
                 const box = document.getElementById('rxList');
                 try {
                     const list = (await getJson('@Url.Content("~/PatientPortal/Data/prescriptions")')).data || [];
-                    if (!list.length) { box.innerHTML = '<div class="empty"><i class="bi bi-capsule"></i>No prescriptions yet.</div>'; return; }
+                    if (!list.length) { box.innerHTML = '<div class="empty"><i class="bi bi-capsule"></i>No prescriptions yet.<div class="small mt-1">A prescription appears here once your doctor saves it after your consultation.</div></div>'; return; }
                     box.classList.remove('box');
                     box.innerHTML = '<div class="d-grid gap-3">' + list.map(p => {
-                        let diagnosis = '', advice = '';
-                        try {
-                            const emr = JSON.parse(p.emrDataJson || '{}');
-                            for (const k in emr) {
-                                if (typeof emr[k] !== 'string') continue;
-                                if (k.toLowerCase().includes('diagnos')) diagnosis = emr[k];
-                                if (k.toLowerCase().includes('advice') || k.toLowerCase().includes('instruction')) advice = emr[k];
-                            }
-                        } catch { }
+                        // medicines: "id|Name|Qty|Frequency|When" per item
+                        const meds = (p.medicines || '').split(',').map(x => x.split('|')).filter(m => m.length >= 2 && m[1].trim())
+                            .map(m => ({ name: m[1].trim(), qty: (m[2] || '').trim(), freq: (m[3] || '').trim(), when: (m[4] || '').trim() }));
                         const d = new Date(p.consultationDate);
                         const url = '@Url.Action("Prescription")' + `?opdServiceId=${encodeURIComponent(p.opdServiceId)}&doctorId=${encodeURIComponent(p.doctorId)}`;
+                        const block = (k, v, icon) => v ? `<div class="field"><div class="k"><i class="bi ${icon} me-1"></i>${k}</div><div class="v" style="white-space:pre-line">${esc(v)}</div></div>` : '';
                         return `<div class="rx box">
-                            <div class="item" style="padding:0">
+                            <div class="item" style="padding:0;border:0">
                                 <div class="datebox"><div class="d">${d.getDate()}</div><div class="m">${esc(d.toLocaleString('en-GB', { month: 'short' }))}</div></div>
-                                <div class="main"><div class="ttl">${esc(p.doctorName)}</div><div class="sub">${esc(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))}</div></div>
+                                <div class="main"><div class="ttl">${esc(p.doctorName || 'Doctor')}</div><div class="sub">${esc(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))}</div></div>
                                 <a class="btn-soft primary" href="${url}" target="_blank"><i class="bi bi-printer"></i>Prescription</a>
                             </div>
-                            <div class="grid g2 mt-3" style="gap:10px">
-                                <div class="field"><div class="k">Diagnosis</div><div class="v">${esc(diagnosis) || '--'}</div></div>
-                                <div class="field"><div class="k">Advice</div><div class="v">${esc(advice) || '--'}</div></div>
-                            </div>
+                            ${meds.length ? `<div class="mt-3"><div class="small muted fw-semibold mb-2"><i class="bi bi-capsule me-1"></i>Medicines</div>
+                                <div class="d-grid gap-2">${meds.map(m => `<div class="d-flex align-items-center gap-3 p-2 px-3" style="background:var(--brand-soft);border-radius:12px">
+                                    <i class="bi bi-capsule-pill" style="color:var(--brand)"></i><div class="flex-grow-1"><div class="fw-semibold">${esc(m.name)}</div>
+                                    <div class="small muted">${[m.qty && m.qty + ' dose', m.freq, m.when].filter(Boolean).map(esc).join(' · ')}</div></div></div>`).join('')}</div></div>` : ''}
+                            <div class="grid g2 mt-3" style="gap:10px">${block('Complaint', p.complaint, 'bi-chat-left-text')}${block('Diagnosis', p.diagnosis, 'bi-clipboard2-pulse')}${block('Advice', p.advice, 'bi-lightbulb')}</div>
                         </div>`;
                     }).join('') + '</div>';
                 } catch {

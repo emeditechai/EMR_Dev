@@ -92,4 +92,9 @@ public class PortalPrescription
     public string DoctorName { get; set; } = string.Empty;
     public int OpdServiceId { get; set; }
     public string EmrDataJson { get; set; } = string.Empty;
+    public string? Complaint { get; set; }
+    public string? Diagnosis { get; set; }
+    public string? Advice { get; set; }
+    /// <summary>EMR medication list: "id|Name|Qty|Frequency|When" per item, items separated by commas.</summary>
+    public string? Medicines { get; set; }
 }
