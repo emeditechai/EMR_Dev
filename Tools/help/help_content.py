@@ -137,7 +137,7 @@ guide("GS.NAVIGATE", "GENERAL", "Find your way around",
       ["The top bar holds the menus: Home, OPD, LAB, IPD, Master, Settings, Utility, Quality & Compliance and Reports. You only see what your role may open.",
        "Point at a menu to open it; menus with an arrow open a sub-menu (near the right edge it opens to the left).",
        "The bell shows notifications such as approval requests. New ones ring the bell, show a message and play a tone (turn the sound on/off with the speaker button inside the bell).",
-       "Ask AI at the bottom right of Home, or Utility > Help Center, opens the AI Help Assistant - ask what to do next.",
+       "Ask eMedi at the bottom right of Home, or Utility > Help Center, opens the AI Help Assistant - ask what to do next.",
        "Your profile menu (top right) has Change Password, Switch Branch, Switch Role and Sign Out."],
       tips=["The branch badge (e.g. HO) shows which branch you are working in - bills and reports belong to it."],
       keywords="menu navigation bell notification help question tone sound switch branch role")
@@ -586,6 +586,27 @@ guide("UT.PETTY", "UTILITY", "Petty cash and vouchers",
              "UTILITY.ACCOUNTS.LEDGERS", "UTILITY.ACCOUNTS.EXPENSEHEADS", "UTILITY.ACCOUNTS.PAYEES", "UTILITY.ACCOUNTS.SETTINGS"],
       prereq=["UTILITY.ACCOUNTS.SETTINGS"], keywords="petty cash expense voucher ledger accounts payee closing")
 
+guide("UT.PRINTTEMPLATES", "UTILITY", "Design the bill and lab report header and footer (Print Templates)",
+      "Make your own letterhead for bills (LAB, OPD, receipts) and lab reports, and choose which branch prints with it.",
+      ["Utility > Print Templates > New Template: give it a name, choose Bills or Lab Reports, and start from Standard, Centred or Blank.",
+       "In the designer, click any part of the header or footer on the page to select it; its settings open on the right.",
+       "Add to a column with the buttons on the left: Data field (pick hospital name, address, phone, email, NABH, GST... from a list - nothing is typed), Logo, Text, Image / seal, Barcode, Line, Space, Page number.",
+       "Add rows with Full, ½ ½, ⅓ ⅓ ⅓ or Logo · Name · Right; change a column's width and move blocks up / down on the right.",
+       "Or drag on the page: a block into another column or place, the edge between two columns for their width, the bottom edge of a logo / image / barcode / space for its height, the ⋮⋮ grip to move a row, the purple bar under the header or footer for its height.",
+       "Fill with: choose a branch to see its own details on the page. Fields a branch has left empty are skipped when printing.",
+       "Preview prints a real recent bill or lab report with your draft. Save draft keeps it private; Publish makes it the live version.",
+       "Back on Print Templates, choose the template for each branch under \"Which branch prints with which template\". Classic = the built-in header and footer."],
+      pages=["UTILITY.PRINTTEMPLATES"],
+      tips=["Templates are created, published and assigned by the head office; other branches can open and preview them only.",
+            "Role Permissions > Print Templates: View, Edit (design), Publish, Assign (branch templates) and Delete are separate controls.",
+            "The bill / report body never changes - only the header and footer come from the template.",
+            "Text style: choose the font (Arial, Calibri, Georgia, Times New Roman ...), size, colour, Bold / Italic / Underline / Strikethrough / CAPITALS and letter spacing; \"Use this font for every block\" sets one font for the whole header and footer.",
+            "Printer cuts the top or bottom? Select the header (or footer) and set \"Space above (mm)\" / \"Space below (mm)\" - e.g. 5-8 mm above the header when an A5 print cuts the hospital name. The space is real paper size and is added to the page margin, on bills and lab reports alike.",
+            "\"Required B2C Bill / Lab Report Print Header = No\" (pre-printed paper) still leaves the space blank; emailed and WhatsApp copies always carry the template.",
+            "Every publish is kept as a version: Restore brings an older one back into the draft.",
+            "Undo with the arrow button or Ctrl+Z."],
+      keywords="print template header footer letterhead bill report logo layout design customise branch")
+
 guide("ACC.SETUP", "UTILITY", "Set up Accounts: bank ledgers and payment mode ledgers",
       "Decide which cash or bank ledger each payment method (Cash, Card, UPI, NEFT, Cheque, Wallet) posts to - once, from the head office.",
       ["Utility > Accounts > Ledgers and Groups: create one ledger for each real bank account (e.g. \"HDFC Current A/c\") under the group Bank Accounts. "
@@ -654,8 +675,8 @@ guide("SET.LOGINRETRY", "SETTINGS", "Lock accounts after wrong passwords and unl
             "Unlock does not change an Inactive user - activate the user in User Master for that."],
       keywords="login retry wrong password attempts lock lockout unlock locked user security brute force")
 
-guide("AI.DATA", "GENERAL", "Ask AI: find a bill, open screens and see today's numbers",
-      "Ask AI also answers from live data - only what your role may see, only in your branch.",
+guide("AI.DATA", "GENERAL", "Ask eMedi: find a bill, open screens and see today's numbers",
+      "Ask eMedi also answers from live data - only what your role may see, only in your branch.",
       ["Type a bill number (LAB/HO2627000295 or just HO2627000295): the bill card shows the patient, amount, paid, due, samples and reports, with buttons for the bill's screens.",
        "Add what you want to open: \"... open bill\", \"... lab reporting entry\", \"... print report\", \"... sample collection\", \"... barcode\". "
        "That screen opens at once (Report Entry opens the right one for the bill's tests: Lab, Image or Microbiology).",
@@ -664,8 +685,8 @@ guide("AI.DATA", "GENERAL", "Ask AI: find a bill, open screens and see today's n
        "How-to questions (\"how do I collect a due\") still get the help guides."],
       pages=["HOME.DASHBOARD"],
       tips=["Spelling mistakes are understood (\"colection yesturday\").",
-            "Every night Ask AI learns the answers several users chose for the same question; administrators see it in Help Insights."],
-      keywords="ask ai data bill number open bill report entry sample collection barcode collection revenue dues today token patient search")
+            "Every night Ask eMedi learns the answers several users chose for the same question; administrators see it in Help Insights."],
+      keywords="ask emedi ask ai data bill number open bill report entry sample collection barcode collection revenue dues today token patient search")
 
 # ════════════════════════════════ FAQ ════════════════════════════════
 faq("FAQ.MENU.MISSING", "GENERAL", "Why can't I see a menu or page?",
@@ -760,7 +781,7 @@ faq("FAQ.IQC.WESTGARD", "QUALITY", "What do the Westgard flags in Daily QC mean?
     "They are rules that detect errors in QC results (for example 1-3s: one value beyond 3 SD; 2-2s: two in a row beyond 2 SD). A rejection rule means: do not report patient results of that run until the cause is fixed; record a CAPA.",
     pages=["QC.IQC.ENTRY"], keywords="westgard rule 1-3s 2-2s qc reject warning")
 faq("FAQ.HELP.ASK", "GENERAL", "How do I ask the Help Assistant?",
-    "Click Ask AI at the bottom right of Home, or open Utility > Help Center, and type your question in plain words - for example 'how do I cancel a bill' or 'after creating a B2C bill, what is next?'. It answers with steps, the screens to open and where the step sits in the workflow; tell it whether the answer helped.",
+    "Click Ask eMedi at the bottom right of Home, or open Utility > Help Center, and type your question in plain words - for example 'how do I cancel a bill' or 'after creating a B2C bill, what is next?'. It answers with steps, the screens to open and where the step sits in the workflow; tell it whether the answer helped.",
     keywords="help assistant ask question ai")
 
 # ════════════════════════════════ TROUBLESHOOTING ════════════════════════════════

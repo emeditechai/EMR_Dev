@@ -30,6 +30,10 @@ public interface ILabReportPdfService
 
     /// <summary>The reports of the bill that have something to print in this scope: Numeric (Lab Report) and/or Template (Microbiology).</summary>
     Task<List<string>> GetPrintableReportTypesAsync(int labOrderId, string scope = LabReportPrintBuilder.ScopeAll);
+
+    /// <summary>Utility > Print Templates (SQLScripts/2324): puts the branch's Lab Report template (or, for the designer's
+    /// preview, a template's draft) on the report. BuildAsync already applies the published one.</summary>
+    Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId);
 }
 
 /// <summary>
@@ -62,7 +66,8 @@ public class LabReportPdfService(
     ILabDefaultSignatoryApiClient defaultSignatoryApiClient,
     ILabParameterOptionApiClient parameterOptionApiClient,
     ApplicationDbContext dbContext,
-    IWebHostEnvironment env) : ILabReportPdfService
+    IWebHostEnvironment env,
+    IPrintTemplateRuntime printTemplates) : ILabReportPdfService
 {
     public const string PrintedAction = "LAB.ReportPrinted";
 
@@ -120,7 +125,34 @@ public class LabReportPdfService(
         // Every copy after the first one is a duplicate, on screen and on paper.
         vm.PrintSequence = await GetPrintCountAsync(vm.BillNo, scope, reportingType) + 1;
 
+        // Utility > Print Templates (SQLScripts/2324): the billing branch's Lab Report template, for every print,
+        // email and WhatsApp copy alike (none = the Classic letterhead and footer)
+        await ApplyPrintTemplateAsync(vm, user, branch?.CompanyId ?? user.GetCompanyId(), null);
+
         return vm;
+    }
+
+    public async Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId)
+    {
+        if (vm.BranchId <= 0) return;
+        var lab = vm.ProcessingLabName ?? vm.HospitalName;
+        var (layout, values) = await printTemplates.ForReportAsync(user, companyId, vm.BranchId, new PrintDocInfo
+        {
+            DocNo = vm.BillNo,
+            DocDate = vm.Reported?.ToString("dd-MMM-yyyy hh:mm tt"),
+            CopyLabel = vm.IsDuplicate ? $"Duplicate copy - print #{vm.PrintSequence}" : "Original",
+            ProcessingLab = string.IsNullOrWhiteSpace(vm.ProcessingLabAddress) ? lab : $"{lab}, {vm.ProcessingLabAddress}",
+            PrintedAt = vm.PrintedOn.ToString("dd-MMM-yyyy hh:mm tt"),
+            PrintedBy = vm.PrintedBy
+        }, previewTemplateId);
+        vm.PrintTemplate = layout;
+        vm.PrintValues = values;
+        vm.PrintImages.Clear();
+        if (layout is null) return;
+        // uploaded images are read now: the PDF is drawn without file access
+        foreach (var path in new[] { layout.Header, layout.Footer }.SelectMany(b => b.Rows).SelectMany(r => r.Cols).SelectMany(c => c.Blocks)
+                     .Where(b => b.Type == "image" && !string.IsNullOrWhiteSpace(b.ImageUrl)).Select(b => b.ImageUrl!).Distinct())
+            if (LoadLogo(path) is { } bytes) vm.PrintImages[path] = bytes;
     }
 
     private async Task FillPicklistRangesAsync(LabReportingOrderDetailDto detail, ClaimsPrincipal user)

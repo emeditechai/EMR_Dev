@@ -147,6 +147,7 @@ public static class LabReportPrintBuilder
     private static void FillLetterhead(LabReportPrintViewModel vm, HospitalSettings? s)
     {
         if (s == null) return;
+        vm.BranchId = s.BranchId;   // its Print Templates Lab Report template (SQLScripts/2324)
         if (!string.IsNullOrWhiteSpace(s.HospitalName)) vm.HospitalName = s.HospitalName;
         if (!string.IsNullOrWhiteSpace(s.HospitalType)) vm.HospitalType = s.HospitalType;
         vm.HospitalLogoPath = s.LogoPath;

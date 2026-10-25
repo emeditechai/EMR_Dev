@@ -1,0 +1,20 @@
+@model EMR.Web.Models.ViewModels.PrintLayout
+@using EMR.Web.Models.ViewModels
+@{
+    // Utility > Print Templates designer canvas: the header and the footer drawn by the same page part the bills print with
+    var values = ViewBag.Values as Dictionary<string, string?> ?? new();
+    var selected = ViewBag.Selected as string;
+    var logo = values.GetValueOrDefault("__logo");
+    var header = new PrintBandView { Band = Model.Header, Values = values, LogoUrl = logo, DesignMode = true, PathPrefix = "h", SelectedPath = selected };
+    var footer = new PrintBandView { Band = Model.Footer, IsFooter = true, Values = values, LogoUrl = logo, DesignMode = true, PathPrefix = "f", SelectedPath = selected };
+}
+<div class="pd-band-label">Header</div>
+<partial name="_PrintBand" model="header" />
+<div class="pd-body">
+    <div class="pd-body-inner">
+        <div class="pd-body-title">Bill / report body</div>
+        <div>printed exactly as today - only the header and footer come from this template</div>
+    </div>
+</div>
+<div class="pd-band-label">Footer</div>
+<partial name="_PrintBand" model="footer" />

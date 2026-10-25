@@ -12,6 +12,10 @@
     var genderAge   = !string.IsNullOrEmpty(ageStr)
                         ? (!string.IsNullOrEmpty(Model.Gender) ? $"{ageStr} / {Model.Gender}" : ageStr)
                         : (Model.Gender ?? "—");
+    // Utility > Print Templates (SQLScripts/2324): set by the controller when the branch has a Bill template (else Classic)
+    var printTemplate = ViewData["PrintTemplate"] as EMR.Web.Models.ViewModels.PrintLayout;
+    var printValues   = ViewData["PrintValues"] as Dictionary<string, string?>;
+    var printLogoUrl  = ViewData["PrintLogoUrl"] as string;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -350,6 +354,10 @@
                (350 x 246 mm) and zoomed to 0.6, so the sheet is exactly 210 x 148 mm. */
             body.a5l .page-wrap { zoom: 0.6; width: 350mm; min-height: 245mm; padding: 10mm 14mm 16mm 14mm; position: relative; }
             body.a5l .letterhead-space { height: 30mm; }
+            /* Print Templates (SQLScripts/2324): the template header / footer print at their true size on A5 as on A4 and
+               in the report PDF (what the designer shows) - the 0.6 zoom of the page is undone for them; 193.2 mm = the
+               page's 322 mm content width x 0.6 */
+            body.a5l .ptpl-band { zoom: 1.666667; width: 193.2mm; }
             body.a5l .a5-footer { position: absolute; left: 14mm; right: 14mm; bottom: 6mm; display: flex; justify-content: space-between;
                                   font-size: 9px; color: #555; border-top: 1px solid #ccc; padding-top: 2mm; }
             /* on screen: show the half-A4 sheet itself */
@@ -376,6 +384,11 @@
     {
         @* Hospital Settings > LAB > Required B2C Bill Print Header = No: blank space for pre-printed letterhead *@
         <div class="letterhead-space"></div>
+    }
+    else if (printTemplate is not null)
+    {
+        @* Utility > Print Templates (SQLScripts/2324): the branch's Bill template *@
+        <partial name="_PrintBand" model="new EMR.Web.Models.ViewModels.PrintBandView { Band = printTemplate.Header, Values = printValues!, LogoUrl = printLogoUrl }" />
     }
     else
     {
@@ -737,7 +750,13 @@
         </table>
     }
 
-    @if (Model.ShowHeaderFooter)
+    @if (Model.ShowHeaderFooter && printTemplate is not null)
+    {
+        <div style="margin-top:5mm;">
+            <partial name="_PrintBand" model="new EMR.Web.Models.ViewModels.PrintBandView { Band = printTemplate.Footer, IsFooter = true, Values = printValues!, LogoUrl = printLogoUrl }" />
+        </div>
+    }
+    else if (Model.ShowHeaderFooter)
     {
     <hr style="margin:5mm 0 3mm 0; border:none; border-top:1px solid #bbb;" />
 
@@ -768,14 +787,14 @@
     </div>
     }
 
-    @if (Model.PageSize == "A5L" && Model.ShowHeaderFooter)
+    @if (Model.PageSize == "A5L" && Model.ShowHeaderFooter && printTemplate is null)
     {
         @* A5: the footer sits at the bottom of the half sheet *@
         <div class="a5-footer"><span>@printDate</span><span>Page 1 of 1</span></div>
     }
 </div>
 
-@if (Model.ShowHeaderFooter && Model.PageSize != "A5L")
+@if (Model.ShowHeaderFooter && Model.PageSize != "A5L" && printTemplate is null)
 {
 <!-- ══ PAGE FOOTER ══ -->
 <div class="page-footer">

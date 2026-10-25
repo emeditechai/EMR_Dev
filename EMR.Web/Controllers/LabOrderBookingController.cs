@@ -2831,7 +2831,7 @@ namespace EMR.Web.Controllers
             IsDueCollection = p.IsDueCollection
         };
 
-        public async Task<IActionResult> PrintBill(int labOrderId)
+        public async Task<IActionResult> PrintBill(int labOrderId, int? previewTemplateId = null)
         {
             if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
             if (!await FranchiseOwnsOrderAsync(labOrderId)) return Forbid();
@@ -2989,7 +2989,27 @@ namespace EMR.Web.Controllers
                     : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
             };
 
+            await ApplyBillTemplateAsync(vm, branchId, previewTemplateId);
             return View(vm);
+        }
+
+        /// <summary>
+        /// Utility > Print Templates (SQLScripts/2324): the branch's Bill template for the header and footer (none = Classic).
+        /// previewTemplateId: the designer's Preview shows that template's draft (only to a user who may open Print Templates).
+        /// </summary>
+        private async Task ApplyBillTemplateAsync(PrintBillViewModel vm, int branchId, int? previewTemplateId)
+        {
+            var runtime = HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>();
+            if (previewTemplateId is > 0) vm.ShowHeaderFooter = true;   // the designer's preview always shows the header and footer
+            await runtime.ApplyToBillAsync(ViewData, User, branchId, new PrintDocInfo
+            {
+                DocNo = vm.BillNo,
+                DocDate = (vm.CreatedDate > DateTime.MinValue ? vm.CreatedDate : vm.OrderDate).ToString("dd-MMM-yyyy hh:mm tt"),
+                TokenNo = vm.TokenNo,
+                CopyLabel = vm.IsActive ? "Original" : "Cancelled",
+                PrintedBy = vm.PrintedByName,
+                CreatedBy = vm.CreatedByName ?? vm.CreatedByUsername
+            }, previewTemplateId);
         }
 
         /// <summary>
@@ -3328,6 +3348,7 @@ namespace EMR.Web.Controllers
                     : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
             };
 
+            await ApplyBillTemplateAsync(vm, branchId, null);   // the shared link prints with the branch's template too
             return View("PrintBill", vm);
         }
 

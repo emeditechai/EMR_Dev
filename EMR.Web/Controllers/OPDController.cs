@@ -2124,6 +2124,50 @@ public class OPDController(
                                                 IsDiscountable = discountable.GetValueOrDefault(s.ServiceId, true) }));
     }
 
+    /// <summary>The patient's last OPD visit (any branch of the company): date, doctor and bill - shown beside the
+    /// registration badge when a patient is loaded (SQLScripts/2323). Cancelled bills are skipped.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetLastVisit(int patientId)
+    {
+        static string ShortDate(DateTime d) => d.ToString(d.Year == DateTime.Today.Year ? "dd MMM" : "dd MMM yy");
+        if (patientId <= 0) return Json(new { found = false });
+        using var con = db.CreateConnection();
+        var v = await con.QueryFirstOrDefaultAsync<(DateTime VisitDate, string? AppointmentTime, string? DoctorName, string? OPDBillNo, string? BranchName)>(@"
+            SELECT TOP 1 o.VisitDate, CAST(o.AppointmentTime AS NVARCHAR(20)),
+                   CASE WHEN NULLIF(LTRIM(RTRIM(d.NamePrefix)), N'') IS NULL THEN d.FullName ELSE d.NamePrefix + N' ' + d.FullName END,
+                   o.OPDBillNo, b.BranchName
+            FROM dbo.PatientOPDService o
+            LEFT JOIN dbo.DoctorMaster d ON d.DoctorId = o.ConsultingDoctorId
+            LEFT JOIN dbo.Branchmaster b ON b.BranchID = o.BranchId
+            WHERE o.PatientId = @patientId AND o.IsActive = 1 AND o.OPDBillNo IS NOT NULL
+            ORDER BY o.VisitDate DESC, o.OPDServiceId DESC", new { patientId });
+        if (v.OPDBillNo is null) return Json(new { found = false });
+        var days = (DateTime.Today - v.VisitDate.Date).Days;
+        // the last visit may be a service-only bill: then the last consulting doctor comes from the latest visit that had one
+        (DateTime VisitDate, string? DoctorName) consultant = default;
+        if (string.IsNullOrWhiteSpace(v.DoctorName))
+            consultant = await con.QueryFirstOrDefaultAsync<(DateTime, string?)>(@"
+                SELECT TOP 1 o.VisitDate,
+                       CASE WHEN NULLIF(LTRIM(RTRIM(d.NamePrefix)), N'') IS NULL THEN d.FullName ELSE d.NamePrefix + N' ' + d.FullName END
+                FROM dbo.PatientOPDService o
+                INNER JOIN dbo.DoctorMaster d ON d.DoctorId = o.ConsultingDoctorId
+                WHERE o.PatientId = @patientId AND o.IsActive = 1 AND o.OPDBillNo IS NOT NULL
+                ORDER BY o.VisitDate DESC, o.OPDServiceId DESC", new { patientId });
+        return Json(new
+        {
+            found = true,
+            visitDate = ShortDate(v.VisitDate),
+            daysAgo = days,
+            doctorName = v.DoctorName,
+            lastConsultant = consultant.DoctorName,
+            lastConsultantDate = consultant.DoctorName is null ? null : ShortDate(consultant.VisitDate),
+            billNo = v.OPDBillNo,
+            branchName = v.BranchName,
+            otherBranch = v.BranchName is not null && v.BranchName != User.FindFirst("BranchName")?.Value
+        });
+    }
+
+
     [HttpGet]
     public async Task<IActionResult> GetRegistrationValidity(int patientId)
     {
@@ -2336,7 +2380,7 @@ public class OPDController(
     // ─── Print Bill (via EMR.Api) ─────────────────────────────────────────────
 
     [HttpGet]
-    public async Task<IActionResult> PrintBill(int id)
+    public async Task<IActionResult> PrintBill(int id, int? previewTemplateId = null)
     {
         try
         {
@@ -2388,6 +2432,7 @@ public class OPDController(
             // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Bill Print Header = No prints this in-app
             // OPD bill without header / footer. PrintBillAnonymous (the email / WhatsApp link) is not touched.
             ViewBag.ShowHeaderFooter = settings?.LabB2CBillPrintHeaderRequired ?? true;
+            if (branchId.HasValue) await ApplyBillTemplateAsync(detail, branchId.Value, previewTemplateId);
             return View(detail);
         }
         catch (HttpRequestException)
@@ -2449,12 +2494,32 @@ public class OPDController(
             ViewBag.Settings   = settings;
             ViewBag.BranchName = branch?.BranchName ?? string.Empty;
             ViewBag.Payment    = payment;
+            await ApplyBillTemplateAsync(detail, branchId, null);   // the shared link prints with the branch's template too
             return View("PrintBill", detail);
         }
         catch (HttpRequestException)
         {
             return StatusCode(503, "API Down");
         }
+    }
+
+    /// <summary>
+    /// Utility > Print Templates (SQLScripts/2324): the branch's Bill template for the header and footer (none = Classic),
+    /// the same as the LAB bill. previewTemplateId: the designer's Preview (only for a user who may open Print Templates).
+    /// </summary>
+    private async Task ApplyBillTemplateAsync(ServiceBookingDetailViewModel detail, int branchId, int? previewTemplateId)
+    {
+        var runtime = HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>();
+        if (previewTemplateId is > 0) ViewBag.ShowHeaderFooter = true;   // the designer's preview always shows the header and footer
+        await runtime.ApplyToBillAsync(ViewData, User, branchId, new PrintDocInfo
+        {
+            DocNo = detail.OPDBillNo,
+            DocDate = detail.CreatedDate.ToString("dd-MMM-yyyy hh:mm tt"),
+            TokenNo = detail.TokenNo,
+            CopyLabel = string.Equals(detail.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ? "Cancelled" : "Original",
+            PrintedBy = User?.FindFirst("DisplayName")?.Value ?? User?.Identity?.Name,
+            CreatedBy = detail.CreatedByUser
+        }, previewTemplateId);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

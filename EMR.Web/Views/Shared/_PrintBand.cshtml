@@ -1,0 +1,123 @@
+@model EMR.Web.Models.ViewModels.PrintBandView
+@using EMR.Web.Models.ViewModels
+@{
+    // Utility > Print Templates (SQLScripts/2324): one band (header or footer) of a template, drawn in a bill page and on
+    // the designer canvas. Services/PrintBandPdf draws the same layout in the lab report PDF.
+    var band = Model.Band;
+    var v = Model.Values;
+    static string Css(decimal d) => d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    bool Empty(PrintBlock b) => b.Type switch
+    {
+        "field" => string.IsNullOrWhiteSpace(v.GetValueOrDefault(b.Field ?? "")),
+        "text" => string.IsNullOrWhiteSpace(b.Text),
+        "barcode" => string.IsNullOrWhiteSpace(v.GetValueOrDefault("docNo")),
+        _ => false
+    };
+    // margins sit on the band itself, so the A5 bill's zoom correction (PrintBill.cshtml) applies to them too
+    // (the designer draws them as labelled gaps instead, so they can be seen)
+    var bandStyle = $"padding:{Css(band.PaddingMm)}mm 0;" + (Model.DesignMode ? "" : $"margin:{Css(band.MarginTopMm)}mm 0 {Css(band.MarginBottomMm)}mm 0;")
+        + (band.MinHeightMm > 0 ? $"min-height:{Css(band.MinHeightMm)}mm;" : "")
+        + (string.IsNullOrWhiteSpace(band.Background) ? "" : $"background:{band.Background};")
+        + (band.Border ? (Model.IsFooter ? $"border-top:0.3mm solid {band.BorderColor};" : $"border-bottom:0.5mm solid {band.BorderColor};") : "");
+}
+@if (Model.DesignMode && band.MarginTopMm > 0)
+{
+    <div class="ptpl-gap" style="height:@(Css(band.MarginTopMm))mm">↕ space above @Css(band.MarginTopMm) mm</div>
+}
+<div class="ptpl-band @(Model.IsFooter ? "ptpl-footer" : "ptpl-header") @(Model.DesignMode ? "ptpl-design" : "")" style="@bandStyle"
+     @(Model.DesignMode ? Html.Raw($"data-path=\"{Model.PathPrefix}\"") : Html.Raw(""))>
+    @for (var ri = 0; ri < band.Rows.Count; ri++)
+    {
+        var row = band.Rows[ri];
+        var rowPath = $"{Model.PathPrefix}.r{ri}";
+        if (!Model.DesignMode && row.Cols.All(c => c.Blocks.All(Empty))) { continue; }
+        <div class="ptpl-row @(Model.DesignMode && Model.SelectedPath == rowPath ? "ptpl-sel" : "")" @(Model.DesignMode ? Html.Raw($"data-path=\"{rowPath}\"") : Html.Raw(""))>
+            @for (var ci = 0; ci < row.Cols.Count; ci++)
+            {
+                var col = row.Cols[ci];
+                var colPath = $"{rowPath}.c{ci}";
+                var just = col.VAlign switch { "middle" => "center", "bottom" => "flex-end", _ => "flex-start" };
+                <div class="ptpl-col @(Model.DesignMode && Model.SelectedPath == colPath ? "ptpl-sel" : "")"
+                     style="flex:0 0 @(Css(Math.Round(col.Span / 12m * 100m, 4)))%;max-width:@(Css(Math.Round(col.Span / 12m * 100m, 4)))%;justify-content:@just;"
+                     @(Model.DesignMode ? Html.Raw($"data-path=\"{colPath}\"") : Html.Raw(""))>
+                    @if (Model.DesignMode && col.Blocks.Count == 0)
+                    {
+                        <div class="ptpl-empty">+ click to add a block</div>
+                    }
+                    @for (var bi = 0; bi < col.Blocks.Count; bi++)
+                    {
+                        var b = col.Blocks[bi];
+                        var path = $"{colPath}.b{bi}";
+                        var empty = Empty(b);
+                        if (empty && !Model.DesignMode) { continue; }
+                        var deco = string.Join(' ', new[] { b.Underline ? "underline" : null, b.Strike ? "line-through" : null }.Where(x => x is not null));
+                        var style = $"text-align:{b.Align};font-size:{Css(b.Size)}pt;color:{b.Color};font-family:{PrintFonts.Css(b.Font)};" + (b.Bold ? "font-weight:700;" : "") + (b.Italic ? "font-style:italic;" : "")
+                                    + (b.Upper ? "text-transform:uppercase;" : "") + (deco.Length > 0 ? $"text-decoration:{deco};" : "")
+                                    + (b.LetterSpacing > 0 ? $"letter-spacing:{Css(b.LetterSpacing)}em;" : "");
+                        <div class="ptpl-block @(Model.DesignMode && Model.SelectedPath == path ? "ptpl-sel" : "") @(empty ? "ptpl-novalue" : "")" style="@style"
+                             @(Model.DesignMode ? Html.Raw($"data-path=\"{path}\"") : Html.Raw(""))>
+                            @switch (b.Type)
+                            {
+                                case "field":
+                                    var words = empty ? $"[{PrintFields.Find(b.Field)?.Label ?? "choose a field"} - empty for this branch]" : EMR.Web.Services.PrintBandPdf.FieldText(b, v);
+                                    if (b.Style == "badge") { <span class="ptpl-badge" style="border-color:@b.Color">@words</span> } else { <span>@words</span> }
+                                    break;
+                                case "text":
+                                    var t = empty ? "[type the text]" : b.Text!;
+                                    if (b.Style == "badge") { <span class="ptpl-badge" style="border-color:@b.Color">@t</span> } else { <span style="white-space:pre-line">@t</span> }
+                                    break;
+                                case "pageinfo":
+                                    <span>@(string.IsNullOrWhiteSpace(b.Text) ? "Page" : b.Text) 1 of 1</span>
+                                    break;
+                                case "logo":
+                                case "image":
+                                    var src = b.Type == "logo" ? Model.LogoUrl : b.ImageUrl;
+                                    var h = b.HeightMm > 0 ? b.HeightMm : 14;
+                                    if (!string.IsNullOrWhiteSpace(src)) { <img src="@src" alt="" style="height:@(Css(h))mm;max-width:100%;object-fit:contain;" /> }
+                                    else if (Model.DesignMode) { <span class="ptpl-ph" style="height:@(Css(h))mm">@(b.Type == "logo" ? "Logo (Hospital Settings)" : "Upload an image")</span> }
+                                    break;
+                                case "barcode":
+                                    var svg = EMR.Web.Services.MembershipCardPdfDocument.Code39Svg(v.GetValueOrDefault("docNo") ?? "");
+                                    if (svg is not null)
+                                    {
+                                        <div class="ptpl-barcode" style="height:@(Css(b.HeightMm > 0 ? b.HeightMm : 8))mm;width:@(Css(b.WidthPct))%;display:inline-block">@Html.Raw(svg)</div>
+                                        if (b.ShowLabel) { <div style="font-size:6.5pt;text-align:@b.Align">@v.GetValueOrDefault("docNo")</div> }
+                                    }
+                                    else if (Model.DesignMode) { <span class="ptpl-ph">Barcode of the bill no</span> }
+                                    break;
+                                case "line":
+                                    <div style="border-top:@(Css(b.Thickness * 0.35m))mm solid @b.Color;width:@(Css(b.WidthPct))%;display:inline-block;margin:1mm 0;"></div>
+                                    break;
+                                case "spacer":
+                                    <div style="height:@(Css(b.HeightMm > 0 ? b.HeightMm : 3))mm">@(Model.DesignMode ? "" : "")</div>
+                                    break;
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+@if (Model.DesignMode && band.MarginBottomMm > 0)
+{
+    <div class="ptpl-gap" style="height:@(Css(band.MarginBottomMm))mm">↕ space below @Css(band.MarginBottomMm) mm</div>
+}
+<style>
+    .ptpl-band { width: 100%; font-family: Arial, Helvetica, sans-serif; line-height: 1.3; }
+    .ptpl-row { display: flex; width: 100%; margin-bottom: 0.4mm; }
+    .ptpl-col { display: flex; flex-direction: column; padding: 0 0.7mm; min-width: 0; }
+    .ptpl-block { overflow-wrap: anywhere; }
+    .ptpl-barcode svg { width: 100%; height: 100%; display: block; }
+    .ptpl-badge { display: inline-block; border: 0.2mm solid #888; border-radius: 3mm; padding: 0.2mm 2mm; }
+    .ptpl-design .ptpl-row { outline: 1px dashed #c8c2d8; outline-offset: -1px; min-height: 7mm; }
+    .ptpl-design .ptpl-col { outline: 1px dashed #ddd6ea; outline-offset: -2px; min-height: 7mm; cursor: pointer; }
+    .ptpl-design .ptpl-block { cursor: pointer; border-radius: 2px; }
+    .ptpl-design .ptpl-block:hover { background: rgba(124, 58, 237, .07); }
+    .ptpl-design .ptpl-sel { outline: 2px solid #7c3aed !important; outline-offset: 0; background: rgba(124, 58, 237, .06); }
+    .ptpl-empty { color: #9a8fb3; font-size: 8pt; text-align: center; padding: 2mm 0; }
+    .ptpl-ph { display: inline-flex; align-items: center; justify-content: center; min-height: 6mm; padding: 0 2mm; border: 1px dashed #b9b1cc; color: #8a80a3; font-size: 7pt; border-radius: 2px; }
+    .ptpl-novalue { color: #b0a8c4 !important; }
+    .ptpl-gap { display: flex; align-items: center; justify-content: center; overflow: hidden; font: 9px Arial, sans-serif; color: #8a80a3;
+                background: repeating-linear-gradient(135deg, #f6f3fb, #f6f3fb 5px, #ece7f6 5px, #ece7f6 10px); border-left: 2px solid #c9bfe0; border-right: 2px solid #c9bfe0; }
+</style>

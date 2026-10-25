@@ -260,6 +260,7 @@
                     }
                     <span id="loadedPatientBadge" class="badge text-bg-primary ms-2 font-monospace d-none"></span>
                     <span id="regValidityBadge" class="badge text-bg-warning text-dark ms-2 d-none" style="font-size:.75em"></span>
+                    <span id="lastVisitBadge" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2 d-none" style="font-size:.75em"></span>
                 </h6>
                 <small class="text-muted">Basic personal, contact and address information</small>
             </div>
@@ -1751,8 +1752,28 @@
             if (el) { el.textContent = ''; el.classList.add('d-none'); }
         }
 
+        // last OPD visit beside the registration badge (SQLScripts/2323)
+        async function showLastVisit(patientId) {
+            const el = document.getElementById('lastVisitBadge');
+            if (!el) return;
+            el.classList.add('d-none'); el.innerHTML = '';
+            if (!patientId || patientId === '0') return;
+            const v = await fetchJson(opdBase + 'GetLastVisit?patientId=' + patientId);
+            if (!v || !v.found) return;
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const ago = v.daysAgo === 0 ? 'today' : v.daysAgo === 1 ? '1d ago' : v.daysAgo + 'd ago';
+            const doc = v.doctorName ? esc(v.doctorName)
+                      : v.lastConsultant ? esc(v.lastConsultant) + ' <span class="opacity-75">(' + esc(v.lastConsultantDate) + ')</span>' : '';
+            el.innerHTML = '<i class="bi bi-clock-history me-1"></i>' + esc(v.visitDate) + ' <span class="opacity-75">' + ago + '</span>'
+                + (doc ? ' · <i class="bi bi-person-badge me-1"></i>' + doc : '')
+                + (v.otherBranch && v.branchName ? ' · ' + esc(v.branchName) : '');
+            el.title = 'Last visit ' + (v.visitDate || '') + ' - bill ' + (v.billNo || '') + (v.doctorName ? '' : v.lastConsultant ? ' (service only; last consultant on ' + v.lastConsultantDate + ')' : '');
+            el.classList.remove('d-none');
+        }
+
         async function checkRegistrationValidity(patientId) {
             clearRegValidityBadge();
+            showLastVisit(patientId);
             const rv = await fetchJson(opdBase + 'GetRegistrationValidity?patientId=' + patientId);
             if (!rv || !rv.validityConfigured) return;  // no validity set — always allow registration
 
@@ -1766,8 +1787,9 @@
                 const days = rv.remainingDays;
                 el.className = 'badge text-bg-warning text-dark ms-2';
                 el.innerHTML =
-                    '<i class="bi bi-shield-check me-1"></i>Registration Charges Not Applied' +
-                    (days != null ? ` &nbsp;·&nbsp; <strong>${days}</strong> day${days === 1 ? '' : 's'} remaining` : '');
+                    '<i class="bi bi-shield-check me-1"></i>No reg. charge' +
+                    (days != null ? ` · <strong>${days}</strong>d left` : '');
+                el.title = 'Registration Charges Not Applied' + (days != null ? ` - ${days} day${days === 1 ? '' : 's'} remaining` : '');
                 el.classList.remove('d-none');
             } else {
                 // Expired or never registered — registration charge will be applied

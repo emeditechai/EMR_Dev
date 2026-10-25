@@ -8,6 +8,10 @@
     var payment    = ViewBag.Payment    as BillPaymentSummary;
     // false only for the in-app print when Required B2C Bill Print Header = No (SQLScripts/2206); the email / WhatsApp link keeps them
     var showHeaderFooter = ViewBag.ShowHeaderFooter as bool? ?? true;
+    // Utility > Print Templates (SQLScripts/2324): set by the controller when the branch has a Bill template (else Classic)
+    var printTemplate = ViewData["PrintTemplate"] as PrintLayout;
+    var printValues   = ViewData["PrintValues"] as Dictionary<string, string?>;
+    var printLogoUrl  = ViewData["PrintLogoUrl"] as string;
 
     var hospName  = settings?.HospitalName ?? branchName ?? "Hospital";
     var phones    = string.Join(" / ", new[] { settings?.ContactNumber1, settings?.ContactNumber2 }.Where(p => !string.IsNullOrWhiteSpace(p)));
@@ -384,6 +388,10 @@
         @* Required B2C Bill Print Header = No: blank space for pre-printed letterhead *@
         <div class="letterhead-space"></div>
     }
+    else if (printTemplate is not null)
+    {
+        <partial name="_PrintBand" model="new PrintBandView { Band = printTemplate.Header, Values = printValues!, LogoUrl = printLogoUrl }" />
+    }
     else
     {
     <div class="bill-header">
@@ -640,7 +648,13 @@
         </table>
     }
 
-    @if (showHeaderFooter)
+    @if (showHeaderFooter && printTemplate is not null)
+    {
+        <div style="margin-top:5mm;">
+            <partial name="_PrintBand" model="new PrintBandView { Band = printTemplate.Footer, IsFooter = true, Values = printValues!, LogoUrl = printLogoUrl }" />
+        </div>
+    }
+    else if (showHeaderFooter)
     {
     <hr style="margin:5mm 0 3mm 0; border:none; border-top:1px solid #bbb;" />
 
@@ -670,7 +684,7 @@
     }
 </div>
 
-@if (showHeaderFooter)
+@if (showHeaderFooter && printTemplate is null)
 {
 <!-- ══ PAGE FOOTER ══ -->
 <div class="page-footer">

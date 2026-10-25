@@ -21,6 +21,15 @@ public class LabReportPrintViewModel
     public bool? FranchiseHeaderRequired { get; set; }
     public bool IsB2B { get; set; }
 
+    // ── Utility > Print Templates (SQLScripts/2324) ───────────────────────────
+    /// <summary>The branch whose Hospital Settings fill the letterhead (and whose Lab Report template applies).</summary>
+    public int BranchId { get; set; }
+    /// <summary>The branch's Lab Report template; null = the Classic letterhead and footer.</summary>
+    public PrintLayout? PrintTemplate { get; set; }
+    public Dictionary<string, string?> PrintValues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The template's uploaded images, read from disk before the PDF is drawn (path -> bytes).</summary>
+    public Dictionary<string, byte[]> PrintImages { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     // ── Patient ───────────────────────────────────────────────────────────────
     public string PatientName { get; set; } = string.Empty;
     public string AgeGender { get; set; } = string.Empty;
