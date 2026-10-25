@@ -216,6 +216,15 @@
                         </select>
                     </div>
 
+                    <!-- Has External Document -->
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold d-block">Has External Document?</label>
+                        <div class="form-check form-switch mt-2">
+                            <input asp-for="Has_External_Document" class="form-check-input" type="checkbox" role="switch" />
+                            <label asp-for="Has_External_Document" class="form-check-label">@(Model.Has_External_Document ? "Yes" : "No")</label>
+                        </div>
+                    </div>
+
                     <!-- Sample Quantity & Quantity Unit -->
                     <div class="col-md-5">
                         <label class="form-label fw-semibold">Sample Quantity & Unit</label>
@@ -283,6 +292,14 @@
 </div>
 
 @section Scripts {
+    <script>
+        (function () {
+            var t = document.getElementById('Has_External_Document');
+            if (!t) return;
+            var l = document.querySelector('label.form-check-label[for="Has_External_Document"]');
+            t.addEventListener('change', function () { if (l) l.textContent = t.checked ? 'Yes' : 'No'; });
+        })();
+    </script>
     <partial name="_ValidationScriptsPartial" />
     <script>
         function toggleNablScope() {

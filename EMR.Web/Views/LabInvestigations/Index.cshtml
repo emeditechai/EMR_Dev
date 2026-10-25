@@ -199,6 +199,10 @@
                                         {
                                             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary ms-1 fs-8">Rx Req.</span>
                                         }
+                                        @if (item.Has_External_Document)
+                                        {
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary ms-1 fs-8">Ext. Doc</span>
+                                        }
                                         <div class="small text-muted">
                                             TAT: @(item.TAT_Hours ?? 24) hrs | Gender: @item.Applicable_Gender
                                         </div>

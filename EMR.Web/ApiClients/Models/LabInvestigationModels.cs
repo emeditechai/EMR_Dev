@@ -46,6 +46,7 @@ public class LabInvestigationModel
     public bool Is_Consent_Required { get; set; }
     public bool OVD_Document { get; set; }
     public bool Prescription_Required { get; set; }
+    public bool Has_External_Document { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; }
     public int? CreatedBy { get; set; }
@@ -84,6 +85,7 @@ public class LabInvestigationCreateRequestModel
     public bool Is_Consent_Required { get; set; }
     public bool OVD_Document { get; set; }
     public bool Prescription_Required { get; set; }
+    public bool Has_External_Document { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }
@@ -119,6 +121,7 @@ public class LabInvestigationUpdateRequestModel
     public bool Is_Consent_Required { get; set; }
     public bool OVD_Document { get; set; }
     public bool Prescription_Required { get; set; }
+    public bool Has_External_Document { get; set; }
     public decimal MRP { get; set; }
     public bool Status { get; set; } = true;
     public int? UserId { get; set; }

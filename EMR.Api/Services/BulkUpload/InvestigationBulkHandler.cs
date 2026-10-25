@@ -31,6 +31,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
     private const string CConsent = "Consent Required";
     private const string COvd = "OVD Document";
     private const string CPrescription = "Prescription Required";
+    private const string CExtDoc = "Has External Document";
     private const string CMrp = "MRP";
     private const string CStatus = "Status";
 
@@ -90,6 +91,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
                 new() { Header = CConsent, Options = BulkValues.YesNoOptions, Note = "Default No.", Width = 12 },
                 new() { Header = COvd, Options = BulkValues.YesNoOptions, Note = "Default No.", Width = 12 },
                 new() { Header = CPrescription, Options = BulkValues.YesNoOptions, Note = "Default No.", Width = 13 },
+                new() { Header = CExtDoc, Options = BulkValues.YesNoOptions, Note = "Default No.", Width = 13 },
                 new() { Header = CMrp, Required = true, Kind = BulkColumnKind.Decimal, Max = 1000000, Note = "Maximum retail price, 0–10,00,000.", Width = 11 },
                 new() { Header = CStatus, Options = BulkValues.StatusOptions, Note = "Default Active.", Width = 11 }
             ],
@@ -132,7 +134,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
                 BulkValues.YesNo(i.Is_Billable), BulkValues.YesNo(i.Is_Fasting_Required),
                 i.Sample_Quantity, Pick(units, i.Sample_Quantity_Unit_ID, i.Sample_Quantity_Unit_Name),
                 i.Reported_Duration_Value, i.Reported_Duration_Unit,
-                BulkValues.YesNo(i.Is_Consent_Required), BulkValues.YesNo(i.OVD_Document), BulkValues.YesNo(i.Prescription_Required),
+                BulkValues.YesNo(i.Is_Consent_Required), BulkValues.YesNo(i.OVD_Document), BulkValues.YesNo(i.Prescription_Required), BulkValues.YesNo(i.Has_External_Document),
                 i.MRP, BulkValues.Status(i.Status)
             }));
         }
@@ -193,6 +195,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             var consent = r.YesNo(CConsent);
             var ovd = r.YesNo(COvd);
             var prescription = r.YesNo(CPrescription);
+            var extDoc = r.YesNo(CExtDoc);
             var mrp = r.Decimal(CMrp, required: isInsert, max: 1000000);
             var status = r.Status(CStatus);
             r.RecordKey = code ?? name ?? string.Empty;
@@ -247,6 +250,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
             req.Is_Consent_Required = consent ?? req.Is_Consent_Required;
             req.OVD_Document = ovd ?? req.OVD_Document;
             req.Prescription_Required = prescription ?? req.Prescription_Required;
+            req.Has_External_Document = extDoc ?? req.Has_External_Document;
             req.MRP = mrp ?? req.MRP;
             req.Status = status ?? req.Status;
 
@@ -297,7 +301,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
         Age_Operator = string.IsNullOrWhiteSpace(i.Age_Operator) ? null : i.Age_Operator, Applicable_Age = i.Applicable_Age,
         Is_Fasting_Required = i.Is_Fasting_Required, Sample_Quantity = i.Sample_Quantity, Sample_Quantity_Unit_ID = i.Sample_Quantity_Unit_ID,
         Reported_Duration_Value = i.Reported_Duration_Value, Reported_Duration_Unit = i.Reported_Duration_Unit, Is_Consent_Required = i.Is_Consent_Required,
-        OVD_Document = i.OVD_Document, Prescription_Required = i.Prescription_Required, MRP = i.MRP, Status = i.Status
+        OVD_Document = i.OVD_Document, Prescription_Required = i.Prescription_Required, Has_External_Document = i.Has_External_Document, MRP = i.MRP, Status = i.Status
     };
 
     private static LabInvestigationCreateRequest ToCreate(LabInvestigationUpdateRequest u, BulkContext ctx) => new()
@@ -309,7 +313,7 @@ public class InvestigationBulkHandler(ILabInvestigationService service, LabBulkL
         Age_Operator = u.Age_Operator, Applicable_Age = u.Applicable_Age, Is_Fasting_Required = u.Is_Fasting_Required,
         Sample_Quantity = u.Sample_Quantity, Sample_Quantity_Unit_ID = u.Sample_Quantity_Unit_ID,
         Reported_Duration_Value = u.Reported_Duration_Value, Reported_Duration_Unit = u.Reported_Duration_Unit,
-        Is_Consent_Required = u.Is_Consent_Required, OVD_Document = u.OVD_Document, Prescription_Required = u.Prescription_Required,
+        Is_Consent_Required = u.Is_Consent_Required, OVD_Document = u.OVD_Document, Prescription_Required = u.Prescription_Required, Has_External_Document = u.Has_External_Document,
         MRP = u.MRP, Status = u.Status, UserId = ctx.UserId
     };
 }

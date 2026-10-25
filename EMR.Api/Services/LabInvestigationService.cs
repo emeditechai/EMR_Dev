@@ -58,6 +58,7 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@Is_Consent_Required", req.Is_Consent_Required);
         p.Add("@OVD_Document", req.OVD_Document);
         p.Add("@Prescription_Required", req.Prescription_Required);
+        p.Add("@Has_External_Document", req.Has_External_Document);
         p.Add("@MRP", req.MRP);
         p.Add("@Status", req.Status);
         p.Add("@UserId", req.UserId);
@@ -97,6 +98,7 @@ public class LabInvestigationService(IDbConnectionFactory db) : ILabInvestigatio
         p.Add("@Is_Consent_Required", req.Is_Consent_Required);
         p.Add("@OVD_Document", req.OVD_Document);
         p.Add("@Prescription_Required", req.Prescription_Required);
+        p.Add("@Has_External_Document", req.Has_External_Document);
         p.Add("@MRP", req.MRP);
         p.Add("@Status", req.Status);
         p.Add("@UserId", req.UserId);
