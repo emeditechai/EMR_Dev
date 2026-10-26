@@ -6,8 +6,13 @@ using EMR.Web.Models.ViewModels;
 
 namespace EMR.Web.Services;
 
-public class PatientService(IDbConnectionFactory db) : IPatientService
+public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) : IPatientService
 {
+    // Patients are company-wise: every list and search is limited to the signed-in user's company,
+    // also when Global Patient Search drops the branch filter (no user, e.g. a background job: no limit)
+    // (only a staff login carries a CompanyId claim; a patient-portal login or a background job is not limited)
+    private int? CompanyId => int.TryParse(http.HttpContext?.User?.FindFirst("CompanyId")?.Value, out var c) && c > 0 ? c : null;
+
     // ─── List ─────────────────────────────────────────────────────────────────
 
     public async Task<IEnumerable<PatientListItemViewModel>> GetListForBranchAsync(int? branchId)
@@ -39,8 +44,9 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             LEFT JOIN DoctorMaster d ON d.DoctorId = latest.ConsultingDoctorId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
+              AND (@CompanyId IS NULL OR p.CompanyId = @CompanyId)
             ORDER BY p.CreatedDate DESC",
-            new { BranchId = branchId });
+            new { BranchId = branchId, CompanyId });
     }
 
     public async Task<PatientPagedListViewModel> GetPagedListAsync(int? branchId, int page, int pageSize, string? search)
@@ -48,7 +54,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         using var con = db.CreateConnection();
         var rows = (await con.QueryAsync<PatientListItemViewModel>(
             "usp_GetPatientListPaged",
-            new { BranchId = branchId, PageNumber = page, PageSize = pageSize, SearchTerm = search },
+            new { BranchId = branchId, PageNumber = page, PageSize = pageSize, SearchTerm = search, CompanyId },
             commandType: System.Data.CommandType.StoredProcedure)).ToList();
 
         return new PatientPagedListViewModel
@@ -67,8 +73,8 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
     {
         using var con = db.CreateConnection();
         return await con.QuerySingleOrDefaultAsync<PatientMaster>(
-            "SELECT * FROM PatientMaster WHERE PatientId = @PatientId",
-            new { PatientId = patientId });
+            "SELECT * FROM PatientMaster WHERE PatientId = @PatientId AND (@CompanyId IS NULL OR CompanyId = @CompanyId)",
+            new { PatientId = patientId, CompanyId });   // another company's patient is not found
     }
 
     // ─── Quick Search ─────────────────────────────────────────────────────────
@@ -103,6 +109,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
+              AND (@CompanyId IS NULL OR p.CompanyId = @CompanyId)
               AND (
                    p.PhoneNumber LIKE @Term OR 
                    p.SecondaryPhoneNumber LIKE @Term OR
@@ -111,7 +118,7 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
                    p.LastName LIKE @Term
               )
             ORDER BY p.CreatedDate DESC",
-            new { Term = "%" + term + "%", BranchId = branchId });
+            new { Term = "%" + term + "%", BranchId = branchId, CompanyId });
     }
 
     public async Task<IEnumerable<PatientQuickSearchResult>> SearchByPhoneAsync(string phone, int? branchId = null)
@@ -144,9 +151,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
+              AND (@CompanyId IS NULL OR p.CompanyId = @CompanyId)
               AND (p.PhoneNumber LIKE @Phone OR p.SecondaryPhoneNumber LIKE @Phone)
             ORDER BY p.CreatedDate DESC",
-            new { Phone = "%" + phone + "%", BranchId = branchId });
+            new { Phone = "%" + phone + "%", BranchId = branchId, CompanyId });
     }
 
     public async Task<IEnumerable<PatientQuickSearchResult>> SearchByCodeAsync(string code, int? branchId = null)
@@ -179,9 +187,10 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
+              AND (@CompanyId IS NULL OR p.CompanyId = @CompanyId)
               AND p.PatientCode LIKE @Code
             ORDER BY p.PatientCode",
-            new { Code = "%" + code + "%", BranchId = branchId });
+            new { Code = "%" + code + "%", BranchId = branchId, CompanyId });
     }
 
     public async Task<IEnumerable<PatientQuickSearchResult>> SearchByNameAsync(string name, int? branchId = null)
@@ -211,13 +220,14 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
             LEFT JOIN RelationMaster r ON r.RelationId = p.RelationId
             WHERE p.IsActive = 1
               AND (@BranchId IS NULL OR p.BranchId = @BranchId)
+              AND (@CompanyId IS NULL OR p.CompanyId = @CompanyId)
               AND (
                     p.FirstName  LIKE @Name
                  OR p.LastName   LIKE @Name
                  OR LTRIM(RTRIM(p.FirstName + ' ' + ISNULL(p.MiddleName + ' ', '') + p.LastName)) LIKE @Name
               )
             ORDER BY p.FirstName, p.LastName",
-            new { Name = "%" + name + "%", BranchId = branchId });
+            new { Name = "%" + name + "%", BranchId = branchId, CompanyId });
     }
 
     // ─── Create ───────────────────────────────────────────────────────────────

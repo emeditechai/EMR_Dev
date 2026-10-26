@@ -186,19 +186,21 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             var doctorId = await con.ExecuteScalarAsync<int>(@"
                 INSERT INTO DoctorMaster
                 (
-                    NamePrefix, FullName, Gender, DateOfBirth, EmailId, PhoneNumber, MedicalLicenseNo,
+                    CompanyId, NamePrefix, FullName, Gender, DateOfBirth, EmailId, PhoneNumber, MedicalLicenseNo,
                     PrimarySpecialityId, SecondarySpecialityId, JoiningDate, IsActive, IsReferralDoctor,
                     CreatedBranchId, LinkedUserId, CreatedBy, CreatedDate
                 )
                 VALUES
                 (
-                    @NamePrefix, @FullName, @Gender, @DateOfBirth, @EmailId, @PhoneNumber, @MedicalLicenseNo,
+                    @CompanyId, @NamePrefix, @FullName, @Gender, @DateOfBirth, @EmailId, @PhoneNumber, @MedicalLicenseNo,
                     @PrimarySpecialityId, @SecondarySpecialityId, @JoiningDate, @IsActive, @IsReferralDoctor,
                     @CreatedBranchId, @LinkedUserId, @userId, GETDATE()
                 );
                 SELECT CAST(SCOPE_IDENTITY() AS INT);",
                 new
                 {
+                    // the doctor belongs to the company it is created in (Doctor Master is company-wise)
+                    CompanyId = doctor.CompanyId > 0 ? doctor.CompanyId : 1,
                     doctor.NamePrefix,
                     doctor.FullName,
                     doctor.Gender,
@@ -219,8 +221,8 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             foreach (var branchId in branchIds.Distinct())
             {
                 await con.ExecuteAsync(@"
-                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, IsActive, CreatedBy, CreatedDate)
-                    VALUES (@doctorId, @branchId, 1, @userId, GETDATE())",
+                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, CompanyId, IsActive, CreatedBy, CreatedDate)
+                    VALUES (@doctorId, @branchId, ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @branchId), 1), 1, @userId, GETDATE())",
                     new { doctorId, branchId, userId }, tx);
             }
 
@@ -299,8 +301,8 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             foreach (var branchId in branchIds.Distinct())
             {
                 await con.ExecuteAsync(@"
-                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, IsActive, CreatedBy, CreatedDate)
-                    VALUES (@doctorId, @branchId, 1, @userId, GETDATE())",
+                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, CompanyId, IsActive, CreatedBy, CreatedDate)
+                    VALUES (@doctorId, @branchId, ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @branchId), 1), 1, @userId, GETDATE())",
                     new { doctorId = doctor.DoctorId, branchId, userId }, tx);
             }
 

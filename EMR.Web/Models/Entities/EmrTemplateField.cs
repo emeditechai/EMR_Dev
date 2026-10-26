@@ -8,6 +8,7 @@ public class EmrTemplateField
 {
     [Key]
     public int FieldId { get; set; }
+    public int CompanyId { get; set; } = 1;   // company-wise
 
     public int SectionId { get; set; }
 

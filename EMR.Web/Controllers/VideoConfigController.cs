@@ -1,5 +1,6 @@
 using Dapper;
 using EMR.Web.Data;
+using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -19,6 +20,7 @@ public class VideoConfigController(
     public async Task<IActionResult> Index()
     {
         var configs = await dbContext.VideoSystemConfigs
+            .Where(c => c.CompanyId == User.GetCompanyId())   // video settings are company-wise (script 2336)
             .OrderBy(c => c.ConfigKey)
             .ToListAsync();
 
@@ -37,12 +39,13 @@ public class VideoConfigController(
             return Json(new { success = false, message = "API Key cannot contain spaces. Please ensure you haven't accidentally pasted the URL." });
 
         var existing = await dbContext.VideoSystemConfigs
-            .FirstOrDefaultAsync(c => c.ConfigKey == req.ConfigKey);
+            .FirstOrDefaultAsync(c => c.ConfigKey == req.ConfigKey && c.CompanyId == User.GetCompanyId());
 
         if (existing == null)
         {
             dbContext.VideoSystemConfigs.Add(new VideoSystemConfig
             {
+                CompanyId           = User.GetCompanyId(),
                 ConfigKey           = req.ConfigKey.Trim(),
                 ConfigValue         = req.ConfigValue.Trim(),
                 MeetingCreationUrl  = req.MeetingCreationUrl?.Trim(),
@@ -78,12 +81,13 @@ public class VideoConfigController(
         if (req.ConfigKey == "WherebyApiKey" && req.ConfigValue.Contains(" "))
             return Json(new { success = false, message = "API Key cannot contain spaces. Please ensure you haven't accidentally pasted the URL." });
 
-        var exists = await dbContext.VideoSystemConfigs.AnyAsync(c => c.ConfigKey == req.ConfigKey.Trim());
+        var exists = await dbContext.VideoSystemConfigs.AnyAsync(c => c.ConfigKey == req.ConfigKey.Trim() && c.CompanyId == User.GetCompanyId());
         if (exists)
             return Json(new { success = false, message = $"Config key '{req.ConfigKey}' already exists." });
 
         dbContext.VideoSystemConfigs.Add(new VideoSystemConfig
         {
+            CompanyId          = User.GetCompanyId(),
             ConfigKey          = req.ConfigKey.Trim(),
             ConfigValue        = req.ConfigValue.Trim(),
             MeetingCreationUrl = req.MeetingCreationUrl?.Trim(),
@@ -102,7 +106,7 @@ public class VideoConfigController(
     public async Task<IActionResult> Delete([FromBody] int configId)
     {
         var config = await dbContext.VideoSystemConfigs.FindAsync(configId);
-        if (config == null) return Json(new { success = false, message = "Not found." });
+        if (config == null || config.CompanyId != User.GetCompanyId()) return Json(new { success = false, message = "Not found." });
 
         dbContext.VideoSystemConfigs.Remove(config);
         await dbContext.SaveChangesAsync();
@@ -117,7 +121,7 @@ public class VideoConfigController(
         try
         {
             var apiKey = await dbContext.VideoSystemConfigs
-                .Where(c => c.ConfigKey == "WherebyApiKey" && c.IsActive)
+                .Where(c => c.ConfigKey == "WherebyApiKey" && c.IsActive && c.CompanyId == User.GetCompanyId())
                 .Select(c => c.ConfigValue)
                 .FirstOrDefaultAsync();
 
@@ -130,7 +134,8 @@ public class VideoConfigController(
                 appointmentDate  : DateTime.Today,
                 slotStartTime    : TimeSpan.FromHours(12),
                 slotEndTime      : TimeSpan.FromHours(12).Add(TimeSpan.FromMinutes(5)),
-                graceTimeMinutes : 0);
+                graceTimeMinutes : 0,
+                companyId        : User.GetCompanyId());
 
             if (testResult != null)
                 return Json(new { success = true, message = $"✅ Connection successful! Meeting ID: {testResult.MeetingId}" });

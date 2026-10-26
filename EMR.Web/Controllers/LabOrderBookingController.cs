@@ -355,10 +355,17 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1,
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            {
+                ModelState.AddModelError(string.Empty, "The selected patient does not belong to this company. Search the patient again.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             int actualPatientId = model.PatientId;
             if (model.PatientId == 0)
             {
@@ -1009,10 +1016,17 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1, // Default
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            {
+                ModelState.AddModelError(string.Empty, "The selected patient does not belong to this company. Search the patient again.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             int actualPatientId = model.PatientId;
             if (model.PatientId == 0)
             {
@@ -1337,10 +1351,13 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1,
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+                return Json(new { success = false, error = "The selected patient does not belong to this company. Search the patient again." });
             int actualPatientId = model.PatientId;
             string actualPatientCode = model.PatientCode ?? string.Empty;
             LabOrderResponseDto labOrderRes;

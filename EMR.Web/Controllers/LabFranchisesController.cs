@@ -703,10 +703,10 @@ public class LabFranchisesController(
         });
 
         // a login cannot sign in without a role: every franchise login carries the "Franchise" role
-        var franchiseRole = await dbContext.Roles.FirstOrDefaultAsync(r => r.Name == "Franchise" && r.CompanyId == companyId);
+        var franchiseRole = await dbContext.Roles.OrderBy(r => r.Id).FirstOrDefaultAsync(r => r.Name == "Franchise");   // roles are global (script 2334)
         if (franchiseRole is null)
         {
-            franchiseRole = new Role { Name = "Franchise", Description = "Franchise-level access", IconClass = "fas fa-building", CompanyId = companyId };
+            franchiseRole = new Role { Name = "Franchise", Description = "Franchise-level access", IconClass = "fas fa-building", CompanyId = 1 };
             dbContext.Roles.Add(franchiseRole);
             await dbContext.SaveChangesAsync();
         }

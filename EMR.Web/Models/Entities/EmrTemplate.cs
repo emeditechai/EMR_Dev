@@ -8,6 +8,7 @@ public class EmrTemplate
 {
     [Key]
     public int TemplateId { get; set; }
+    public int CompanyId { get; set; } = 1;   // company-wise
 
     [Required, MaxLength(150)]
     public string TemplateName { get; set; } = string.Empty;

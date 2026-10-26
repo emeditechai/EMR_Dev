@@ -83,7 +83,7 @@ public class LabRateListFranchiseController(
         var isHO = CheckIsHOBranch();
         var currentBranchId = User.GetCurrentBranchId();
 
-        IQueryable<BranchMaster> query = dbContext.BranchMasters.Where(b => b.IsActive);
+        IQueryable<BranchMaster> query = dbContext.BranchMasters.Where(b => b.IsActive && b.CompanyId == User.GetCompanyId());
         if (!isHO && currentBranchId.HasValue)
         {
             query = query.Where(b => b.BranchId == currentBranchId.Value);

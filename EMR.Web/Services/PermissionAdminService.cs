@@ -54,6 +54,7 @@ public interface IPermissionAdminService
     Task<List<LookupItem>> GetBranchesAsync(int companyId);
     Task<List<LookupItem>> GetSuperAdminsAsync(int companyId);
     Task<int?> ResolveRoleIdAsync(int companyId, string? roleName);
+    Task<HashSet<int>> GetCompanyUserIdsAsync(int companyId);
 }
 
 public sealed class UserGrantsBundle
@@ -371,7 +372,7 @@ public sealed class PermissionAdminService(IDbConnectionFactory db, IPermissionS
         using var con = db.CreateConnection();
         return (await con.QueryAsync<LookupItem>(
             "SELECT r.Id, r.Name, CAST((SELECT COUNT(DISTINCT ur.UserId) FROM dbo.Userroles ur WHERE ur.RoleId = r.Id AND ur.IsActive = 1) AS NVARCHAR(10)) AS Extra " +
-            "FROM dbo.roles r WHERE r.CompanyId = @CompanyId OR r.CompanyId IS NULL ORDER BY r.Name", new { CompanyId = companyId })).ToList();
+            "FROM dbo.roles r ORDER BY r.Name")).ToList();   // roles are global (script 2334)
     }
 
     public async Task<List<LookupItem>> GetUsersAsync(int companyId)
@@ -399,12 +400,20 @@ public sealed class PermissionAdminService(IDbConnectionFactory db, IPermissionS
             "FROM dbo.Users WHERE IsSuperAdmin = 1 AND ISNULL(CompanyId, @CompanyId) = @CompanyId ORDER BY Username", new { CompanyId = companyId })).ToList();
     }
 
+    /// <summary>The users of a company: User Permissions and the effective-permissions viewer are company-wise
+    /// (roles, menus and role permissions are global - script 2334).</summary>
+    public async Task<HashSet<int>> GetCompanyUserIdsAsync(int companyId)
+    {
+        using var con = db.CreateConnection();
+        return (await con.QueryAsync<int>("SELECT Id FROM dbo.Users WHERE ISNULL(CompanyId, @CompanyId) = @CompanyId", new { CompanyId = companyId })).ToHashSet();
+    }
+
     public async Task<int?> ResolveRoleIdAsync(int companyId, string? roleName)
     {
         if (string.IsNullOrWhiteSpace(roleName)) return null;
         using var con = db.CreateConnection();
         return await con.QueryFirstOrDefaultAsync<int?>(
-            "SELECT TOP 1 Id FROM dbo.roles WHERE Name = @Name AND (CompanyId = @CompanyId OR CompanyId IS NULL)", new { Name = roleName.Trim(), CompanyId = companyId });
+            "SELECT TOP 1 Id FROM dbo.roles WHERE Name = @Name ORDER BY Id", new { Name = roleName.Trim() });   // roles are global (script 2334)
     }
 
     // ── helpers ───────────────────────────────────────────────────────────

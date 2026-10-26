@@ -840,7 +840,7 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
 
                 paymentHeaderId = await con.QuerySingleAsync<int>(@"
                     INSERT INTO PaymentHeader
-                        (ModuleCode, ModuleRefId, OPDServiceId, BranchId, PatientId,
+                        (ModuleCode, ModuleRefId, OPDServiceId, BranchId, CompanyId, PatientId,
                          SubTotal, LineDiscountTotal,
                          HeaderDiscountType, HeaderDiscountValue, HeaderDiscountAmount,
                          TotalCgstAmount, TotalSgstAmount, TotalIgstAmount,
@@ -849,7 +849,7 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
                          DiscountReason, DiscountApprovedBy, DiscountApprovedDate, DiscountEnteredBy,
                          MembershipDiscountAmount, MembershipTestDiscount, MembershipCardId)
                     VALUES
-                        (@ModuleCode, @ModuleRefId, @OPDServiceId, @BranchId, @PatientId,
+                        (@ModuleCode, @ModuleRefId, @OPDServiceId, @BranchId, ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @BranchId), 1), @PatientId,
                          @SubTotal, @LineDiscountTotal,
                          @HeaderDiscountType, @HeaderDiscountValue, @HeaderDiscountAmount,
                          @TotalCgstAmount, @TotalSgstAmount, @TotalIgstAmount,

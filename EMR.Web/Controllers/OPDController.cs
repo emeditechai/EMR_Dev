@@ -353,6 +353,8 @@ public class OPDController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> PatientRegistration(PatientRegistrationViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile)
     {
+        // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+        if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null) return NotFound();
         Console.WriteLine($"[DEBUG] PatientRegistration POST: model.PatientId={model.PatientId}, model.PhoneNumber={model.PhoneNumber}, model.RelationId={model.RelationId}");
 
         // Saving an existing patient's details (the Edit screen opened from Patient Master) needs Patient Master > Edit patient (script 2208).
@@ -456,6 +458,7 @@ public class OPDController(
                 p.PhoneNumber == model.PhoneNumber.Trim() &&
                 p.RelationId  == model.RelationId &&
                 p.IsActive    &&
+                p.CompanyId   == User.GetCompanyId() &&   // per company (script 2330)
                 (model.PatientId == 0 || p.PatientId != model.PatientId));
 
             if (dupExists)
@@ -479,6 +482,7 @@ public class OPDController(
                 p.EmailId == model.EmailId.Trim() &&
                 p.RelationId == model.RelationId &&
                 p.IsActive &&
+                p.CompanyId == User.GetCompanyId() &&   // per company (script 2330)
                 p.PatientId != model.PatientId);
 
             if (dupEmailExists)
@@ -707,6 +711,9 @@ public class OPDController(
         [FromForm] string? paymentDataJson,
         [FromForm] string? bookingRequestKey)
     {
+        // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+        if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            return Json(new { success = false, error = "The selected patient does not belong to this company. Search the patient again." });
         // One bill per booking (SQLScripts/2310): the key of this registration form; a retry reuses the bill it created
         Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
         bool keyClaimed = false;      // this request holds the key and has not created the bill yet
@@ -869,6 +876,7 @@ public class OPDController(
                     p.PhoneNumber == model.PhoneNumber.Trim() &&
                     p.RelationId == model.RelationId &&
                     p.IsActive &&
+                    p.CompanyId == User.GetCompanyId() &&   // per company (script 2330)
                     p.PatientId != model.PatientId);
                 if (dupExists)
                 {
@@ -1666,6 +1674,8 @@ public class OPDController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> NewServiceBooking(PatientRegistrationViewModel model, IFormFile? identificationFile)
     {
+        // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+        if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null) return NotFound();
         // Must be an existing patient — demographics are NEVER modified from this screen
         if (model.PatientId <= 0)
         {
@@ -2977,7 +2987,7 @@ public class OPDController(
                 if (!graceTime.HasValue || graceTime.Value <= 0)
                 {
                     var cfgGrace = await db.VideoSystemConfigs
-                        .Where(c => c.ConfigKey == "DefaultGraceMinutes" && c.IsActive)
+                        .Where(c => c.ConfigKey == "DefaultGraceMinutes" && c.IsActive && c.CompanyId == User.GetCompanyId())
                         .Select(c => c.ConfigValue)
                         .FirstOrDefaultAsync();
                     graceTime = int.TryParse(cfgGrace, out var g) ? g : 15;

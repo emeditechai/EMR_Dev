@@ -44,7 +44,8 @@ public class PatientPortalService(IDbConnectionFactory factory) : IPatientPortal
                 CAST(DATEDIFF(YEAR, p.DateOfBirth, GETDATE()) AS VARCHAR) + ' Yrs' as Age
             FROM PatientMaster p
             LEFT JOIN RelationMaster r ON p.RelationId = r.RelationId
-            WHERE p.PhoneNumber = @Phone AND p.PatientId != @PatientId AND p.IsActive = 1";
+            WHERE p.PhoneNumber = @Phone AND p.PatientId != @PatientId AND p.IsActive = 1
+              AND p.CompanyId = (SELECT CompanyId FROM PatientMaster WHERE PatientId = @PatientId)";   // family of the same company only
             
         return await db.QueryAsync<PortalDependent>(sqlDeps, new { Phone = phone, PatientId = patientId });
     }

@@ -37,7 +37,9 @@ builder.Services.AddScoped<EMR.Web.ApiClients.IHelpApiClient, EMR.Web.ApiClients
 builder.Services.AddScoped<EMR.Web.ApiClients.IOpdVisitHistoryApiClient, EMR.Web.ApiClients.OpdVisitHistoryApiClient>();
 builder.Services.AddScoped<EMR.Web.ApiClients.ITerminologyApiClient, EMR.Web.ApiClients.TerminologyApiClient>();   // Utility > API data, LOINC (SQLScripts/2316)
 builder.Services.AddScoped<EMR.Web.ApiClients.IUserListApiClient, EMR.Web.ApiClients.UserListApiClient>();   // User Master server paging (SQLScripts/2314)
-builder.Services.AddScoped<EMR.Web.ApiClients.IPrintTemplateApiClient, EMR.Web.ApiClients.PrintTemplateApiClient>();   // Utility > Print Templates (SQLScripts/2324)
+builder.Services.AddScoped<EMR.Web.ApiClients.IPrintTemplateApiClient, EMR.Web.ApiClients.PrintTemplateApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyCopyApiClient, EMR.Web.ApiClients.CompanyCopyApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyPurgeApiClient, EMR.Web.ApiClients.CompanyPurgeApiClient>();   // Company > Remove data / Delete company (SQLScripts/2337)   // Company > Copy master data (SQLScripts/2328)   // Utility > Print Templates (SQLScripts/2324)
 builder.Services.AddScoped<EMR.Web.Services.IPrintTemplateRuntime, EMR.Web.Services.PrintTemplateRuntime>();
 builder.Services.AddScoped<EMR.Web.ApiClients.IBillingSubmissionApiClient, EMR.Web.ApiClients.BillingSubmissionApiClient>();   // one bill per booking (SQLScripts/2310)
 builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyOnboardingApiClient, EMR.Web.ApiClients.CompanyOnboardingApiClient>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)   // Utility > Help Center (SQLScripts/2300)

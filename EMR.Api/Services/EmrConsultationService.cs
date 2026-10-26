@@ -51,8 +51,12 @@ public class EmrConsultationService(IDbConnectionFactory db) : IEmrConsultationS
             SELECT t.TemplateId, t.TemplateName
             FROM EmrTemplateSpecialityMap m
             INNER JOIN EmrTemplates t ON m.TemplateId = t.TemplateId
-            WHERE m.SpecialityId = @specialityId AND m.IsActive = 1 AND t.IsActive = 1", 
-            new { specialityId });
+            WHERE m.SpecialityId = @specialityId AND m.IsActive = 1 AND t.IsActive = 1
+              AND t.CompanyId = (SELECT TOP 1 b.CompanyId FROM PatientOPDService s
+                                   INNER JOIN BranchMaster b ON b.BranchId = s.BranchId
+                                  WHERE s.OPDServiceId = @opdServiceId)   -- the template of the booking's company
+            ORDER BY t.TemplateId", 
+            new { specialityId, opdServiceId });
 
         if (template == null) return null;
 

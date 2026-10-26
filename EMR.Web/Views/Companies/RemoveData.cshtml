@@ -1,0 +1,168 @@
+@model EMR.Web.Models.Entities.CompanyMaster
+@{
+    // Company > Remove data / Delete company (super admin, SQLScripts/2337): preview what goes, then confirm with the company code.
+    ViewData["Title"] = "Remove Company Data";
+    var levels = EMR.Web.Controllers.CompaniesController.PurgeLevels;
+    var selected = (string)ViewBag.Level;
+    var blocked = ViewBag.Blocked as string;
+    var own = (bool)ViewBag.OwnCompany;
+}
+
+<style>
+    .rd-step { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700; font-size: .8rem; background: #fde8e8; color: #b42318; flex-shrink: 0; }
+    .rd-level { border: 1px solid #e5e7eb; border-radius: 12px; padding: .8rem .9rem; display: flex; gap: .75rem; cursor: pointer; transition: border-color .15s, background .15s; }
+    .rd-level:hover { border-color: #f1a7a1; }
+    .rd-level.on { border-color: #d92d20; background: #fff6f5; }
+    .rd-level .nm { font-weight: 600; }
+    .rd-level .why { font-size: .78rem; color: #6b7280; }
+    .rd-res td, .rd-res th { font-variant-numeric: tabular-nums; }
+    .rd-res td.tbl { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold text-dark"><i class="bi bi-trash3 text-danger me-2"></i>Remove Company Data</h1>
+        <small class="text-muted"><b>@Model.CompanyName</b> (@Model.CompanyCode) &middot; super admin only</small>
+    </div>
+    <a asp-action="Details" asp-route-id="@Model.CompanyId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Company</a>
+</div>
+
+@if (blocked is not null)
+{
+    <div class="alert alert-warning"><i class="bi bi-shield-lock me-1"></i>@blocked</div>
+}
+else
+{
+<div class="alert alert-light border small mb-4">
+    <i class="bi bi-info-circle text-primary me-1"></i>
+    Data shared by every company is never removed: roles and role permissions, menus, specialities, departments, lab units and payment methods.
+    Everything runs in one step: if any of this company's data is still used by another company, <b>nothing</b> is removed and you are told which tables.
+    <b>Preview</b> first - it shows exactly what will be removed without changing anything. Uploaded files (photos, signatures) stay on the server.
+    <b>Take a database backup before removing.</b>
+</div>
+
+@Html.AntiForgeryToken()
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-2 mb-3"><span class="rd-step">1</span><h6 class="fw-bold mb-0">What to remove</h6></div>
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var l in levels)
+                    {
+                        var dis = own && l.Key != "TRANSACTIONS";
+                        <label class="rd-level @(l.Key == selected && !dis ? "on" : "")" style="@(dis ? "opacity:.5;cursor:not-allowed" : "")">
+                            <input type="radio" name="rdLevel" class="form-check-input mt-1" value="@l.Key" @(l.Key == selected && !dis ? "checked" : "") @(dis ? "disabled" : "") />
+                            <span>
+                                <span class="nm d-block @(l.Key == "DELETE" ? "text-danger" : "")">@l.Name</span>
+                                <span class="why d-block">@l.Note</span>
+                                @if (dis) { <span class="why d-block text-danger">You belong to this company - use a super admin of another company.</span> }
+                            </span>
+                        </label>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="rd-step">2</span><h6 class="fw-bold mb-0">Preview &amp; remove</h6>
+                    <button type="button" class="btn btn-outline-danger btn-sm ms-auto" id="rdPreview"><i class="bi bi-eye me-1"></i>Preview</button>
+                </div>
+                <div id="rdResult">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-list-check display-6 d-block mb-2 opacity-50"></i>
+                        Choose what to remove, then press <b>Preview</b>.
+                    </div>
+                </div>
+                <div id="rdConfirm" class="border-top pt-3 mt-3" hidden>
+                    <label class="form-label small fw-semibold" for="rdCode">Type the company code <b>@Model.CompanyCode</b> to confirm</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <input type="text" id="rdCode" class="form-control" style="max-width:240px" autocomplete="off" spellcheck="false" />
+                        <button type="button" class="btn btn-danger" id="rdRun" disabled><i class="bi bi-trash3 me-1"></i><span id="rdRunText">Remove</span></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+@section Scripts {
+@if (blocked is null)
+{
+<script>
+    (function () {
+        const runUrl = '@Url.Action("RemoveDataRun", new { id = Model.CompanyId })';
+        const code = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.CompanyCode ?? ""))';
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const box = document.getElementById('rdResult'), confirmBox = document.getElementById('rdConfirm');
+        const codeInput = document.getElementById('rdCode'), runBtn = document.getElementById('rdRun');
+        const level = () => document.querySelector('input[name="rdLevel"]:checked')?.value;
+        const names = { TRANSACTIONS: 'Remove transactions', ALL: 'Remove everything', DELETE: 'Delete company' };
+        let previewed = null;   // the level the last preview was made for
+
+        function sync() {
+            document.querySelectorAll('.rd-level').forEach(l => l.classList.toggle('on', !!l.querySelector('input:checked')));
+            const ok = previewed && previewed === level();
+            confirmBox.hidden = !ok;
+            document.getElementById('rdRunText').textContent = names[level()] || 'Remove';
+            runBtn.disabled = !ok || codeInput.value.trim().toUpperCase() !== code.toUpperCase();
+        }
+        document.querySelectorAll('input[name="rdLevel"]').forEach(r => r.addEventListener('change', sync));
+        codeInput.addEventListener('input', sync);
+
+        function table(r, preview) {
+            const body = r.rows.map(x => `<tr><td class="tbl">${esc(x.tableName)}</td><td class="text-end fw-semibold">${x.rows.toLocaleString()}</td></tr>`).join('');
+            return `<div class="alert ${preview ? 'alert-warning' : 'alert-success'} small py-2">
+                    <i class="bi ${preview ? 'bi-eye' : 'bi-check-circle-fill'} me-1"></i>
+                    ${preview ? 'Preview only - nothing has been removed. ' + r.total.toLocaleString() + ' row(s) in ' + r.rows.length + ' table(s) would be removed.'
+                              : r.total.toLocaleString() + ' row(s) removed.'}</div>
+                ${r.rows.length ? `<div class="table-responsive" style="max-height:420px"><table class="table table-sm align-middle rd-res mb-0">
+                <thead class="table-light"><tr><th>Table</th><th class="text-end">Rows</th></tr></thead><tbody>${body}</tbody>
+                <tfoot class="fw-semibold"><tr><td>Total</td><td class="text-end">${r.total.toLocaleString()}</td></tr></tfoot></table></div>`
+                : '<div class="text-muted small">There is nothing to remove.</div>'}`;
+        }
+
+        async function run(preview) {
+            const lv = level();
+            if (!lv) { Swal.fire({ icon: 'warning', title: 'Choose what to remove' }); return; }
+            if (!preview) {
+                const ok = await Swal.fire({ icon: 'warning', title: names[lv] + '?', html: 'This cannot be undone. Make sure a database backup exists.',
+                    showCancelButton: true, confirmButtonText: names[lv], confirmButtonColor: '#d92d20' });
+                if (!ok.isConfirmed) return;
+            }
+            box.innerHTML = `<div class="text-center text-muted py-5"><div class="spinner-border text-danger mb-2"></div><div>${preview ? 'Preparing the preview...' : 'Removing... this can take a few minutes.'}</div></div>`;
+            document.getElementById('rdPreview').disabled = true; runBtn.disabled = true;
+            try {
+                const body = new URLSearchParams({ level: lv, preview, confirmCode: codeInput.value, __RequestVerificationToken: token });
+                const res = await fetch(runUrl, { method: 'POST', body });
+                const r = await res.json();
+                if (!r.success) { box.innerHTML = `<div class="alert alert-danger small">${esc(r.message)}</div>`; previewed = null; return; }
+                box.innerHTML = table(r, preview);
+                previewed = preview ? lv : null;
+                if (!preview) {
+                    codeInput.value = '';
+                    await Swal.fire({ icon: 'success', title: lv === 'DELETE' ? 'Company deleted' : 'Data removed', timer: 1800, showConfirmButton: false });
+                    if (r.redirect) location.href = r.redirect;
+                }
+            } catch {
+                box.innerHTML = preview
+                    ? '<div class="alert alert-danger small">The server could not be reached. Nothing was removed.</div>'
+                    : '<div class="alert alert-danger small">The server did not answer. Press <b>Preview</b> to see what is still there before trying again.</div>';
+                previewed = null;
+            } finally {
+                document.getElementById('rdPreview').disabled = false; sync();
+            }
+        }
+        document.getElementById('rdPreview').addEventListener('click', () => run(true));
+        runBtn.addEventListener('click', () => run(false));
+        sync();
+    })();
+</script>
+}
+}

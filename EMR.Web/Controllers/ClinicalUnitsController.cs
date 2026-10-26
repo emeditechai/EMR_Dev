@@ -18,8 +18,8 @@ public class ClinicalUnitsController(
     {
         try
         {
-            // Clinical Unit Master is global: every company and branch sees the same units.
-            var list = await masterApiClient.GetClinicalUnitsAsync(departmentId, specialityId);
+            // Clinical Unit Master is company-wise: each company sees and keeps its own units (SQLScripts/2327).
+            var list = await masterApiClient.GetClinicalUnitsAsync(departmentId, specialityId, User.GetCompanyId());
 
             ViewBag.DepartmentId = departmentId;
             ViewBag.SpecialityId = specialityId;
@@ -60,7 +60,7 @@ public class ClinicalUnitsController(
         model.UnitCode = model.UnitCode.Trim().ToUpper();
         model.UnitName = model.UnitName.Trim();
 
-        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode))
+        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode, companyId: companyId))
             ModelState.AddModelError(nameof(model.UnitCode), "This Clinical Unit Code already exists.");
 
         if (!ModelState.IsValid)
@@ -96,7 +96,7 @@ public class ClinicalUnitsController(
     public async Task<IActionResult> Edit(int id)
     {
         var entity = await clinicalUnitService.GetByIdAsync(id);
-        if (entity is null) return NotFound();
+        if (entity is null || !OwnCompany(entity.CompanyId)) return NotFound();
 
         var branchId = entity.BranchId ?? User.GetCurrentBranchId();
         var model = new ClinicalUnitFormViewModel
@@ -123,10 +123,12 @@ public class ClinicalUnitsController(
     public async Task<IActionResult> Edit(ClinicalUnitFormViewModel model)
     {
         var branchId = User.GetCurrentBranchId();
+        var existing = await clinicalUnitService.GetByIdAsync(model.UnitId);
+        if (existing is null || !OwnCompany(existing.CompanyId)) return NotFound();
         model.UnitCode = model.UnitCode.Trim().ToUpper();
         model.UnitName = model.UnitName.Trim();
 
-        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode, excludeId: model.UnitId))
+        if (await clinicalUnitService.CodeExistsAsync(model.UnitCode, excludeId: model.UnitId, companyId: existing.CompanyId))
             ModelState.AddModelError(nameof(model.UnitCode), "This Clinical Unit Code already exists.");
 
         if (!ModelState.IsValid)
@@ -161,19 +163,24 @@ public class ClinicalUnitsController(
     public async Task<IActionResult> Details(int id)
     {
         var details = await clinicalUnitService.GetDetailsByIdAsync(id);
-        if (details is null) return NotFound();
+        if (details is null || !OwnCompany(details.CompanyId)) return NotFound();
         return View(details);
     }
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
+        var unit = await clinicalUnitService.GetByIdAsync(id);
+        if (unit is null || !OwnCompany(unit.CompanyId)) return NotFound();
         var deleted = await clinicalUnitService.DeleteAsync(id);
         TempData[deleted ? "Success" : "Error"] = deleted
             ? "Clinical Unit deleted successfully."
             : "Cannot delete this Clinical Unit.";
         return RedirectToAction(nameof(Index));
     }
+
+    // a unit belongs to the company that created it; another company's unit is not found
+    private bool OwnCompany(int? unitCompanyId) => (unitCompanyId ?? 0) == User.GetCompanyId();
 
     [HttpGet]
     public async Task<IActionResult> GetDoctorsBySpeciality(int? specialityId)
