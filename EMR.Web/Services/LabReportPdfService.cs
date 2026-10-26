@@ -104,6 +104,23 @@ public class LabReportPdfService(
         try { signoffLevels = await labReportingApiClient.GetSignoffPanelAsync(labOrderId, detail.BranchId, reportingType: reportingType); }
         catch (HttpRequestException) { /* the report still prints without the signature panel */ }
 
+        // Investigation Master > Reporting Name is the name printed on the report (every format); the screens keep the
+        // Test Name. A test without a reporting name prints its Test Name (SQLScripts/2223).
+        try
+        {
+            var ids = detail.Items.Select(i => i.InvestigationID).Where(i => i > 0).Distinct().ToList();
+            if (ids.Count > 0)
+            {
+                var names = (await Dapper.SqlMapper.QueryAsync<(int Id, string Name)>(dbContext.Database.GetDbConnection(),
+                        @"SELECT Test_ID, LTRIM(RTRIM(Reporting_Name)) FROM dbo.LabInvestigationMaster
+                           WHERE Test_ID IN @ids AND NULLIF(LTRIM(RTRIM(Reporting_Name)), '') IS NOT NULL", new { ids }))
+                    .ToDictionary(x => x.Id, x => x.Name);
+                foreach (var item in detail.Items)
+                    if (names.TryGetValue(item.InvestigationID, out var printName)) item.TestName = printName;
+            }
+        }
+        catch (Exception) { /* the report prints with the Test Name */ }
+
         var vm = LabReportPrintBuilder.Build(detail, order, meta, settings, branch, printedBy, DateTime.Now, scope, signoffLevels);
         // franchise B2B bill whose Report Header Required is No: no header / footer (B2C and company B2B unchanged)
         vm.FranchiseHeaderRequired = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId);
