@@ -33,4 +33,20 @@
     <!-- offline handwriting model for LAB billing AI assist (git-ignored; fetched with Tools/AiModels/download-trocr.*) -->
     <None Include="AiModels\**\*" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- Publish: wwwroot/uploads holds each server's own uploaded files (logos, photos, documents). It is not part of the
+       build's static assets and never copied out by a publish (served from disk by UseStaticFiles), and a Web Deploy publish never deletes or replaces it on the server
+       (e.g. C:\inetpub\clickplusEMR\web\wwwroot\uploads). -->
+  <ItemGroup>
+    <Content Remove="wwwroot\uploads\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <MsDeploySkipRules Include="SkipUploadsFolder">
+      <ObjectName>dirPath</ObjectName>
+      <AbsolutePath>wwwroot\\uploads$</AbsolutePath>
+    </MsDeploySkipRules>
+    <MsDeploySkipRules Include="SkipUploadsFiles">
+      <ObjectName>filePath</ObjectName>
+      <AbsolutePath>wwwroot\\uploads\\.*</AbsolutePath>
+    </MsDeploySkipRules>
+  </ItemGroup>
 </Project>

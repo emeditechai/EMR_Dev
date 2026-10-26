@@ -407,6 +407,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Files as they are on disk first: an image replaced after a publish (e.g. Images/login-bg.jpg) or a file uploaded on
+// the server (wwwroot/uploads) is served as it is; MapStaticAssets below only describes the files of the build and fails
+// for a file whose size changed after publishing.
+app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
 app.UseMiddleware<EMR.Web.Middleware.QueryStringDecryptionMiddleware>();
