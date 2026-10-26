@@ -528,34 +528,66 @@ public class CompaniesController(
         return View(company);
     }
 
-    /// <summary>Preview (rolled back) or remove: rows per table. A removal needs the company code typed as confirmation.</summary>
+    /// <summary>Remove one branch and all its data (SQLScripts/2338): the same page, confirmed with the branch code.</summary>
+    [HttpGet]
+    public async Task<IActionResult> RemoveBranch(int id)
+    {
+        if (!User.IsSuperAdmin()) return NotFound();
+        var branch = await dbContext.BranchMasters.AsNoTracking().FirstOrDefaultAsync(b => b.BranchId == id);
+        if (branch is null) return NotFound();
+        var company = await dbContext.CompanyMasters.FirstOrDefaultAsync(x => x.CompanyId == branch.CompanyId);
+        if (company is null) return NotFound();
+        ViewBag.Branch = branch;
+        ViewBag.Level = "BRANCH";
+        ViewBag.OwnCompany = false;
+        ViewBag.Blocked = branch.IsHOBranch
+            ? "This is the Head Office branch: it holds the company's settings and cannot be removed on its own. Delete the company instead."
+            : User.GetCurrentBranchId() == id
+                ? "You are signed in to this branch. Switch to another branch, then remove it."
+                : null;
+        return View("RemoveData", company);
+    }
+
+    /// <summary>Preview (rolled back) or remove: rows per table. A removal needs the company (or branch) code typed as confirmation.</summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> RemoveDataRun(int id, string level, bool preview, string? confirmCode,
+    public async Task<IActionResult> RemoveDataRun(int id, string level, bool preview, string? confirmCode, int? branchId,
         [FromServices] EMR.Web.ApiClients.ICompanyPurgeApiClient purgeClient)
     {
         if (!User.IsSuperAdmin()) return NotFound();
-        if (!PurgeLevels.Any(l => l.Key == level)) return Json(new { success = false, message = "Choose what to remove." });
+        var isBranch = level == "BRANCH";
+        if (!isBranch && !PurgeLevels.Any(l => l.Key == level)) return Json(new { success = false, message = "Choose what to remove." });
         var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == id);
         if (company is null) return Json(new { success = false, message = "Company not found." });
-        if (!preview && !string.Equals((confirmCode ?? "").Trim(), company.CompanyCode, StringComparison.OrdinalIgnoreCase))
-            return Json(new { success = false, message = $"Type the company code {company.CompanyCode} to confirm." });
 
-        var (rows, error) = await purgeClient.PurgeAsync(id, level, preview, User.GetUserId());
+        var branch = isBranch ? await dbContext.BranchMasters.AsNoTracking().FirstOrDefaultAsync(b => b.BranchId == branchId && b.CompanyId == id) : null;
+        if (isBranch && branch is null) return Json(new { success = false, message = "Branch not found." });
+        if (isBranch && branch!.IsHOBranch)   // the Head Office is never removed on its own (also refused by the procedure)
+            return Json(new { success = false, message = "The Head Office branch cannot be removed. Delete the company instead." });
+        if (isBranch && User.GetCurrentBranchId() == branch!.BranchId)
+            return Json(new { success = false, message = "You are signed in to this branch. Switch to another branch, then remove it." });
+        var expected = isBranch ? branch!.BranchCode : company.CompanyCode;
+        if (!preview && !string.Equals((confirmCode ?? "").Trim(), expected, StringComparison.OrdinalIgnoreCase))
+            return Json(new { success = false, message = $"Type the {(isBranch ? "branch" : "company")} code {expected} to confirm." });
+
+        var (rows, error) = await purgeClient.PurgeAsync(id, level, preview, User.GetUserId(), branch?.BranchId);
         if (error is not null) return Json(new { success = false, message = error });
 
         if (!preview)
         {
-            var name = PurgeLevels.First(l => l.Key == level).Name;
-            await auditLogService.LogAsync("Company", level == "DELETE" ? "DeleteCompany" : "RemoveCompanyData",
-                $"{name}: {company.CompanyName} ({company.CompanyCode}, #{company.CompanyId}) - {rows.Sum(r => r.Rows)} row(s) removed: "
-                + string.Join(", ", rows.Select(r => $"{r.TableName} {r.Rows}")),
+            var what = isBranch
+                ? $"Remove branch: {branch!.BranchName} ({branch.BranchCode}, #{branch.BranchId}) of {company.CompanyName}"
+                : $"{PurgeLevels.First(l => l.Key == level).Name}: {company.CompanyName} ({company.CompanyCode}, #{company.CompanyId})";
+            await auditLogService.LogAsync("Company", isBranch ? "RemoveBranch" : level == "DELETE" ? "DeleteCompany" : "RemoveCompanyData",
+                $"{what} - {rows.Sum(r => r.Rows)} row(s): " + string.Join(", ", rows.Select(r => $"{r.TableName} {r.Rows}")),
                 branchId: User.GetCurrentBranchId());
         }
         return Json(new
         {
             success = true, preview, rows,
             total = rows.Sum(r => r.Rows),
-            redirect = !preview && level == "DELETE" ? Url.Action(nameof(Index)) : null
+            redirect = preview ? null
+                : level == "DELETE" ? Url.Action(nameof(Index))
+                : isBranch ? Url.Action(nameof(Details), new { id }) : null
         });
     }
 }

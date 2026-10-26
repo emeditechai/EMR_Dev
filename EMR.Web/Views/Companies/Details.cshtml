@@ -204,6 +204,13 @@
                                             <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-primary" title="Edit Branch">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
+                                            @if (EMR.Web.Extensions.ClaimsPrincipalExtensions.IsSuperAdmin(User) && !b.IsHOBranch)
+                                            {
+                                                @* super admin only: remove this branch and all its data (SQLScripts/2338); never the Head Office *@
+                                                <a asp-action="RemoveBranch" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-danger" title="Remove Branch">
+                                                    <i class="bi bi-trash3"></i>
+                                                </a>
+                                            }
                                         </td>
                                     </tr>
                                 }

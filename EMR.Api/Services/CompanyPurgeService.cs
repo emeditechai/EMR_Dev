@@ -17,7 +17,7 @@ public class CompanyPurgeService(IDbConnectionFactory db) : ICompanyPurgeService
     {
         using var con = db.CreateConnection();
         var rows = await con.QueryAsync<CompanyPurgeResultRow>("dbo.usp_Company_Purge",
-            new { r.CompanyId, r.Level, r.Preview, r.UserId },
+            new { CompanyId = r.Level == "BRANCH" ? (int?)null : r.CompanyId, r.Level, r.Preview, r.UserId, r.BranchId },
             commandType: CommandType.StoredProcedure, commandTimeout: 1800);
         return rows.ToList();
     }

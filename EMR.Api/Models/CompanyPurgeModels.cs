@@ -4,11 +4,13 @@ namespace EMR.Api.Models;
 public class CompanyPurgeRequest
 {
     public int CompanyId { get; set; }
-    /// <summary>TRANSACTIONS, ALL or DELETE.</summary>
+    /// <summary>TRANSACTIONS, ALL, DELETE, or BRANCH (with BranchId - SQLScripts/2338).</summary>
     public string Level { get; set; } = "TRANSACTIONS";
     /// <summary>True: run and roll back, returning what would be removed.</summary>
     public bool Preview { get; set; } = true;
     public int? UserId { get; set; }
+    /// <summary>BRANCH: the branch to remove.</summary>
+    public int? BranchId { get; set; }
 }
 
 /// <summary>Rows removed (or that would be) from one table.</summary>

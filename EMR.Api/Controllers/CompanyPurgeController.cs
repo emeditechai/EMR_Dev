@@ -10,7 +10,7 @@ namespace EMR.Api.Controllers;
 [Route("api/company-purge")]
 public class CompanyPurgeController(ICompanyPurgeService service) : ControllerBase
 {
-    private static readonly string[] Levels = ["TRANSACTIONS", "ALL", "DELETE"];
+    private static readonly string[] Levels = ["TRANSACTIONS", "ALL", "DELETE", "BRANCH"];
 
     [HttpPost]
     public async Task<IActionResult> Purge([FromBody] CompanyPurgeRequest request)
@@ -18,9 +18,10 @@ public class CompanyPurgeController(ICompanyPurgeService service) : ControllerBa
         // the web app forwards the signed-in user's IsSuperAdmin claim on its on-behalf token
         if (!string.Equals(User.FindFirst("IsSuperAdmin")?.Value, "true", StringComparison.OrdinalIgnoreCase))
             return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only a super admin can remove a company's data." });
-        if (request is null || request.CompanyId <= 0)
-            return BadRequest(new { message = "Company not found." });
+        if (request is null) return BadRequest(new { message = "Company not found." });
         request.Level = (request.Level ?? "").Trim().ToUpperInvariant();
+        if (request.Level == "BRANCH" ? request.BranchId is not > 0 : request.CompanyId <= 0)
+            return BadRequest(new { message = request.Level == "BRANCH" ? "Branch not found." : "Company not found." });
         if (!Levels.Contains(request.Level))
             return BadRequest(new { message = "Choose what to remove." });
         try

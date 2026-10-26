@@ -6,6 +6,9 @@
     var selected = (string)ViewBag.Level;
     var blocked = ViewBag.Blocked as string;
     var own = (bool)ViewBag.OwnCompany;
+    var branch = ViewBag.Branch as EMR.Web.Models.Entities.BranchMaster;   // Remove Branch mode (SQLScripts/2338)
+    var confirmCode = branch?.BranchCode ?? Model.CompanyCode;
+    if (branch is not null) ViewData["Title"] = "Remove Branch";
 }
 
 <style>
@@ -21,8 +24,16 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>
-        <h1 class="h3 mb-0 fw-bold text-dark"><i class="bi bi-trash3 text-danger me-2"></i>Remove Company Data</h1>
-        <small class="text-muted"><b>@Model.CompanyName</b> (@Model.CompanyCode) &middot; super admin only</small>
+        @if (branch is not null)
+        {
+            <h1 class="h3 mb-0 fw-bold text-dark"><i class="bi bi-trash3 text-danger me-2"></i>Remove Branch</h1>
+            <small class="text-muted"><b>@branch.BranchName</b> (@branch.BranchCode) of <b>@Model.CompanyName</b> &middot; super admin only</small>
+        }
+        else
+        {
+            <h1 class="h3 mb-0 fw-bold text-dark"><i class="bi bi-trash3 text-danger me-2"></i>Remove Company Data</h1>
+            <small class="text-muted"><b>@Model.CompanyName</b> (@Model.CompanyCode) &middot; super admin only</small>
+        }
     </div>
     <a asp-action="Details" asp-route-id="@Model.CompanyId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Company</a>
 </div>
@@ -48,6 +59,20 @@ else
             <div class="card-body p-4">
                 <div class="d-flex align-items-center gap-2 mb-3"><span class="rd-step">1</span><h6 class="fw-bold mb-0">What to remove</h6></div>
                 <div class="d-flex flex-column gap-2">
+                    @if (branch is not null)
+                    {
+                        <label class="rd-level on">
+                            <input type="radio" name="rdLevel" class="form-check-input mt-1" value="BRANCH" checked />
+                            <span>
+                                <span class="nm d-block text-danger">Remove the branch @branch.BranchName</span>
+                                <span class="why d-block">Everything of this branch: its bills, payments, samples and results, accounting entries, its masters and settings
+                                    (rate cards, services, shifts, schedules, hospital settings ...), users' access to it, and the branch itself.</span>
+                                <span class="why d-block">Kept and moved to the Head Office: patients still used by another branch or on a membership card, doctors
+                                    created here, franchises under it, cards issued here. Users stay (only their access to this branch goes).</span>
+                            </span>
+                        </label>
+                    }
+                    else
                     @foreach (var l in levels)
                     {
                         var dis = own && l.Key != "TRANSACTIONS";
@@ -79,7 +104,7 @@ else
                     </div>
                 </div>
                 <div id="rdConfirm" class="border-top pt-3 mt-3" hidden>
-                    <label class="form-label small fw-semibold" for="rdCode">Type the company code <b>@Model.CompanyCode</b> to confirm</label>
+                    <label class="form-label small fw-semibold" for="rdCode">Type the @(branch is not null ? "branch" : "company") code <b>@confirmCode</b> to confirm</label>
                     <div class="d-flex gap-2 flex-wrap">
                         <input type="text" id="rdCode" class="form-control" style="max-width:240px" autocomplete="off" spellcheck="false" />
                         <button type="button" class="btn btn-danger" id="rdRun" disabled><i class="bi bi-trash3 me-1"></i><span id="rdRunText">Remove</span></button>
@@ -97,13 +122,14 @@ else
 <script>
     (function () {
         const runUrl = '@Url.Action("RemoveDataRun", new { id = Model.CompanyId })';
-        const code = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.CompanyCode ?? ""))';
+        const code = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(confirmCode ?? ""))';
+        const branchId = '@(branch?.BranchId)';
         const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
         const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
         const box = document.getElementById('rdResult'), confirmBox = document.getElementById('rdConfirm');
         const codeInput = document.getElementById('rdCode'), runBtn = document.getElementById('rdRun');
         const level = () => document.querySelector('input[name="rdLevel"]:checked')?.value;
-        const names = { TRANSACTIONS: 'Remove transactions', ALL: 'Remove everything', DELETE: 'Delete company' };
+        const names = { TRANSACTIONS: 'Remove transactions', ALL: 'Remove everything', DELETE: 'Delete company', BRANCH: 'Remove branch' };
         let previewed = null;   // the level the last preview was made for
 
         function sync() {
@@ -139,7 +165,7 @@ else
             box.innerHTML = `<div class="text-center text-muted py-5"><div class="spinner-border text-danger mb-2"></div><div>${preview ? 'Preparing the preview...' : 'Removing... this can take a few minutes.'}</div></div>`;
             document.getElementById('rdPreview').disabled = true; runBtn.disabled = true;
             try {
-                const body = new URLSearchParams({ level: lv, preview, confirmCode: codeInput.value, __RequestVerificationToken: token });
+                const body = new URLSearchParams({ level: lv, preview, confirmCode: codeInput.value, branchId, __RequestVerificationToken: token });
                 const res = await fetch(runUrl, { method: 'POST', body });
                 const r = await res.json();
                 if (!r.success) { box.innerHTML = `<div class="alert alert-danger small">${esc(r.message)}</div>`; previewed = null; return; }
@@ -147,7 +173,7 @@ else
                 previewed = preview ? lv : null;
                 if (!preview) {
                     codeInput.value = '';
-                    await Swal.fire({ icon: 'success', title: lv === 'DELETE' ? 'Company deleted' : 'Data removed', timer: 1800, showConfirmButton: false });
+                    await Swal.fire({ icon: 'success', title: lv === 'DELETE' ? 'Company deleted' : lv === 'BRANCH' ? 'Branch removed' : 'Data removed', timer: 1800, showConfirmButton: false });
                     if (r.redirect) location.href = r.redirect;
                 }
             } catch {

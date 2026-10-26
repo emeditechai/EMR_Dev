@@ -13,19 +13,19 @@ public class CompanyPurgeResultRow
 public interface ICompanyPurgeApiClient
 {
     /// <summary>Preview (rolled back) or remove a company's data: level TRANSACTIONS, ALL or DELETE.</summary>
-    Task<(List<CompanyPurgeResultRow> Rows, string? Error)> PurgeAsync(int companyId, string level, bool preview, int? userId);
+    Task<(List<CompanyPurgeResultRow> Rows, string? Error)> PurgeAsync(int companyId, string level, bool preview, int? userId, int? branchId = null);
 }
 
 public class CompanyPurgeApiClient(IHttpClientFactory httpClientFactory) : ICompanyPurgeApiClient
 {
     private sealed class Message { public string? message { get; set; } }
 
-    public async Task<(List<CompanyPurgeResultRow> Rows, string? Error)> PurgeAsync(int companyId, string level, bool preview, int? userId)
+    public async Task<(List<CompanyPurgeResultRow> Rows, string? Error)> PurgeAsync(int companyId, string level, bool preview, int? userId, int? branchId = null)
     {
         var client = httpClientFactory.CreateClient("EmrApi");
         client.Timeout = TimeSpan.FromMinutes(30);
         var res = await client.PostAsJsonAsync("api/company-purge",
-            new { CompanyId = companyId, Level = level, Preview = preview, UserId = userId });
+            new { CompanyId = companyId, Level = level, Preview = preview, UserId = userId, BranchId = branchId });
         if (res.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Forbidden)
         {
             string? msg = null;
