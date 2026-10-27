@@ -120,6 +120,8 @@ builder.Services.AddScoped<IDiscountTypeService, DiscountTypeService>();
 
 // Patient Registration (Dapper)
 builder.Services.AddScoped<IPatientService, PatientService>();
+builder.Services.AddScoped<ICertificateService, CertificateService>();   // OPD > Certificates (SQLScripts/2341)
+builder.Services.AddScoped<ICertificateNotificationService, CertificateNotificationService>();   // certificate WhatsApp / e-mail (SQLScripts/2342)
 
 // EMR Template Service (EF Core)
 builder.Services.AddScoped<IEmrTemplateService, EmrTemplateService>();

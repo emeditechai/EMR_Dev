@@ -1,0 +1,488 @@
+@using System.Text.Json
+@{
+    // OPD > Certificates > new / edit draft (SQLScripts/2341)
+    var rec = ViewBag.Record as EMR.Web.Services.CertificateRecord;
+    var visit = ViewBag.Visit as EMR.Web.Services.CertificateVisit;
+    var patient = ViewBag.Patient as EMR.Web.Services.CertificatePatient;
+    var types = (List<EMR.Web.Services.CertificateTypeRow>)ViewBag.Types;
+    var purposes = (List<EMR.Web.Services.CertificatePurposeRow>)ViewBag.Purposes;
+    var vaccines = (List<EMR.Web.Services.VaccineRow>)ViewBag.Vaccines;
+    var disabilities = (List<EMR.Web.Services.DisabilityTypeRow>)ViewBag.Disabilities;
+    var doctors = (List<EMR.Web.Services.SigningDoctorRow>)ViewBag.Doctors;
+    bool canIssue = ViewBag.CanIssue;
+    var type = (string?)ViewBag.Type ?? types.FirstOrDefault()?.TypeCode ?? "FIT";
+    ViewData["Title"] = rec != null ? "Edit Certificate" : "New Certificate";
+    var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    string J(object? o) => JsonSerializer.Serialize(o, jsonOpts);
+    string? D(DateTime? d) => d?.ToString("yyyy-MM-dd");
+    var defaultDoctor = rec?.DoctorId ?? (visit?.DoctorId is int vd && doctors.Any(d => d.DoctorId == vd) ? vd : (int?)null);
+}
+<style>
+    .cf-card { border:0; border-radius:14px; box-shadow:0 1px 3px rgba(15,23,42,.08); }
+    .cf-step { width:26px; height:26px; border-radius:50%; display:inline-grid; place-items:center; font-weight:700; font-size:.8rem; background:#ccfbf1; color:#0f766e; flex-shrink:0; }
+    .cf-types { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:.5rem; }
+    .cf-type { border:1px solid #e5e7eb; border-radius:10px; padding:.55rem .7rem; cursor:pointer; font-size:.85rem; font-weight:600; display:flex; gap:.5rem; align-items:center; background:#fff; }
+    .cf-type:hover { border-color:#5eead4; }
+    .cf-type.on { border-color:#0f766e; background:#f0fdfa; color:#0f766e; }
+    .cf-pt { display:flex; gap:.9rem; align-items:center; }
+    .cf-pt img, .cf-pt .ph { width:54px; height:54px; border-radius:12px; object-fit:cover; background:#f1f5f9; display:grid; place-items:center; color:#94a3b8; font-size:1.5rem; }
+    .cf-suggest { position:absolute; z-index:30; left:0; right:0; top:100%; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 8px 24px rgba(15,23,42,.12); max-height:320px; overflow:auto; }
+    .cf-suggest button { display:block; width:100%; text-align:left; border:0; background:none; padding:.5rem .75rem; font-size:.875rem; }
+    .cf-suggest button:hover { background:#f0fdfa; }
+    .cf-section[hidden] { display:none !important; }
+    .cf-dose td { padding:.25rem; }
+    .cf-dose input, .cf-dose select { font-size:.82rem; }
+    .cf-label { font-size:.78rem; font-weight:600; color:#475569; margin-bottom:.2rem; }
+</style>
+
+@Html.AntiForgeryToken()
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1 small">
+            <li class="breadcrumb-item">OPD</li><li class="breadcrumb-item"><a asp-action="Index">Certificates</a></li>
+            <li class="breadcrumb-item active">@(rec != null ? "Draft #" + rec.CertificateId : "New")</li>
+        </ol></nav>
+        <h1 class="h4 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);"><i class="bi bi-patch-check-fill me-2 text-success"></i>@ViewData["Title"]</h1>
+    </div>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to register</a>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-8">
+        <!-- 1. patient -->
+        <div class="card cf-card mb-3"><div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-3"><span class="cf-step">1</span><h6 class="fw-bold mb-0">Patient</h6></div>
+            <div id="cfPatientSearch" class="position-relative" @(patient != null ? "hidden" : "")>
+                <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input id="cfSearch" class="form-control" placeholder="Search by patient name, ID or phone (2+ characters)" autocomplete="off" /></div>
+                <div id="cfSuggest" class="cf-suggest" hidden></div>
+            </div>
+            <div id="cfPatientCard" class="cf-pt" hidden>
+                <img id="cfPhoto" alt="" hidden /><div id="cfPhotoPh" class="ph"><i class="bi bi-person"></i></div>
+                <div class="flex-grow-1">
+                    <div class="fw-bold" id="cfName"></div>
+                    <div class="small text-muted" id="cfMeta"></div>
+                    <div class="small text-muted" id="cfAddr"></div>
+                </div>
+                @if (visit == null && rec == null)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="cfChange">Change</button>
+                }
+            </div>
+        </div></div>
+
+        <!-- 2. certificate -->
+        <div class="card cf-card mb-3"><div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-3"><span class="cf-step">2</span><h6 class="fw-bold mb-0">Certificate</h6></div>
+            <div class="cf-types mb-3">
+                @foreach (var t in types)
+                {
+                    <div class="cf-type @(t.TypeCode == type ? "on" : "")" data-type="@t.TypeCode"><i class="bi bi-file-earmark-medical"></i>@t.TypeName</div>
+                }
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="cf-label">Purpose</div>
+                    <select id="cfPurpose" class="form-select"></select>
+                    <input id="cfPurposeText" class="form-control mt-2" placeholder="Purpose (as it should read on the certificate)" maxlength="200" hidden />
+                </div>
+                <div class="col-md-6">
+                    <div class="cf-label">Signing doctor</div>
+                    <select id="cfDoctor" class="form-select">
+                        <option value="">-- choose --</option>
+                        @foreach (var d in doctors)
+                        {
+                            <option value="@d.DoctorId" selected="@(d.DoctorId == defaultDoctor)">@d.DoctorName@(string.IsNullOrEmpty(d.Qualification) ? "" : ", " + d.Qualification)</option>
+                        }
+                    </select>
+                    @if (!doctors.Any())
+                    {
+                        <div class="small text-danger mt-1">No signing doctor in this branch yet - set one in Master &gt; OPD Master &gt; Certificate Masters &gt; Signing Doctors.</div>
+                    }
+                </div>
+                <div class="col-md-4">
+                    <div class="cf-label">Date of issue</div>
+                    <input type="date" id="cfIssueDate" class="form-control" value="@(D(rec?.IssueDate) ?? DateTime.Today.ToString("yyyy-MM-dd"))" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-8">
+                    <div class="cf-label">OPD visit (optional)</div>
+                    <select id="cfVisit" class="form-select"><option value="">Not linked to a visit</option></select>
+                </div>
+                <div class="col-md-4" data-show="SICK,RESUME,ATTEND,TREAT,DIS,FIT">
+                    <div class="cf-label" id="cfFromLabel">From</div>
+                    <input type="date" id="cfFrom" class="form-control" value="@D(rec?.ValidFrom)" />
+                </div>
+                <div class="col-md-4" data-show="SICK,RESUME,ATTEND,TREAT,DIS,FIT">
+                    <div class="cf-label" id="cfToLabel">To</div>
+                    <input type="date" id="cfTo" class="form-control" value="@D(rec?.ValidTo)" />
+                </div>
+                <div class="col-md-4 d-flex align-items-end" data-show="SICK,RESUME,ATTEND,TREAT">
+                    <div class="small text-muted" id="cfDays"></div>
+                </div>
+            </div>
+        </div></div>
+
+        <!-- 3. details by type -->
+        <div class="card cf-card mb-3"><div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-3"><span class="cf-step">3</span><h6 class="fw-bold mb-0">Details</h6></div>
+
+            <div class="cf-section" data-type="FIT">
+                <div class="row g-3">
+                    <div class="col-md-3"><div class="cf-label">Height (cm)</div><input class="form-control" data-b="height" data-clin="height" /></div>
+                    <div class="col-md-3"><div class="cf-label">Weight (kg)</div><input class="form-control" data-b="weight" data-clin="weight" /></div>
+                    <div class="col-md-3"><div class="cf-label">Blood pressure (mmHg)</div><input class="form-control" data-b="bp" data-clin="bp" /></div>
+                    <div class="col-md-3"><div class="cf-label">Pulse (/min)</div><input class="form-control" data-b="pulse" data-clin="pulse" /></div>
+                    <div class="col-md-3"><div class="cf-label">Vision right eye</div><input class="form-control" data-b="visionRight" placeholder="6/6" /></div>
+                    <div class="col-md-3"><div class="cf-label">Vision left eye</div><input class="form-control" data-b="visionLeft" placeholder="6/6" /></div>
+                    <div class="col-md-3"><div class="cf-label">Colour vision</div><select class="form-select" data-b="colourVision"><option>Normal</option><option>Defective</option><option value="">Not tested</option></select></div>
+                    <div class="col-md-3"><div class="cf-label">Hearing</div><select class="form-select" data-b="hearing"><option>Normal</option><option>Impaired</option><option value="">Not tested</option></select></div>
+                    <div class="col-md-9"><div class="cf-label">Identification marks</div>
+                        <div class="row g-2"><div class="col-6"><input class="form-control" data-b="idMark1" placeholder="1. e.g. a mole on the left cheek" /></div>
+                        <div class="col-6"><input class="form-control" data-b="idMark2" placeholder="2." /></div></div></div>
+                    <div class="col-12"><div class="cf-label">Findings</div><textarea class="form-control" rows="2" data-b="findings" placeholder="No evidence of any communicable disease or physical / mental disability that would interfere with the stated purpose."></textarea></div>
+                    <div class="col-md-5"><div class="cf-label">Verdict</div>
+                        <select class="form-select" data-b="verdict">
+                            <option value="">-- choose --</option><option value="FIT">Medically fit</option><option value="FIT_RESTRICTED">Fit with restrictions</option>
+                            <option value="TEMP_UNFIT">Temporarily unfit</option><option value="UNFIT">Unfit</option>
+                        </select></div>
+                    <div class="col-md-7"><div class="cf-label">Restrictions / advice</div><input class="form-control" data-b="restrictions" /></div>
+                </div>
+            </div>
+
+            <div class="cf-section" data-type="SICK">
+                <div class="row g-3">
+                    <div class="col-md-4"><div class="cf-label">Rest advised</div>
+                        <select class="form-select" data-b="restAdvised"><option>Complete bed rest</option><option>Rest at home</option><option>Light duty only</option></select></div>
+                    <div class="col-md-4"><div class="cf-label">Designation / class (optional)</div><input class="form-control" data-b="designation" /></div>
+                    <div class="col-md-4"><div class="cf-label">Office / institution (optional)</div><input class="form-control" data-b="employer" /></div>
+                    <div class="col-12 small text-muted"><i class="bi bi-info-circle me-1"></i>Printed with the patient's signature line (Form 3, CCS (Leave) Rules). Issue a "Fitness to Resume Duty" certificate when the patient recovers.</div>
+                </div>
+            </div>
+
+            <div class="cf-section" data-type="RESUME">
+                <div class="row g-3">
+                    <div class="col-md-4"><div class="cf-label">Fit to resume duty from</div><input type="date" class="form-control" data-b="resumeOn" /></div>
+                    <div class="col-md-4"><div class="cf-label">Sick leave certificate no. (optional)</div><input class="form-control" data-b="leaveCertNo" /></div>
+                    <div class="col-md-4"><div class="cf-label">Designation (optional)</div><input class="form-control" data-b="designation" /></div>
+                </div>
+            </div>
+
+            <div class="cf-section" data-type="VACC">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small fw-semibold">Doses given (recorded on this certificate)</span>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="cfAddDose"><i class="bi bi-plus"></i> Add dose</button>
+                </div>
+                <div class="table-responsive"><table class="table table-sm cf-dose mb-2">
+                    <thead class="table-light small"><tr><th style="min-width:180px">Vaccine</th><th>Dose</th><th>Given on</th><th>Batch no.</th><th>Manufacturer</th><th>Expiry</th><th>Route</th><th>Site</th><th>Next due</th><th></th></tr></thead>
+                    <tbody id="cfDoses"></tbody>
+                </table></div>
+                <div class="small fw-semibold mt-3 mb-1">Earlier doses of this patient (printed on the certificate)</div>
+                <div id="cfHistory" class="small text-muted">None recorded.</div>
+            </div>
+
+            <div class="cf-section" data-type="DIS">
+                <div class="row g-3">
+                    <div class="col-md-6"><div class="cf-label">Type of disability (RPwD Act 2016)</div>
+                        <select class="form-select" data-b="disabilityTypeId"><option value="">-- choose --</option>
+                            @foreach (var g in disabilities.GroupBy(x => x.Category))
+                            {
+                                <optgroup label="@g.Key">@foreach (var d in g) { <option value="@d.DisabilityTypeId">@d.Name</option> }</optgroup>
+                            }
+                        </select></div>
+                    <div class="col-md-3"><div class="cf-label">Disability (%)</div><input type="number" min="0" max="100" step="1" class="form-control" data-b="percentage" /></div>
+                    <div class="col-md-3"><div class="cf-label">Nature</div><select class="form-select" data-b="nature"><option>Permanent</option><option>Temporary (re-assessment)</option><option>Progressive</option></select></div>
+                    <div class="col-md-6"><div class="cf-label">Part of body / function affected</div><input class="form-control" data-b="bodyPart" /></div>
+                    <div class="col-md-6"><div class="cf-label">UDID no. (if any)</div><input class="form-control" data-b="udid" /></div>
+                    <div class="col-12"><div class="cf-label">Clinical findings / assessment basis</div><textarea class="form-control" rows="2" data-b="findings"></textarea></div>
+                    <div class="col-12"><div class="cf-label">Recommendation</div><input class="form-control" data-b="recommendation" placeholder="Referred to the District Medical Board for the disability certificate." /></div>
+                </div>
+            </div>
+
+            <div class="cf-section" data-type="ATTEND">
+                <div class="row g-3">
+                    <div class="col-md-3"><div class="cf-label">Time in</div><input type="time" class="form-control" data-b="timeIn" /></div>
+                    <div class="col-md-3"><div class="cf-label">Time out</div><input type="time" class="form-control" data-b="timeOut" /></div>
+                    <div class="col-md-6"><div class="cf-label">Accompanied by (optional)</div><input class="form-control" data-b="accompaniedBy" placeholder="Name and relation" /></div>
+                </div>
+            </div>
+
+            <div class="cf-section" data-type="TREAT">
+                <div class="row g-3">
+                    <div class="col-12"><div class="cf-label">Treatment given</div><textarea class="form-control" rows="2" data-b="treatment"></textarea></div>
+                    <div class="col-12"><div class="cf-label">Advice</div><input class="form-control" data-b="advice" /></div>
+                </div>
+            </div>
+
+            <div class="row g-3 mt-1">
+                <div class="col-12" data-show="SICK,RESUME,DIS,TREAT,ATTEND,FIT"><div class="cf-label" id="cfDxLabel">Diagnosis / nature of illness</div>
+                    <input id="cfDiagnosis" class="form-control" maxlength="500" value="@rec?.Diagnosis" /></div>
+                <div class="col-12"><div class="cf-label">Remarks (printed)</div><textarea id="cfRemarks" class="form-control" rows="2" maxlength="1000">@rec?.Remarks</textarea></div>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card cf-card mb-3" style="position:sticky; top:1rem"><div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-3"><span class="cf-step">4</span><h6 class="fw-bold mb-0">Fee</h6></div>
+            <div class="btn-group w-100 mb-2" role="group">
+                <input type="radio" class="btn-check" name="cfFee" id="cfFeeF" value="F" @(rec?.FeeMode != "B" ? "checked" : "") />
+                <label class="btn btn-outline-success" for="cfFeeF">Free</label>
+                <input type="radio" class="btn-check" name="cfFee" id="cfFeeB" value="B" @(rec?.FeeMode == "B" ? "checked" : "") />
+                <label class="btn btn-outline-primary" for="cfFeeB">Charged (OPD bill)</label>
+            </div>
+            <div id="cfFeeBox" hidden>
+                <div class="alert alert-light border small py-2 mb-2" id="cfFeeHint"></div>
+                <div id="cfFeeBillWrap">
+                    <div class="cf-label">OPD bill that charges it</div>
+                    <select id="cfFeeBill" class="form-select"><option value="">-- choose the bill --</option></select>
+                </div>
+                <div class="small text-danger mt-1" id="cfFeeNone" hidden><i class="bi bi-exclamation-circle me-1"></i>Not billed yet: no bill of this patient charges this service.</div>
+                <div class="d-flex justify-content-between mt-1">
+                    <a class="small" asp-controller="OPD" asp-action="NewServiceBooking" target="_blank" id="cfFeeBillLink"><i class="bi bi-box-arrow-up-right me-1"></i>Bill it in OPD &gt; Service Booking</a>
+                    <a class="small" href="#" id="cfFeeRefresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</a>
+                </div>
+            </div>
+            <hr />
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-outline-primary" id="cfSave"><i class="bi bi-save me-1"></i>Save draft</button>
+                @if (canIssue)
+                {
+                    <button type="button" class="btn btn-success" id="cfIssue"><i class="bi bi-patch-check me-1"></i>Save &amp; issue</button>
+                }
+                else
+                {
+                    <div class="small text-muted">You can save drafts; a user allowed to issue certificates signs them off.</div>
+                }
+            </div>
+            <div class="small text-muted mt-3"><i class="bi bi-shield-check me-1"></i>Once issued, a certificate gets its number and QR code and cannot be changed - cancel and reissue to correct it.</div>
+        </div></div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const purposes = @Html.Raw(J(purposes.Select(p => new { p.PurposeId, p.TypeCode, p.PurposeName })));
+    const vaccines = @Html.Raw(J(vaccines.Select(v => new { v.VaccineId, v.VaccineName, v.DefaultRoute, v.DefaultSite, v.DosesInSeries, v.DoseGapDays })));
+    const types = @Html.Raw(J(types.Select(t => new { t.TypeCode, t.DefaultValidityDays, t.FeeServiceName, t.FeeAmount })));
+    const rec = @Html.Raw(J(rec == null ? null : new { rec.CertificateId, rec.PurposeId, rec.PurposeText, rec.OPDServiceId, rec.FeeOPDServiceId, rec.BodyJson }));
+    const initialPatient = @(patient?.PatientId ?? 0), initialVisit = @(visit?.OPDServiceId ?? rec?.OPDServiceId ?? 0);
+    let type = '@type', patientId = 0, vaccHistory = [];
+
+    // labels of the shared From / To dates by type
+    const dateLabels = { FIT: ['Examined on', 'Valid till'], SICK: ['Leave from', 'Leave to'], RESUME: ['Under treatment from', 'Under treatment to'],
+                         ATTEND: ['Attended from', 'Attended to'], TREAT: ['Under treatment from', 'Under treatment to'], DIS: ['Assessed on', 'Re-assessment due (if temporary)'] };
+    const dxLabels = { FIT: 'Diagnosis (if any)', ATTEND: 'Reason for visit / diagnosis', DIS: 'Diagnosis / cause of disability' };
+
+    function setType(t) {
+        type = t;
+        document.querySelectorAll('.cf-type').forEach(x => x.classList.toggle('on', x.dataset.type === t));
+        document.querySelectorAll('.cf-section').forEach(x => x.hidden = x.dataset.type !== t);
+        document.querySelectorAll('[data-show]').forEach(x => x.hidden = !x.dataset.show.split(',').includes(t));
+        const [fl, tl] = dateLabels[t] || ['From', 'To'];
+        document.getElementById('cfFromLabel').textContent = fl; document.getElementById('cfToLabel').textContent = tl;
+        document.getElementById('cfDxLabel').textContent = dxLabels[t] || 'Diagnosis / nature of illness';
+        const sel = document.getElementById('cfPurpose'), keep = sel.value;
+        sel.innerHTML = '<option value="">-- choose --</option>' + purposes.filter(p => p.typeCode === t).map(p => `<option value="${p.purposeId}">${esc(p.purposeName)}</option>`).join('')
+                      + '<option value="0">Other (type it)</option>';
+        if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+        purposeOther();
+        const ty = types.find(x => x.typeCode === t);
+        loadFeeBills();
+        // examined / attended / assessed on: the date of issue unless already set
+        if (['FIT', 'ATTEND', 'DIS'].includes(t) && !document.getElementById('cfFrom').value) document.getElementById('cfFrom').value = document.getElementById('cfIssueDate').value;
+        if (t === 'FIT' && !document.getElementById('cfTo').value && ty?.defaultValidityDays) {
+            const d = new Date(document.getElementById('cfIssueDate').value || Date.now()); d.setDate(d.getDate() + ty.defaultValidityDays);
+            document.getElementById('cfTo').value = d.toISOString().slice(0, 10);
+        }
+        days();
+    }
+    function purposeOther() { document.getElementById('cfPurposeText').hidden = document.getElementById('cfPurpose').value !== '0'; }
+    function days() {
+        const f = document.getElementById('cfFrom').value, t = document.getElementById('cfTo').value, out = document.getElementById('cfDays');
+        out.textContent = f && t && t >= f ? `${Math.round((new Date(t) - new Date(f)) / 864e5) + 1} day(s)` : '';
+    }
+    document.querySelectorAll('.cf-type').forEach(x => x.addEventListener('click', () => setType(x.dataset.type)));
+    document.getElementById('cfPurpose').addEventListener('change', purposeOther);
+    ['cfFrom', 'cfTo'].forEach(id => document.getElementById(id).addEventListener('change', days));
+    document.querySelectorAll('input[name="cfFee"]').forEach(r => r.addEventListener('change', () => document.getElementById('cfFeeBox').hidden = !document.getElementById('cfFeeB').checked));
+    document.getElementById('cfFeeBox').hidden = !document.getElementById('cfFeeB').checked;
+
+    // ── fee: only bills of this patient that charge the type's fee service and are not linked to another certificate ──
+    let feeSeq = 0;
+    async function loadFeeBills() {
+        const hint = document.getElementById('cfFeeHint'), sel = document.getElementById('cfFeeBill'), none = document.getElementById('cfFeeNone'),
+              wrap = document.getElementById('cfFeeBillWrap'), link = document.getElementById('cfFeeBillLink');
+        const t = document.querySelector('.cf-type.on')?.dataset.type, ty = types.find(x => x.typeCode === t);
+        const keep = sel.value || (rec?.feeOPDServiceId ? String(rec.feeOPDServiceId) : '');
+        sel.innerHTML = '<option value="">-- choose the bill --</option>'; none.hidden = true;
+        if (!ty?.feeServiceName) {
+            hint.innerHTML = '<i class="bi bi-info-circle me-1"></i>No fee service is set for this certificate type (Master &gt; Certificate Masters). Issue it free, or set the fee service first.';
+            wrap.hidden = true; link.hidden = true; return;
+        }
+        hint.innerHTML = `<i class="bi bi-receipt me-1"></i>Fee: <b>${esc(ty.feeServiceName)}</b> · ₹${Number(ty.feeAmount || 0).toFixed(2)}`;
+        wrap.hidden = false; link.hidden = false;
+        if (!patientId) return;
+        const seq = ++feeSeq;
+        const r = await (await fetch(`@Url.Action("FeeBills")?patientId=${patientId}&type=${encodeURIComponent(t)}&certificateId=${rec?.certificateId || 0}`)).json();
+        if (seq !== feeSeq) return;
+        const bills = r.bills || [];
+        sel.innerHTML = '<option value="">-- choose the bill --</option>' + bills.map(b => `<option value="${b.opdServiceId}">${[b.opdBillNo || 'Bill ' + b.opdServiceId,
+            b.visitDate ? new Date(b.visitDate).toLocaleDateString('en-GB') : '', b.doctorName, '₹' + Number(b.amount || 0).toFixed(2)].filter(Boolean).map(esc).join(' · ')}</option>`).join('');
+        if (bills.some(b => String(b.opdServiceId) === keep)) sel.value = keep;
+        else if (bills.length === 1) sel.value = bills[0].opdServiceId;
+        none.hidden = bills.length > 0; wrap.hidden = bills.length === 0;
+    }
+    document.getElementById('cfFeeRefresh').addEventListener('click', e => { e.preventDefault(); loadFeeBills(); });
+
+    // ── patient search and context ──
+    const search = document.getElementById('cfSearch'), suggest = document.getElementById('cfSuggest');
+    let timer;
+    search?.addEventListener('input', () => {
+        clearTimeout(timer);
+        const q = search.value.trim();
+        if (q.length < 2) { suggest.hidden = true; return; }
+        timer = setTimeout(async () => {
+            const r = await (await fetch('@Url.Action("SearchPatients")?term=' + encodeURIComponent(q))).json();
+            suggest.innerHTML = r.length ? r.map(p => `<button type="button" data-id="${p.patientId}"><b>${esc(p.name)}</b> <span class="text-muted">· ${esc(p.patientCode)} · ${esc(p.phoneNumber || '')} · ${esc(p.age || '')} ${esc(p.gender || '')}</span></button>`).join('')
+                                         : '<div class="p-3 small text-muted">No patient found.</div>';
+            suggest.hidden = false;
+        }, 250);
+    });
+    suggest?.addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) { suggest.hidden = true; loadPatient(+b.dataset.id); } });
+    document.addEventListener('click', e => { if (suggest && !e.target.closest('#cfPatientSearch')) suggest.hidden = true; });
+    document.getElementById('cfChange')?.addEventListener('click', () => {
+        patientId = 0; loadFeeBills(); document.getElementById('cfPatientCard').hidden = true; document.getElementById('cfPatientSearch').hidden = false; search.value = ''; search.focus();
+    });
+
+    async function loadPatient(id, visitId) {
+        const r = await (await fetch(`@Url.Action("PatientContext")?patientId=${id}` + (visitId ? `&opdServiceId=${visitId}` : ''))).json();
+        if (!r.success) { Swal.fire({ icon: 'error', title: r.message }); return; }
+        patientId = id;
+        const p = r.patient;
+        document.getElementById('cfPatientSearch').hidden = true; document.getElementById('cfPatientCard').hidden = false;
+        document.getElementById('cfName').textContent = p.name;
+        document.getElementById('cfMeta').textContent = [p.patientCode, [p.age, p.gender].filter(Boolean).join(' / '), p.phoneNumber, p.guardianName ? 'C/o ' + p.guardianName : ''].filter(Boolean).join(' · ');
+        document.getElementById('cfAddr').textContent = p.address || '';
+        const img = document.getElementById('cfPhoto');
+        img.hidden = !p.photoPath; document.getElementById('cfPhotoPh').hidden = !!p.photoPath; if (p.photoPath) img.src = p.photoPath;
+        const opt = v => `<option value="${v.opdServiceId}" data-doctor="${v.doctorId || ''}">${[v.opdBillNo || 'Visit ' + v.opdServiceId, v.visitDate ? new Date(v.visitDate).toLocaleDateString('en-GB') : '',
+                                     v.serviceName || v.serviceType, v.doctorName].filter(Boolean).map(esc).join(' · ')}</option>`;
+        document.getElementById('cfVisit').innerHTML = '<option value="">Not linked to a visit</option>' + r.visits.map(opt).join('');
+        if (visitId) document.getElementById('cfVisit').value = visitId;
+        loadFeeBills();
+        // vitals and the visit's diagnosis fill only empty fields
+        Object.entries(r.clinical || {}).forEach(([k, v]) => document.querySelectorAll(`[data-clin="${k}"]`).forEach(el => { if (!el.value && v) el.value = v; }));
+        const dx = document.getElementById('cfDiagnosis'); if (!dx.value && r.clinical?.diagnosis) dx.value = r.clinical.diagnosis;
+        vaccHistory = r.vaccinations || [];
+        drawHistory();
+    }
+    document.getElementById('cfVisit').addEventListener('change', e => {
+        const d = e.target.selectedOptions[0]?.dataset.doctor, doc = document.getElementById('cfDoctor');
+        if (d && !doc.value && [...doc.options].some(o => o.value === d)) doc.value = d;
+    });
+
+    // ── vaccine doses ──
+    const doseRow = d => {
+        const v = vaccines.find(x => x.vaccineId === d.vaccineId);
+        return `<tr><td><select class="form-select form-select-sm" data-d="vaccineId"><option value="">--</option>${vaccines.map(x => `<option value="${x.vaccineId}" ${x.vaccineId === d.vaccineId ? 'selected' : ''}>${esc(x.vaccineName)}</option>`).join('')}</select></td>
+            <td><input type="number" min="1" class="form-control form-control-sm" style="width:60px" data-d="doseNo" value="${d.doseNo || 1}"></td>
+            <td><input type="date" class="form-control form-control-sm" data-d="givenOn" value="${(d.givenOn || '').slice(0, 10) || new Date().toISOString().slice(0, 10)}"></td>
+            <td><input class="form-control form-control-sm" data-d="batchNo" value="${esc(d.batchNo || '')}"></td>
+            <td><input class="form-control form-control-sm" data-d="manufacturer" value="${esc(d.manufacturer || '')}"></td>
+            <td><input type="date" class="form-control form-control-sm" data-d="expiryDate" value="${(d.expiryDate || '').slice(0, 10)}"></td>
+            <td><input class="form-control form-control-sm" style="width:70px" data-d="route" value="${esc(d.route || v?.defaultRoute || '')}"></td>
+            <td><input class="form-control form-control-sm" data-d="site" value="${esc(d.site || v?.defaultSite || '')}"></td>
+            <td><input type="date" class="form-control form-control-sm" data-d="nextDueDate" value="${(d.nextDueDate || '').slice(0, 10)}"></td>
+            <td><button type="button" class="btn btn-sm btn-link text-danger p-0" data-del title="Remove"><i class="bi bi-x-lg"></i></button></td></tr>`;
+    };
+    const doses = document.getElementById('cfDoses');
+    document.getElementById('cfAddDose').addEventListener('click', () => doses.insertAdjacentHTML('beforeend', doseRow({})));
+    doses.addEventListener('click', e => { if (e.target.closest('[data-del]')) e.target.closest('tr').remove(); });
+    doses.addEventListener('change', e => {
+        const tr = e.target.closest('tr');
+        if (e.target.dataset.d === 'vaccineId' || e.target.dataset.d === 'givenOn' || e.target.dataset.d === 'doseNo') {
+            const v = vaccines.find(x => x.vaccineId === +tr.querySelector('[data-d="vaccineId"]').value);
+            if (!v) return;
+            if (e.target.dataset.d === 'vaccineId') { tr.querySelector('[data-d="route"]').value = v.defaultRoute || ''; tr.querySelector('[data-d="site"]').value = v.defaultSite || ''; }
+            const dose = +tr.querySelector('[data-d="doseNo"]').value || 1, given = tr.querySelector('[data-d="givenOn"]').value;
+            const next = tr.querySelector('[data-d="nextDueDate"]');
+            if (v.doseGapDays && dose < v.dosesInSeries && given) { const d = new Date(given); d.setDate(d.getDate() + v.doseGapDays); next.value = d.toISOString().slice(0, 10); }
+            else if (e.target.dataset.d !== 'nextDueDate') next.value = '';
+        }
+    });
+    function drawHistory() {
+        const mine = rec ? vaccHistory.filter(v => v.certificateId === rec.certificateId) : [];
+        const earlier = vaccHistory.filter(v => !rec || v.certificateId !== rec.certificateId);
+        if (!doses.children.length && mine.length) doses.innerHTML = mine.map(m => doseRow(m)).join('');
+        document.getElementById('cfHistory').innerHTML = earlier.length
+            ? '<ul class="mb-0 ps-3">' + earlier.map(v => `<li>${esc(v.vaccineName)} dose ${v.doseNo} · ${new Date(v.givenOn).toLocaleDateString('en-GB')}${v.batchNo ? ' · batch ' + esc(v.batchNo) : ''}</li>`).join('') + '</ul>'
+            : 'None recorded.';
+    }
+
+    // ── body of an existing draft ──
+    if (rec?.bodyJson) {
+        try { const b = JSON.parse(rec.bodyJson); document.querySelectorAll('[data-b]').forEach(el => { const s = el.closest('.cf-section'); if (b[el.dataset.b] != null && (!s || s.dataset.type === type)) el.value = b[el.dataset.b]; }); } catch { }
+    }
+
+    setType(type);
+    if (rec?.purposeId) document.getElementById('cfPurpose').value = rec.purposeId;
+    else if (rec?.purposeText) { document.getElementById('cfPurpose').value = '0'; document.getElementById('cfPurposeText').value = rec.purposeText; }
+    purposeOther();
+    if (initialPatient) loadPatient(initialPatient, initialVisit || null);
+
+    // ── save / issue ──
+    function payload(issue) {
+        const body = {};
+        document.querySelectorAll(`.cf-section[data-type="${type}"] [data-b]`).forEach(el => { if (el.value !== '') body[el.dataset.b] = el.value; });
+        const pv = document.getElementById('cfPurpose').value;
+        return {
+            certificateId: rec?.certificateId || 0, typeCode: type, patientId,
+            opdServiceId: +document.getElementById('cfVisit').value || null, doctorId: +document.getElementById('cfDoctor').value || null,
+            purposeId: pv && pv !== '0' ? +pv : null, purposeText: pv === '0' ? document.getElementById('cfPurposeText').value : null,
+            issueDate: document.getElementById('cfIssueDate').value || null,
+            validFrom: !document.getElementById('cfFrom').closest('[data-show]').hidden ? (document.getElementById('cfFrom').value || null) : null,
+            validTo: !document.getElementById('cfTo').closest('[data-show]').hidden ? (document.getElementById('cfTo').value || null) : null,
+            diagnosis: !document.getElementById('cfDiagnosis').closest('[data-show]').hidden ? document.getElementById('cfDiagnosis').value : null,
+            remarks: document.getElementById('cfRemarks').value, body,
+            feeMode: document.getElementById('cfFeeB').checked ? 'B' : 'F', feeOPDServiceId: +document.getElementById('cfFeeBill').value || null,
+            doses: type === 'VACC' ? [...doses.querySelectorAll('tr')].map(tr => {
+                const g = k => tr.querySelector(`[data-d="${k}"]`).value || null;
+                return { vaccineId: +g('vaccineId') || 0, doseNo: +g('doseNo') || 1, givenOn: g('givenOn'), batchNo: g('batchNo'), manufacturer: g('manufacturer'),
+                         expiryDate: g('expiryDate'), route: g('route'), site: g('site'), nextDueDate: g('nextDueDate') };
+            }) : null,
+            issue
+        };
+    }
+    async function save(issue) {
+        if (!patientId) { Swal.fire({ icon: 'warning', title: 'Choose the patient' }); return; }
+        if (issue && !document.getElementById('cfDoctor').value) { Swal.fire({ icon: 'warning', title: 'Choose the signing doctor' }); return; }
+        if (issue) {
+            const ok = await Swal.fire({ icon: 'question', title: 'Issue this certificate?', html: 'It gets its number and QR code and can no longer be changed.', showCancelButton: true, confirmButtonText: 'Issue' });
+            if (!ok.isConfirmed) return;
+        }
+        const btns = document.querySelectorAll('#cfSave, #cfIssue'); btns.forEach(b => b.disabled = true);
+        try {
+            const res = await fetch('@Url.Action("Save")', { method: 'POST', headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token }, body: JSON.stringify(payload(issue)) });
+            const r = await res.json();
+            if (!r.success) {
+                Swal.fire({ icon: 'error', title: 'Not saved', text: r.message });
+                if (r.id && !rec) location.href = '@Url.Action("Edit")/' + r.id;   // the draft was saved, issuing failed
+                return;
+            }
+            if (issue) {
+                await Swal.fire({ icon: 'success', title: 'Issued', html: esc(r.certificateNo) + (r.notified ? '<div class="small text-muted mt-1">Being sent to the patient by WhatsApp and e-mail.</div>' : ''),
+                                  timer: r.notified ? 2200 : 1600, showConfirmButton: false });
+                location.href = r.printUrl;
+            }
+            else { await Swal.fire({ icon: 'success', title: 'Draft saved', timer: 1200, showConfirmButton: false }); if (!rec) location.href = '@Url.Action("Edit")/' + r.id; }
+        } catch { Swal.fire({ icon: 'error', title: 'The server could not be reached.' }); }
+        finally { btns.forEach(b => b.disabled = false); }
+    }
+    document.getElementById('cfSave').addEventListener('click', () => save(false));
+    document.getElementById('cfIssue')?.addEventListener('click', () => save(true));
+})();
+</script>
+}

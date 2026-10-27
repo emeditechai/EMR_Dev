@@ -71,6 +71,10 @@ public class HospitalSettings
     /// (default No = no reminders). SQLScripts/2229.</summary>
     public bool OpdFollowUpNotificationRequired { get; set; } = false;
 
+    /// <summary>OPD > Certificates: send the issued certificate (PDF) to the patient by WhatsApp and e-mail
+    /// (default No). SQLScripts/2342.</summary>
+    public bool OpdCertificateNotificationRequired { get; set; } = false;
+
     /// <summary>OPD / LAB Day Closing (SQLScripts/2275): Yes = payments are refused while the user has earlier days of that
     /// module not closed; No (default) = the user is only warned at login.</summary>
     public bool DayClosingBlockBilling { get; set; } = false;

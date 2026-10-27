@@ -1193,6 +1193,12 @@
                         </button>
                     `;
                 }
+                // OPD > Certificates (SQLScripts/2341): certificate from this visit (hidden without the DRAFT control)
+                actionButtons += `
+                    <button data-permission="OPD.CERTIFICATES:DRAFT" class="dd-act-btn dd-act-print" title="Issue certificate" aria-label="Issue certificate" onclick="window.open('/Certificates/Create?opdServiceId=${item.opdServiceId}', '_blank')">
+                        <i class="bi bi-patch-check"></i>
+                    </button>
+                `;
 
                 // ── Video / Walk-In badge ────────────────────────────────────
                 const isVideo = (item.consultingType || '').toLowerCase() === 'video';

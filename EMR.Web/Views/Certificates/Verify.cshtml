@@ -1,0 +1,57 @@
+@model EMR.Web.Services.CertificateVerifyModel
+@{
+    // Public QR check of a certificate (no login): only what proves it is genuine, nothing more of the patient
+    Layout = null;
+    var valid = Model.Found && Model.Status == "I";
+    var expired = valid && Model.ValidTo is { } vt && vt.Date < DateTime.Today;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Certificate Verification</title>
+    <style>
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f1f5f9; color: #0f172a; }
+        .wrap { max-width: 480px; margin: 40px auto; padding: 0 16px; }
+        .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(15, 23, 42, .08); overflow: hidden; }
+        .head { padding: 22px; text-align: center; color: #fff; }
+        .head.ok { background: #0f766e; } .head.bad { background: #b91c1c; } .head.warn { background: #b45309; }
+        .head .ic { font-size: 40px; line-height: 1; }
+        .head h1 { font-size: 20px; margin: 8px 0 0; }
+        dl { margin: 0; padding: 18px 22px; display: grid; grid-template-columns: 40% 60%; row-gap: 10px; font-size: 14px; }
+        dt { color: #64748b; } dd { margin: 0; font-weight: 600; word-break: break-word; }
+        .foot { padding: 12px 22px 18px; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="card">
+        @if (!Model.Found)
+        {
+            <div class="head bad"><div class="ic">&#10007;</div><h1>Certificate not found</h1></div>
+            <div class="foot">This QR code does not match any certificate issued by this hospital. Contact the hospital that issued it.</div>
+        }
+        else
+        {
+            <div class="head @(valid ? (expired ? "warn" : "ok") : "bad")">
+                <div class="ic">@Html.Raw(valid ? "&#10003;" : "&#10007;")</div>
+                <h1>@(valid ? (expired ? "Genuine - validity period over" : "Genuine certificate") : "This certificate was cancelled")</h1>
+            </div>
+            <dl>
+                <dt>Certificate no.</dt><dd>@Model.CertificateNo</dd>
+                <dt>Type</dt><dd>@Model.TypeName</dd>
+                <dt>Issued to</dt><dd>@Model.PatientMasked</dd>
+                <dt>Date of issue</dt><dd>@Model.IssueDate?.ToString("dd MMM yyyy")</dd>
+                @if (Model.ValidTo != null) { <dt>Valid till</dt><dd>@Model.ValidTo?.ToString("dd MMM yyyy")</dd> }
+                <dt>Signed by</dt><dd>@Model.DoctorName@(string.IsNullOrWhiteSpace(Model.DoctorRegNo) ? "" : " (Regn. " + Model.DoctorRegNo + ")")</dd>
+                <dt>Issued by</dt><dd>@Model.HospitalName</dd>
+                @if (!valid && !string.IsNullOrWhiteSpace(Model.CancelReason)) { <dt>Reason</dt><dd>@Model.CancelReason</dd> }
+            </dl>
+            <div class="foot">Compare these details with the printed certificate. The patient's name is partly hidden for privacy.</div>
+        }
+    </div>
+</div>
+</body>
+</html>

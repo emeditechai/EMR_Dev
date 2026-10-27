@@ -330,6 +330,20 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Notification Required for Issue Certificate</div>
+                            <div class="lp-desc">Yes: when a certificate is issued (OPD &gt; Certificates), the patient gets it as a PDF by WhatsApp and e-mail, with the QR verify link. No: nothing is sent.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="OpdCertificateNotificationRequired">
+                                <label class="form-check-label" asp-for="OpdCertificateNotificationRequired">Send issued certificates to the patient</label>
+                            </div>
+                            <span asp-validation-for="OpdCertificateNotificationRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
                         <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
                         <div class="lp-body">

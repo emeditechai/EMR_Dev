@@ -299,6 +299,16 @@ else
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Notification Required for Issue Certificate</div>
+                            <div class="lp-desc">Issued certificate sent to the patient as a PDF by WhatsApp and e-mail.</div>
+                            <span class="lp-pill @(Model.OpdCertificateNotificationRequired ? "yes" : "no")"><i class="bi @(Model.OpdCertificateNotificationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.OpdCertificateNotificationRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
                         <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
                         <div>

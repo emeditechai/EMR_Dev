@@ -361,6 +361,7 @@ public class HospitalSettingsController(
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.LabPatientPortalRequired = model.LabPatientPortalRequired;
             existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
+            existing.OpdCertificateNotificationRequired = model.OpdCertificateNotificationRequired;
             existing.DayClosingBlockBilling = model.DayClosingBlockBilling;
             existing.DayClosingAllowSelfVerify = model.DayClosingAllowSelfVerify;
             existing.DayClosingLoginReminder = model.DayClosingLoginReminder;
@@ -440,6 +441,7 @@ public class HospitalSettingsController(
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             LabPatientPortalRequired = s.LabPatientPortalRequired,
             OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
+            OpdCertificateNotificationRequired = s.OpdCertificateNotificationRequired,
             DayClosingBlockBilling = s.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = s.DayClosingAllowSelfVerify,
             DayClosingLoginReminder = s.DayClosingLoginReminder,
@@ -506,6 +508,7 @@ public class HospitalSettingsController(
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             LabPatientPortalRequired = m.LabPatientPortalRequired,
             OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
+            OpdCertificateNotificationRequired = m.OpdCertificateNotificationRequired,
             DayClosingBlockBilling = m.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = m.DayClosingAllowSelfVerify,
             DayClosingLoginReminder = m.DayClosingLoginReminder,

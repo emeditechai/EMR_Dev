@@ -1,0 +1,166 @@
+@using System.Text.Json
+@{
+    // Master > OPD Master > Certificate Masters (SQLScripts/2341)
+    ViewData["Title"] = "Certificate Masters";
+    var tab = (string)ViewBag.Tab;
+    var types = (List<EMR.Web.Services.CertificateTypeRow>)ViewBag.Types;
+    var purposes = (List<EMR.Web.Services.CertificatePurposeRow>)ViewBag.Purposes;
+    var vaccines = (List<EMR.Web.Services.VaccineRow>)ViewBag.Vaccines;
+    var disabilities = (List<EMR.Web.Services.DisabilityTypeRow>)ViewBag.Disabilities;
+    var doctors = (List<EMR.Web.Services.SigningDoctorRow>)ViewBag.Doctors;
+    var fees = (List<(int ServiceId, string Name, decimal Charges)>)ViewBag.FeeServices;
+    bool canEdit = ViewBag.CanEdit;
+    var jo = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    string J(object o) => JsonSerializer.Serialize(o, jo);
+    string TypeName(string code) => types.FirstOrDefault(t => t.TypeCode == code)?.TypeName ?? code;
+    string Active(bool a) => a ? "<span class=\"badge bg-success-subtle text-success border border-success-subtle\">Active</span>" : "<span class=\"badge bg-light text-secondary border\">Inactive</span>";
+}
+<style>
+    .cm-tabs .nav-link { font-weight: 600; }
+    .cm-table td, .cm-table th { vertical-align: middle; font-size: .875rem; }
+    .cm-img { max-height: 34px; max-width: 90px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; }
+</style>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1 small"><li class="breadcrumb-item">Master</li><li class="breadcrumb-item">OPD Master</li><li class="breadcrumb-item active">Certificate Masters</li></ol></nav>
+        <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);"><i class="bi bi-patch-check-fill me-2 text-success"></i>Certificate Masters</h1>
+        <p class="text-muted small mb-0 mt-1">Certificate types, purposes, vaccines and the doctors who sign certificates. Disability types follow the RPwD Act, 2016.</p>
+    </div>
+    <a asp-controller="Certificates" asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-patch-check me-1"></i>Certificates register</a>
+</div>
+
+<ul class="nav nav-tabs cm-tabs mb-3">
+    @foreach (var (k, label) in new[] { ("types", "Certificate Types"), ("purposes", "Purposes"), ("vaccines", "Vaccines"), ("doctors", "Signing Doctors"), ("disability", "Disability Types") })
+    {
+        <li class="nav-item"><a class="nav-link @(tab == k ? "active" : "")" asp-route-tab="@k">@label</a></li>
+    }
+</ul>
+
+@if (tab == "types")
+{
+    <div class="card shadow-sm border-0"><div class="table-responsive"><table class="table table-hover mb-0 cm-table">
+        <thead class="table-light"><tr><th>Type</th><th>Print title</th><th>No. prefix</th><th>Validity</th><th>Fee service</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var t in types)
+        {
+            <tr><td class="fw-semibold">@t.TypeName <span class="text-muted small font-monospace">@t.TypeCode</span></td><td class="small">@t.PrintTitle</td>
+                <td class="font-monospace">@t.NumberPrefix</td><td>@(t.DefaultValidityDays is int d ? d + " days" : "—")</td>
+                <td class="small">@(t.FeeServiceName is { } fs ? $"{fs} (₹{t.FeeAmount:0.00})" : "Free / choose at issue")</td><td>@Html.Raw(Active(t.IsActive))</td>
+                <td class="text-end">@if (canEdit) { <button type="button" class="btn btn-sm btn-outline-primary" data-edit="type" data-row='@J(t)'><i class="bi bi-pencil"></i></button> }</td></tr>
+        }
+        </tbody></table></div></div>
+    <div class="small text-muted mt-2">Numbers look like <span class="font-monospace">FIT/HO/2627/000001</span>: prefix / branch code / financial year / serial, given only when a certificate is issued.</div>
+}
+else if (tab == "purposes")
+{
+    @if (canEdit) { <div class="mb-2 text-end"><button type="button" class="btn btn-primary btn-sm" data-edit="purpose" data-row='@J(new { purposeId = 0, typeCode = "FIT", purposeName = "", sortOrder = 100, isActive = true })'><i class="bi bi-plus-circle me-1"></i>Add purpose</button></div> }
+    <div class="card shadow-sm border-0"><div class="table-responsive"><table class="table table-hover mb-0 cm-table">
+        <thead class="table-light"><tr><th>Certificate type</th><th>Purpose</th><th>Order</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var p in purposes)
+        {
+            <tr><td>@TypeName(p.TypeCode)</td><td class="fw-semibold">@p.PurposeName</td><td>@p.SortOrder</td><td>@Html.Raw(Active(p.IsActive))</td>
+                <td class="text-end">@if (canEdit) { <button type="button" class="btn btn-sm btn-outline-primary" data-edit="purpose" data-row='@J(p)'><i class="bi bi-pencil"></i></button> }</td></tr>
+        }
+        </tbody></table></div></div>
+}
+else if (tab == "vaccines")
+{
+    @if (canEdit) { <div class="mb-2 text-end"><button type="button" class="btn btn-primary btn-sm" data-edit="vaccine" data-row='@J(new EMR.Web.Services.VaccineRow { SortOrder = 500 })'><i class="bi bi-plus-circle me-1"></i>Add vaccine</button></div> }
+    <div class="card shadow-sm border-0"><div class="table-responsive"><table class="table table-hover mb-0 cm-table">
+        <thead class="table-light"><tr><th>Vaccine</th><th>Protects against</th><th>Route / site</th><th>Doses</th><th>Gap (days)</th><th>Schedule</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var v in vaccines)
+        {
+            <tr><td class="fw-semibold">@v.VaccineName @if (v.IsUIP) { <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1">UIP</span> }</td>
+                <td class="small">@v.Diseases</td><td class="small">@v.DefaultRoute@(string.IsNullOrEmpty(v.DefaultSite) ? "" : " · " + v.DefaultSite)</td>
+                <td>@v.DosesInSeries</td><td>@v.DoseGapDays</td><td class="small">@v.ScheduleAge</td><td>@Html.Raw(Active(v.IsActive))</td>
+                <td class="text-end">@if (canEdit) { <button type="button" class="btn btn-sm btn-outline-primary" data-edit="vaccine" data-row='@J(v)'><i class="bi bi-pencil"></i></button> }</td></tr>
+        }
+        </tbody></table></div></div>
+}
+else if (tab == "doctors")
+{
+    <div class="alert alert-light border small"><i class="bi bi-info-circle text-primary me-1"></i>Only doctors marked <b>Can sign</b> and working in this branch appear as signing doctors on certificates. Their qualification, registration and signature print on every certificate they sign.</div>
+    <div class="card shadow-sm border-0"><div class="table-responsive"><table class="table table-hover mb-0 cm-table">
+        <thead class="table-light"><tr><th>Doctor</th><th>Can sign</th><th>Qualification</th><th>Registration</th><th>Signature</th><th>Stamp</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var d in doctors)
+        {
+            <tr><td><div class="fw-semibold">@d.DoctorName</div><div class="small text-muted">@d.Speciality@(d.InBranch ? "" : " · not in this branch")</div></td>
+                <td>@Html.Raw(d.CanSign ? "<span class=\"badge bg-success\">Yes</span>" : "<span class=\"badge bg-light text-secondary border\">No</span>")</td>
+                <td class="small">@d.Qualification</td>
+                <td class="small">@(string.IsNullOrWhiteSpace(d.RegistrationNo) ? d.MedicalLicenseNo : d.RegistrationNo)<div class="text-muted">@d.RegistrationCouncil @(d.RegistrationYear)</div></td>
+                <td>@if (!string.IsNullOrEmpty(d.SignaturePath)) { <img class="cm-img" src="@d.SignaturePath" alt="" /> }</td>
+                <td>@if (!string.IsNullOrEmpty(d.StampPath)) { <img class="cm-img" src="@d.StampPath" alt="" /> }</td>
+                <td class="text-end">@if (canEdit) { <button type="button" class="btn btn-sm btn-outline-primary" data-edit="doctor" data-row='@J(d)'><i class="bi bi-pencil"></i></button> }</td></tr>
+        }
+        </tbody></table></div></div>
+}
+else
+{
+    <div class="card shadow-sm border-0"><div class="table-responsive"><table class="table mb-0 cm-table">
+        <thead class="table-light"><tr><th>#</th><th>Specified disability</th><th>Group</th><th>Certificate form (RPwD Rules, 2017)</th></tr></thead>
+        <tbody>@{ var n = 0; }
+        @foreach (var d in disabilities) { <tr><td>@(++n)</td><td class="fw-semibold">@d.Name</td><td>@d.Category</td><td>Form @d.AssessmentForm</td></tr> }
+        </tbody></table></div></div>
+    <div class="small text-muted mt-2">The 21 specified disabilities of the Schedule to the Rights of Persons with Disabilities Act, 2016 (fixed list).</div>
+}
+
+@* ── edit dialogs ── *@
+<div class="modal fade" id="cmModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <form method="post" enctype="multipart/form-data" id="cmForm">
+        @Html.AntiForgeryToken()
+        <div class="modal-header"><h5 class="modal-title" id="cmTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><div class="row g-3" id="cmBody"></div></div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button class="btn btn-primary"><i class="bi bi-save me-1"></i>Save</button></div>
+    </form>
+</div></div></div>
+
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const typeOpts = @Html.Raw(J(types.Select(t => new { t.TypeCode, t.TypeName })));
+    const feeOpts = @Html.Raw(J(fees.Select(f => new { id = f.ServiceId, name = $"{f.Name} (₹{f.Charges:0.00})" })));
+    const txt = (n, l, v, col = 6, extra = '') => `<div class="col-md-${col}"><label class="form-label small fw-semibold">${l}</label><input class="form-control" name="${n}" value="${esc(v)}" ${extra}></div>`;
+    const num = (n, l, v, col = 3) => txt(n, l, v ?? '', col, 'type="number"');
+    const chk = (n, l, v) => `<div class="col-md-3 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="${n}" value="true" id="c_${n}" ${v ? 'checked' : ''}><input type="hidden" name="${n}" value="false"><label class="form-check-label" for="c_${n}">${l}</label></div></div>`;
+    const sel = (n, l, v, opts, col = 6) => `<div class="col-md-${col}"><label class="form-label small fw-semibold">${l}</label><select class="form-select" name="${n}">${opts.map(([k, t]) => `<option value="${esc(k)}" ${String(k) === String(v ?? '') ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>`;
+    const forms = {
+        type: r => ({ title: 'Certificate type', action: '@Url.Action("SaveType")', html:
+            `<input type="hidden" name="CertificateTypeId" value="${r.certificateTypeId}">` + txt('TypeName', 'Name', r.typeName) + txt('PrintTitle', 'Title printed on the certificate', r.printTitle)
+            + txt('NumberPrefix', 'Number prefix', r.numberPrefix, 3, 'maxlength="10"') + num('DefaultValidityDays', 'Default validity (days)', r.defaultValidityDays)
+            + sel('FeeServiceId', 'Fee service (OPD Service Master)', r.feeServiceId, [['', 'None - free or chosen at issue'], ...feeOpts.map(f => [f.id, f.name])])
+            + num('SortOrder', 'Order', r.sortOrder) + chk('IsActive', 'Active', r.isActive)
+            + `<div class="col-12"><label class="form-label small fw-semibold">Legal note (printed at the foot)</label><textarea class="form-control" rows="2" name="LegalNote" maxlength="400">${esc(r.legalNote)}</textarea></div>` }),
+        purpose: r => ({ title: r.purposeId ? 'Edit purpose' : 'Add purpose', action: '@Url.Action("SavePurpose")', html:
+            `<input type="hidden" name="PurposeId" value="${r.purposeId}">` + sel('TypeCode', 'Certificate type', r.typeCode, typeOpts.map(t => [t.typeCode, t.typeName]))
+            + txt('PurposeName', 'Purpose', r.purposeName, 6, 'maxlength="150" required') + num('SortOrder', 'Order', r.sortOrder) + chk('IsActive', 'Active', r.isActive) }),
+        vaccine: r => ({ title: r.vaccineId ? 'Edit vaccine' : 'Add vaccine', action: '@Url.Action("SaveVaccine")', html:
+            `<input type="hidden" name="VaccineId" value="${r.vaccineId}">` + txt('VaccineName', 'Vaccine', r.vaccineName, 6, 'required maxlength="150"') + txt('ShortCode', 'Short code', r.shortCode, 3)
+            + chk('IsUIP', 'In UIP schedule', r.isUIP) + txt('Diseases', 'Protects against', r.diseases, 12)
+            + sel('DefaultRoute', 'Route', r.defaultRoute, [['', '--'], ['IM', 'Intramuscular (IM)'], ['SC', 'Subcutaneous (SC)'], ['ID', 'Intradermal (ID)'], ['Oral', 'Oral'], ['IN', 'Intranasal']], 3)
+            + txt('DefaultSite', 'Site', r.defaultSite, 3) + num('DosesInSeries', 'Doses in series', r.dosesInSeries) + num('DoseGapDays', 'Gap to next dose (days)', r.doseGapDays)
+            + txt('ScheduleAge', 'Schedule / age', r.scheduleAge, 6) + num('SortOrder', 'Order', r.sortOrder) + chk('IsActive', 'Active', r.isActive) }),
+        doctor: r => ({ title: r.doctorName, action: '@Url.Action("SaveDoctor")', html:
+            `<input type="hidden" name="DoctorId" value="${r.doctorId}">` + chk('CanSign', 'Can sign certificates', r.canSign)
+            + txt('Qualification', 'Qualification (as printed)', r.qualification, 9, 'placeholder="MBBS, MD (Medicine)" maxlength="200"')
+            + txt('RegistrationCouncil', 'Registering council', r.registrationCouncil, 6, 'placeholder="National Medical Commission / West Bengal Medical Council" maxlength="150"')
+            + txt('RegistrationNo', 'Registration no. (empty = licence no. in Doctor Master)', r.registrationNo, 3, `placeholder="${esc(r.medicalLicenseNo || '')}" maxlength="50"`)
+            + num('RegistrationYear', 'Year', r.registrationYear)
+            + `<div class="col-md-6"><label class="form-label small fw-semibold">Signature image (PNG / JPG, 1 MB)</label><input type="file" class="form-control" name="signatureFile" accept=".png,.jpg,.jpeg,.webp">${r.signaturePath ? `<img class="cm-img mt-2" src="${esc(r.signaturePath)}">` : ''}</div>`
+            + `<div class="col-md-6"><label class="form-label small fw-semibold">Stamp image (optional)</label><input type="file" class="form-control" name="stampFile" accept=".png,.jpg,.jpeg,.webp">${r.stampPath ? `<img class="cm-img mt-2" src="${esc(r.stampPath)}">` : ''}</div>` })
+    };
+    const modal = new bootstrap.Modal(document.getElementById('cmModal'));
+    document.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
+        const f = forms[b.dataset.edit](JSON.parse(b.dataset.row));
+        document.getElementById('cmTitle').textContent = f.title;
+        document.getElementById('cmForm').action = f.action;
+        document.getElementById('cmBody').innerHTML = f.html;
+        modal.show();
+    }));
+})();
+</script>
+}

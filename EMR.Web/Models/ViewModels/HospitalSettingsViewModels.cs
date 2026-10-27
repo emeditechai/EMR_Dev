@@ -192,6 +192,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Follow up Notification Required")]
     public bool OpdFollowUpNotificationRequired { get; set; }
 
+    [Display(Name = "Notification Required for Issue Certificate")]
+    public bool OpdCertificateNotificationRequired { get; set; }
+
     [Display(Name = "Block Billing Until Day Closed")]
     public bool DayClosingBlockBilling { get; set; }
 
