@@ -36,8 +36,7 @@
                     <div class="alert alert-warning ar-alert"><i class="bi bi-clock-history"></i><span>@signInWarning</span></div>
                 }
 
-                <style>.pw-masked { -webkit-text-security: disc; }</style>
-                <form asp-action="Login" method="post" novalidate id="loginForm" autocomplete="off">
+                <form asp-action="Login" method="post" novalidate id="loginForm" autocomplete="on">
                     @Html.AntiForgeryToken()
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger ar-alert ar-summary"></div>
 
@@ -45,7 +44,7 @@
                         <label asp-for="Email" class="ar-label"></label>
                         <div class="ar-control">
                             <i class="bi bi-envelope ar-lead-ico"></i>
-                            <input asp-for="Email" type="email" class="form-control ar-input" placeholder="name@example.com" autocomplete="off" autocorrect="off" spellcheck="false" autofocus />
+                            <input asp-for="Email" type="email" class="form-control ar-input" placeholder="name@example.com" autocomplete="username" autocorrect="off" spellcheck="false" autofocus />
                         </div>
                         <span asp-validation-for="Email" class="ar-error"></span>
                     </div>
@@ -54,7 +53,7 @@
                         <label asp-for="Password" class="ar-label"></label>
                         <div class="ar-control">
                             <i class="bi bi-lock ar-lead-ico"></i>
-                            <input asp-for="Password" type="text" id="passwordInput" class="form-control ar-input ar-input-pw pw-masked" placeholder="Enter your password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" />
+                            <input asp-for="Password" type="password" id="passwordInput" class="form-control ar-input ar-input-pw" placeholder="Enter your password" autocomplete="current-password" autocorrect="off" autocapitalize="off" spellcheck="false" />
                             <button type="button" class="ar-eye" onclick="togglePassword()" aria-label="Show password" title="Show password" id="eyeBtn">
                                 <i class="bi bi-eye" id="eyeIcon"></i>
                             </button>
@@ -104,8 +103,10 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
-        // Browser autofill is off on this form. "Remember me" keeps the e-mail (never the password) in this browser:
-        // the last one is filled in, and up to 5 remembered e-mails are offered as you type - nothing else is suggested.
+        // "Remember me": the app keeps the e-mail in this browser (the last one is filled in, up to 5 are offered as you
+        // type) and lets the browser's own password manager save the password - encrypted by the browser, never by the app.
+        // Not ticked: the e-mail is forgotten and the password is not offered to the password manager.
+        // Unticking: the remembered e-mail is forgotten at once and both boxes are cleared.
         (function () {
             const KEY = 'emr.rememberedEmails';
             const email = document.querySelector('#loginForm input[name="Email"]');
@@ -126,14 +127,34 @@
                 email.setAttribute('list', dl.id);
                 if (list.length && !email.value) { email.value = list[0]; if (remember) remember.checked = true; pw?.focus(); }
             }
-            document.getElementById('loginForm')?.addEventListener('submit', () => {
-                try {
-                    const v = email?.value.trim().toLowerCase();
-                    if (!v) return;
+            const save = () => { try { localStorage.setItem(KEY, JSON.stringify(list.slice(0, 5))); } catch { } };
+            remember?.addEventListener('change', () => {
+                if (remember.checked) return;
+                const v = email?.value.trim().toLowerCase();
+                if (v) { list = list.filter(e => e.toLowerCase() !== v); save(); }
+                document.getElementById('rememberedEmails')?.querySelectorAll('option').forEach(o => { if (o.value.toLowerCase() === v) o.remove(); });
+                if (email) email.value = '';
+                if (pw) pw.value = '';
+                email?.focus();
+            });
+            const form = document.getElementById('loginForm');
+            form?.addEventListener('submit', () => {
+                const $f = window.jQuery ? jQuery(form) : null;
+                if ($f && $f.valid && !$f.valid()) return;
+                const v = email?.value.trim().toLowerCase();
+                if (v) {
                     list = list.filter(e => e.toLowerCase() !== v);
                     if (remember?.checked) list.unshift(email.value.trim());
-                    localStorage.setItem(KEY, JSON.stringify(list.slice(0, 5)));
-                } catch { }
+                    save();
+                }
+                // not remembered: post the password from a hidden field and empty the password box, so the browser
+                // has no password to offer to save
+                if (pw && !remember?.checked) {
+                    const h = document.createElement('input');
+                    h.type = 'hidden'; h.name = pw.name; h.value = pw.value;
+                    form.appendChild(h);
+                    pw.removeAttribute('name'); pw.value = '';
+                }
             });
         })();
 
@@ -142,19 +163,12 @@
             b.disabled = true;
             b.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking with the licence server...';
         });
-        // The password box is a text box drawn with dots, so the browser does not offer saved passwords for it;
-        // a browser that cannot draw the dots gets a normal password box instead.
-        (function () {
-            const input = document.getElementById('passwordInput');
-            if (input && !(window.CSS && CSS.supports('-webkit-text-security', 'disc'))) { input.classList.remove('pw-masked'); input.type = 'password'; }
-        })();
         function togglePassword() {
             const input = document.getElementById('passwordInput');
             const icon  = document.getElementById('eyeIcon');
             const btn   = document.getElementById('eyeBtn');
-            const dotted = CSS.supports && CSS.supports('-webkit-text-security', 'disc');
-            const show  = dotted ? input.classList.contains('pw-masked') : input.type === 'password';
-            if (dotted) input.classList.toggle('pw-masked', !show); else input.type = show ? 'text' : 'password';
+            const show  = input.type === 'password';
+            input.type = show ? 'text' : 'password';
             icon.classList.replace(show ? 'bi-eye' : 'bi-eye-slash', show ? 'bi-eye-slash' : 'bi-eye');
             btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
             btn.title = show ? 'Hide password' : 'Show password';

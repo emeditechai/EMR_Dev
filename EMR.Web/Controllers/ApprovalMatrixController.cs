@@ -23,7 +23,7 @@ public class ApprovalMatrixController(IDbConnectionFactory db, IAuditLogService 
           FROM dbo.Users u
           JOIN dbo.UserRoles ur ON ur.UserId = u.Id AND ur.IsActive = 1
           JOIN dbo.Roles r      ON r.Id = ur.RoleId AND r.Name LIKE N'%Manager%'
-         WHERE u.IsActive = 1 AND u.CompanyId = @companyId AND ISNULL(u.User_Type, 'U') = 'U'
+         WHERE u.IsActive = 1 AND u.CompanyId = @companyId
            AND (@branchId IS NULL OR EXISTS (SELECT 1 FROM dbo.UserBranches ub
                                               WHERE ub.UserId = u.Id AND ub.BranchID = @branchId AND ub.IsActive = 1))
          GROUP BY u.Id, u.FullName, u.Username";
