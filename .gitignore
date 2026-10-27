@@ -60,3 +60,4 @@ __pycache__/
 EMR.Web/AiModels/**/*.onnx
 EMR.Web/AiModels/**/tokenizer.json
 EMR.Web/wwwroot/uploads/logos/hospital_logo_ec1e55fb0d4545b8973990b9e780e3b0.jpeg
+EMR.Web/wwwroot/Patient Membership Card Industry Practice and Lab Implementation Plan.docx

@@ -2478,6 +2478,7 @@ public class OPDController(
         CityId                = m.CityId,
         AreaId                = m.AreaId,
         Address               = m.Address?.Trim(),
+        Pincode               = string.IsNullOrWhiteSpace(m.Pincode) ? null : m.Pincode.Trim(),
         HomeCollectionAddress = m.HomeCollectionAddress?.Trim(),
         Latitude              = m.Latitude,
         Longitude             = m.Longitude,
@@ -2527,7 +2528,8 @@ public class OPDController(
             DistrictId            = p.DistrictId,
             CityId                = p.CityId,
             AreaId                = p.AreaId,
-            Address               = p.Address,
+            Address               = PatientAddress.Split(p.Address).Address,        // the PIN is edited in its own field
+            Pincode               = p.Pincode ?? PatientAddress.Split(p.Address).Pincode,
             HomeCollectionAddress = p.HomeCollectionAddress,
             Latitude              = p.Latitude,
             Longitude             = p.Longitude,

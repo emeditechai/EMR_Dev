@@ -14,15 +14,17 @@
  *   rowClass:  row => css class,
  *   afterLoad: (data, h) => void   optional: draws the page's own panel (#lrExtra) after each load
  *   params:    () => ({ key: value })   optional: extra query values sent with every load (e.g. a page tab)
+ *   startView: 'detail'   optional: the page opens on the Detail view instead of the Summary
  *   noDates:   true   optional: a snapshot "as on today" (master data); the date filters are hidden
  *   cols[].when / groups[].when: () => bool   optional: the column / group is shown only while it returns true
  *   expand:    { has: (row, data) => bool, html: (row, data, h) => html }   optional: rows open to show their lines
  *   exportExtra: (rows, data, h) => ({ sheet, title, head, rows })   optional: an extra Excel sheet / PDF page (Detail view)
  *   expandOpen: true   optional: with expand, every row starts open (its lines shown) after each load
  *   exportGrouped: (rows, data, h) => ({ head, left, sections: [{ title, bills: [{ cells, lines: [[...]], total: { label, values } }],
- *                  subtotal: { label, values } }], grand: { label, values } })   optional: Detail exports as a grouped register -
+ *                  subtotal: { label, values } }], grand: { label, values }, valueAt, right })   optional: Detail exports as a grouped register -
  *                section header rows, each bill's first `left` columns spanning its line rows, bill totals, subtotals and a
- *                grand total (values = the numeric columns at the end). Used instead of the plain Detail table.
+ *                grand total (values = the numeric columns at the end, or from column `valueAt`; `right` bill cells
+ *                given as b.after follow the line cells and span them too). Used instead of the plain Detail table.
  *   exportLines: (row, data, h) => [[...cells]]   optional: Detail exports write these line rows right under each row
  *                (one array per line, same columns as the export); PDF shows them indented and lighter
  * }
@@ -41,7 +43,8 @@ window.LabReport = (function () {
     const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 
     function init(cfg) {
-        let data = null, view = 'summary', drill = null, seq = 0;
+        let data = null, view = cfg.startView === 'detail' ? 'detail' : 'summary', drill = null, seq = 0;
+        if (view === 'detail') $('.btn-view').removeClass('active').filter('[data-view="detail"]').addClass('active');
         const allGroups = cfg.groups.filter(g => !g.adminOnly || cfg.seeAll);
         let groups = allGroups.filter(g => !g.when || g.when());
         const cols = () => cfg.cols.filter(c => !c.when || c.when());
@@ -213,19 +216,22 @@ window.LabReport = (function () {
         function groupedModel() {
             if (view !== 'detail' || !cfg.exportGrouped) return null;
             const g = cfg.exportGrouped(detailRows(), data, h);
-            const n = g.head.length, nv = (g.grand?.values || []).length;   // numeric columns at the end
+            const n = g.head.length, nv = (g.grand?.values || []).length;   // numeric columns (at the end, or from valueAt)
+            const right = g.right || 0, va = g.valueAt ?? n - nv;           // right: bill cells after the line cells (b.after)
             const out = [];   // { kind: 'section'|'line'|'total'|'subtotal'|'grand', cells, first, span }
             const totalRow = (kind, t) => ({ kind, cells: [t.label, ...t.values] });
             g.sections.forEach(s => {
                 out.push({ kind: 'section', cells: [s.title] });
                 s.bills.forEach(b => {
-                    b.lines.forEach((l, i) => out.push({ kind: 'line', first: i === 0, span: b.lines.length, cells: i === 0 ? [...b.cells, ...l] : [...b.cells.map(() => ''), ...l] }));
+                    const after = b.after || [];
+                    b.lines.forEach((l, i) => out.push({ kind: 'line', first: i === 0, span: b.lines.length,
+                        cells: i === 0 ? [...b.cells, ...l, ...after] : [...b.cells.map(() => ''), ...l, ...after.map(() => '')] }));
                     if (b.total) out.push(totalRow('total', b.total));
                 });
                 if (s.subtotal) out.push(totalRow('subtotal', s.subtotal));
             });
             if (g.grand) out.push(totalRow('grand', g.grand));
-            return { head: g.head, n, nv, left: g.left, out };
+            return { head: g.head, n, nv, va, right, left: g.left, out };
         }
         function groupedSheet(m) {
             const aoa = [m.head], merges = [];
@@ -234,13 +240,13 @@ window.LabReport = (function () {
                 if (r.kind === 'section') { aoa.push([r.cells[0], ...Array(m.n - 1).fill('')]); merges.push({ s: { r: ri, c: 0 }, e: { r: ri, c: m.n - 1 } }); }
                 else if (r.kind === 'line') {
                     aoa.push(r.cells);
-                    if (r.first && r.span > 1) for (let c = 0; c < m.left; c++) merges.push({ s: { r: ri, c }, e: { r: ri + r.span - 1, c } });
+                    if (r.first && r.span > 1) for (let c = 0; c < m.n; c++) if (c < m.left || c >= m.n - m.right) merges.push({ s: { r: ri, c }, e: { r: ri + r.span - 1, c } });
                 } else {
-                    aoa.push([...Array(m.n - m.nv - 1).fill(''), r.cells[0], ...r.cells.slice(1)]);
+                    aoa.push([...Array(m.va - 1).fill(''), r.cells[0], ...r.cells.slice(1), ...Array(m.n - m.va - m.nv).fill('')]);
                 }
             });
             const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!merges'] = merges;
-            ws['!cols'] = m.head.map((x, i) => ({ wch: i === 0 ? 5 : i >= m.n - m.nv ? 13 : 28 }));
+            ws['!cols'] = m.head.map((x, i) => ({ wch: i === 0 ? 5 : i >= m.va && i < m.va + m.nv ? 13 : 28 }));
             return ws;
         }
         function groupedPdfBody(m) {
@@ -250,13 +256,15 @@ window.LabReport = (function () {
             return m.out.map(r => {
                 if (r.kind === 'section') return [{ content: r.cells[0], colSpan: m.n, styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [15, 23, 42] } }];
                 if (r.kind === 'line') {
-                    const cells = r.cells.map((v, c) => ({ content: money(v), styles: c >= m.n - m.nv ? num : {} }));
-                    if (r.first) { for (let c = 0; c < m.left; c++) cells[c].rowSpan = r.span; return cells; }
-                    return cells.slice(m.left);   // the spanning cells of the bill cover these rows
+                    const cells = r.cells.map((v, c) => ({ content: money(v), styles: c >= m.va && c < m.va + m.nv ? num : {} }));
+                    if (r.first) { cells.forEach((x, c) => { if (c < m.left || c >= m.n - m.right) x.rowSpan = r.span; }); return cells; }
+                    return cells.slice(m.left, m.n - m.right);   // the spanning cells of the bill cover these rows
                 }
                 const style = r.kind === 'grand' ? { fontStyle: 'bold', fillColor: [226, 232, 240] } : r.kind === 'subtotal' ? { fontStyle: 'bold' } : { textColor: [71, 85, 105], fillColor: [248, 250, 252] };
-                return [{ content: r.cells[0], colSpan: m.n - m.nv, styles: { ...style, halign: 'right' } },
-                        ...r.cells.slice(1).map(v => ({ content: money(v), styles: { ...style, halign: 'right' } }))];
+                const tail = m.n - m.va - m.nv;
+                return [{ content: r.cells[0], colSpan: m.va, styles: { ...style, halign: 'right' } },
+                        ...r.cells.slice(1).map(v => ({ content: money(v), styles: { ...style, halign: 'right' } })),
+                        ...(tail > 0 ? [{ content: '', colSpan: tail, styles: style }] : [])];
             });
         }
         const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_` + (cfg.noDates ? iso(new Date()) : `${$('#lrFrom').val()}_to_${$('#lrTo').val()}`);
@@ -275,7 +283,7 @@ window.LabReport = (function () {
             doc.setFontSize(13); doc.text(cfg.title, 40, 36);
             doc.setFontSize(9); doc.text(`${cfg.branchName ? 'Branch: ' + cfg.branchName + '   ' : ''}${cfg.noDates ? '' : 'Period: '}${$('#lrRange').text()}   View: ${view === 'summary' ? 'Summary by ' + groupDef().label : 'Detail'}`, 40, 52);
             const lines = new Set(t.lineRows || []), hasLines = lines.size > 0;
-            if (gm) doc.autoTable({ startY: 62, head: [gm.head.map((x, i) => ({ content: String(x).replace(/₹/g, 'Rs.'), styles: i >= gm.n - gm.nv ? { halign: 'right' } : {} }))], body: groupedPdfBody(gm),
+            if (gm) doc.autoTable({ startY: 62, head: [gm.head.map((x, i) => ({ content: String(x).replace(/₹/g, 'Rs.'), styles: i >= gm.va && i < gm.va + gm.nv ? { halign: 'right' } : {} }))], body: groupedPdfBody(gm),
                                     theme: 'grid', styles: { fontSize: 7.5, cellPadding: 4, valign: 'top', lineColor: [226, 232, 240], lineWidth: 0.5 },
                                     headStyles: { fillColor: [36, 59, 97], textColor: 255, fontStyle: 'bold' } });
             else doc.autoTable({ startY: 62, head: [t.head], body: t.rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(2) : String(v ?? ''))),

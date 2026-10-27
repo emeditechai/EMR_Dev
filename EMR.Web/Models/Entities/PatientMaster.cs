@@ -49,6 +49,8 @@ public class PatientMaster
 
     [MaxLength(500)]
     public string? Address { get; set; }
+    /// <summary>6-digit PIN of the address (also kept at the end of Address - SQLScripts/2339).</summary>
+    public string? Pincode { get; set; }
 
     [MaxLength(500)]
     public string? HomeCollectionAddress { get; set; }

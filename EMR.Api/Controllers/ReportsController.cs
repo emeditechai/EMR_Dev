@@ -114,6 +114,8 @@ public class ReportsController : ControllerBase
             ["membership-points"]   = ("dbo.usp_Api_LabReport_MembershipPoints",   new[] { "TxnType" },                            new[] { "PlanId", "CreatedBy" }),
             // B2B partner-account reports: branch-wide, not limited to the user's own records (SQLScripts/2125)
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
+            // B2B Billing Report: the same bills and filters, shown bill-wise with every test (SQLScripts/2340)
+            ["b2b-billing-report"]  = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
             ["franchise-wallet"]    = ("dbo.usp_Api_LabReport_FranchiseWallet",    new[] { "TransactionType" },                     new[] { "FranchiseId" }),
             ["b2b-outstanding"]     = ("dbo.usp_Api_LabReport_B2BOutstanding",     new[] { "PartnerType", "AgeBucket" },            Array.Empty<string>()),
             // Sample stage: LR-10 / LR-11 / LR-12 (SQLScripts/2183)

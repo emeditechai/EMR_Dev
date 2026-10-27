@@ -17,6 +17,9 @@
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="~/lib/leaflet/dist/leaflet.css" />
     <style>
+        /* patient grid: title select sits inside the First Name field at a fixed width */
+        .pt-row .pt-title { flex: 0 0 88px; max-width: 88px; padding-left: .55rem; padding-right: 1.6rem; background-position: right .45rem center; }
+        .pt-row .form-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #leafletMapContainer {
             height: 380px;
             width: 100%;
@@ -268,9 +271,9 @@
         <div id="secDemography" class="collapse show">
         <div class="reg-section-body">
 
-            @* ── Row 1: Phone Number* | Relation* | Profile Picture ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-4 position-relative">
+            @* ── Patient grid: four equal columns per row (field order unchanged); wide items take half ── *@
+            <div class="row g-3 mb-3 pt-row">
+                <div class="col-12 col-sm-6 col-lg-3 position-relative">
                     <label asp-for="PhoneNumber" class="form-label fw-semibold small">
                         Phone Number <span class="text-danger">*</span>
                     </label>
@@ -284,9 +287,9 @@
                     <div id="phoneError" class="text-danger small" style="display:none"></div>
                     <div id="phoneSearchDropdown"
                          class="list-group position-absolute shadow"
-                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
+                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;min-width:min(440px,92vw);"></div>
                 </div>
-                <div class="col-12 col-sm-6 col-md-4">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="RelationId" class="form-label fw-semibold small">
                         Relation <span class="text-danger">*</span>
                     </label>
@@ -296,7 +299,7 @@
                     </select>
                     <span asp-validation-for="RelationId" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-12 col-md-4">
+                <div class="col-12 col-lg-6">
                     <label class="form-label fw-semibold small">
                         Profile Picture
                         <span class="text-muted fw-normal">(JPG / PNG / GIF)</span>
@@ -320,11 +323,13 @@
                 </div>
             </div>
 
-            @* ── Row 2: Title | First Name | Middle Name | Last Name ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-4 col-sm-3 col-md-1">
-                    <label asp-for="Salutation" class="form-label fw-semibold small">Title</label>
-                    <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic px-1">
+            <div class="row g-3 mb-3 pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="FirstName" class="form-label fw-semibold small">
+                        First Name <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <select asp-for="Salutation" id="ddlSalutation" class="form-select pt-title">
                         <option value="">--</option>
                         <option value="Mr.">Mr.</option>
                         <option value="Mrs.">Mrs.</option>
@@ -332,30 +337,22 @@
                         <option value="Ms.">Ms.</option>
                         <option value="Dr.">Dr.</option>
                     </select>
-                </div>
-                <div class="col-8 col-sm-9 col-md-4">
-                    <label asp-for="FirstName" class="form-label fw-semibold small">
-                        First Name <span class="text-danger">*</span>
-                    </label>
-                    <input asp-for="FirstName" class="form-control text-capitalize" maxlength="100" placeholder="Enter first name" style="text-transform: capitalize;" />
+                        <input asp-for="FirstName" class="form-control text-capitalize" maxlength="100" placeholder="Enter first name" style="text-transform: capitalize;" />
+                    </div>
                     <span asp-validation-for="FirstName" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
                     <input asp-for="MiddleName" class="form-control text-capitalize" maxlength="100" placeholder="Optional" style="text-transform: capitalize;" />
                 </div>
-                <div class="col-12 col-sm-6 col-md-4">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="LastName" class="form-label fw-semibold small">
                         Last Name <span class="text-danger">*</span>
                     </label>
                     <input asp-for="LastName" class="form-control text-capitalize" maxlength="100" placeholder="Enter last name" style="text-transform: capitalize;" />
                     <span asp-validation-for="LastName" class="text-danger small"></span>
                 </div>
-            </div>
-
-            @* ── Row 2: Secondary Number | Email | Gender | Date of Birth | Age ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-2">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
@@ -364,7 +361,10 @@
                     </div>
                     <span asp-validation-for="SecondaryPhoneNumber" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-6 col-md-2">
+            </div>
+
+            <div class="row g-3 mb-3 pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="EmailId" class="form-label fw-semibold small">Email ID</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-envelope text-secondary"></i></span>
@@ -372,7 +372,7 @@
                     </div>
                     <span asp-validation-for="EmailId" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-4 col-md-2">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="Gender" class="form-label fw-semibold small">
                         Gender <span class="text-danger">*</span>
                     </label>
@@ -384,29 +384,29 @@
                     </select>
                     <span asp-validation-for="Gender" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-4 col-md-2">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
                     <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
                            max="@DateTime.Today.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-8 col-md-4">
-                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span></label>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span> <span class="text-muted fw-normal">(Years / Months / Days)</span></label>
                     <div class="d-flex gap-1 align-items-center">
                         <div class="input-group flex-fill" style="min-width: 0;">
                             <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
                                    min="0" max="110" placeholder="00" title="Years (0-110)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Year</span>
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Years">Y</span>
                         </div>
                         <div class="input-group flex-fill" style="min-width: 0;">
                             <input asp-for="AgeMonths" type="number" id="AgeMonths" class="form-control px-2 text-center"
                                    min="0" max="12" placeholder="00" title="Months (Max 12)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Month</span>
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Months">M</span>
                         </div>
                         <div class="input-group flex-fill" style="min-width: 0;">
                             <input asp-for="AgeDays" type="number" id="AgeDays" class="form-control px-2 text-center"
                                    min="0" max="30" placeholder="00" title="Days (Max 30)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Days</span>
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Days">D</span>
                         </div>
                     </div>
                     <div id="ageValidationFeedback" class="text-danger small mt-1 d-none"></div>
@@ -416,16 +416,15 @@
                 </div>
             </div>
 
-            @* ── Row 3: Religion | Blood Group | Guardian / Relative Name ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-3">
+            <div class="row g-3 mb-3 pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="ReligionId" class="form-label fw-semibold small">Religion</label>
                     <select asp-for="ReligionId" id="ddlReligion" class="form-select s2-search"
                             asp-items="Model.ReligionOptions">
                         <option value="">-- Select Religion --</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
                     <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
                         <option value="">-- Select --</option>
@@ -440,15 +439,14 @@
                         <option value="Unknown">Unknown</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-12 col-md-6">
+                <div class="col-12 col-lg-6">
                     <label asp-for="GuardianName" class="form-label fw-semibold small">Guardian / Relative Name</label>
                     <input asp-for="GuardianName" class="form-control" maxlength="200" placeholder="Optional" />
                 </div>
             </div>
 
-            @* ── Row 4: Address — Country | State | District | City | Area ── *@
-            <div class="row g-3 mb-1">
-                <div class="col-12 col-sm-6 col-md-3">
+            <div class="row g-3 mb-3 pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="CountryId" class="form-label fw-semibold small" id="lblCountry">
                         Country <span id="reqCountry" class="text-danger" style="@(Model.CollectionType == "Home Collection" ? "" : "display:none;")">*</span>
                     </label>
@@ -457,7 +455,7 @@
                         <option value="">-- Select Country --</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-6 col-md-3">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="StateId" class="form-label fw-semibold small" id="lblState">
                         State <span id="reqState" class="text-danger" style="@(Model.CollectionType == "Home Collection" ? "" : "display:none;")">*</span>
                     </label>
@@ -466,35 +464,41 @@
                         <option value="">-- Select State --</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-4 col-md-2">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="DistrictId" class="form-label fw-semibold small" id="lblDistrict">District</label>
                     <select asp-for="DistrictId" id="ddlDistrict" class="form-select s2-search"
                             asp-items="Model.DistrictOptions">
                         <option value="">-- Select District --</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-4 col-md-2">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="CityId" class="form-label fw-semibold small">City</label>
                     <select asp-for="CityId" id="ddlCity" class="form-select s2-search"
                             asp-items="Model.CityOptions">
                         <option value="">-- Select City --</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-4 col-md-2">
+            </div>
+
+            @* Area | Address | Pincode (saved with the address as ", PIN: nnnnnn") *@
+            <div class="row g-3 mb-3 pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="AreaId" class="form-label fw-semibold small">Area</label>
                     <select asp-for="AreaId" id="ddlArea" class="form-select s2-search"
                             asp-items="Model.AreaOptions">
                         <option value="">-- Select Area --</option>
                     </select>
                 </div>
-            </div>
-
-            @* ── Row 5: Address ── *@
-            <div class="row g-3 mb-1">
-                <div class="col-12">
+                <div class="col-12 col-lg-6">
                     <label asp-for="Address" class="form-label fw-semibold small">Address</label>
                     <input asp-for="Address" id="Address" class="form-control" maxlength="500"
                            placeholder="Enter full address (optional)" autocomplete="off" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="Pincode" class="form-label fw-semibold small">Pincode</label>
+                    <input asp-for="Pincode" id="Pincode" class="form-control" maxlength="6" inputmode="numeric" pattern="[0-9]{6}"
+                           placeholder="6-digit PIN" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)" />
+                    <span asp-validation-for="Pincode" class="text-danger small"></span>
                 </div>
             </div>
 
@@ -549,19 +553,19 @@
                     Identification Details <span class="fw-normal">(Optional)</span>
                 </p>
                 <div class="row g-3">
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-lg-3">
                         <label asp-for="IdentificationTypeId" class="form-label fw-semibold small">ID Type</label>
                         <select asp-for="IdentificationTypeId" id="ddlIdType" class="form-select s2-search"
                                 asp-items="Model.IdentificationTypeOptions">
                             <option value="">-- Select ID Type --</option>
                         </select>
                     </div>
-                    <div class="col-12 col-sm-6 col-md-4">
+                    <div class="col-12 col-sm-6 col-lg-3">
                         <label asp-for="IdentificationNumber" class="form-label fw-semibold small">ID Number</label>
                         <input asp-for="IdentificationNumber" class="form-control" maxlength="100"
                                placeholder="Enter identification number" />
                     </div>
-                    <div class="col-12 col-md-5">
+                    <div class="col-12 col-lg-6">
                         <label class="form-label fw-semibold small">
                             Upload ID Document
                             <span class="text-muted fw-normal">(PDF / JPG / JPEG / PNG)</span>
@@ -2389,6 +2393,7 @@
                 'ddlCity',
                 'ddlArea',
                 'Address',
+                'Pincode',
                 'HomeCollectionAddress',
                 'ddlIdType',
                 'IdentificationNumber',
@@ -3166,7 +3171,12 @@
                 }
             }
             // If address is empty but homeCollectionAddress has value, fallback to it for display
-            document.getElementById('Address').value = p.address || p.homeCollectionAddress || '';
+            // the saved address ends with ", PIN: nnnnnn" (2339): the PIN goes to its own box
+            const pinMatch = /\s*,?\s*PIN\s*:\s*(\d{6})\s*$/i;
+            const splitPin = a => { a = a || ''; const m = a.match(pinMatch); return m ? { addr: a.slice(0, m.index).trim().replace(/,$/, '').trim(), pin: m[1] } : { addr: a, pin: '' }; };
+            const addrParts = splitPin(p.address || p.homeCollectionAddress || '');
+            document.getElementById('Address').value = addrParts.addr;
+            document.getElementById('Pincode').value = p.pincode || addrParts.pin;
             const homeAddrEl = document.getElementById('HomeCollectionAddress');
             if (homeAddrEl) {
                 homeAddrEl.value = p.homeCollectionAddress || p.address || '';

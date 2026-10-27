@@ -127,7 +127,8 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
-                    model.Address = patient.Address;
+                    model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
+                    model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
                     model.Latitude = patient.Latitude;
                     model.Longitude = patient.Longitude;
@@ -345,6 +346,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -818,7 +820,8 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
-                    model.Address = patient.Address;
+                    model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
+                    model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
                     model.Latitude = patient.Latitude;
                     model.Longitude = patient.Longitude;
@@ -1006,6 +1009,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -1339,6 +1343,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,

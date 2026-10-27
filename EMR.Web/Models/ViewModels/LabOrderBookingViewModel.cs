@@ -97,6 +97,10 @@ namespace EMR.Web.Models.ViewModels
         [Display(Name = "Address")]
         public string? Address { get; set; }
 
+        [RegularExpression(@"^\d{6}$", ErrorMessage = "Pincode must be 6 digits.")]
+        [Display(Name = "Pincode")]
+        public string? Pincode { get; set; }
+
         [MaxLength(500)]
         [Display(Name = "Home Collection Address")]
         public string? HomeCollectionAddress { get; set; }

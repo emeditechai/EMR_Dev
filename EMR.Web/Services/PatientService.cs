@@ -256,6 +256,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
         p.Add("@TokenNo",         dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
 
         await con.ExecuteAsync("dbo.usp_Patient_Create", p, commandType: CommandType.StoredProcedure);
+        await SavePincodeAsync(con, p.Get<int>("@NewPatientId"), patient.Pincode);
 
         return (
             p.Get<string>("@PatientCode"),
@@ -292,6 +293,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
         p.Add("@TokenNo",         dbType: DbType.String, size: 20, direction: ParameterDirection.Output);
 
         await con.ExecuteAsync("dbo.usp_Patient_Update", p, commandType: CommandType.StoredProcedure);
+        await SavePincodeAsync(con, patient.PatientId, patient.Pincode);
 
         return (
             p.Get<string>("@OPDBillNo"),
@@ -299,6 +301,12 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
             p.Get<int>("@NewOPDServiceId")
         );
     }
+
+    // the 6-digit PIN of the address (SQLScripts/2339); the save procedures keep their parameters
+    private static Task SavePincodeAsync(IDbConnection con, int patientId, string? pincode)
+        => patientId <= 0 ? Task.CompletedTask
+            : con.ExecuteAsync("UPDATE dbo.PatientMaster SET Pincode = @Pin WHERE PatientId = @Id",
+                new { Pin = string.IsNullOrWhiteSpace(pincode) ? null : pincode.Trim(), Id = patientId });
 
     // ─── Shared parameter builder ─────────────────────────────────────────────
 
@@ -322,6 +330,8 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
         p.Add("@DistrictId",             patient.DistrictId);
         p.Add("@CityId",                 patient.CityId);
         p.Add("@AreaId",                 patient.AreaId);
+        patient.Address = PatientAddress.Compose(patient.Address, patient.Pincode);   // ", PIN: nnnnnn" (2339)
+        patient.Pincode = PatientAddress.Split(patient.Address).Pincode;              // the column follows the saved address
         p.Add("@Address",                patient.Address);
         p.Add("@HomeCollectionAddress",  patient.HomeCollectionAddress);
         p.Add("@Latitude",               patient.Latitude);
@@ -370,6 +380,8 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
         await KeepIdentificationAsync(con, patient);
         patient.ModifiedBy   = userId;
         patient.ModifiedDate = DateTime.Now;
+        patient.Address      = PatientAddress.Compose(patient.Address, patient.Pincode);   // ", PIN: nnnnnn" (2339)
+        patient.Pincode      = PatientAddress.Split(patient.Address).Pincode;
         await con.ExecuteAsync(@"
             UPDATE PatientMaster SET
                 PhoneNumber            = @PhoneNumber,
@@ -389,6 +401,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
                 CityId                 = @CityId,
                 AreaId                 = @AreaId,
                 Address                = @Address,
+                Pincode                = @Pincode,
                 HomeCollectionAddress  = @HomeCollectionAddress,
                 Latitude               = @Latitude,
                 Longitude              = @Longitude,
@@ -424,6 +437,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
         p.Add("@NewPatientId", dbType: DbType.Int32, direction: ParameterDirection.Output);
 
         await con.ExecuteAsync("dbo.usp_PatientMaster_Insert", p, commandType: CommandType.StoredProcedure);
+        await SavePincodeAsync(con, p.Get<int>("@NewPatientId"), patient.Pincode);
         
         return p.Get<int>("@NewPatientId");
     }
