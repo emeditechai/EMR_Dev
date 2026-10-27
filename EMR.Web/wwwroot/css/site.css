@@ -424,8 +424,21 @@ body {
 
 /* ── Auth / Login Page ─────────────────────────────────────────── */
 .auth-body {
-  background: linear-gradient(rgba(50, 20, 70, 0.72), rgba(50, 20, 70, 0.72)),
-              url('/Images/login-bg.jpg') center/cover no-repeat;
+  background: #2b1a40;   /* only while the images load; the images are shown in their own colours (no tint) */
+}
+/* sign-in background slideshow (_AuthLayout: login-bg, login-bg-2, login-bg-3) */
+.auth-slides { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.auth-slide {
+  position: absolute; inset: 0;
+  background-position: center; background-size: cover; background-repeat: no-repeat;
+  opacity: 0; transform: scale(1.04);
+  transition: opacity 1.6s ease-in-out, transform 8.6s ease-out;
+}
+.auth-slide.on { opacity: 1; transform: scale(1); }
+.auth-body .auth-main { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .auth-slide { transition: opacity 1.2s ease-in-out; transform: none; }
+  .auth-slide.on { transform: none; }
 }
 
 .auth-main {
@@ -810,6 +823,13 @@ body {
   font-size: 0.8rem; color: #8c86a3;
 }
 .auth-login .ar-secure i { color: #ca2e6d; }
+/* login card footer: developer credit */
+.auth-login .ar-credit {
+  display: flex; align-items: baseline; justify-content: center; flex-wrap: wrap; gap: 0.35rem;
+  margin-top: 0.6rem; font-size: 0.74rem; line-height: 1.3; text-align: center;
+}
+.auth-login .ar-credit-label { color: #8c86a3; letter-spacing: 0.02em; }
+.auth-login .ar-credit-name { font-weight: 700; letter-spacing: 0.03em; color: #644098; }
 .auth-login .ar-link { font-size: 0.8rem; color: #644098; }
 .auth-login .ar-link:hover { color: #a8407a; }
 .auth-login .ar-link-strong { font-size: 0.86rem; font-weight: 600; color: #644098; text-decoration: none; }
