@@ -1,5 +1,5 @@
 -- ============================================================================
--- Migration: 2323_lab_investigation_has_external_document.sql
+-- Migration: 2352_lab_investigation_has_external_document.sql
 -- Investigation Master: "Has External Document" toggle (default No).
 --   LabInvestigationMaster.Has_External_Document  BIT NOT NULL DEFAULT 0
 -- Create / Update take it (@Has_External_Document, default 0); GetById and
