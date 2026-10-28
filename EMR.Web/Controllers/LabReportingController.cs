@@ -1013,9 +1013,15 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetOrderWorkflowJson(int labOrderId)
         {
             if (labOrderId <= 0) return Json(new { success = false, message = "Valid LabOrderId is required." });
+            return Json(await BuildOrderWorkflowAsync(dbContext.Database.GetDbConnection(), labOrderId));
+        }
+
+        /// <summary>The bill's workflow (the object GetOrderWorkflowJson returns); also shown to the patient on the
+        /// Patient Portal (PatientPortalController.LabWorkflow), without staff names.</summary>
+        internal static async Task<object> BuildOrderWorkflowAsync(System.Data.Common.DbConnection con, int labOrderId)
+        {
             try
             {
-                var con = dbContext.Database.GetDbConnection();
                 using var multi = await Dapper.SqlMapper.QueryMultipleAsync(con, @"
                     SELECT lo.OrderDate, CAST(ISNULL(lo.IsB2B, 0) AS BIT) AS IsB2B, CAST(ISNULL(lo.IsActive, 1) AS BIT) AS IsActive,
                            (SELECT COALESCE(NULLIF(u.FullName, ''), u.Username) FROM dbo.Users u WHERE u.Id = lo.CreatedBy) AS BookedBy,
@@ -1093,7 +1099,7 @@ namespace EMR.Web.Controllers
                      ORDER BY 1;", new { labOrderId });
 
                 var f = await multi.ReadFirstOrDefaultAsync<WorkflowFacts>();
-                if (f is null) return Json(new { success = false, message = "Order not found." });
+                if (f is null) return (object)(new { success = false, message = "Order not found." });
                 var acts = (await multi.ReadAsync<(string ActionName, DateTime CreatedDate, string? UserName, string? Description)>()).ToList();
                 (DateTime? At, string? By) Last(params string[] names)
                 {
@@ -1262,7 +1268,7 @@ namespace EMR.Web.Controllers
                          cx.ActionName is null ? null : cx.CreatedDate, cx.UserName);
                 }
 
-                return Json(new
+                return (object)(new
                 {
                     success = true, cancelled = !f.IsActive, steps,
                     rework = rework.Select(r => new { at = r.At.ToString("dd MMM yyyy, hh:mm tt"), kind = r.Kind, title = r.Title, detail = r.Detail, by = r.By })
@@ -1270,7 +1276,7 @@ namespace EMR.Web.Controllers
             }
             catch (Exception)
             {
-                return Json(new { success = false, message = "The workflow could not be loaded." });
+                return (object)(new { success = false, message = "The workflow could not be loaded." });
             }
         }
 

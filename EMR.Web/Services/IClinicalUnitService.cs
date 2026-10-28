@@ -9,7 +9,7 @@ public interface IClinicalUnitService
     Task<IEnumerable<ClinicalUnitListItemViewModel>> GetAllAsync(int? departmentId = null, int? specialityId = null);
     Task<ClinicalUnitMaster?> GetByIdAsync(int id);
     Task<ClinicalUnitDetailsViewModel?> GetDetailsByIdAsync(int id);
-    Task<bool> CodeExistsAsync(string code, int? excludeId = null);
+    Task<bool> CodeExistsAsync(string code, int? excludeId = null, int? companyId = null);
     Task<int> CreateAsync(ClinicalUnitMaster model, int? userId);
     Task UpdateAsync(ClinicalUnitMaster model, int? userId);
     Task<bool> DeleteAsync(int id);

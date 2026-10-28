@@ -1,0 +1,23 @@
+@using EMR.Web.Services
+@model List<PhInvDocRow>
+@{
+    ViewData["Title"] = "Branch Indent & Transfer";
+    string dir = ViewBag.Dir; string? status = ViewBag.Status;
+    var stats = new List<KeyValuePair<string, int>> { new("To send", Model.Count(m => m.Direction == "OUT" && m.Status == "REQUESTED")), new("To receive", Model.Count(m => m.Direction == "IN" && m.Status == "DISPATCHED")), new("In transit", Model.Count(m => m.Status == "DISPATCHED")) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Branch Indent & Transfer", "bi-arrow-left-right", "A branch asks another for stock; the sending branch sends batches (in transit); the receiving branch accepts, recording any shortage. Moved at cost.", null, null, Stats: stats, Section: "Pharmacy", Group: "Inventory"))" />
+<div class="card shadow-sm border-0">
+    <form method="get" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <select name="dir" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">@foreach (var (v, t) in new[] { ("ALL", "In and out"), ("IN", "Asked by this branch (in)"), ("OUT", "Asked of this branch (out)") }) { <option value="@v" selected="@(v == dir)">@t</option> }</select>
+        <select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">All statuses</option>@foreach (var (v, t) in new[] { ("DRAFT", "Draft"), ("REQUESTED", "Requested"), ("DISPATCHED", "In transit"), ("RECEIVED", "Received"), ("CANCELLED", "Cancelled") }) { <option value="@v" selected="@(v == status)">@t</option> }</select>
+        <a asp-action="Form" asp-permission="PHARMACY.TRANSFER:REQUEST" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-plus-circle me-1"></i>New branch indent</a>
+    </form>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable">
+        <thead><tr><th>#</th><th>Number</th><th>Date</th><th>Direction</th><th>Other branch</th><th class="text-end">Items</th><th class="text-end">Value (cost)</th><th>By</th><th>Status</th></tr></thead>
+        <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
+            <tr onclick="location.href='@Url.Action("Form", new { id = r.Id })'"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@(r.DocNo ?? "Draft #" + r.Id)</td><td class="small">@r.DocDate.ToString("dd-MMM HH:mm")</td>
+                <td>@Html.Raw(r.Direction == "IN" ? "<span class=\"badge bg-success-subtle text-success border\">In ←</span>" : "<span class=\"badge bg-primary-subtle text-primary border\">Out →</span>")</td><td>@r.Party</td><td class="text-end">@r.Lines</td><td class="text-end">@r.Value.ToString("N2")</td><td class="small">@r.CreatedByName</td><td><partial name="_InvStatus" model="r.Status" /></td></tr> }</tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No indents.</div> }</div>
+</div>

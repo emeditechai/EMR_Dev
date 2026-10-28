@@ -46,6 +46,9 @@ public class UsersController(
     /// <summary>False when the user belongs only to branches this login may not see (see <see cref="VisibleBranchIdsAsync"/>).</summary>
     private async Task<bool> MaySeeUserAsync(int userId)
     {
+        // a user of another company is never managed from here (a super admin may manage any company's users)
+        if (!User.IsSuperAdmin() && !await dbContext.Users.AnyAsync(u => u.Id == userId && u.CompanyId == User.GetCompanyId()))
+            return false;
         if (await VisibleBranchIdsAsync() is not { } ids) return true;
         return await dbContext.UserBranches.AnyAsync(ub => ub.UserId == userId && ub.IsActive && ids.Contains(ub.BranchId));
     }
@@ -315,6 +318,7 @@ public class UsersController(
 
         await ValidateEmployeeCodeUniquenessAsync(model);
         await ValidateContactUniquenessAsync(model, User.GetCompanyId(), null, null);
+        await ValidateBranchesOfCompanyAsync(model);
         await ValidateReportsToAsync(model, User.GetCompanyId());
         ValidateProfilePicture(model);
         await ValidateSignatureAsync(model);
@@ -558,6 +562,7 @@ public class UsersController(
         await ValidateEmployeeCodeUniquenessAsync(model);
         // e-mail / phone: checked when changed (existing records may already share them); a linked login keeps its own
         await ValidateContactUniquenessAsync(model, user.CompanyId ?? User.GetCompanyId(), user.Email, user.PhoneNumber);
+        await ValidateBranchesOfCompanyAsync(model);
         await ValidateReportsToAsync(model, user.CompanyId ?? User.GetCompanyId());
         ValidateProfilePicture(model);
         await ValidateSignatureAsync(model);
@@ -878,8 +883,10 @@ public class UsersController(
                 u.Id.ToString(), u.Id == model.ReportsToUserId))
             .ToList();
 
+        // Branch Access: only the branches of the user's company (the company of the user being edited, else the signed-in company)
+        var branchCompanyId = await UserCompanyIdAsync(model.Id);
         var branches = await dbContext.BranchMasters
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && x.CompanyId == branchCompanyId)
             .OrderBy(x => x.BranchName)
             .Select(x => new { x.BranchId, x.BranchName, x.BranchCode })
             .ToListAsync();
@@ -946,9 +953,9 @@ public class UsersController(
                 .ToList();
         }
 
-        // Shift Slot options for Pathologist
+        // Shift Slot options for Pathologist: the Shift Master of the user's company
         var shifts = await dbContext.ShiftMasters
-            .Where(s => s.Status)
+            .Where(s => s.Status && s.CompanyId == branchCompanyId)
             .OrderBy(s => s.ShiftName)
             .ToListAsync();
 
@@ -967,24 +974,15 @@ public class UsersController(
                 model.LabTechnicianShiftSlotId.HasValue && s.ShiftMaster_ID == model.LabTechnicianShiftSlotId.Value))
             .ToList();
 
-        // Standard LAB related Analyzers
-        var standardAnalyzers = new[]
-        {
-            "Fully Automated Biochemistry Analyzer (Roche Cobas / Beckman Coulter AU)",
-            "Semi-Automated Biochemistry Analyzer (Erba / Mindray)",
-            "5-Part Differential Hematology Analyzer (Sysmex XN / Mindray BC-6000)",
-            "3-Part Hematology Cell Counter (Mindray BC-3000 / Nihon Kohden)",
-            "Automated Immunoassay & Chemiluminescence (CLIA) Analyzer (Abbott Architect / Roche Elecsys)",
-            "Arterial Blood Gas (ABG) & Electrolyte Analyzer (Radiometer ABL / Nova Biomedical)",
-            "Automated Coagulation Analyzer (Stago STA Compact / Sysmex CS)",
-            "Automated Urine Chemistry & Sediment Analyzer (Dirui / Sysmex UC)",
-            "Molecular Diagnostics & Real-Time PCR (Bio-Rad CFX / GeneXpert)",
-            "ELISA Microplate Reader & Automated Washer",
-            "Microbiology Automated Microbial Identification & AST (bioMérieux VITEK 2 / BD Phoenix)",
-            "High Performance Liquid Chromatography (HPLC) HbA1c Analyzer"
-        };
-
-        model.LabAnalyzerOptions = standardAnalyzers
+        // Analyzers: the active Analyzer Master of the user's company; the analyzer already saved on the user stays listed
+        var analyzers = await dbContext.Database
+            .SqlQuery<string>($"SELECT Analyzer_Name AS Value FROM dbo.tbl_mst_analyzer WHERE CompanyId = {branchCompanyId} AND ISNULL(IsDeleted, 0) = 0 AND ISNULL(Status, 0) = 1")
+            .ToListAsync();
+        if (!string.IsNullOrWhiteSpace(model.AnalyzerTrainedOn)
+            && !analyzers.Any(a => string.Equals(a, model.AnalyzerTrainedOn, StringComparison.OrdinalIgnoreCase)))
+            analyzers.Add(model.AnalyzerTrainedOn);
+        model.LabAnalyzerOptions = analyzers
+            .OrderBy(a => a)
             .Select(a => new SelectListItem(a, a, !string.IsNullOrWhiteSpace(model.AnalyzerTrainedOn) && string.Equals(model.AnalyzerTrainedOn, a, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
@@ -1034,6 +1032,26 @@ public class UsersController(
     private static void NormalizeBranchRoles(UserFormViewModel model)
     {
         model.SelectedRoleIds = ParseBranchRoles(model).Select(p => p.RoleId).Distinct().ToList();
+    }
+
+    /// <summary>The company a user form works in: the edited user's company, or the signed-in company for a new user.</summary>
+    private async Task<int> UserCompanyIdAsync(int userId)
+        => userId > 0 && await dbContext.Users.Where(u => u.Id == userId).Select(u => u.CompanyId).FirstOrDefaultAsync() is int c && c > 0
+            ? c : User.GetCompanyId();
+
+    /// <summary>Adds a model error when a selected branch is not a branch of the user's company.</summary>
+    private async Task ValidateBranchesOfCompanyAsync(UserFormViewModel model)
+    {
+        var ids = model.SelectedBranchIds.Distinct().ToList();
+        if (ids.Count == 0) return;
+        var companyId = await UserCompanyIdAsync(model.Id);
+        var own = await dbContext.BranchMasters.CountAsync(b => ids.Contains(b.BranchId) && b.CompanyId == companyId);
+        if (own != ids.Count)
+            ModelState.AddModelError(nameof(model.SelectedBranchIds), "A user can be given only the branches of its own company.");
+        // shift slots come from the company's own Shift Master
+        foreach (var (shiftId, field) in new[] { (model.ShiftSlotId, nameof(model.ShiftSlotId)), (model.LabTechnicianShiftSlotId, nameof(model.LabTechnicianShiftSlotId)) })
+            if (shiftId is > 0 && !await dbContext.ShiftMasters.AnyAsync(s => s.ShiftMaster_ID == shiftId && s.CompanyId == companyId))
+                ModelState.AddModelError(field, "Select a shift of this company's Shift Master.");
     }
 
     private async Task SaveMappings(UserFormViewModel model, int userId, string? normalizedEmployeeCode)

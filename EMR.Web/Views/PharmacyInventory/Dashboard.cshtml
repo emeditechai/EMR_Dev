@@ -1,0 +1,84 @@
+@using EMR.Web.Services
+@model PhDashboard
+@{
+    // Pharmacy > Inventory > Pharmacy Dashboard (SQLScripts/2349)
+    ViewData["Title"] = "Pharmacy Dashboard";
+    var d = Model;
+    string N(decimal v) => "₹ " + v.ToString("N0");
+    var max7 = d.Last7.Count == 0 ? 1 : Math.Max(1, d.Last7.Max(x => x.Value));
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<style>
+    .kpi { background: var(--bs-body-bg, #fff); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 14px 16px; height: 100%; }
+    .kpi .l { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; font-weight: 700; }
+    .kpi .v { font-size: 1.5rem; font-weight: 800; color: #1e293b; line-height: 1.2; }
+    .kpi .s { font-size: .78rem; color: #64748b; }
+    .todo a { display: flex; justify-content: space-between; padding: .45rem .75rem; border-bottom: 1px solid #f1f5f9; text-decoration: none; color: inherit; }
+    .todo a:hover { background: #f5f0ff; } .todo .b { min-width: 30px; text-align: center; }
+    .bar { background: var(--emr-primary, #644098); border-radius: 4px 4px 0 0; width: 100%; }
+</style>
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Pharmacy Dashboard", "bi-speedometer2", $"Today at this branch · {DateTime.Now:dddd, dd MMM yyyy HH:mm}", null, null, Section: "Pharmacy", Group: "Inventory"))" />
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Sales today</div><div class="v">@N(d.SalesToday)</div><div class="s">@d.BillsToday bills · returns @N(d.ReturnsToday)</div></div></div>
+    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Collected today</div><div class="v">@N(d.CashToday + d.NonCashToday)</div><div class="s">cash @N(d.CashToday) · other @N(d.NonCashToday)</div></div></div>
+    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Sales this month</div><div class="v">@N(d.SalesMonth)</div><div class="s">purchases @N(d.PurchasesMonth)</div></div></div>
+    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Stock value (cost)</div><div class="v">@N(d.StockValue)</div><div class="s">@d.ItemsInStock items · MRP value @N(d.StockMrpValue)</div></div></div>
+    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Credit due</div><div class="v text-danger">@N(d.CreditDue)</div><div class="s">credit today @N(d.CreditToday)</div></div></div>
+    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Payable to suppliers</div><div class="v">@N(d.SupplierDue)</div><div class="s">purchases today @N(d.PurchasesToday)</div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-xl-4">
+        <div class="kpi"><div class="l mb-2">Expiry watch</div>
+            <table class="table table-sm mb-0 small">
+                <tr class="table-danger"><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="0">Expired, still in stock</a></td><td class="text-end">@d.Expired batches</td><td class="text-end fw-bold">@N(d.ExpiredValue)</td></tr>
+                <tr><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="30">Expiring in 30 days</a></td><td class="text-end">@d.Exp30</td><td class="text-end">@N(d.Exp30Value)</td></tr>
+                <tr><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="60">31 - 60 days</a></td><td class="text-end">@d.Exp60</td><td class="text-end">@N(d.Exp60Value)</td></tr>
+                <tr><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="90">61 - 90 days</a></td><td class="text-end">@d.Exp90</td><td class="text-end">@N(d.Exp90Value)</td></tr>
+            </table>
+            <div class="s mt-2">Expired stock is never sold. Return it to the supplier (Purchase Return) or write it off.</div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="kpi"><div class="l mb-2">Waiting for action</div>
+            <div class="todo small">
+                @foreach (var (t, n, c, a2, r) in new (string, int, string, string, object?)[] {
+                    ("Held bills", d.HeldBills, "PhSales", "Index", new { status = "HOLD" }), ("Purchase indents to approve", d.PendIndents, "PhPurchaseIndents", "Index", new { status = "SUBMITTED" }),
+                    ("Purchase orders open", d.PendPos, "PhPurchaseOrders", "Index", null), ("Draft GRNs", d.DraftGrns, "PhGrns", "Index", new { status = "DRAFT" }),
+                    ("Indents to send to branches", d.ToDispatch, "PhTransfers", "Index", new { dir = "OUT", status = "REQUESTED" }), ("Transfers to receive", d.ToReceive, "PhTransfers", "Index", new { dir = "IN", status = "DISPATCHED" }),
+                    ("Adjustments to approve", d.PendAdjust, "PhAdjustments", "Index", new { status = "SUBMITTED" }), ("Write-offs to approve", d.PendWriteOff, "PhWriteOffs", "Index", new { status = "SUBMITTED" }),
+                    ("Stock verifications open", d.PendCounts, "PhStockCounts", "Index", null), ("Batch corrections to approve", d.PendCorrections, "PhBatchCorrections", "Index", new { status = "SUBMITTED" }) })
+                {
+                    <a href="@Url.Action(a2, c, r)"><span>@t</span><span class="badge b @(n > 0 ? "bg-warning text-dark" : "bg-light text-muted border")">@n</span></a>
+                }
+            </div>
+            <div class="s mt-2"><i class="bi bi-hospital me-1"></i>IPD issues will appear here when the IPD module is ready.</div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="kpi"><div class="l mb-2">Sales, last 7 days</div>
+            <div class="d-flex align-items-end gap-2" style="height:150px">
+                @for (var i = 6; i >= 0; i--)
+                {
+                    var day = DateTime.Today.AddDays(-i); var v = d.Last7.FirstOrDefault(x => x.Day.Date == day).Value;
+                    <div class="flex-fill text-center small" title="@day.ToString("ddd dd MMM"): ₹ @v.ToString("N0")">
+                        <div class="text-muted" style="font-size:.7rem">@(v > 0 ? (v >= 1000 ? (v / 1000).ToString("0.#") + "k" : v.ToString("0")) : "")</div>
+                        <div class="bar" style="height:@((int)(110 * v / max7))px;min-height:2px"></div><div>@day.ToString("ddd")</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-xl-4"><div class="kpi"><div class="l mb-2">Top items, last 30 days</div>
+        <table class="table table-sm mb-0 small"><tbody>@foreach (var t in d.TopItems) { <tr><td>@t.ItemName</td><td class="text-end">@t.Qty.ToString("0.##")</td><td class="text-end fw-semibold">@N(t.Value)</td></tr> }
+        @if (d.TopItems.Count == 0) { <tr><td class="text-muted">No sales yet.</td></tr> }</tbody></table></div></div>
+    <div class="col-xl-4"><div class="kpi"><div class="l mb-2">Below reorder level (@d.BelowReorder) · out of stock @d.OutOfStock</div>
+        <table class="table table-sm mb-0 small"><tbody>@foreach (var r in d.Reorder) { <tr><td>@r.ItemName</td><td class="text-end @(r.Stock <= 0 ? "text-danger fw-bold" : "")">@r.Stock.ToString("0.##") @r.Uom</td><td class="text-end text-muted">reorder @r.Reorder.ToString("0.##")</td></tr> }</tbody></table>
+        <a asp-controller="PhPurchaseIndents" asp-action="Form" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-clipboard-plus me-1"></i>Raise purchase indent</a></div></div>
+    <div class="col-xl-4"><div class="kpi"><div class="l mb-2">Expiring soonest</div>
+        <table class="table table-sm mb-0 small"><tbody>@foreach (var r in d.NearExpiry) { <tr><td>@r.ItemName <span class="text-muted">@r.BatchNo</span></td><td class="text-end @(r.DaysToExpiry <= 30 ? "text-danger" : "")">@r.ExpiryDate.ToString("MMM-yy")</td><td class="text-end">@r.Stock.ToString("0.##") @r.SaleUom</td></tr> }</tbody></table></div></div>
+</div>

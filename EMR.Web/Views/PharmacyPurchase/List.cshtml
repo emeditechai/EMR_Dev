@@ -1,0 +1,130 @@
+@using EMR.Web.Services
+@model List<PhDocListRow>
+@{
+    // Pharmacy > Purchase > (indent / order / GRN / return / payment) list - SQLScripts/2344
+    string kind = ViewBag.Kind, page = ViewBag.PageCode, title = ViewBag.Title;
+    ViewData["Title"] = title;
+    var (status, search, from, to) = ((string?, string?, DateTime?, DateTime?))ViewBag.Filter;
+    var counts = (Dictionary<string, int>)ViewBag.Counts;
+    var statuses = kind switch
+    {
+        "indent" => new[] { "DRAFT", "SUBMITTED", "APPROVED", "REJECTED", "ORDERED", "CANCELLED" },
+        "po" => new[] { "DRAFT", "APPROVED", "PARTIAL", "CLOSED", "CANCELLED" },
+        "payment" => new[] { "POSTED", "CANCELLED" },
+        _ => new[] { "DRAFT", "POSTED", "CANCELLED" }
+    };
+    var tiles = statuses.Where(s => s != "CANCELLED").Select(s => new KeyValuePair<string, int>(PharmacyPurchaseService.StatusInfo[s].Label, counts.GetValueOrDefault(s))).ToList();
+    bool Overdue(PhDocListRow r) => kind == "po" && r.Status is "APPROVED" or "PARTIAL" && DateTime.TryParse(r.Extra, out var e) && e < DateTime.Today;
+    if (kind == "po") tiles.Add(new("Overdue", Model.Count(Overdue)));
+    var (refLabel, extraLabel, partyLabel) = kind switch
+    {
+        "indent" => ("Priority", "Remarks", "Raised by"),
+        "po" => ("Indent", "Expected", "Supplier"),
+        "grn" => ("Supplier bill", "PO", "Supplier"),
+        "return" => ("Reason", "Remarks", "Supplier"),
+        _ => ("Mode / ref.", "Remarks", "Supplier")
+    };
+    string Open(PhDocListRow r) => kind == "payment" ? Url.Action("Print", new { id = r.Id })! : Url.Action("Form", new { id = r.Id })!;
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader(title, ViewBag.Icon, ViewBag.Description, null, null, Stats: tiles, Section: "Pharmacy", Group: "Purchase"))" />
+
+<div class="card shadow-sm border-0">
+    <form method="get" id="phFilter" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width:320px">
+            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+            <input name="search" id="phSearch" value="@search" class="form-control" placeholder="Search number, @partyLabel.ToLower(), @refLabel.ToLower()..." autocomplete="off" />
+            <span class="input-group-text bg-white"><span class="ph-kbd">/</span></span>
+        </div>
+        <select name="status" class="form-select form-select-sm" style="width:auto" data-auto>
+            <option value="">All statuses</option>
+            @foreach (var s in statuses) { <option value="@s" selected="@(s == status)">@PharmacyPurchaseService.StatusInfo[s].Label</option> }
+        </select>
+        <div class="input-group input-group-sm" style="width:auto">
+            <span class="input-group-text bg-white">From</span><input type="date" name="from" value="@from?.ToString("yyyy-MM-dd")" class="form-control" data-auto />
+            <span class="input-group-text bg-white">To</span><input type="date" name="to" value="@to?.ToString("yyyy-MM-dd")" class="form-control" data-auto />
+        </div>
+        <span class="small text-muted">@Model.Count shown</span>
+        <div class="ms-auto d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-success" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            @if (kind == "payment")
+            {
+                <a asp-action="Outstanding" class="btn btn-sm btn-primary"><i class="bi bi-hourglass-split me-1"></i>Outstanding &amp; pay</a>
+            }
+            else
+            {
+                <a asp-permission="@($"{page}:SAVE")" asp-action="Form" class="btn btn-sm btn-primary" id="phAdd" title="Alt + N"><i class="bi bi-plus-circle me-1"></i>New @title.ToLower() <span class="ph-kbd ms-1 bg-transparent text-white border-light">Alt+N</span></a>
+            }
+        </div>
+    </form>
+    <div class="ph-wrap">
+        <table class="table table-hover mb-0 ph-table ph-editable" id="phTable">
+            <thead><tr>
+                <th style="width:48px">#</th><th>Number</th><th>Date</th><th>@partyLabel</th><th>@refLabel</th><th>@extraLabel</th><th class="text-end">@(kind == "payment" ? "Bills" : "Items")</th>
+                @if (kind != "indent") { <th class="text-end">Amount (₹)</th> }
+                @if (kind == "grn") { <th>Due</th><th class="text-end">Unpaid (₹)</th> }
+                <th>Status</th><th></th>
+            </tr></thead>
+            <tbody>
+            @for (var i = 0; i < Model.Count; i++)
+            {
+                var r = Model[i];
+                var st = PharmacyPurchaseService.StatusInfo.GetValueOrDefault(r.Status, (r.Status, "bg-light text-dark border"));
+                <tr data-href="@Open(r)" class="@(r.Status == "CANCELLED" ? "inactive" : "")">
+                    <td class="text-muted small">@(i + 1)</td>
+                    <td class="fw-semibold font-monospace small">@(r.DocNo ?? $"Draft #{r.Id}")</td>
+                    <td class="text-nowrap">@r.DocDate.ToString("dd-MMM-yyyy")</td>
+                    <td>@r.Party</td>
+                    <td>@(string.IsNullOrEmpty(r.Ref) ? "—" : r.Ref)</td>
+                    <td class="small @(Overdue(r) ? "text-danger fw-semibold" : "text-muted")">@(string.IsNullOrEmpty(r.Extra) ? "—" : r.Extra)@if (Overdue(r)) { <span class="badge bg-danger ms-1">overdue</span> }</td>
+                    <td class="text-end">@r.Lines</td>
+                    @if (kind != "indent") { <td class="text-end fw-semibold">@r.Amount.ToString("N2")</td> }
+                    @if (kind == "grn")
+                    {
+                        var overdue = r.Status == "POSTED" && r.Balance > 0 && r.DueDate < DateTime.Today;
+                        <td class="text-nowrap @(overdue ? "text-danger fw-semibold" : "")">@(r.Status == "POSTED" ? r.DueDate?.ToString("dd-MMM-yyyy") : "—")</td>
+                        <td class="text-end">@(r.Status == "POSTED" ? r.Balance.ToString("N2") : "—")</td>
+                    }
+                    <td><span class="badge @st.Item2">@st.Item1</span></td>
+                    <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" href="@Open(r)" title="Open"><i class="bi @(r.Status == "DRAFT" ? "bi-pencil" : kind == "payment" ? "bi-printer" : "bi-eye")"></i></a>
+                        @if (kind == "payment" && r.Status == "POSTED")
+                        {
+                            <form method="post" asp-action="Cancel" asp-route-id="@r.Id" asp-permission="@($"{page}:CANCEL")" class="d-inline ph-cancel"><button class="btn btn-sm btn-outline-danger" title="Cancel payment"><i class="bi bi-x-circle"></i></button></form>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Nothing in this period.</div> }
+    </div>
+</div>
+<div class="small text-muted mt-2"><i class="bi bi-mouse me-1"></i>Click a row to open it. The list shows the last 30 days unless you change the dates.</div>
+
+@section Scripts {
+<script src="~/lib/xlsx/xlsx.full.min.js"></script>
+<script>
+(function () {
+    const form = document.getElementById('phFilter'), search = document.getElementById('phSearch');
+    form.querySelectorAll('[data-auto]').forEach(s => s.addEventListener('change', () => form.submit()));
+    let t; search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => form.submit(), 450); });
+    if (search.value) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+    document.querySelectorAll('#phTable tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a,form')) location.href = tr.dataset.href; }));
+    document.querySelectorAll('form.ph-cancel').forEach(f => f.addEventListener('submit', async e => {
+        if (f.dataset.ok) return; e.preventDefault();
+        const r = await Swal.fire({ title: 'Cancel this payment?', text: 'The bills it paid become open again.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, cancel it' });
+        if (r.isConfirmed) { f.dataset.ok = '1'; f.submit(); }
+    }));
+    document.addEventListener('keydown', e => {
+        if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); search.focus(); search.select(); }
+        const add = document.getElementById('phAdd');
+        if (e.altKey && (e.key === 'n' || e.key === 'N') && add) { e.preventDefault(); location.href = add.href; }
+    });
+    document.getElementById('phExport').addEventListener('click', () => {
+        const ws = XLSX.utils.table_to_sheet(document.getElementById('phTable'), { raw: true });
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'List'); XLSX.writeFile(wb, @Html.Raw(System.Text.Json.JsonSerializer.Serialize(title.Replace(" ", "_").Replace("(", "").Replace(")", "") + ".xlsx")));
+    });
+})();
+</script>
+}

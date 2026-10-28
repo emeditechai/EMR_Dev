@@ -39,7 +39,10 @@ public class WhatsAppConfigController(
         if (config == null)
         {
             var defaultConfig = await dbContext.WhatsAppConfigurations
-                .FirstOrDefaultAsync(c => c.IsDefault && c.IsActive);
+                .Where(c => c.IsDefault && c.IsActive && c.CompanyId == (branch != null ? branch.CompanyId : User.GetCompanyId()))   // same company only
+                .OrderByDescending(c => dbContext.BranchMasters.Any(b => b.BranchId == c.BranchId && b.IsHOBranch))
+                .ThenBy(c => c.BranchId)
+                .FirstOrDefaultAsync();
 
             if (defaultConfig != null)
             {
@@ -248,7 +251,7 @@ public class WhatsAppConfigController(
         }
         else
         {
-            var target = await dbContext.BranchMasters.FirstOrDefaultAsync(b => b.BranchId == targetBranchId && b.IsActive);
+            var target = await dbContext.BranchMasters.FirstOrDefaultAsync(b => b.BranchId == targetBranchId && b.IsActive && (companyId <= 0 || b.CompanyId == companyId));
             if (target == null)
             {
                 TempData["Error"] = "Selected target branch does not exist or is inactive.";

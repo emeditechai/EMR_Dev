@@ -1,0 +1,24 @@
+@using EMR.Web.Services
+@model List<PhCreditCustomer>
+@{
+    ViewData["Title"] = "Credit Collection";
+    var stats = new List<KeyValuePair<string, int>> { new("Customers due", Model.Count), new("Open bills", Model.Sum(m => m.OpenBills)), new("Over limit", Model.Count(m => m.Outstanding > m.CreditLimit)) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Credit Collection", "bi-wallet2", "Dues of credit customers. Collect against their bills, oldest first; a money receipt is given from the same receipt series as OPD / LAB and counts in your day closing.", null, null, Stats: stats, Section: "Pharmacy", Group: "Sales"))" />
+<div class="card shadow-sm border-0">
+    <div class="card-body py-2 ph-toolbar border-bottom d-flex gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width:320px"><span class="input-group-text bg-white"><i class="bi bi-search"></i></span><input id="phSearch" class="form-control" placeholder="Customer or mobile" /></div>
+        <span class="small text-muted">Total due <b class="text-danger">₹ @Model.Sum(m => m.Outstanding).ToString("N2")</b></span>
+    </div>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table" id="phTable">
+        <thead><tr><th>#</th><th>Customer</th><th>Mobile</th><th class="text-end">Credit limit</th><th class="text-end">Due</th><th class="text-end">Open bills</th><th>Oldest bill</th><th></th></tr></thead>
+        <tbody>@for (var i = 0; i < Model.Count; i++) { var c = Model[i];
+            <tr><td class="text-muted small">@(i + 1)</td><td class="fw-semibold">@c.CustomerName</td><td>@c.Mobile</td><td class="text-end">@c.CreditLimit.ToString("N2")</td>
+                <td class="text-end fw-bold @(c.Outstanding > c.CreditLimit ? "text-danger" : "")">@c.Outstanding.ToString("N2")</td><td class="text-end">@c.OpenBills</td>
+                <td class="@(c.OldestBill < DateTime.Today.AddDays(-30) ? "text-danger" : "")">@c.OldestBill?.ToString("dd-MMM-yyyy")</td>
+                <td class="text-end"><a asp-action="Collect" asp-route-customerId="@c.CustomerId" asp-permission="PHARMACY.CREDITCOLLECTION:COLLECT" class="btn btn-sm btn-primary"><i class="bi bi-cash me-1"></i>Collect</a></td></tr> }</tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>No dues.</div> }</div>
+</div>
+@section Scripts { <script>document.getElementById('phSearch').addEventListener('input', e => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#phTable tbody tr').forEach(tr => tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none'); });</script> }

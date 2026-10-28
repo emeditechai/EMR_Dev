@@ -142,6 +142,9 @@ builder.Services.AddHostedService<HelpLearningWorker>();   // Ask AI daily learn
 builder.Services.AddScoped<ILabDefaultSignatoryService,           LabDefaultSignatoryService>();
 builder.Services.AddScoped<ILabApprovalFlowService,                LabApprovalFlowService>();
 builder.Services.AddScoped<IB2BBillingService,              B2BBillingService>();
+builder.Services.AddScoped<IPrintTemplateService,           PrintTemplateService>();   // Utility > Print Templates (SQLScripts/2324)
+builder.Services.AddScoped<ICompanyCopyService,            CompanyCopyService>();     // Company > Copy master data (SQLScripts/2328)
+builder.Services.AddScoped<ICompanyPurgeService,           CompanyPurgeService>();    // Company > Remove data / Delete company (SQLScripts/2337)
 
 // Lab master bulk upload (Excel)
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.LabBulkLookups>();

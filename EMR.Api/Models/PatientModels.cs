@@ -87,3 +87,23 @@ public class PagedResult<T>
     public int     PageSize   { get; set; }
     public int     TotalPages => (int)Math.Ceiling((double)TotalCount / PageSize);
 }
+
+// ─── Patient Portal login (Master > Patient Master, SQLScripts/2326) ─────────
+
+/// <summary>A new portal password, hashed by EMR.Web (which also delivers the plain password to the patient).</summary>
+public class PatientPortalLoginRequest
+{
+    public int     CompanyId    { get; set; }
+    public string  PasswordHash { get; set; } = string.Empty;
+    public string  Salt         { get; set; } = string.Empty;
+}
+
+/// <summary>Where the new credentials go: the patient's code (the portal user id), name, e-mail and phone.</summary>
+public class PatientPortalLoginTarget
+{
+    public int     PatientId    { get; set; }
+    public string  PatientCode  { get; set; } = string.Empty;
+    public string  FullName     { get; set; } = string.Empty;
+    public string? EmailId      { get; set; }
+    public string? PhoneNumber  { get; set; }
+}

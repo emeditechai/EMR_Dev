@@ -10,5 +10,6 @@ public interface IPatientService
     Task<int>                           CreateAsync(PatientCreateRequest request);
     Task<bool>                          UpdateAsync(PatientUpdateRequest request);
     Task<OpdDashboardData?>             GetOpdDashboardAsync(int? companyId, int branchId, DateTime date);
+    Task<PatientPortalLoginTarget?>     SetPortalLoginAsync(int patientId, PatientPortalLoginRequest request);
 }
 

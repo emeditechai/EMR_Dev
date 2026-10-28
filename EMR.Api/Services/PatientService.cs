@@ -114,6 +114,17 @@ public class PatientService(IDbConnectionFactory db) : IPatientService
         return rows > 0;
     }
 
+    // ─── PATIENT PORTAL LOGIN (create / reset, SQLScripts/2326) ──────────────
+
+    public async Task<PatientPortalLoginTarget?> SetPortalLoginAsync(int patientId, PatientPortalLoginRequest req)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryFirstOrDefaultAsync<PatientPortalLoginTarget>(
+            "usp_PatientPortal_SetLogin",
+            new { PatientId = patientId, req.PasswordHash, req.Salt, CompanyId = req.CompanyId > 0 ? (int?)req.CompanyId : null },
+            commandType: CommandType.StoredProcedure);
+    }
+
     public async Task<OpdDashboardData?> GetOpdDashboardAsync(int? companyId, int branchId, DateTime date)
     {
         using var con = db.CreateConnection();

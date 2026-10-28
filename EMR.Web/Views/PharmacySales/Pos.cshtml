@@ -1,0 +1,149 @@
+@using System.Text.Json
+@using EMR.Web.Services
+@{
+    // Pharmacy > Sales > Pharmacy Sale (POS) - SQLScripts/2348. Every button is a page control (asp-permission); the server checks again.
+    ViewData["Title"] = "Pharmacy Sale (POS)";
+    var set = (PhPharmacySettings)ViewBag.Settings;
+    var methods = (List<PhOption>)ViewBag.Methods;
+    var h = (PhBranchHeader)ViewBag.Header;
+    bool canDiscount = ViewBag.CanDiscount, canCredit = ViewBag.CanCredit;
+    var jo = new JsonSerializerOptions { PropertyNamingPolicy = null };
+    string J(object? o) => JsonSerializer.Serialize(o, jo);
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<style>
+    .pos-head { background: var(--emr-gradient, linear-gradient(135deg, #644098 0%, #7e52b8 50%, #a8407a 100%)); color: #fff; border-radius: 12px; padding: 10px 18px; }
+    .pos-card { background: var(--bs-body-bg, #fff); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .pos-seg .btn { font-weight: 600; }
+    .pos-search { font-size: 1.05rem; padding: .65rem .9rem; border: 2px solid var(--emr-primary, #644098); }
+    .pos-list { max-height: 360px; overflow: auto; z-index: 40; }
+    .pos-list .list-group-item.active { background: var(--emr-primary, #644098); border-color: var(--emr-primary, #644098); }
+    .pos-lines td { vertical-align: middle; font-size: .86rem; }
+    .pos-lines thead th { background: #f1f5f9; font-size: .7rem; text-transform: uppercase; color: #475569; white-space: nowrap; }
+    .pos-lines input, .pos-lines select { font-size: .85rem; }
+    .pos-tot td { padding: .2rem .4rem; font-size: .9rem; }
+    .pos-net { font-size: 2rem; font-weight: 800; color: var(--emr-primary, #644098); line-height: 1; }
+    .pos-save .ph-kbd { background: transparent; color: #fff; border-color: rgba(255,255,255,.6); }
+    .rx-need { border-color: #dc2626 !important; background: #fef2f2; }
+    .chip { background: #f5f0ff; border: 1px solid #d6c6ee; border-radius: 10px; padding: 6px 10px; }
+    .stock-ok { color: #15803d; } .stock-no { color: #b91c1c; }
+</style>
+
+<div class="pos-head mb-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div><div class="small" style="opacity:.8">Pharmacy · Sales</div><div class="h5 mb-0 fw-bold"><i class="bi bi-upc-scan me-2"></i>Pharmacy Sale (POS) <span class="small fw-normal" style="opacity:.85">· @h.Name</span></div></div>
+    <div class="d-flex gap-2 align-items-center small">
+        <span class="ph-kbd bg-transparent text-white border-light">F2</span> item
+        <span class="ph-kbd bg-transparent text-white border-light">F4</span> customer
+        <span class="ph-kbd bg-transparent text-white border-light">F6</span> pay
+        <span class="ph-kbd bg-transparent text-white border-light">F8</span> hold
+        <span class="ph-kbd bg-transparent text-white border-light">F7</span> held bills
+        <span class="ph-kbd bg-transparent text-white border-light">F10</span> save &amp; print
+        <a asp-action="Index" class="btn btn-sm btn-light ms-2"><i class="bi bi-receipt me-1"></i>Sale bills</a>
+    </div>
+</div>
+@if (!set.PharmacyEnabled) { <div class="alert alert-danger py-2"><i class="bi bi-x-octagon me-1"></i>The pharmacy is not enabled for this branch. Turn it on in Hospital Settings &gt; Pharmacy &amp; Drug Licence.</div> }
+else if (set.Licence20BValidTo is { } lic && lic < DateTime.Today.AddDays(30)) { <div class="alert @(lic < DateTime.Today ? "alert-danger" : "alert-warning") py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>Drug licence (20B) @(lic < DateTime.Today ? "expired" : "expires") on @lic.ToString("dd-MMM-yyyy").</div> }
+
+<div class="row g-2">
+    <div class="col-xl-8">
+        @* customer + prescription *@
+        <div class="pos-card p-2 mb-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-lg-5">
+                    <div class="btn-group btn-group-sm w-100 pos-seg" role="group">
+                        <input type="radio" class="btn-check" name="ck" id="ckW" value="WALKIN" checked><label class="btn btn-outline-primary" for="ckW"><i class="bi bi-person me-1"></i>Walk-in</label>
+                        <input type="radio" class="btn-check" name="ck" id="ckP" value="PATIENT"><label class="btn btn-outline-primary" for="ckP"><i class="bi bi-person-vcard me-1"></i>Patient</label>
+                        <input type="radio" class="btn-check" name="ck" id="ckC" value="CUSTOMER"><label class="btn btn-outline-primary" for="ckC" title="A regular buyer registered in Master > Pharmacy Master > Pharmacy Customer: buys on credit within a limit (pays later in Credit Collection), gets a fixed discount scheme or staff price, or needs a GST invoice."><i class="bi bi-wallet2 me-1"></i>Credit customer</label>
+                    </div>
+                </div>
+                <div class="col-lg-7" id="custBox"></div>
+                <div class="col-md-4 position-relative">
+                    <label class="form-label small fw-semibold mb-0" id="docLbl">Doctor</label>
+                    <input id="docName" class="form-control form-control-sm" placeholder="Search doctor or type name" autocomplete="off" maxlength="150">
+                    <div id="docList" class="list-group position-absolute w-100 shadow pos-list d-none"></div>
+                </div>
+                <div class="col-md-2"><label class="form-label small fw-semibold mb-0">Reg. no.</label><input id="docReg" class="form-control form-control-sm" maxlength="50"></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold mb-0" id="rxLbl">Prescription no.</label><input id="rxNo" class="form-control form-control-sm" maxlength="50"></div>
+                <div class="col-md-3"><label class="form-label small fw-semibold mb-0">Rx date</label><input id="rxDate" type="date" class="form-control form-control-sm" max="@DateTime.Today.ToString("yyyy-MM-dd")"></div>
+                <div class="col-12 d-none" id="rxWarn"></div>
+            </div>
+        </div>
+        @* item search + lines *@
+        <div class="pos-card p-2">
+            <div class="position-relative mb-2">
+                <div class="input-group"><span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                    <input id="itemSearch" class="form-control pos-search" placeholder="Scan barcode or type brand / generic (F2)" autocomplete="off" @(set.PharmacyEnabled ? "" : "disabled")></div>
+                <div id="itemList" class="list-group position-absolute w-100 shadow pos-list d-none"></div>
+            </div>
+            <div class="table-responsive" style="max-height:calc(100vh - 430px);min-height:180px">
+                <table class="table table-sm mb-0 pos-lines">
+                    <thead><tr><th>#</th><th>Item</th><th>Batch · expiry</th><th class="text-end">Qty</th><th class="text-end">MRP</th><th class="text-end">Rate</th><th class="text-end">Disc %</th><th class="text-end">Amount</th><th></th></tr></thead>
+                    <tbody id="lines"></tbody>
+                </table>
+                <div id="emptyLines" class="text-center text-muted py-5"><i class="bi bi-cart fs-1 d-block"></i>Scan or search an item to start the bill.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="pos-card p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-end">
+                <div><div class="small text-muted">Net payable</div><div class="pos-net" id="tNet">₹ 0.00</div></div>
+                <div class="text-end small"><div id="tItems" class="text-muted">0 items</div><div id="tSave" class="text-success fw-semibold"></div></div>
+            </div>
+            <hr class="my-2">
+            <table class="w-100 pos-tot">
+                <tr><td>MRP value</td><td class="text-end" id="tMrp">0.00</td></tr>
+                <tr><td>Discount</td><td class="text-end" id="tDisc">0.00</td></tr>
+                <tr><td>Taxable value</td><td class="text-end" id="tTax">0.00</td></tr>
+                <tr><td>CGST + SGST</td><td class="text-end" id="tGst">0.00</td></tr>
+                <tr><td>Round off</td><td class="text-end" id="tRound">0.00</td></tr>
+                <tr><td class="align-middle">Bill discount %<span class="small text-muted"> (max @set.MaxManualDiscountPercent.ToString("0.##")%@(canDiscount ? " without approval" : ""))</span></td>
+                    <td class="text-end"><input id="billDisc" type="number" min="0" max="100" step="0.5" value="0" class="form-control form-control-sm text-end ms-auto" style="width:80px"></td></tr>
+            </table>
+        </div>
+        <div class="pos-card p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-bold small text-uppercase" style="color:var(--emr-primary,#644098)">Payment (F6)</span>
+                <div class="btn-group btn-group-sm" id="payBtns">
+                    @foreach (var m in methods) { <button type="button" class="btn btn-outline-secondary" data-m="@m.Value">@(m.Value switch { "CASH" => "Cash", "CARD" => "Card", "UPI" => "UPI", "NEFT" => "NEFT", _ => "Cheque" })</button> }
+                </div>
+            </div>
+            <div id="pays"></div>
+            <div class="d-flex justify-content-between small mt-2"><span>Paid</span><b id="tPaid">0.00</b></div>
+            <div class="d-flex justify-content-between small"><span id="dueLbl">Balance</span><b id="tDue">0.00</b></div>
+            <div class="d-flex justify-content-between fs-5 text-success fw-bold d-none" id="changeRow"><span>Return change</span><span id="tChange">0.00</span></div>
+        </div>
+        <div class="d-grid gap-2">
+            <div class="input-group input-group-sm"><span class="input-group-text">Print</span>
+                <select id="printFmt" class="form-select">
+                    <option value="80MM" selected="@(set.BillPrintFormat == "80MM")">80 mm thermal</option><option value="A5" selected="@(set.BillPrintFormat == "A5")">A5</option><option value="A4" selected="@(set.BillPrintFormat == "A4")">A4</option><option value="">Don't print</option>
+                </select></div>
+            <button asp-permission="PHARMACY.POS:SAVE" type="button" class="btn btn-success btn-lg pos-save fw-bold" id="btnSave" disabled="@(!set.PharmacyEnabled)"><i class="bi bi-check2-circle me-1"></i>Save &amp; print <span class="ph-kbd ms-1">F10</span></button>
+            <div class="d-flex gap-2">
+                <button asp-permission="PHARMACY.POS:HOLD" type="button" class="btn btn-outline-warning flex-fill" id="btnHold"><i class="bi bi-pause-circle me-1"></i>Hold <span class="ph-kbd">F8</span></button>
+                <button asp-permission="PHARMACY.POS:HOLD" type="button" class="btn btn-outline-secondary flex-fill" id="btnHeld"><i class="bi bi-collection me-1"></i>Held <span class="badge bg-secondary" id="heldCount"></span> <span class="ph-kbd">F7</span></button>
+                <button type="button" class="btn btn-outline-danger" id="btnClear" title="New bill (Esc twice)"><i class="bi bi-x-lg"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="heldModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title"><i class="bi bi-collection me-2"></i>Held bills</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body p-0"><table class="table table-hover mb-0 small"><thead><tr><th>Held at</th><th>Label / customer</th><th class="text-end">Items</th><th class="text-end">Amount</th><th>By</th><th></th></tr></thead><tbody id="heldRows"></tbody></table></div>
+</div></div></div>
+
+@Html.AntiForgeryToken()
+@section Scripts {
+<script src="~/js/pharmacy-pos.js" asp-append-version="true"></script>
+<script>
+PhPos({
+    settings: @Html.Raw(J(new { set.MaxManualDiscountPercent, set.RoundOffBill, set.MinShelfLifeSaleDays })),
+    canDiscount: @(canDiscount ? "true" : "false"), canCredit: @(canCredit ? "true" : "false"), recall: @Html.Raw(J(ViewBag.Recall)),
+    urls: { items: '@Url.Action("ItemSearch")', batches: '@Url.Action("Batches")', price: '@Url.Action("PriceFor")', patients: '@Url.Action("Patients")',
+            customers: '@Url.Action("Customers")', doctors: '@Url.Action("Doctors")', held: '@Url.Action("Held")', recall: '@Url.Action("Recall")', save: '@Url.Action("Save")',
+            hold: '@Url.Action("Hold")', discard: '@Url.Action("DiscardHold")', print: '@Url.Action("Print")', bill: '@Url.Action("Bill")' }
+});
+</script>
+}

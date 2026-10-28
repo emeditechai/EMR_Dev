@@ -259,25 +259,10 @@
                     <div class="card border-0 shadow-sm rounded-3 mb-3">
                         <div class="card-header bg-white border-bottom py-3"><h6 class="mb-0 fw-bold text-primary"><i class="bi bi-diagram-3 me-2"></i>Menus and roles</h6></div>
                         <div class="card-body p-4">
-                            <label asp-for="TemplateCompanyId" class="form-label fw-semibold">Copy the menus and screens from <span class="text-danger">*</span></label>
-                            <select asp-for="TemplateCompanyId" class="form-select" id="obTemplate">
-                                @foreach (var t in Model.Templates)
-                                {
-                                    <option value="@t.CompanyId" data-roles="@t.Roles" data-perms="@t.AdminPermissions">@t.CompanyCode - @t.CompanyName (@t.Pages screens, @t.Roles roles)</option>
-                                }
-                            </select>
-                            <span asp-validation-for="TemplateCompanyId" class="text-danger small"></span>
-                            <div class="ob-hint mt-1 mb-3">The new company gets the same navigation (menus, screens, their actions and permission mapping) as this company.</div>
-                            <div class="form-check mb-2">
-                                <input asp-for="CopyAdminPermissions" class="form-check-input" type="checkbox" />
-                                <label asp-for="CopyAdminPermissions" class="form-check-label">Give the new Administrator role the same permissions as this company's Administrator
-                                    (<span id="obPermCount">0</span> grants)</label>
-                                <div class="ob-hint">Off: the Administrator role starts without grants - set them in Settings › Security › Role Permissions.</div>
-                            </div>
-                            <div class="form-check">
-                                <input asp-for="CopyOtherRoles" class="form-check-input" type="checkbox" />
-                                <label asp-for="CopyOtherRoles" class="form-check-label">Also create this company's other roles (<span id="obRoleCount">0</span>, names only - no permissions)</label>
-                            </div>
+                            @* roles, menus and role permissions are global (SQLScripts/2334): nothing is copied for a new company *@
+                            <input type="hidden" asp-for="TemplateCompanyId" value="@(Model.Templates.FirstOrDefault()?.CompanyId ?? 1)" />
+                            <p class="mb-2">Menus, screens, roles and role permissions are <strong>shared by all companies</strong> - the new company uses them as they are.</p>
+                            <div class="ob-hint">The administrator gets the <strong>Administrator</strong> role in the Head Office branch. Change what a role may do in Settings › Security › Role Permissions (it applies to every company).</div>
                         </div>
                     </div>
                     <div class="card border-0 shadow-sm rounded-3 mb-3">
@@ -295,8 +280,7 @@
                                 <li><i class="bi bi-building-check me-2"></i>The company</li>
                                 <li><i class="bi bi-house-check me-2"></i>Its Head Office branch</li>
                                 <li><i class="bi bi-sliders me-2"></i>Hospital Settings of the Head Office (defaults)</li>
-                                <li><i class="bi bi-menu-button-wide me-2"></i>Menus, screens and permission mapping</li>
-                                <li><i class="bi bi-shield-lock me-2"></i>The Administrator role (and other roles if chosen)</li>
+                                <li><i class="bi bi-shield-lock me-2"></i>The Administrator role for the administrator (roles and menus are shared)</li>
                                 <li><i class="bi bi-person-check me-2"></i>The administrator login, assigned to the Head Office</li>
                             </ul>
                             <div class="ob-hint mb-3">Nothing is saved if any part fails.</div>
@@ -414,10 +398,6 @@
         const toggleAddr = () => document.querySelectorAll('.ob-branch-addr').forEach(el => el.classList.toggle('d-none', same.checked));
         same.addEventListener('change', toggleAddr); toggleAddr();
 
-        // template: counts of what can be copied
-        const tpl = $('obTemplate');
-        const counts = () => { const o = tpl.selectedOptions[0]; $('obPermCount').textContent = o ? o.dataset.perms : 0; $('obRoleCount').textContent = o ? Math.max(0, o.dataset.roles - 1) : 0; };
-        tpl.addEventListener('change', counts); counts();
 
         function review() {
             const v = id => ($(id)?.value || '').trim();

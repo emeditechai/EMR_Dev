@@ -1,0 +1,76 @@
+@using EMR.Web.Services
+@model PhSaleBill?
+@{
+    // Pharmacy > Sales > Sale Return: find the bill, enter what comes back (SQLScripts/2348)
+    ViewData["Title"] = "Sale Return";
+    var set = (PhPharmacySettings)ViewBag.Settings;
+    var reasons = (List<PhOption>)ViewBag.Reasons; var methods = (List<PhOption>)ViewBag.Methods;
+    var b = Model;
+    var lastDay = b?.SaleDate.Date.AddDays(set.SaleReturnDays);
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Sale Return", "bi-arrow-return-left", $"Returns within {set.SaleReturnDays} days of the bill; {(set.LooseReturnAllowed ? "loose strips accepted" : "full packs only")}; cold-chain, Schedule X / NDPS and non-returnable items are not taken back.", null, null, "New return", "New", Url.Action("Index"), Section: "Pharmacy", Group: "Sales"))" />
+<form method="get" class="card shadow-sm border-0 mb-3"><div class="card-body d-flex gap-2 align-items-center">
+    <label class="fw-semibold small text-nowrap">Original bill no.</label>
+    <input name="q" value="@(ViewBag.Q ?? b?.SaleNo)" class="form-control font-monospace" style="max-width:320px" placeholder="PS/HO/2627/000123 or just 123" autofocus />
+    <button class="btn btn-primary"><i class="bi bi-search me-1"></i>Find</button>
+    <a asp-controller="PhSales" asp-action="Index" class="small ms-2">find it in Sale Bills</a>
+</div></form>
+@if (b != null)
+{
+    var expired = lastDay < DateTime.Today;
+    <form method="post" asp-action="Save" id="retForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="saleId" value="@b.SaleId" />
+    <div class="card shadow-sm border-0 mb-3"><div class="card-body d-flex flex-wrap gap-4 small">
+        <div><div class="text-muted">Bill</div><b class="font-monospace">@b.SaleNo</b> · @b.SaleDate.ToString("dd-MMM-yyyy HH:mm")</div>
+        <div><div class="text-muted">Customer</div><b>@(b.CustomerName ?? "Walk-in")</b> @b.Mobile</div>
+        <div><div class="text-muted">Net / paid / due</div>₹ @b.NetAmount.ToString("N2") / @b.PaidAmount.ToString("N2") / <span class="@(b.BalanceDue > 0 ? "text-danger fw-bold" : "")">@b.BalanceDue.ToString("N2")</span></div>
+        <div><div class="text-muted">Return allowed till</div><b class="@(expired ? "text-danger" : "")">@lastDay?.ToString("dd-MMM-yyyy")</b></div>
+    </div></div>
+    @if (expired) { <div class="alert alert-danger">The return period of this bill is over.</div> }
+    <div class="card shadow-sm border-0 mb-3"><div class="table-responsive"><table class="table table-sm mb-0 ph-table">
+        <thead><tr><th>Item</th><th>Batch · exp.</th><th class="text-end">Sold</th><th class="text-end">Already returned</th><th class="text-end">Rate (after disc.)</th><th class="text-end" style="width:170px">Return now</th><th class="text-end">Value</th></tr></thead>
+        <tbody>
+        @foreach (var l in b.Lines)
+        {
+            var why = !l.IsReturnable || l.ScheduleCode is "X" or "NDPS" ? "not returnable" : l.IsColdChain ? "cold chain" : l.ExpiryDate <= DateTime.Today ? "expired" : l.Returnable <= 0 ? "fully returned" : null;
+            var rate = l.Qty == 0 ? 0 : l.Amount / l.Qty;
+            <tr class="@(why != null ? "text-muted" : "")"><td class="fw-semibold">@l.FormShort @l.ItemName <span class="badge sch sch-@l.ScheduleCode">@l.ScheduleCode</span></td><td class="small">@l.BatchNo · @l.ExpiryDate.ToString("MMM-yy")</td>
+                <td class="text-end">@l.Qty.ToString("0.##") @l.SaleUom</td><td class="text-end">@l.ReturnedQty.ToString("0.##")</td><td class="text-end">@rate.ToString("0.00")</td>
+                <td class="text-end">@if (why == null && !expired) { <div class="input-group input-group-sm"><input type="number" name="qty[@l.SaleDtlId]" class="form-control text-end rq" min="0" max="@l.Returnable" step="@(set.LooseReturnAllowed ? 1 : l.ConversionQty)" data-rate="@rate" placeholder="max @l.Returnable.ToString("0.##")" /><span class="input-group-text">@l.SaleUom</span></div>@if (!set.LooseReturnAllowed && l.ConversionQty > 1) { <div class="small text-muted">packs of @l.ConversionQty</div> } } else { <span class="small">@(why ?? "period over")</span> }</td>
+                <td class="text-end fw-semibold rv">—</td></tr>
+        }
+        </tbody>
+        <tfoot><tr><td colspan="6" class="text-end fw-bold">Return value</td><td class="text-end fw-bold" id="rTotal">0.00</td></tr></tfoot>
+    </table></div></div>
+    @if (!expired)
+    {
+        <div class="card shadow-sm border-0 mb-3"><div class="card-body row g-3">
+            <div class="col-md-4"><label class="form-label small fw-semibold req">Reason</label><select name="reasonId" class="form-select" required><option value="">— select —</option>@foreach (var r in reasons) { <option value="@r.Value">@r.Text</option> }</select></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold">Refund by</label><select name="refundMode" class="form-select">@foreach (var m in methods.Where(m => m.Value != "CHEQUE")) { <option value="@m.Value">@m.Text</option> }</select>
+                @if (b.BalanceDue > 0) { <div class="form-text">First ₹ @b.BalanceDue.ToString("N2") is set off against the bill's due; only the rest is refunded.</div> }</div>
+            <div class="col-md-2"><label class="form-label small fw-semibold">Refund ref.</label><input name="refundRef" class="form-control" maxlength="50" /></div>
+            <div class="col-md-3"><label class="form-label small fw-semibold">Remarks</label><input name="remarks" class="form-control" maxlength="300" /></div>
+        </div></div>
+        <div class="d-flex justify-content-end gap-2"><a asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+            <button asp-permission="PHARMACY.SALERETURN:SAVE" class="btn btn-success px-4"><i class="bi bi-check2-circle me-1"></i>Save return</button></div>
+    }
+    </form>
+}
+@section Scripts {
+<script>
+(function () {
+    const rq = [...document.querySelectorAll('.rq')], tot = document.getElementById('rTotal'); if (!rq.length) return;
+    const sum = () => { let t = 0; rq.forEach(i => { const v = (parseFloat(i.value) || 0) * parseFloat(i.dataset.rate); i.closest('tr').querySelector('.rv').textContent = v ? v.toFixed(2) : '—'; t += v; }); tot.textContent = t.toFixed(2); };
+    rq.forEach(i => i.addEventListener('input', sum));
+    const f = document.getElementById('retForm');
+    f.addEventListener('submit', async e => {
+        if (f.dataset.ok) return; e.preventDefault();
+        if (!rq.some(i => parseFloat(i.value) > 0)) { Swal.fire({ icon: 'info', title: 'Enter the quantity coming back.' }); return; }
+        const r = await Swal.fire({ title: 'Save this return?', text: `Return value ₹ ${tot.textContent}. Stock goes back to the same batch.`, icon: 'question', showCancelButton: true });
+        if (r.isConfirmed) { f.dataset.ok = '1'; f.submit(); }
+    });
+})();
+</script>
+}

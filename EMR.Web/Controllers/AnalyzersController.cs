@@ -24,7 +24,8 @@ public class AnalyzersController(
         string? interfaceProtocol,
         bool? status,
         string? search)
-    {        var items = await analyzerApiClient.GetListAsync(departmentId, interfaceProtocol, status, search);
+    {
+        var items = await analyzerApiClient.GetListAsync(departmentId, interfaceProtocol, status, search, User.GetCompanyId());   // own company only
 
         var viewModel = new AnalyzerListViewModel
         {
@@ -50,6 +51,7 @@ public class AnalyzersController(
     public async Task<IActionResult> Details(int id)
     {
         var item = await analyzerApiClient.GetByIdAsync(id);
+        if (item != null && item.CompanyId != User.GetCompanyId()) return NotFound();   // another company's analyzer
         if (item is null)
         {
             TempData["Error"] = $"Analyzer #{id} not found.";
@@ -112,6 +114,7 @@ public class AnalyzersController(
     public async Task<IActionResult> Edit(int id)
     {
         var item = await analyzerApiClient.GetByIdAsync(id);
+        if (item != null && item.CompanyId != User.GetCompanyId()) return NotFound();   // another company's analyzer
         if (item is null)
         {
             TempData["Error"] = $"Analyzer #{id} not found.";
@@ -159,6 +162,7 @@ public class AnalyzersController(
             UserId = User.GetUserId()
         };
 
+        if (!await OwnAnalyzerAsync(id)) return NotFound();
         var success = await analyzerApiClient.UpdateAsync(request);
         if (success)
         {
@@ -177,6 +181,7 @@ public class AnalyzersController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleStatus(int id)
     {
+        if (!await OwnAnalyzerAsync(id)) return NotFound();
         var success = await analyzerApiClient.ToggleStatusAsync(id, User.GetUserId());
         if (success)
         {
@@ -195,6 +200,7 @@ public class AnalyzersController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
+        if (!await OwnAnalyzerAsync(id)) return NotFound();
         var success = await analyzerApiClient.DeleteAsync(id);
         if (success)
         {
@@ -209,10 +215,15 @@ public class AnalyzersController(
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>An analyzer of the signed-in company (the Analyzer Master is company-wise).</summary>
+    private async Task<bool> OwnAnalyzerAsync(int id)
+        => (await analyzerApiClient.GetByIdAsync(id))?.CompanyId == User.GetCompanyId();
+
     private async Task<List<SelectListItem>> GetBranchOptionsAsync(int? selectedId = null)
     {
+        var companyId = User.GetCompanyId();
         var branches = await dbContext.BranchMasters
-            .Where(b => b.IsActive)
+            .Where(b => b.IsActive && b.CompanyId == companyId)
             .OrderBy(b => b.BranchName)
             .Select(b => new SelectListItem
             {

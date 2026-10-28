@@ -1,0 +1,25 @@
+@using EMR.Web.Services
+@model List<PhInvDocRow>
+@{
+    string kind = ViewBag.Kind, title = ViewBag.Title, page = ViewBag.Page; string? status = ViewBag.Status;
+    ViewData["Title"] = title;
+    var stats = new List<KeyValuePair<string, int>> { new("Drafts", Model.Count(m => m.Status == "DRAFT")), new("Awaiting approval", Model.Count(m => m.Status == "SUBMITTED")), new("Approved", Model.Count(m => m.Status == "APPROVED")) };
+    var desc = kind == "WRITEOFF" ? "Expired or damaged stock destroyed, with the destruction record. Maker-checker: another user (Approval Matrix approver if set) approves; stock goes out and the cost is written off in the books."
+                                  : "Stock found more or less than the system shows (breakage, theft, count difference). Maker-checker approval; the value is posted to the stock adjustment ledger.";
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader(title, kind == "WRITEOFF" ? "bi-trash3" : "bi-plus-slash-minus", desc, null, null, Stats: stats, Section: "Pharmacy", Group: "Inventory"))" />
+<div class="card shadow-sm border-0">
+    <form method="get" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">All statuses</option>@foreach (var (v, t) in new[] { ("DRAFT", "Draft"), ("SUBMITTED", "Awaiting approval"), ("APPROVED", "Approved"), ("REJECTED", "Rejected"), ("CANCELLED", "Cancelled") }) { <option value="@v" selected="@(v == status)">@t</option> }</select>
+        @if (kind == "WRITEOFF") { <a asp-action="Expiry" class="btn btn-sm btn-outline-warning"><i class="bi bi-calendar-x me-1"></i>Expiry list</a> }
+        <a asp-action="Form" asp-permission="@($"{page}:SAVE")" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-plus-circle me-1"></i>New</a>
+    </form>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable">
+        <thead><tr><th>#</th><th>Number</th><th>Date</th><th>Reason</th><th>Remarks</th><th class="text-end">Batches</th><th class="text-end">Value (cost)</th><th>By</th><th>Status</th></tr></thead>
+        <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
+            <tr onclick="location.href='@Url.Action("Form", new { id = r.Id })'"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@(r.DocNo ?? "Draft #" + r.Id)</td><td>@r.DocDate.ToString("dd-MMM-yyyy")</td><td>@r.Party</td><td class="small text-muted">@r.Ref</td>
+                <td class="text-end">@r.Lines</td><td class="text-end @(r.Value < 0 ? "text-danger" : "text-success")">@r.Value.ToString("N2")</td><td class="small">@r.CreatedByName</td><td><partial name="_InvStatus" model="r.Status" /></td></tr> }</tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Nothing here.</div> }</div>
+</div>

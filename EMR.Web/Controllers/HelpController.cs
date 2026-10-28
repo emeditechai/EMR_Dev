@@ -92,7 +92,7 @@ public class HelpController(IHelpApiClient api, EMR.Web.Services.IAskAiFeatures 
     public async Task<IActionResult> Ask(string question, string? pageCode)
     {
         if (!await askAi.IsEnabledAsync(HttpContext))
-            return Json(new { found = false, text = "Ask AI is switched off for this branch (Hospital Settings > LAB > Enable Ask AI Features)." });
+            return Json(new { found = false, text = "Ask eMedi is switched off for this branch (Hospital Settings > LAB > Enable Ask AI Features)." });
         if (string.IsNullOrWhiteSpace(question)) return Json(new { found = false, text = "Type a question." });
         var (branchId, scopes) = await DataScopeAsync();
         return Json(await api.AskAsync(new HelpAskRequest

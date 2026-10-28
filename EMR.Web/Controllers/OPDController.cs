@@ -7,6 +7,7 @@ using EMR.Web.Models.Entities;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using EMR.Web.Services.Geography;
+using EMR.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -37,6 +38,7 @@ public class OPDController(
     IEmrConsultationApiClient emrConsultationApiClient,
     IVitalApiClient vitalApiClient,
     IDbConnectionFactory db,
+    IPatientProfileService profileService,
     ILedgerService ledgerService,
     ILabReportEmailService labReportEmailService,
     ILabReportWhatsAppService labReportWhatsAppService,
@@ -351,6 +353,8 @@ public class OPDController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> PatientRegistration(PatientRegistrationViewModel model, IFormFile? identificationFile, IFormFile? profilePictureFile)
     {
+        // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+        if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null) return NotFound();
         Console.WriteLine($"[DEBUG] PatientRegistration POST: model.PatientId={model.PatientId}, model.PhoneNumber={model.PhoneNumber}, model.RelationId={model.RelationId}");
 
         // Saving an existing patient's details (the Edit screen opened from Patient Master) needs Patient Master > Edit patient (script 2208).
@@ -454,6 +458,7 @@ public class OPDController(
                 p.PhoneNumber == model.PhoneNumber.Trim() &&
                 p.RelationId  == model.RelationId &&
                 p.IsActive    &&
+                p.CompanyId   == User.GetCompanyId() &&   // per company (script 2330)
                 (model.PatientId == 0 || p.PatientId != model.PatientId));
 
             if (dupExists)
@@ -469,12 +474,15 @@ public class OPDController(
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(model.EmailId) && isSelfRelation)
+        // e-mail: checked for a new registration only; an existing patient's e-mail can always be updated
+        // (the phone number is the family identity - the database keeps only phone unique, script 2221)
+        if (!string.IsNullOrWhiteSpace(model.EmailId) && isSelfRelation && model.PatientId == 0)
         {
             var dupEmailExists = await dbContext.PatientMasters.AnyAsync(p =>
                 p.EmailId == model.EmailId.Trim() &&
                 p.RelationId == model.RelationId &&
                 p.IsActive &&
+                p.CompanyId == User.GetCompanyId() &&   // per company (script 2330)
                 p.PatientId != model.PatientId);
 
             if (dupEmailExists)
@@ -703,6 +711,9 @@ public class OPDController(
         [FromForm] string? paymentDataJson,
         [FromForm] string? bookingRequestKey)
     {
+        // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+        if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            return Json(new { success = false, error = "The selected patient does not belong to this company. Search the patient again." });
         // One bill per booking (SQLScripts/2310): the key of this registration form; a retry reuses the bill it created
         Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
         bool keyClaimed = false;      // this request holds the key and has not created the bill yet
@@ -865,6 +876,7 @@ public class OPDController(
                     p.PhoneNumber == model.PhoneNumber.Trim() &&
                     p.RelationId == model.RelationId &&
                     p.IsActive &&
+                    p.CompanyId == User.GetCompanyId() &&   // per company (script 2330)
                     p.PatientId != model.PatientId);
                 if (dupExists)
                 {
@@ -1137,8 +1149,57 @@ public class OPDController(
         return RedirectToAction(nameof(Index));
     }
 
+    // ─── Patient Portal login: create / reset (SQLScripts/2326) ───────────────────
+
+    /// <summary>
+    /// Master > Patient Master: a new random portal password for the patient (the portal user id is the Patient ID),
+    /// sent by e-mail and WhatsApp; it must be changed at the first sign-in. Also unlocks a locked portal account.
+    /// When it could not be sent, the password is shown once to the staff member to hand over.
+    /// </summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    [RequiresPermission("MASTER.OPD", "PORTAL_LOGIN")]
+    public async Task<IActionResult> PortalLogin(int id, [FromServices] IPasswordHasherService passwordHasher)
+    {
+        var password = PatientPortalLoginService.NewPassword();
+        var (hash, salt) = passwordHasher.HashPassword(password);
+        var target = await patientApiClient.SetPortalLoginAsync(id, hash, salt, User.GetCompanyId());
+        if (target is null)
+            return Json(new { success = false, message = "This patient was not found or is inactive." });
+
+        var branchId = User.GetCurrentBranchId() ?? 0;
+        var sent = await portalLoginService.SendCredentialsAsync(branchId, target.PatientCode, target.FullName, target.EmailId,
+            target.PhoneNumber, password, isReset: true);
+        await auditLogService.LogAsync("OPD", "Patient.PortalLogin",
+            $"Portal login created / reset for {target.PatientCode} (e-mail {(sent.Emailed ? "sent" : "not sent")}, WhatsApp {(sent.WhatsApped ? "sent" : "not sent")})");
+
+        var channels = new List<string>();
+        if (sent.Emailed) channels.Add($"e-mail ({MaskEmail(target.EmailId)})");
+        if (sent.WhatsApped) channels.Add($"WhatsApp ({MaskPhone(target.PhoneNumber)})");
+        return Json(new
+        {
+            success = true,
+            patientCode = target.PatientCode,
+            delivered = channels.Count > 0,
+            message = channels.Count > 0
+                ? $"Portal login for {target.PatientCode} sent by {string.Join(" and ", channels)}."
+                : $"The portal login for {target.PatientCode} could not be sent (no e-mail / WhatsApp). Give the patient this password:",
+            // shown once, only when it could not be delivered to the patient
+            password = channels.Count > 0 ? null : password
+        });
+    }
+
+    private static string MaskEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains('@')) return "";
+        var at = email.IndexOf('@');
+        return (at <= 2 ? email[..1] : email[..2]) + "***" + email[at..];
+    }
+
+    private static string MaskPhone(string? phone)
+        => string.IsNullOrWhiteSpace(phone) || phone.Trim().Length < 4 ? "" : "******" + phone.Trim()[^4..];
+
     // ─── Token Management ───────────────────────────────────────────────────────
-    
+
     [HttpGet]
     public async Task<IActionResult> TokenManagement()
     {
@@ -1613,6 +1674,8 @@ public class OPDController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> NewServiceBooking(PatientRegistrationViewModel model, IFormFile? identificationFile)
     {
+        // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+        if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null) return NotFound();
         // Must be an existing patient — demographics are NEVER modified from this screen
         if (model.PatientId <= 0)
         {
@@ -1789,274 +1852,17 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
-        var patient = await patientService.GetByIdAsync(id);
-        if (patient is null) return NotFound();
-
-        var names = await patientService.GetDemographicNamesAsync(id);
-        string? idTypeName = patient.IdentificationTypeId.HasValue
-            ? await patientService.GetIdentificationTypeNameAsync(patient.IdentificationTypeId.Value)
-            : null;
-
-        List<EMR.Web.ApiClients.Models.VitalRow> vitals = [];
-        try
-        {
-            var vitalsResult = await vitalApiClient.GetHistoryAsync(id, 1, 50);
-            vitals = vitalsResult?.Rows ?? [];
-        }
-        catch (Exception)
-        {
-            // Silently fallback if Api is down
-        }
-
-        List<PatientVisitHistoryItem> visits = [];
-        try
-        {
-            using var con = db.CreateConnection();
-            visits = (await con.QueryAsync<PatientVisitHistoryItem>(@"
-                SELECT 
-                    s.OPDServiceId, 
-                    s.VisitDate, 
-                    s.OPDBillNo, 
-                    s.TokenNo, 
-                    s.TotalAmount, 
-                    s.Status, 
-                    ISNULL((SELECT TOP 1 ph.PaymentStatus FROM PaymentHeader ph 
-                            WHERE ph.ModuleCode = 'OPD' AND ph.ModuleRefId = s.OPDServiceId AND ph.IsActive = 1), 'U') AS PaymentStatus,
-                    ISNULL(d.NamePrefix + ' ', '') + d.FullName AS ConsultingDoctorName,
-                    ISNULL(
-                        STUFF((
-                            SELECT DISTINCT ', ' + ISNULL(si.ServiceType, '')
-                            FROM PatientOPDServiceItem si
-                            WHERE si.OPDServiceId = s.OPDServiceId AND si.IsActive = 1
-                            FOR XML PATH(''), TYPE
-                        ).value('.','NVARCHAR(MAX)'), 1, 2, ''), ''
-                    ) AS ServiceTypesSummary
-                FROM PatientOPDService s
-                LEFT JOIN DoctorMaster d ON d.DoctorId = s.ConsultingDoctorId
-                WHERE s.PatientId = @PatientId AND s.IsActive = 1
-                ORDER BY s.OPDServiceId DESC",
-                new { PatientId = id })).ToList();
-        }
-        catch (Exception)
-        {
-            // Silently fallback
-        }
-
-        List<PatientLabOrderHistoryItem> labOrders = [];
-        try
-        {
-            using var con = db.CreateConnection();
-            labOrders = (await con.QueryAsync<PatientLabOrderHistoryItem>(@"
-                SELECT 
-                    l.LabOrderId,
-                    l.OrderDate,
-                    l.BillNo,
-                    l.TotalAmount,
-                    ISNULL(ph.SubTotal - ph.NetAmount, 0) AS DiscountAmount,
-                    ISNULL(ph.TotalPaid, 0) AS PaidAmount,
-                    ISNULL(ph.PaymentStatus, 'U') AS PaymentStatus,
-                    -- tests already signed off (Report Approve); >0 = the approved report can be printed
-                    (SELECT COUNT(1)
-                       FROM SampleCollection sc
-                       INNER JOIN labentrydetails led ON led.SamplecollectionID = sc.samplecollectionID AND led.IsActive = 1
-                      WHERE sc.Laborderid = l.LabOrderId AND led.ReportStatusId = 5) AS ApprovedTestCount
-                FROM LabOrder l
-                LEFT JOIN PaymentHeader ph ON ph.ModuleCode = 'LAB' AND ph.ModuleRefId = l.LabOrderId AND ph.IsActive = 1
-                WHERE l.PatientId = @PatientId AND l.IsActive = 1
-                ORDER BY l.LabOrderId DESC",
-                new { PatientId = id })).ToList();
-        }
-        catch (Exception)
-        {
-            // Silently fallback
-        }
-
-        var model = new PatientDetailsViewModel
-        {
-            Patient = patient,
-            ReligionName = names.ReligionName,
-            MaritalStatusName = names.MaritalStatusName,
-            OccupationName = names.OccupationName,
-            LanguageName = names.LanguageName,
-            AreaName = names.AreaName,
-            CityName = names.CityName,
-            DistrictName = names.DistrictName,
-            StateName = names.StateName,
-            CountryName = names.CountryName,
-            IdentificationTypeName = idTypeName,
-            VisitHistory = visits,
-            VitalHistory = vitals,
-            LabOrderHistory = labOrders
-        };
-
-        try
-        {
-            await LoadPatientLinksAsync(model);
-        }
-        catch (Exception)
-        {
-            // Silently fallback: the profile still opens, only the linked sections stay empty
-        }
-
+        // the same profile the Patient Portal shows the patient (Services/PatientProfileService)
+        var model = await profileService.BuildAsync(id);
+        if (model is null) return NotFound();
         return View(model);
     }
 
-    /// <summary>
-    /// The rest of what hangs off a patient: relation, where / by whom registered, referral doctor, the family on the
-    /// same mobile number, membership cards (held or covered by), the card members, points ledger and billing totals.
-    /// </summary>
-    private async Task LoadPatientLinksAsync(PatientDetailsViewModel model)
-    {
-        var p = model.Patient;
-        using var con = db.CreateConnection();
-        using var grid = await con.QueryMultipleAsync(@"
-            DECLARE @Phone NVARCHAR(20) = NULLIF(LTRIM(RTRIM(@PhoneNumber)), '');
-
-            SELECT (SELECT RelationName FROM dbo.RelationMaster WHERE RelationId = @RelationId) AS RelationName,
-                   (SELECT BranchName FROM dbo.Branchmaster WHERE BranchID = @BranchId) AS RegisteredBranchName,
-                   (SELECT COALESCE(NULLIF(FullName, ''), Username) FROM dbo.Users WHERE Id = @CreatedBy) AS RegisteredByName,
-                   (SELECT LTRIM(ISNULL(Salutation + ' ', '') + DoctorName) FROM dbo.ReferralDoctorMaster WHERE ReferralDoctorId = @ReferralDoctorId) AS ReferralDoctorName;
-
-            -- family: everyone registered on the same mobile number, head of family (Self) first
-            SELECT f.PatientId, f.PatientCode,
-                   LTRIM(CONCAT(f.Salutation + ' ', f.FirstName, ' ' + NULLIF(f.MiddleName, ''), ' ' + f.LastName)) AS FullName,
-                   f.Gender, f.DateOfBirth, f.RelationId, rm.RelationName, f.IsActive
-              FROM dbo.PatientMaster f
-              LEFT JOIN dbo.RelationMaster rm ON rm.RelationId = f.RelationId
-             WHERE @Phone IS NOT NULL AND LTRIM(RTRIM(f.PhoneNumber)) = @Phone AND f.PatientId <> @PatientId
-               AND ISNULL(f.CompanyId, 0) = ISNULL(@CompanyId, 0)
-             ORDER BY CASE WHEN f.RelationId = 1 THEN 0 ELSE 1 END, f.IsActive DESC, ISNULL(rm.SortOrder, 99), f.PatientId;
-
-            -- membership cards this patient holds or is covered by
-            SELECT c.CardId, c.CardNo, pl.PlanName, pl.PlanType, c.Status, c.ValidFrom, c.ValidTo, c.PointsBalance, pl.PointValue,
-                   pl.MaxMembers, c.FeeAmount, c.ReceiptNo, b.BranchName AS IssueBranchName, c.CreatedDate,
-                   m.IsPrimary, m.Relation AS MemberRelation, m.IsActive AS MemberActive, c.PrimaryPatientId,
-                   LTRIM(CONCAT(hp.Salutation + ' ', hp.FirstName, ' ' + NULLIF(hp.MiddleName, ''), ' ' + hp.LastName)) AS PrimaryName,
-                   hp.PatientCode AS PrimaryCode
-              FROM dbo.MembershipCardMember m
-              JOIN dbo.MembershipCard c ON c.CardId = m.CardId
-              JOIN dbo.MembershipPlan pl ON pl.PlanId = c.PlanId
-              LEFT JOIN dbo.Branchmaster b ON b.BranchID = c.IssueBranchId
-              LEFT JOIN dbo.PatientMaster hp ON hp.PatientId = c.PrimaryPatientId
-             WHERE m.PatientId = @PatientId
-             ORDER BY CASE WHEN c.Status = 'Active' AND c.ValidTo >= CAST(GETDATE() AS DATE) AND m.IsActive = 1 THEN 0 ELSE 1 END, c.CardId DESC;
-
-            -- members of those cards
-            SELECT m.CardId, m.PatientId, mp.PatientCode,
-                   LTRIM(CONCAT(mp.Salutation + ' ', mp.FirstName, ' ' + NULLIF(mp.MiddleName, ''), ' ' + mp.LastName)) AS FullName,
-                   m.Relation, m.IsPrimary, m.IsActive
-              FROM dbo.MembershipCardMember m
-              JOIN dbo.PatientMaster mp ON mp.PatientId = m.PatientId
-             WHERE m.CardId IN (SELECT CardId FROM dbo.MembershipCardMember WHERE PatientId = @PatientId)
-             ORDER BY m.CardId, m.IsPrimary DESC, m.CardMemberId;
-
-            -- points ledger of those cards (newest first)
-            SELECT TOP 100 l.CreatedDate, c.CardNo, l.TxnType, l.Points, l.Amount, l.BalanceAfter, l.ReceiptNo, l.Narration,
-                   LTRIM(CONCAT(lp.FirstName, ' ' + lp.LastName)) AS PatientName
-              FROM dbo.MembershipLedger l
-              JOIN dbo.MembershipCard c ON c.CardId = l.CardId
-              LEFT JOIN dbo.PatientMaster lp ON lp.PatientId = l.PatientId
-             WHERE l.CardId IN (SELECT CardId FROM dbo.MembershipCardMember WHERE PatientId = @PatientId)
-             ORDER BY l.LedgerId DESC;
-
-            -- billing totals by module (active bills)
-            SELECT ModuleCode, COUNT(*) AS Bills, SUM(ISNULL(NetAmount, 0)) AS NetAmount,
-                   SUM(ISNULL(TotalPaid, 0)) AS Paid, SUM(ISNULL(BalanceDue, 0)) AS Due
-              FROM dbo.PaymentHeader
-             WHERE PatientId = @PatientId AND IsActive = 1
-             GROUP BY ModuleCode;",
-            new { p.PatientId, p.PhoneNumber, p.RelationId, p.BranchId, p.CreatedBy, p.ReferralDoctorId, p.CompanyId });
-
-        var head = await grid.ReadFirstOrDefaultAsync();
-        model.RelationName = (string?)head?.RelationName;
-        model.RegisteredBranchName = (string?)head?.RegisteredBranchName;
-        model.RegisteredByName = (string?)head?.RegisteredByName;
-        model.ReferralDoctorName = (string?)head?.ReferralDoctorName;
-        model.Family = (await grid.ReadAsync<PatientFamilyItem>()).ToList();
-        model.MembershipCards = (await grid.ReadAsync<PatientMembershipCardItem>()).ToList();
-        model.CardMembers = (await grid.ReadAsync<PatientCardMemberItem>()).ToList();
-        model.PointsLedger = (await grid.ReadAsync<PatientPointsItem>()).ToList();
-        model.BillingSummary = (await grid.ReadAsync<PatientBillingSummaryItem>()).ToList();
-    }
+    [HttpGet]
+    public async Task<IActionResult> GetPatientVitalsChartData(int id) => Json(await profileService.VitalsChartAsync(id));
 
     [HttpGet]
-    public async Task<IActionResult> GetPatientVitalsChartData(int id)
-    {
-        try
-        {
-            var vitalsResult = await vitalApiClient.GetHistoryAsync(id, 1, 100);
-            var rows = vitalsResult?.Rows ?? new List<EMR.Web.ApiClients.Models.VitalRow>();
-            var chartData = rows
-                .OrderBy(v => v.RecordedOn)
-                .Select(v => new
-                {
-                    RecordedOn = v.RecordedOn.ToString("dd MMM yyyy, HH:mm"),
-                    v.Height,
-                    v.Weight,
-                    v.BPSystolic,
-                    v.BPDiastolic,
-                    v.PulseRate,
-                    v.SpO2,
-                    v.Temperature,
-                    v.BloodGlucose
-                }).ToList();
-
-            return Json(chartData);
-        }
-        catch (Exception)
-        {
-            return Json(Array.Empty<object>());
-        }
-    }
-
-    [HttpGet]
-    public async Task<IActionResult> GetPatientVisitsChartData(int id)
-    {
-        try
-        {
-            using var con = db.CreateConnection();
-            var visitsByDate = await con.QueryAsync(@"
-                SELECT 
-                    CAST(s.VisitDate AS DATE) AS VisitDate, 
-                    SUM(ISNULL(s.TotalAmount, 0)) AS TotalAmount
-                FROM PatientOPDService s
-                WHERE s.PatientId = @PatientId AND s.IsActive = 1
-                GROUP BY CAST(s.VisitDate AS DATE)
-                ORDER BY CAST(s.VisitDate AS DATE) ASC",
-                new { PatientId = id });
-
-            var consultingByDoctor = await con.QueryAsync(@"
-                SELECT 
-                    ISNULL(d.NamePrefix + ' ', '') + d.FullName AS DoctorName,
-                    COUNT(s.OPDServiceId) AS ConsultingCount
-                FROM PatientOPDService s
-                INNER JOIN DoctorMaster d ON d.DoctorId = s.ConsultingDoctorId
-                WHERE s.PatientId = @PatientId AND s.IsActive = 1
-                GROUP BY d.NamePrefix, d.FullName
-                ORDER BY ConsultingCount DESC",
-                new { PatientId = id });
-
-            var chartData = new
-            {
-                billData = visitsByDate.Select(v => new
-                {
-                    visitDate = ((DateTime)v.VisitDate).ToString("dd MMM yyyy"),
-                    totalAmount = (decimal)v.TotalAmount
-                }).ToList(),
-                consultingData = consultingByDoctor.Select(c => new
-                {
-                    doctorName = (string)c.DoctorName,
-                    consultingCount = (int)c.ConsultingCount
-                }).ToList()
-            };
-
-            return Json(chartData);
-        }
-        catch (Exception)
-        {
-            return Json(Array.Empty<object>());
-        }
-    }
+    public async Task<IActionResult> GetPatientVisitsChartData(int id) => Json(await profileService.VisitsChartAsync(id));
 
     [HttpGet]
     public async Task<IActionResult> GetPatientDetails(int id)
@@ -2123,6 +1929,50 @@ public class OPDController(
         return Json(services.Select(s => new { s.ServiceId, s.ItemName, s.ItemCharges, s.IsRegistration,
                                                 IsDiscountable = discountable.GetValueOrDefault(s.ServiceId, true) }));
     }
+
+    /// <summary>The patient's last OPD visit (any branch of the company): date, doctor and bill - shown beside the
+    /// registration badge when a patient is loaded (SQLScripts/2323). Cancelled bills are skipped.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetLastVisit(int patientId)
+    {
+        static string ShortDate(DateTime d) => d.ToString(d.Year == DateTime.Today.Year ? "dd MMM" : "dd MMM yy");
+        if (patientId <= 0) return Json(new { found = false });
+        using var con = db.CreateConnection();
+        var v = await con.QueryFirstOrDefaultAsync<(DateTime VisitDate, string? AppointmentTime, string? DoctorName, string? OPDBillNo, string? BranchName)>(@"
+            SELECT TOP 1 o.VisitDate, CAST(o.AppointmentTime AS NVARCHAR(20)),
+                   CASE WHEN NULLIF(LTRIM(RTRIM(d.NamePrefix)), N'') IS NULL THEN d.FullName ELSE d.NamePrefix + N' ' + d.FullName END,
+                   o.OPDBillNo, b.BranchName
+            FROM dbo.PatientOPDService o
+            LEFT JOIN dbo.DoctorMaster d ON d.DoctorId = o.ConsultingDoctorId
+            LEFT JOIN dbo.Branchmaster b ON b.BranchID = o.BranchId
+            WHERE o.PatientId = @patientId AND o.IsActive = 1 AND o.OPDBillNo IS NOT NULL
+            ORDER BY o.VisitDate DESC, o.OPDServiceId DESC", new { patientId });
+        if (v.OPDBillNo is null) return Json(new { found = false });
+        var days = (DateTime.Today - v.VisitDate.Date).Days;
+        // the last visit may be a service-only bill: then the last consulting doctor comes from the latest visit that had one
+        (DateTime VisitDate, string? DoctorName) consultant = default;
+        if (string.IsNullOrWhiteSpace(v.DoctorName))
+            consultant = await con.QueryFirstOrDefaultAsync<(DateTime, string?)>(@"
+                SELECT TOP 1 o.VisitDate,
+                       CASE WHEN NULLIF(LTRIM(RTRIM(d.NamePrefix)), N'') IS NULL THEN d.FullName ELSE d.NamePrefix + N' ' + d.FullName END
+                FROM dbo.PatientOPDService o
+                INNER JOIN dbo.DoctorMaster d ON d.DoctorId = o.ConsultingDoctorId
+                WHERE o.PatientId = @patientId AND o.IsActive = 1 AND o.OPDBillNo IS NOT NULL
+                ORDER BY o.VisitDate DESC, o.OPDServiceId DESC", new { patientId });
+        return Json(new
+        {
+            found = true,
+            visitDate = ShortDate(v.VisitDate),
+            daysAgo = days,
+            doctorName = v.DoctorName,
+            lastConsultant = consultant.DoctorName,
+            lastConsultantDate = consultant.DoctorName is null ? null : ShortDate(consultant.VisitDate),
+            billNo = v.OPDBillNo,
+            branchName = v.BranchName,
+            otherBranch = v.BranchName is not null && v.BranchName != User.FindFirst("BranchName")?.Value
+        });
+    }
+
 
     [HttpGet]
     public async Task<IActionResult> GetRegistrationValidity(int patientId)
@@ -2336,7 +2186,7 @@ public class OPDController(
     // ─── Print Bill (via EMR.Api) ─────────────────────────────────────────────
 
     [HttpGet]
-    public async Task<IActionResult> PrintBill(int id)
+    public async Task<IActionResult> PrintBill(int id, int? previewTemplateId = null)
     {
         try
         {
@@ -2388,6 +2238,7 @@ public class OPDController(
             // Pre-printed letterhead: Hospital Settings > LAB > Required B2C Bill Print Header = No prints this in-app
             // OPD bill without header / footer. PrintBillAnonymous (the email / WhatsApp link) is not touched.
             ViewBag.ShowHeaderFooter = settings?.LabB2CBillPrintHeaderRequired ?? true;
+            if (branchId.HasValue) await ApplyBillTemplateAsync(detail, branchId.Value, previewTemplateId);
             return View(detail);
         }
         catch (HttpRequestException)
@@ -2449,12 +2300,32 @@ public class OPDController(
             ViewBag.Settings   = settings;
             ViewBag.BranchName = branch?.BranchName ?? string.Empty;
             ViewBag.Payment    = payment;
+            await ApplyBillTemplateAsync(detail, branchId, null);   // the shared link prints with the branch's template too
             return View("PrintBill", detail);
         }
         catch (HttpRequestException)
         {
             return StatusCode(503, "API Down");
         }
+    }
+
+    /// <summary>
+    /// Utility > Print Templates (SQLScripts/2324): the branch's Bill template for the header and footer (none = Classic),
+    /// the same as the LAB bill. previewTemplateId: the designer's Preview (only for a user who may open Print Templates).
+    /// </summary>
+    private async Task ApplyBillTemplateAsync(ServiceBookingDetailViewModel detail, int branchId, int? previewTemplateId)
+    {
+        var runtime = HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>();
+        if (previewTemplateId is > 0) ViewBag.ShowHeaderFooter = true;   // the designer's preview always shows the header and footer
+        await runtime.ApplyToBillAsync(ViewData, User, branchId, new PrintDocInfo
+        {
+            DocNo = detail.OPDBillNo,
+            DocDate = detail.CreatedDate.ToString("dd-MMM-yyyy hh:mm tt"),
+            TokenNo = detail.TokenNo,
+            CopyLabel = string.Equals(detail.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ? "Cancelled" : "Original",
+            PrintedBy = User?.FindFirst("DisplayName")?.Value ?? User?.Identity?.Name,
+            CreatedBy = detail.CreatedByUser
+        }, previewTemplateId);
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -2607,6 +2478,7 @@ public class OPDController(
         CityId                = m.CityId,
         AreaId                = m.AreaId,
         Address               = m.Address?.Trim(),
+        Pincode               = string.IsNullOrWhiteSpace(m.Pincode) ? null : m.Pincode.Trim(),
         HomeCollectionAddress = m.HomeCollectionAddress?.Trim(),
         Latitude              = m.Latitude,
         Longitude             = m.Longitude,
@@ -2656,7 +2528,8 @@ public class OPDController(
             DistrictId            = p.DistrictId,
             CityId                = p.CityId,
             AreaId                = p.AreaId,
-            Address               = p.Address,
+            Address               = PatientAddress.Split(p.Address).Address,        // the PIN is edited in its own field
+            Pincode               = p.Pincode ?? PatientAddress.Split(p.Address).Pincode,
             HomeCollectionAddress = p.HomeCollectionAddress,
             Latitude              = p.Latitude,
             Longitude             = p.Longitude,
@@ -3116,7 +2989,7 @@ public class OPDController(
                 if (!graceTime.HasValue || graceTime.Value <= 0)
                 {
                     var cfgGrace = await db.VideoSystemConfigs
-                        .Where(c => c.ConfigKey == "DefaultGraceMinutes" && c.IsActive)
+                        .Where(c => c.ConfigKey == "DefaultGraceMinutes" && c.IsActive && c.CompanyId == User.GetCompanyId())
                         .Select(c => c.ConfigValue)
                         .FirstOrDefaultAsync();
                     graceTime = int.TryParse(cfgGrace, out var g) ? g : 15;

@@ -29,6 +29,10 @@ public class SecurityController(
     private const string ViewerPage = "SETTINGS.SECURITY.EFFECTIVEPERMISSIONS";
 
     private int CompanyId => User.GetCompanyId();
+
+    // Menu & Page Master and Role Permissions are global (script 2334); User Permissions and the effective-permissions
+    // viewer are company-wise: a company manages and sees only its own users
+    private async Task<bool> OwnUserAsync(int userId) => (await admin.GetCompanyUserIdsAsync(CompanyId)).Contains(userId);
     private int UserId => User.GetUserId();
     private PermissionSubject Actor => PermissionSubjectReader.FromPrincipal(User)!;
 
@@ -166,6 +170,7 @@ public class SecurityController(
     [HttpGet, RequiresPermission(UserPage)]
     public async Task<IActionResult> GetUserGrantsJson(int userId, int? branchId, int? roleId)
     {
+        if (!await OwnUserAsync(userId)) return Json(new { success = false, message = "User not found." });
         var bundle = await admin.GetUserGrantsAsync(CompanyId, userId, branchId, roleId);
         if (bundle.User is null) return Json(new { success = false, message = "User not found." });
         var tree = await admin.GetTreeAsync(CompanyId);
@@ -175,6 +180,7 @@ public class SecurityController(
     [HttpPost, ValidateAntiForgeryToken, RequiresPermission(UserPage, PermissionControls.Edit)]
     public Task<IActionResult> SaveUserGrantsJson([FromBody] SaveGrantsRequest req) => Write(async () =>
     {
+        if (!await OwnUserAsync(req.TargetId)) throw new PermissionAdminException("User not found.", "NOTFOUND");
         var result = await admin.SaveUserGrantsAsync(CompanyId, req, Actor, UserPage);
         if (result.Status == "OK")
             await Audit("SEC.UserPermissionsSaved", $"User #{req.TargetId}: {result.Changes} permission override(s) saved.",
@@ -185,6 +191,7 @@ public class SecurityController(
     [HttpPost, ValidateAntiForgeryToken, RequiresPermission(UserPage, PermissionControls.Edit)]
     public Task<IActionResult> ResetUserGrantsJson(int userId, int expectedVersion) => Write(async () =>
     {
+        if (!await OwnUserAsync(userId)) throw new PermissionAdminException("User not found.", "NOTFOUND");
         var result = await admin.ResetUserGrantsAsync(CompanyId, userId, expectedVersion, Actor, UserPage);
         if (result.Status == "OK")
             await Audit("SEC.UserPermissionsReset", $"User #{userId}: {result.Changes} exception(s) removed - back to role permissions.",
@@ -193,7 +200,9 @@ public class SecurityController(
     });
 
     [HttpGet, RequiresPermission(UserPage)]
-    public async Task<IActionResult> GetUserHistoryJson(int userId) => Json(new { success = true, rows = await admin.GetHistoryAsync("USER", userId) });
+    public async Task<IActionResult> GetUserHistoryJson(int userId)
+        => !await OwnUserAsync(userId) ? Json(new { success = false, message = "User not found." })
+            : Json(new { success = true, rows = await admin.GetHistoryAsync("USER", userId) });
 
     // ════════════════════════════ Screen 4 · Effective Permissions ════════════════════════════
     [HttpGet, RequiresPermission(ViewerPage)]
@@ -207,6 +216,7 @@ public class SecurityController(
     [HttpGet, RequiresPermission(ViewerPage)]
     public async Task<IActionResult> GetEffectiveJson(int userId, int branchId, int? roleId)
     {
+        if (!await OwnUserAsync(userId)) return Json(new { success = false, message = "User not found." });
         var rows = await admin.GetEffectiveAsync(CompanyId, userId, branchId, roleId, ignoreUserRows: false);
         var bundle = await admin.GetUserGrantsAsync(CompanyId, userId, branchId);
         var tree = await admin.GetTreeAsync(CompanyId);
@@ -216,13 +226,18 @@ public class SecurityController(
     [HttpGet, RequiresPermission(ViewerPage)]
     public async Task<IActionResult> ExplainJson(int userId, int branchId, int? roleId, int pageId, int? controlId)
     {
+        if (!await OwnUserAsync(userId)) return Json(new { success = false, message = "User not found." });
         var (rows, levels) = await admin.ExplainAsync(userId, branchId, roleId, pageId, controlId);
         return Json(new { success = true, rows, levels });
     }
 
     [HttpGet, RequiresPermission(ViewerPage)]
     public async Task<IActionResult> GetDecisionLogJson(int days = 7, int? userId = null)
-        => Json(new { success = true, rows = await admin.GetDecisionLogAsync(DateTime.Now.AddDays(-Math.Clamp(days, 1, 90)), userId) });
+    {
+        var own = await admin.GetCompanyUserIdsAsync(CompanyId);   // only this company's users' decisions
+        var rows = await admin.GetDecisionLogAsync(DateTime.Now.AddDays(-Math.Clamp(days, 1, 90)), userId);
+        return Json(new { success = true, rows = rows.Where(r => r.User_ID is int u && own.Contains(u)) });
+    }
 
     [HttpGet, RequiresPermission(ViewerPage)]
     public async Task<IActionResult> GetSuperAdminsJson() => Json(new { success = true, rows = await admin.GetSuperAdminsAsync(CompanyId) });
@@ -230,6 +245,7 @@ public class SecurityController(
     [HttpGet, RequiresPermission(ViewerPage, PermissionControls.Export)]
     public async Task<IActionResult> ExportEffectiveCsv(int userId, int branchId, int? roleId)
     {
+        if (!await OwnUserAsync(userId)) return NotFound();
         var rows = await admin.GetEffectiveAsync(CompanyId, userId, branchId, roleId, ignoreUserRows: false);
         var tree = await admin.GetTreeAsync(CompanyId);
         var titles = tree.Pages.ToDictionary(p => p.Page_ID, p => p.Title);

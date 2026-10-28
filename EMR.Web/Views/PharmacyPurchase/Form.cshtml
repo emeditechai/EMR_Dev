@@ -1,0 +1,257 @@
+@using System.Text.Json
+@using EMR.Web.Services
+@model PhDocPage
+@{
+    // Pharmacy > Purchase > indent / order / GRN / return form - SQLScripts/2344. Buttons follow the page controls (asp-permission) and the status.
+    var d = Model.Doc; var k = Model.Kind; var pc = Model.PageCode;
+    var isNew = d.Id == 0;
+    ViewData["Title"] = isNew ? "New " + Model.Title : (d.DocNo ?? Model.Title + " draft");
+    var st = PharmacyPurchaseService.StatusInfo.GetValueOrDefault(d.Status, (d.Status, "bg-light text-dark border"));
+    var jo = new JsonSerializerOptions { PropertyNamingPolicy = null };
+    string J(object? o) => JsonSerializer.Serialize(o, jo);
+    var ro = !Model.Editable;
+    string D(DateTime? v) => v?.ToString("yyyy-MM-dd") ?? "";
+    var priced = k is "po" or "grn" or "return";
+}
+<link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<style>
+    .ph-sec { border: 0; border-radius: 12px; }
+    .ph-sec .card-header { background: #fff; border-bottom: 1px solid #eef2f7; font-weight: 700; font-size: .9rem; color: var(--emr-primary, #644098); padding: .7rem 1rem; }
+    .ph-sec .form-label { font-size: .78rem; font-weight: 600; color: #334155; margin-bottom: .2rem; }
+    #phLines td { vertical-align: middle; font-size: .85rem; }
+    #phLines thead th { background: #f1f5f9; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #475569; white-space: nowrap; }
+    .ph-totals td { padding: .25rem .5rem; font-size: .88rem; }
+    .ph-totals .net td { font-size: 1.15rem; font-weight: 800; color: var(--emr-primary, #644098); border-top: 2px solid #e2e8f0; }
+    .ph-actions { position: sticky; bottom: 0; background: rgba(248,250,252,.96); border-top: 1px solid #e2e8f0; z-index: 10; backdrop-filter: blur(4px); }
+</style>
+
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader(Model.Title, Model.Icon, Model.Description, null, null, isNew ? "New " + Model.Title.ToLower() : (d.DocNo ?? $"Draft #{d.Id}"), isNew ? "New" : (d.DocNo ?? "Draft"), Url.Action("Index"), Section: "Pharmacy", Group: "Purchase"))" />
+
+@if (Model.Warnings.Count > 0)
+{
+    <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle-fill me-1"></i><b>Check before posting:</b><ul class="mb-0">@foreach (var w in Model.Warnings) { <li>@w</li> }</ul></div>
+}
+
+<form method="post" asp-action="Save" id="phDocForm">
+@Html.AntiForgeryToken()
+<input type="hidden" name="json" id="phJson" />
+
+<div class="card shadow-sm ph-sec mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-info-circle me-2"></i>@(k == "grn" ? "Supplier bill" : "Details")</span>
+        <span><span class="badge @st.Item2">@st.Item1</span>
+            @if (!isNew) { <span class="small text-muted ms-2">by @d.CreatedByName, @d.CreatedDate.ToString("dd-MMM-yyyy HH:mm")@(d.ApprovedByName != null ? $" · {(k is "grn" or "return" ? "posted" : "approved")} by {d.ApprovedByName}, {d.ApprovedDate:dd-MMM-yyyy HH:mm}" : "")</span> }</span>
+    </div>
+    <div class="card-body row g-3">
+        <div class="col-md-2">
+            <label class="form-label req" for="DocDate">@(k switch { "indent" => "Indent date", "po" => "Order date", "grn" => "GRN date", _ => "Return date" })</label>
+            <input type="date" id="DocDate" class="form-control" value="@D(d.DocDate)" max="@D(DateTime.Today)" required disabled="@ro" />
+        </div>
+        @if (k == "indent")
+        {
+            <div class="col-md-2">
+                <label class="form-label" for="Priority">Priority</label>
+                <select id="Priority" class="form-select" disabled="@ro"><option value="NORMAL" selected="@(d.Priority != "URGENT")">Normal</option><option value="URGENT" selected="@(d.Priority == "URGENT")">Urgent</option></select>
+            </div>
+            <div class="col-md-8"><label class="form-label" for="Remarks">Remarks</label><input id="Remarks" class="form-control" maxlength="300" value="@d.Remarks" disabled="@ro" placeholder="Why it is needed (optional)" /></div>
+            @if (!string.IsNullOrEmpty(d.ActionRemarks)) { <div class="col-12"><div class="alert alert-light border small mb-0"><b>Approver's note:</b> @d.ActionRemarks</div></div> }
+        }
+        else
+        {
+            <div class="col-md-4">
+                <label class="form-label req" for="SupplierId">Supplier</label>
+                @if (ro) { <input class="form-control" value="@d.SupplierName" disabled /> }
+                else
+                {
+                    <select id="SupplierId" class="form-select" required>
+                        <option value="">— select supplier —</option>
+                        @foreach (var s in Model.Suppliers) { <option value="@s.Value" selected="@(s.Value == d.SupplierId?.ToString())">@s.Text</option> }
+                    </select>
+                }
+                <div class="form-text" id="supWarn">@if (Model.Supplier?.Warning is { } w) { <span><i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>@w</span> } else if (Model.Supplier != null) { <span>Credit @Model.Supplier.CreditDays days@(Model.Supplier.Gstin != null ? " · GSTIN " + Model.Supplier.Gstin : "")</span> }</div>
+            </div>
+            @if (k == "po")
+            {
+                <div class="col-md-2"><label class="form-label" for="ExpectedDate">Expected delivery</label><input type="date" id="ExpectedDate" class="form-control" value="@D(d.ExpectedDate)" disabled="@ro" /></div>
+                <div class="col-md-2"><label class="form-label">Against indent</label><input class="form-control" value="@(d.RefNo ?? "—")" disabled /></div>
+            }
+            @if (Model.Direct)
+            {
+                <div class="col-12"><div class="alert alert-info py-2 small mb-0"><i class="bi bi-lightning-charge-fill me-1"></i><b>GRN not required</b> (Hospital Settings &gt; MED): enter the supplier's bill with batch, expiry and MRP here; approving the order adds the stock.</div></div>
+                <div class="col-md-3"><label class="form-label req" for="InvoiceNo">Supplier bill no.</label><input id="InvoiceNo" class="form-control text-uppercase" maxlength="40" value="@d.InvoiceNo" required disabled="@ro" /></div>
+                <div class="col-md-3"><label class="form-label req" for="InvoiceDate">Bill date</label><input type="date" id="InvoiceDate" class="form-control" value="@D(d.InvoiceDate)" max="@D(DateTime.Today)" required disabled="@ro" /></div>
+                <div class="col-md-3"><label class="form-label req" for="InvoiceAmount">Bill amount (₹)</label><input type="number" step="0.01" min="0" id="InvoiceAmount" class="form-control fw-semibold" value="@(d.InvoiceAmount == 0 ? "" : d.InvoiceAmount.ToString("0.00"))" required disabled="@ro" /></div>
+                <div class="col-md-3"><label class="form-label" for="OtherCharges">Freight / other (₹)</label><input type="number" step="0.01" min="0" id="OtherCharges" class="form-control" value="@d.OtherCharges.ToString("0.00")" disabled="@ro" /></div>
+            }
+            @if (k == "grn")
+            {
+                <div class="col-md-4">
+                    <label class="form-label" for="RefId">Against purchase order</label>
+                    @if (ro) { <input class="form-control" value="@(d.RefNo ?? "Direct purchase")" disabled /> }
+                    else
+                    {
+                        <select id="RefId" class="form-select">
+                            <option value="">— direct purchase (no PO) —</option>
+                            @if (d.RefId != null && Model.OpenPos.All(p => p.Value != d.RefId.ToString())) { <option value="@d.RefId" selected>@d.RefNo</option> }
+                            @foreach (var p in Model.OpenPos) { <option value="@p.Value" selected="@(p.Value == d.RefId?.ToString())">@p.Text</option> }
+                        </select>
+                    }
+                </div>
+                <div class="col-md-2"><label class="form-label req" for="InvoiceNo">Supplier bill no.</label><input id="InvoiceNo" class="form-control text-uppercase" maxlength="40" value="@d.InvoiceNo" required disabled="@ro" /></div>
+                <div class="col-md-2"><label class="form-label req" for="InvoiceDate">Bill date</label><input type="date" id="InvoiceDate" class="form-control" value="@D(d.InvoiceDate)" max="@D(DateTime.Today)" required disabled="@ro" /></div>
+                <div class="col-md-2"><label class="form-label req" for="InvoiceAmount">Bill amount (₹)</label><input type="number" step="0.01" min="0" id="InvoiceAmount" class="form-control fw-semibold" value="@(d.InvoiceAmount == 0 ? "" : d.InvoiceAmount.ToString("0.00"))" required disabled="@ro" /></div>
+                <div class="col-md-2"><label class="form-label" for="OtherCharges">Freight / other (₹)</label><input type="number" step="0.01" min="0" id="OtherCharges" class="form-control" value="@d.OtherCharges.ToString("0.00")" disabled="@ro" /></div>
+            }
+            @if (k == "return")
+            {
+                <div class="col-md-3">
+                    <label class="form-label req" for="ReasonId">Reason</label>
+                    <select id="ReasonId" class="form-select" required disabled="@ro">
+                        <option value="">— select —</option>
+                        @foreach (var r in Model.Reasons) { <option value="@r.Value" selected="@(r.Value == d.ReasonId?.ToString())">@r.Text</option> }
+                    </select>
+                </div>
+            }
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="IsInterState" checked="@d.IsInterState" disabled="@ro"><label class="form-check-label small fw-semibold" for="IsInterState">Inter-state (IGST)</label></div>
+            </div>
+            <div class="col-md-@(k == "po" ? "6" : "12")"><label class="form-label" for="Remarks">Remarks</label><input id="Remarks" class="form-control" maxlength="300" value="@d.Remarks" disabled="@ro" /></div>
+            @if (k == "po") { <div class="col-md-6"><label class="form-label" for="Terms">Terms printed on the order</label><input id="Terms" class="form-control" maxlength="500" value="@d.Terms" disabled="@ro" /></div> }
+        }
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="@(priced ? "col-xl-9" : "col-12")">
+        <div class="card shadow-sm ph-sec">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-check me-2"></i>@(k == "return" ? "Batches returned" : "Items") <span class="text-muted fw-normal small ms-1" id="tLines"></span></span>
+                @if (k == "indent" && !ro) { <button type="button" class="btn btn-sm btn-outline-primary" id="btnReorder"><i class="bi bi-lightning-charge me-1"></i>Add items below reorder level</button> }
+                @if ((k == "grn" || Model.Direct) && !ro)
+                {
+                    <span class="d-flex gap-1">
+                        <label class="btn btn-sm btn-outline-primary mb-0" title="Distributor's bill as Excel / CSV"><i class="bi bi-file-earmark-arrow-up me-1"></i>Import lines<input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden /></label>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnTemplate" title="Download the import template"><i class="bi bi-download"></i></button>
+                    </span>
+                }
+                @if (!ro) { <span class="small text-muted"><span class="ph-kbd">F2</span> add · <span class="ph-kbd">Enter</span> next field · <span class="ph-kbd">Ctrl+S</span> save</span> }
+            </div>
+            <div class="table-responsive"><table class="table mb-0" id="phLines"><thead></thead><tbody></tbody></table></div>
+        </div>
+    </div>
+    @if (priced)
+    {
+        <div class="col-xl-3">
+            <div class="card shadow-sm ph-sec" style="position:sticky;top:12px">
+                <div class="card-header"><i class="bi bi-calculator me-2"></i>Totals</div>
+                <div class="card-body p-2">
+                    <table class="w-100 ph-totals">
+                        <tr><td>Taxable value</td><td class="text-end" id="tTaxable"></td></tr>
+                        <tr><td>CGST</td><td class="text-end" id="tCgst"></td></tr>
+                        <tr><td>SGST</td><td class="text-end" id="tSgst"></td></tr>
+                        <tr><td>IGST</td><td class="text-end" id="tIgst"></td></tr>
+                        @if (k == "grn" || Model.Direct) { <tr><td>Freight / other</td><td class="text-end">@d.OtherCharges.ToString("N2")</td></tr> }
+                        @if (k != "po" || Model.Direct) { <tr><td>Round off</td><td class="text-end" id="tRound"></td></tr> }
+                        <tr class="net"><td>@(k == "return" ? "Debit note" : "Net amount")</td><td class="text-end" id="tNet"></td></tr>
+                    </table>
+                    @if (k == "grn" || Model.Direct) { <div class="small mt-2" id="tDiff"></div> }
+                    @if (k == "grn" && d.DueDate != null) { <div class="small text-muted mt-1">Payment due @d.DueDate.Value.ToString("dd-MMM-yyyy")</div> }
+                </div>
+            </div>
+            @if (k == "grn" && !isNew && d.Status != "CANCELLED")
+            {
+                <div class="card shadow-sm ph-sec mt-3">
+                    <div class="card-header"><i class="bi bi-paperclip me-2"></i>Supplier bill scan</div>
+                    <div class="card-body p-2 small">
+                        @if (d.AttachmentPath != null) { <a asp-action="Attachment" asp-route-id="@d.Id" target="_blank" class="d-block mb-2"><i class="bi bi-file-earmark-pdf me-1"></i>@(d.AttachmentName ?? "View bill")</a> }
+                        else { <div class="text-muted mb-2">No scan attached.</div> }
+                        <form method="post" asp-action="Attach" asp-route-id="@d.Id" enctype="multipart/form-data" asp-permission="@($"{pc}:ATTACH")" class="d-flex gap-1">
+                            <input type="file" name="file" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.webp" required />
+                            <button class="btn btn-sm btn-outline-primary" title="Upload (PDF / image, 5 MB)"><i class="bi bi-upload"></i></button>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+</form>
+
+@* ── actions: each button is a page control; the server checks the same control and the status ── *@
+<div class="ph-actions py-2 px-3 mt-3 d-flex flex-wrap gap-2 justify-content-end align-items-center rounded-3">
+    <a asp-action="Index" class="btn btn-outline-secondary me-auto"><i class="bi bi-arrow-left me-1"></i>Back to list</a>
+    @if (!isNew && d.Status != "DRAFT") { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
+    @if (d.Status == "DRAFT")
+    {
+        <button asp-permission="@($"{pc}:SAVE")" type="submit" form="phDocForm" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save draft</button>
+    }
+    @if (!isNew)
+    {
+        @switch (k)
+        {
+            case "indent":
+                if (d.Status == "DRAFT") { <form method="post" asp-action="Submit" asp-route-id="@d.Id" asp-permission="@($"{pc}:SUBMIT")" data-confirm="Submit this indent for approval? It cannot be changed after that."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form> }
+                if (d.Status == "SUBMITTED")
+                {
+                    <form method="post" asp-action="Reject" asp-route-id="@d.Id" asp-permission="@($"{pc}:REJECT")" data-remarks="Reason for rejecting" data-required="1"><button class="btn btn-outline-danger"><i class="bi bi-x-octagon me-1"></i>Reject</button></form>
+                    <form method="post" asp-action="Approve" asp-route-id="@d.Id" asp-permission="@($"{pc}:APPROVE")" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve</button></form>
+                }
+                if (d.Status == "APPROVED") { <a asp-controller="PhPurchaseOrders" asp-action="Form" asp-route-indentId="@d.Id" asp-permission="PHARMACY.PURCHASEORDER:SAVE" class="btn btn-primary"><i class="bi bi-file-earmark-plus me-1"></i>Create purchase order</a> }
+                if (d.Status is "DRAFT" or "SUBMITTED" or "APPROVED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="@($"{pc}:CANCEL")" data-remarks="Reason for cancelling"><button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Cancel indent</button></form> }
+                break;
+            case "po":
+                if (d.Status == "DRAFT") { <form method="post" asp-action="Approve" asp-route-id="@d.Id" asp-permission="@($"{pc}:APPROVE")" data-confirm="@(Model.Direct ? "Approve this purchase? The stock is added now (GRN not required) and it cannot be changed after that." : "Approve this order? It gets its PO number and cannot be changed after that.")"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>@(Model.Direct ? "Approve & add stock" : "Approve")</button></form> }
+                if (d.Status is "APPROVED" or "PARTIAL")
+                {
+                    if (d.EmailedTo != null) { <span class="small text-muted">E-mailed to @d.EmailedTo, @d.EmailedDate?.ToString("dd-MMM HH:mm")</span> }
+                    <form method="post" asp-action="Email" asp-route-id="@d.Id" asp-permission="@($"{pc}:EMAIL")" data-confirm="E-mail this order to the supplier now?"><button class="btn btn-outline-primary"><i class="bi bi-envelope me-1"></i>@(d.EmailedTo != null ? "E-mail again" : "E-mail to supplier")</button></form>
+                    <a asp-controller="PhGrns" asp-action="Form" asp-route-poId="@d.Id" asp-permission="PHARMACY.GRN:SAVE" class="btn btn-primary"><i class="bi bi-box-arrow-in-down me-1"></i>Receive goods (GRN)</a>
+                }
+                if (d.Status == "PARTIAL") { <form method="post" asp-action="Close" asp-route-id="@d.Id" asp-permission="@($"{pc}:CLOSE")" data-confirm="Short-close this order? The quantity still pending will not be received."><button class="btn btn-outline-warning"><i class="bi bi-slash-circle me-1"></i>Short-close</button></form> }
+                if (d.Status is "DRAFT" or "APPROVED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="@($"{pc}:CANCEL")" data-confirm="Cancel this purchase order?"><button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Cancel order</button></form> }
+                break;
+            default:
+                if (d.Status == "DRAFT")
+                {
+                    <form method="post" asp-action="Delete" asp-route-id="@d.Id" asp-permission="@($"{pc}:DELETE")" data-confirm="Delete this draft?"><button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Delete draft</button></form>
+                    <form method="post" asp-action="Post" asp-route-id="@d.Id" asp-permission="@($"{pc}:POST")" class="d-flex align-items-center gap-2" data-confirm="@(k == "grn" ? "Post this GRN? Stock will be added and the GRN cannot be changed after that." : "Post this return? Stock will be reduced and it cannot be changed after that.")">
+                        @if (k == "grn" && Model.Warnings.Count > 0) { <div class="form-check mb-0"><input class="form-check-input" type="checkbox" name="acceptWarnings" value="true" id="acceptWarnings"><label class="form-check-label small" for="acceptWarnings">I have checked the warnings</label></div> }
+                        <button class="btn btn-success"><i class="bi bi-check2-all me-1"></i>Post @(k == "grn" ? "GRN" : "return")</button>
+                    </form>
+                }
+                break;
+        }
+    }
+</div>
+
+@section Scripts {
+<script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
+@if (k == "grn" || Model.Direct) { <script src="~/lib/xlsx/xlsx.full.min.js"></script> }
+<script src="~/js/pharmacy-doc.js" asp-append-version="true"></script>
+<script>
+PhDocForm({
+    kind: @Html.Raw(J(k)), direct: @(Model.Direct ? "true" : "false"), editable: @(Model.Editable ? "true" : "false"), doc: @Html.Raw(J(d)), minShelfDays: @Model.MinShelfLifeDays,
+    urls: { itemSearch: '@Url.Action("ItemSearch")', supplierInfo: '@Url.Action("SupplierInfo")', reorder: '@Url.Action("ReorderSuggest")',
+            openPos: '@Url.Action("OpenPos")', poLines: '@Url.Action("PoLines")', batchSearch: '@Url.Action("BatchSearch")',
+            rateHistory: @Html.Raw(k is "po" or "grn" ? "'" + Url.Action("RateHistory") + "'" : "null"), newItem: '@Url.Action("Form", "PharmacyItems")' }
+});
+// confirm / remarks prompts on the action buttons
+document.querySelectorAll('form[data-confirm], form[data-remarks]').forEach(f => f.addEventListener('submit', async e => {
+    if (f.dataset.ok) return;
+    e.preventDefault();
+    let res;
+    if (f.dataset.remarks) {
+        res = await Swal.fire({ title: f.querySelector('button').innerText.trim(), input: 'text', inputLabel: f.dataset.remarks, showCancelButton: true,
+            inputValidator: v => f.dataset.required && !v.trim() ? 'Required.' : null });
+        if (!res.isConfirmed) return;
+        let h = f.querySelector('input[name=remarks]'); if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = 'remarks'; f.appendChild(h); }
+        h.value = res.value || '';
+    } else {
+        res = await Swal.fire({ title: 'Please confirm', text: f.dataset.confirm, icon: 'question', showCancelButton: true, confirmButtonText: 'Yes' });
+        if (!res.isConfirmed) return;
+    }
+    f.dataset.ok = '1'; f.submit();
+}));
+</script>
+}

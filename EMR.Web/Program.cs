@@ -37,6 +37,10 @@ builder.Services.AddScoped<EMR.Web.ApiClients.IHelpApiClient, EMR.Web.ApiClients
 builder.Services.AddScoped<EMR.Web.ApiClients.IOpdVisitHistoryApiClient, EMR.Web.ApiClients.OpdVisitHistoryApiClient>();
 builder.Services.AddScoped<EMR.Web.ApiClients.ITerminologyApiClient, EMR.Web.ApiClients.TerminologyApiClient>();   // Utility > API data, LOINC (SQLScripts/2316)
 builder.Services.AddScoped<EMR.Web.ApiClients.IUserListApiClient, EMR.Web.ApiClients.UserListApiClient>();   // User Master server paging (SQLScripts/2314)
+builder.Services.AddScoped<EMR.Web.ApiClients.IPrintTemplateApiClient, EMR.Web.ApiClients.PrintTemplateApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyCopyApiClient, EMR.Web.ApiClients.CompanyCopyApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyPurgeApiClient, EMR.Web.ApiClients.CompanyPurgeApiClient>();   // Company > Remove data / Delete company (SQLScripts/2337)   // Company > Copy master data (SQLScripts/2328)   // Utility > Print Templates (SQLScripts/2324)
+builder.Services.AddScoped<EMR.Web.Services.IPrintTemplateRuntime, EMR.Web.Services.PrintTemplateRuntime>();
 builder.Services.AddScoped<EMR.Web.ApiClients.IBillingSubmissionApiClient, EMR.Web.ApiClients.BillingSubmissionApiClient>();   // one bill per booking (SQLScripts/2310)
 builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyOnboardingApiClient, EMR.Web.ApiClients.CompanyOnboardingApiClient>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)   // Utility > Help Center (SQLScripts/2300)
 builder.Services.AddSingleton<EMR.Web.Services.Campaigns.CampaignSenderService>();
@@ -116,6 +120,13 @@ builder.Services.AddScoped<IDiscountTypeService, DiscountTypeService>();
 
 // Patient Registration (Dapper)
 builder.Services.AddScoped<IPatientService, PatientService>();
+builder.Services.AddScoped<ICertificateService, CertificateService>();   // OPD > Certificates (SQLScripts/2341)
+builder.Services.AddScoped<ICertificateNotificationService, CertificateNotificationService>();   // certificate WhatsApp / e-mail (SQLScripts/2342)
+builder.Services.AddScoped<IPharmacyMasterService, PharmacyMasterService>();   // Master > Pharmacy Master (SQLScripts/2343)
+builder.Services.AddScoped<IPharmacyPurchaseService, PharmacyPurchaseService>();   // Pharmacy > Purchase (SQLScripts/2344)
+builder.Services.AddScoped<IPharmacySaleService, PharmacySaleService>();   // Pharmacy > Sales (SQLScripts/2348)
+builder.Services.AddScoped<IPharmacyBillNotifier, PharmacyBillNotifier>();   // pharmacy bill PDF + WhatsApp / e-mail (SQLScripts/2348)
+builder.Services.AddScoped<IPharmacyInventoryService, PharmacyInventoryService>();   // Pharmacy > Inventory (SQLScripts/2349)
 
 // EMR Template Service (EF Core)
 builder.Services.AddScoped<IEmrTemplateService, EmrTemplateService>();
@@ -241,6 +252,7 @@ builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();
 builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>();
 builder.Services.AddScoped<EMR.Web.Services.IPatientPortalLoginService, EMR.Web.Services.PatientPortalLoginService>();
+builder.Services.AddScoped<EMR.Web.Services.IPatientProfileService, EMR.Web.Services.PatientProfileService>();   // Patient Master view + Patient Portal dashboard
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
 builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();
@@ -404,6 +416,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Files as they are on disk first: an image replaced after a publish (e.g. Images/login-bg.jpg) or a file uploaded on
+// the server (wwwroot/uploads) is served as it is; MapStaticAssets below only describes the files of the build and fails
+// for a file whose size changed after publishing.
+app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
 app.UseMiddleware<EMR.Web.Middleware.QueryStringDecryptionMiddleware>();

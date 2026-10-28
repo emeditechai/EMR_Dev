@@ -1,3 +1,19 @@
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
+@{
+    // Sign-in background slides: wwwroot/Images/login-bg, login-bg-2, login-bg-3 (.jpg / .jpeg / .png / .webp), up to three,
+    // shown in their own colours and cross-faded in a loop (one image: no slideshow)
+    var loginSlides = new List<string>();
+    foreach (var name in new[] { "login-bg", "login-bg-2", "login-bg-3" })
+    {
+        foreach (var ext in new[] { ".jpg", ".jpeg", ".png", ".webp" })
+        {
+            var file = new System.IO.FileInfo(System.IO.Path.Combine(Env.WebRootPath, "Images", name + ext));
+            if (!file.Exists) continue;
+            loginSlides.Add($"/Images/{name}{ext}?v={file.LastWriteTimeUtc.Ticks}");
+            break;
+        }
+    }
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,12 +28,36 @@
     <link rel="stylesheet" href="~/EMR.Web.styles.css" asp-append-version="true" />
 </head>
 <body class="auth-body">
+    @if (loginSlides.Count > 0)
+    {
+        <div class="auth-slides" aria-hidden="true">
+            @for (var i = 0; i < loginSlides.Count; i++)
+            {
+                <div class="auth-slide@(i == 0 ? " on" : "")" style="background-image:url('@loginSlides[i]')"></div>
+            }
+        </div>
+    }
     <main class="auth-main">
         @RenderBody()
     </main>
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    @if (loginSlides.Count > 1)
+    {
+        <script>
+            // background slideshow: cross-fade to the next image every 7 s, in a loop; paused while the tab is hidden
+            (function () {
+                const slides = document.querySelectorAll('.auth-slide');
+                let i = 0, timer = null;
+                const next = () => { slides[i].classList.remove('on'); i = (i + 1) % slides.length; slides[i].classList.add('on'); };
+                const start = () => { if (!timer) timer = setInterval(next, 7000); };
+                const stop = () => { clearInterval(timer); timer = null; };
+                document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
+                start();
+            })();
+        </script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

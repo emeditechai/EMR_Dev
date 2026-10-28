@@ -1,0 +1,61 @@
+@using EMR.Web.Services
+@model List<PhBatchCorrectionRow>
+@{
+    ViewData["Title"] = "Batch Correction"; string? status = ViewBag.Status; int me = ViewBag.UserId;
+    var stats = new List<KeyValuePair<string, int>> { new("Awaiting approval", Model.Count(m => m.Status == "SUBMITTED")), new("Approved", Model.Count(m => m.Status == "APPROVED")) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Batch Correction", "bi-pencil-square", "Correct a batch number, expiry or MRP entered wrongly at GRN. Another user approves; the old and new values are kept for audit.", null, null, Stats: stats, Section: "Pharmacy", Group: "Inventory"))" />
+<form method="post" asp-action="Save" asp-permission="PHARMACY.BATCHCORRECTION:SAVE" class="card shadow-sm border-0 mb-3" id="corrForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="batchId" id="batchId" />
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-4 position-relative"><label class="form-label small fw-semibold req">Batch</label><input id="pick" class="form-control form-control-sm" placeholder="Item, batch or barcode" autocomplete="off" /><div id="pickList" class="list-group position-absolute w-100 shadow d-none" style="z-index:30"></div><div class="small text-muted" id="cur"></div></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold req">Correct batch no.</label><input name="newBatchNo" id="nb" class="form-control form-control-sm text-uppercase" maxlength="30" /></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold req">Correct expiry</label><input type="month" name="newExpiry" id="ne" class="form-control form-control-sm" /></div>
+        <div class="col-md-1"><label class="form-label small fw-semibold req">MRP / pack</label><input type="number" step="0.01" min="0" name="newMrp" id="nm" class="form-control form-control-sm" /></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold req">Reason</label><input name="reason" class="form-control form-control-sm" maxlength="300" required /></div>
+        <div class="col-md-1"><button class="btn btn-sm btn-primary w-100">Ask</button></div>
+    </div>
+</form>
+<div class="card shadow-sm border-0">
+    <form method="get" class="card-body py-2 ph-toolbar border-bottom"><select name="status" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">All statuses</option>@foreach (var (v, t) in new[] { ("SUBMITTED", "Awaiting approval"), ("APPROVED", "Approved"), ("REJECTED", "Rejected") }) { <option value="@v" selected="@(v == status)">@t</option> }</select></form>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table">
+        <thead><tr><th>Number</th><th>Date</th><th>Item</th><th>Batch no.</th><th>Expiry</th><th class="text-end">MRP</th><th>Reason</th><th>By</th><th>Status</th><th></th></tr></thead>
+        <tbody>@foreach (var r in Model) {
+            <tr><td class="font-monospace small">@r.DocNo</td><td class="small">@r.CreatedDate.ToString("dd-MMM HH:mm")</td><td class="fw-semibold">@r.ItemName</td>
+                <td>@if (r.OldBatchNo != r.NewBatchNo) { <s class="text-muted">@r.OldBatchNo</s> <b>@r.NewBatchNo</b> } else { @r.OldBatchNo }</td>
+                <td>@if (r.OldExpiry != r.NewExpiry) { <s class="text-muted">@r.OldExpiry.ToString("MMM-yy")</s> <b>@r.NewExpiry.ToString("MMM-yy")</b> } else { @r.OldExpiry.ToString("MMM-yy") }</td>
+                <td class="text-end">@if (r.OldMrp != r.NewMrp) { <s class="text-muted">@r.OldMrp.ToString("N2")</s> <b>@r.NewMrp.ToString("N2")</b> } else { @r.OldMrp.ToString("N2") }</td>
+                <td class="small">@r.Reason@if (r.ActionRemarks != null) { <div class="text-muted">↳ @r.ActionRemarks</div> }</td><td class="small">@r.CreatedByName@if (r.ApprovedByName != null) { <div class="text-muted">✓ @r.ApprovedByName</div> }</td>
+                <td><partial name="_InvStatus" model="r.Status" /></td>
+                <td class="text-end text-nowrap">@if (r.Status == "SUBMITTED" && r.CreatedBy != me) {
+                    <form method="post" asp-action="Approve" asp-route-id="@r.CorrectionId" asp-permission="PHARMACY.BATCHCORRECTION:APPROVE" class="d-inline">@Html.AntiForgeryToken()<button class="btn btn-sm btn-success">Approve</button></form>
+                    <form method="post" asp-action="Reject" asp-route-id="@r.CorrectionId" asp-permission="PHARMACY.BATCHCORRECTION:REJECT" class="d-inline rej">@Html.AntiForgeryToken()<input type="hidden" name="remarks" /><button class="btn btn-sm btn-outline-danger">Reject</button></form> }</td></tr> }</tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No corrections.</div> }</div>
+</div>
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const pick = document.getElementById('pick'), list = document.getElementById('pickList'); let t, res = [];
+    if (pick) {
+        pick.addEventListener('input', () => { clearTimeout(t); if (pick.value.trim().length < 2) { list.classList.add('d-none'); return; }
+            t = setTimeout(async () => { res = await fetch('@Url.Action("BatchSearch")?q=' + encodeURIComponent(pick.value.trim())).then(r => r.json());
+                list.innerHTML = res.map((r, k) => `<a href="#" class="list-group-item list-group-item-action py-1" data-k="${k}"><b>${esc(r.itemName)}</b> · ${esc(r.batchNo)} · ${new Date(r.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} · MRP ${r.mrp}</a>`).join('') || '<div class="list-group-item small text-muted">Nothing in stock matches.</div>';
+                list.classList.remove('d-none'); }, 250); });
+        list.addEventListener('mousedown', e => { const a = e.target.closest('[data-k]'); if (!a) return; e.preventDefault(); const r = res[a.dataset.k];
+            document.getElementById('batchId').value = r.batchId; pick.value = r.itemName + ' · ' + r.batchNo; list.classList.add('d-none');
+            document.getElementById('nb').value = r.batchNo; document.getElementById('ne').value = String(r.expiryDate).substring(0, 7); document.getElementById('nm').value = r.mrp;
+            document.getElementById('cur').textContent = `Now: ${r.batchNo} · exp ${String(r.expiryDate).substring(0, 7)} · MRP ${r.mrp}`; });
+        document.getElementById('corrForm').addEventListener('submit', e => { if (!document.getElementById('batchId').value) { e.preventDefault(); Swal.fire({ icon: 'info', title: 'Pick the batch first.' }); } });
+    }
+    document.querySelectorAll('form.rej').forEach(f => f.addEventListener('submit', async e => {
+        if (f.dataset.ok) return; e.preventDefault();
+        const r = await Swal.fire({ title: 'Reject the correction', input: 'text', inputLabel: 'Reason', showCancelButton: true, inputValidator: x => !x.trim() ? 'Required.' : null });
+        if (r.isConfirmed) { f.querySelector('[name=remarks]').value = r.value; f.dataset.ok = '1'; f.submit(); }
+    }));
+})();
+</script>
+}

@@ -127,7 +127,8 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
-                    model.Address = patient.Address;
+                    model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
+                    model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
                     model.Latitude = patient.Latitude;
                     model.Longitude = patient.Longitude;
@@ -345,6 +346,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -355,10 +357,17 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1,
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            {
+                ModelState.AddModelError(string.Empty, "The selected patient does not belong to this company. Search the patient again.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             int actualPatientId = model.PatientId;
             if (model.PatientId == 0)
             {
@@ -811,7 +820,8 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
-                    model.Address = patient.Address;
+                    model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
+                    model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
                     model.Latitude = patient.Latitude;
                     model.Longitude = patient.Longitude;
@@ -999,6 +1009,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -1009,10 +1020,17 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1, // Default
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            {
+                ModelState.AddModelError(string.Empty, "The selected patient does not belong to this company. Search the patient again.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             int actualPatientId = model.PatientId;
             if (model.PatientId == 0)
             {
@@ -1107,19 +1125,14 @@ namespace EMR.Web.Controllers
         }
 
         /// <summary>
-        /// Hospital Settings > LAB "Required Patient Portal" (B2C only, default No; script 2219): when Yes, the booked
-        /// patient gets a Patient Portal login with the credentials e-mailed, as OPD registration does (once per patient,
-        /// only with a mobile number and an e-mail). Never stops or delays the booking.
+        /// Hospital Settings "Required Patient Portal" (script 2219, checked in PatientPortalLoginService for OPD and B2C
+        /// alike): when Yes, the booked patient gets a Patient Portal login with the credentials sent, once per patient.
+        /// B2B bookings never call this. Never stops or delays the booking.
         /// </summary>
         private async Task TryCreatePortalLoginForB2CAsync(int branchId, int patientId, string? patientCode, PatientMaster patient)
         {
             try
             {
-                var required = await dbContext.HospitalSettings
-                    .Where(s => s.BranchId == branchId && s.IsActive)
-                    .Select(s => s.LabPatientPortalRequired)
-                    .FirstOrDefaultAsync();
-                if (!required) return;
                 if (string.IsNullOrWhiteSpace(patientCode)) patientCode = (await patientService.GetByIdAsync(patientId))?.PatientCode;
                 if (string.IsNullOrWhiteSpace(patientCode)) return;
                 await portalLoginService.TryGenerateAsync(patientId, patientCode, patient.PhoneNumber ?? "", patient.EmailId ?? "",
@@ -1330,6 +1343,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -1342,10 +1356,13 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1,
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+                return Json(new { success = false, error = "The selected patient does not belong to this company. Search the patient again." });
             int actualPatientId = model.PatientId;
             string actualPatientCode = model.PatientCode ?? string.Empty;
             LabOrderResponseDto labOrderRes;
@@ -2831,7 +2848,7 @@ namespace EMR.Web.Controllers
             IsDueCollection = p.IsDueCollection
         };
 
-        public async Task<IActionResult> PrintBill(int labOrderId)
+        public async Task<IActionResult> PrintBill(int labOrderId, int? previewTemplateId = null)
         {
             if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
             if (!await FranchiseOwnsOrderAsync(labOrderId)) return Forbid();
@@ -2989,7 +3006,27 @@ namespace EMR.Web.Controllers
                     : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
             };
 
+            await ApplyBillTemplateAsync(vm, branchId, previewTemplateId);
             return View(vm);
+        }
+
+        /// <summary>
+        /// Utility > Print Templates (SQLScripts/2324): the branch's Bill template for the header and footer (none = Classic).
+        /// previewTemplateId: the designer's Preview shows that template's draft (only to a user who may open Print Templates).
+        /// </summary>
+        private async Task ApplyBillTemplateAsync(PrintBillViewModel vm, int branchId, int? previewTemplateId)
+        {
+            var runtime = HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>();
+            if (previewTemplateId is > 0) vm.ShowHeaderFooter = true;   // the designer's preview always shows the header and footer
+            await runtime.ApplyToBillAsync(ViewData, User, branchId, new PrintDocInfo
+            {
+                DocNo = vm.BillNo,
+                DocDate = (vm.CreatedDate > DateTime.MinValue ? vm.CreatedDate : vm.OrderDate).ToString("dd-MMM-yyyy hh:mm tt"),
+                TokenNo = vm.TokenNo,
+                CopyLabel = vm.IsActive ? "Original" : "Cancelled",
+                PrintedBy = vm.PrintedByName,
+                CreatedBy = vm.CreatedByName ?? vm.CreatedByUsername
+            }, previewTemplateId);
         }
 
         /// <summary>
@@ -3328,6 +3365,7 @@ namespace EMR.Web.Controllers
                     : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
             };
 
+            await ApplyBillTemplateAsync(vm, branchId, null);   // the shared link prints with the branch's template too
             return View("PrintBill", vm);
         }
 

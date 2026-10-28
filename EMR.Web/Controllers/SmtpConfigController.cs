@@ -113,6 +113,7 @@ public class SmtpConfigController(
         var entity = new SmtpEmailConfiguration
         {
             BranchId = branchId.Value,
+            CompanyId = (await dbContext.BranchMasters.FindAsync(branchId.Value))?.CompanyId ?? User.GetCompanyId(),
             ConfigName = model.ConfigName,
             ProviderType = model.ProviderType,
             SmtpHost = model.SmtpHost,

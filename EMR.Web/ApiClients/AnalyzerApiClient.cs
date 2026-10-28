@@ -12,11 +12,13 @@ public class AnalyzerApiClient(IHttpClientFactory factory, ILogger<AnalyzerApiCl
     public async Task<List<AnalyzerListItem>> GetListAsync(int? departmentId = null,
         string? interfaceProtocol = null,
         bool? status = null,
-        string? search = null)
+        string? search = null,
+        int? companyId = null)
     {
         try
         {
             var query = new List<string>();
+            if (companyId.HasValue) query.Add($"companyId={companyId.Value}");   // analyzers are company-wise
             if (departmentId.HasValue) query.Add($"departmentId={departmentId.Value}");
             if (!string.IsNullOrWhiteSpace(interfaceProtocol)) query.Add($"interfaceProtocol={Uri.EscapeDataString(interfaceProtocol)}");
             if (status.HasValue) query.Add($"status={status.Value}");

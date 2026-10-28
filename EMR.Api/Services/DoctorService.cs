@@ -101,7 +101,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             // Insert branch/department maps
             foreach (var bid in req.BranchIds.Distinct())
                 await con.ExecuteAsync(
-                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,1,@UserId,GETDATE())",
+                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,CompanyId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @BranchId), 1),1,@UserId,GETDATE())",
                     new { DoctorId = doctorId, BranchId = bid, UserId = req.RequestedByUserId }, tx);
 
             foreach (var did in req.DepartmentIds.Distinct())
@@ -152,7 +152,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
 
             foreach (var bid in req.BranchIds.Distinct())
                 await con.ExecuteAsync(
-                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,1,@UserId,GETDATE())",
+                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,CompanyId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @BranchId), 1),1,@UserId,GETDATE())",
                     new { req.DoctorId, BranchId = bid, UserId = req.RequestedByUserId }, tx);
 
             foreach (var did in req.DepartmentIds.Distinct())

@@ -1,0 +1,38 @@
+@using EMR.Web.Services
+@model List<PhSupplierBalance>
+@{
+    // Pharmacy > Purchase > Supplier Payments > Outstanding (SQLScripts/2344)
+    ViewData["Title"] = "Supplier Outstanding";
+    string pc = ViewBag.PageCode;
+    var stats = new List<KeyValuePair<string, int>> { new("Suppliers", Model.Count), new("With balance", Model.Count(m => m.Balance > 0)), new("Overdue", Model.Count(m => m.Overdue > 0)) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Supplier Payments", "bi-hourglass-split", "What each supplier is owed: posted GRNs less purchase returns and payments. Overdue = past the bill's due date (bill date + supplier credit days).", null, null, "Supplier Outstanding", "Outstanding", Url.Action("Index"), stats, "Pharmacy", "Purchase"))" />
+
+<div class="card shadow-sm border-0">
+    <div class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width:320px"><span class="input-group-text bg-white"><i class="bi bi-search"></i></span><input id="phSearch" class="form-control" placeholder="Search supplier..." autocomplete="off" /></div>
+        <span class="small text-muted">Total outstanding <b>₹ @Model.Sum(m => m.Balance).ToString("N2")</b> · overdue <b class="text-danger">₹ @Model.Sum(m => m.Overdue).ToString("N2")</b></span>
+        <a asp-action="Index" class="btn btn-sm btn-outline-secondary ms-auto"><i class="bi bi-list-ul me-1"></i>Payments made</a>
+    </div>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table" id="phTable">
+        <thead><tr><th>#</th><th>Supplier</th><th class="text-end">Purchases</th><th class="text-end">Returns</th><th class="text-end">Paid</th><th class="text-end">Balance</th><th class="text-end">Overdue</th><th class="text-end">Open bills</th><th></th></tr></thead>
+        <tbody>
+        @for (var i = 0; i < Model.Count; i++)
+        {
+            var s = Model[i];
+            <tr><td class="text-muted small">@(i + 1)</td><td class="fw-semibold">@s.SupplierName</td><td class="text-end">@s.Purchases.ToString("N2")</td><td class="text-end">@s.Returns.ToString("N2")</td>
+                <td class="text-end">@s.Paid.ToString("N2")</td><td class="text-end fw-bold">@s.Balance.ToString("N2")</td>
+                <td class="text-end @(s.Overdue > 0 ? "text-danger fw-semibold" : "text-muted")">@s.Overdue.ToString("N2")</td><td class="text-end">@s.OpenBills</td>
+                <td class="text-end">@if (s.OpenBills > 0) { <a asp-action="Pay" asp-route-supplierId="@s.SupplierId" asp-permission="@($"{pc}:SAVE")" class="btn btn-sm btn-primary"><i class="bi bi-cash me-1"></i>Pay</a> }</td></tr>
+        }
+        </tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No posted GRNs yet.</div> }
+    </div>
+</div>
+@section Scripts {
+<script>
+document.getElementById('phSearch').addEventListener('input', e => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#phTable tbody tr').forEach(tr => tr.style.display = tr.children[1].textContent.toLowerCase().includes(q) ? '' : 'none'); });
+</script>
+}

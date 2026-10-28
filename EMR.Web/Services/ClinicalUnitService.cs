@@ -8,8 +8,7 @@ namespace EMR.Web.Services;
 
 public class ClinicalUnitService(IDbConnectionFactory db) : IClinicalUnitService
 {
-    // Clinical Unit Master is global: every company and branch uses the same units (CompanyId / BranchId only record
-    // where a unit was created).
+    // Clinical Unit Master is company-wise (SQLScripts/2327): the list and the code check are per company.
     public async Task<IEnumerable<ClinicalUnitListItemViewModel>> GetAllAsync(int? departmentId = null, int? specialityId = null)
     {
         using var con = db.CreateConnection();
@@ -110,14 +109,15 @@ public class ClinicalUnitService(IDbConnectionFactory db) : IClinicalUnitService
     }
 
     // Unit Code is unique application-wide (UQ_ClinicalUnitMaster_Code, script 2186).
-    public async Task<bool> CodeExistsAsync(string code, int? excludeId = null)
+    public async Task<bool> CodeExistsAsync(string code, int? excludeId = null, int? companyId = null)
     {
         using var con = db.CreateConnection();
         var count = await con.ExecuteScalarAsync<int>(@"
             SELECT COUNT(1) FROM ClinicalUnitMaster
             WHERE UnitCode = @code
-              AND (@excludeId IS NULL OR UnitId <> @excludeId)",
-            new { code, excludeId });
+              AND (@excludeId IS NULL OR UnitId <> @excludeId)
+              AND (@companyId IS NULL OR CompanyId = @companyId)",
+            new { code, excludeId, companyId });
         return count > 0;
     }
 

@@ -19,9 +19,8 @@ public class DoctorSubSpecialitiesController(
     {
         try
         {
-            var companyId = User.GetCompanyId();
-            var branchId = User.GetCurrentBranchId();
-            var list = await masterApiClient.GetDoctorSubSpecialitiesAsync(specialityId, companyId, branchId);
+            // Doctor Sub-Speciality Master is global: every company and branch uses the same list (SQLScripts/2327)
+            var list = await masterApiClient.GetDoctorSubSpecialitiesAsync(specialityId);
             
             ViewBag.SpecialityId = specialityId;
             ViewBag.SpecialityOptions = await subSpecialityService.GetSpecialityOptionsAsync(specialityId);
@@ -55,10 +54,10 @@ public class DoctorSubSpecialitiesController(
         model.SubSpecialityCode = model.SubSpecialityCode.Trim().ToUpper();
         model.SubSpecialityName = model.SubSpecialityName.Trim();
 
-        if (await subSpecialityService.CodeExistsAsync(model.SubSpecialityCode, companyId: companyId))
+        if (await subSpecialityService.CodeExistsAsync(model.SubSpecialityCode))
             ModelState.AddModelError(nameof(model.SubSpecialityCode), "This Sub-Speciality Code already exists.");
 
-        if (model.SpecialityId.HasValue && await subSpecialityService.NameExistsAsync(model.SubSpecialityName, model.SpecialityId.Value, companyId: companyId))
+        if (model.SpecialityId.HasValue && await subSpecialityService.NameExistsAsync(model.SubSpecialityName, model.SpecialityId.Value))
             ModelState.AddModelError(nameof(model.SubSpecialityName), "This Sub-Speciality Name already exists under the selected Speciality.");
 
         if (!ModelState.IsValid)
@@ -125,10 +124,10 @@ public class DoctorSubSpecialitiesController(
         model.SubSpecialityCode = model.SubSpecialityCode.Trim().ToUpper();
         model.SubSpecialityName = model.SubSpecialityName.Trim();
 
-        if (await subSpecialityService.CodeExistsAsync(model.SubSpecialityCode, excludeId: model.SubSpecialityId, companyId: companyId))
+        if (await subSpecialityService.CodeExistsAsync(model.SubSpecialityCode, excludeId: model.SubSpecialityId))
             ModelState.AddModelError(nameof(model.SubSpecialityCode), "This Sub-Speciality Code already exists.");
 
-        if (model.SpecialityId.HasValue && await subSpecialityService.NameExistsAsync(model.SubSpecialityName, model.SpecialityId.Value, excludeId: model.SubSpecialityId, companyId: companyId))
+        if (model.SpecialityId.HasValue && await subSpecialityService.NameExistsAsync(model.SubSpecialityName, model.SpecialityId.Value, excludeId: model.SubSpecialityId))
             ModelState.AddModelError(nameof(model.SubSpecialityName), "This Sub-Speciality Name already exists under the selected Speciality.");
 
         if (!ModelState.IsValid)

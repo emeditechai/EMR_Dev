@@ -195,7 +195,7 @@
                                 <th class="text-center">Blood Group</th>
                                 <th>Registered</th>
                                 <th class="text-center">Status</th>
-                                <th class="text-end pe-4" style="width:140px;">Actions</th>
+                                <th class="text-end pe-4" style="width:170px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -270,6 +270,10 @@
                                                 <a asp-action="PatientRegistration" asp-route-id="@p.PatientId"
                                                    class="btn btn-outline-primary" title="Edit patient"><i class="bi bi-pencil"></i></a>
                                             }
+                                            <button asp-permission="MASTER.OPD:PORTAL_LOGIN" type="button" class="btn btn-outline-success js-portal-login"
+                                                    data-id="@p.PatientId" data-name="@p.FullName" data-code="@p.PatientCode" title="Send patient portal login">
+                                                <i class="bi bi-key"></i>
+                                            </button>
                                             <button asp-permission="MASTER.OPD:DELETE" type="button" class="btn btn-outline-danger"
                                                     data-bs-toggle="modal" data-bs-target="#deleteModal"
                                                     data-id="@p.PatientId" data-name="@p.FullName" data-code="@p.PatientCode" title="Delete patient">
@@ -361,8 +365,46 @@
     </div>
 </div>
 
+<div asp-permission="MASTER.OPD:PORTAL_LOGIN" asp-permission-mode="hide" id="portalLoginForm" class="d-none">@Html.AntiForgeryToken()</div>
+
 @section Scripts {
 <script>
+    // ── Patient Portal login: create / reset and send (SQLScripts/2326) ─────────
+    document.addEventListener('click', async function (e) {
+        const btn = e.target.closest('.js-portal-login');
+        if (!btn) return;
+        const esc = v => (v || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const ask = await Swal.fire({
+            icon: 'question', title: 'Send portal login?',
+            html: `A new portal password will be created for <b>${esc(btn.dataset.name)}</b> (${esc(btn.dataset.code)}) and sent to the patient's e-mail / WhatsApp.<br><small class="text-muted">Any earlier portal password stops working. The patient signs in with the Patient ID and must choose a new password.</small>`,
+            showCancelButton: true, confirmButtonText: 'Create & send', confirmButtonColor: '#198754'
+        });
+        if (!ask.isConfirmed) return;
+
+        btn.disabled = true;
+        try {
+            const body = new URLSearchParams({ id: btn.dataset.id });
+            const token = document.querySelector('#portalLoginForm input[name="__RequestVerificationToken"]');
+            if (token) body.append('__RequestVerificationToken', token.value);
+            const res = await fetch('@Url.Action("PortalLogin", "OPD")', { method: 'POST', body });
+            const r = await res.json().catch(() => ({ success: false, message: 'You are not allowed to do this.' }));
+            if (!r.success) {
+                await Swal.fire({ icon: 'error', title: 'Not sent', text: r.message || 'Please try again.' });
+            } else if (r.delivered) {
+                await Swal.fire({ icon: 'success', title: 'Portal login sent', text: r.message });
+            } else {
+                await Swal.fire({
+                    icon: 'warning', title: 'Hand over the password',
+                    html: `${esc(r.message)}<div class="fs-3 fw-bold font-monospace my-3 user-select-all">${esc(r.password)}</div><small class="text-muted">Patient ID: <b>${esc(r.patientCode)}</b>. Shown only now - the patient must change it at the first sign-in.</small>`
+                });
+            }
+        } catch {
+            await Swal.fire({ icon: 'error', title: 'Not sent', text: 'The server could not be reached. Please try again.' });
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
     // ── Delete modal ─────────────────────────────────────────────────────────
     document.getElementById('deleteModal')?.addEventListener('show.bs.modal', function (e) {
         const btn = e.relatedTarget;

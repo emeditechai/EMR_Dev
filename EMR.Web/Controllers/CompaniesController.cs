@@ -439,4 +439,155 @@ public class CompaniesController(
 
         return $"/uploads/company_logos/{uniqueFileName}";
     }
+
+    // ── Company > Copy master data (super admin, SQLScripts/2328, 2336): this company pulls masters from another ──
+
+    /// <summary>The masters that can be copied, with the parents each one brings along.</summary>
+    public static readonly (string Key, string Name, string Group, string Icon, string[] Needs)[] CopyEntities =
+    [
+        ("CATEGORY",      "Test Categories",            "Lab setup",    "bi-tags",               []),
+        ("SUBCATEGORY",   "Test Sub-Categories",        "Lab setup",    "bi-diagram-2",          ["CATEGORY"]),
+        ("SAMPLETYPE",    "Sample Types",               "Lab setup",    "bi-droplet",            []),
+        ("METHOD",        "Test Methods",               "Lab setup",    "bi-gear-wide-connected", []),
+        ("INVESTIGATION", "Investigations",             "Tests",        "bi-clipboard2-pulse",   ["CATEGORY", "SUBCATEGORY", "SAMPLETYPE", "METHOD"]),
+        ("PROFILE",       "Investigation Profiles",     "Tests",        "bi-collection",         ["INVESTIGATION", "CATEGORY", "SUBCATEGORY", "SAMPLETYPE", "METHOD"]),
+        ("REFRANGE",      "Reference Ranges",           "Tests",        "bi-arrows-expand",      ["INVESTIGATION", "CATEGORY", "SUBCATEGORY", "SAMPLETYPE", "METHOD"]),
+        ("DESCRIPTIVE",   "Descriptive Test Templates", "Tests",        "bi-file-earmark-text",  ["INVESTIGATION", "CATEGORY", "SUBCATEGORY", "SAMPLETYPE", "METHOD"]),
+        ("ORGANISM",      "Organisms",                  "Microbiology", "bi-bug",                []),
+        ("ANTIBIOTIC",    "Antibiotics",                "Microbiology", "bi-capsule",            []),
+        ("PANEL",         "Antibiotic Panels",          "Microbiology", "bi-grid-3x3-gap",       ["ANTIBIOTIC", "SAMPLETYPE"]),
+        // script 2336: outside LAB - a shift / SMTP setting goes to this company's Head Office; SMTP / Video come from the
+        // source company's Head Office
+        ("SHIFT",         "Shifts",                     "Operations",   "bi-clock-history",      []),
+        ("EMRTEMPLATE",   "EMR Templates",              "Clinical",     "bi-file-earmark-medical", []),
+        ("SMTP",          "SMTP Email Settings",        "Communication", "bi-envelope-at",       []),
+        ("VIDEO",         "Video Consultation Settings", "Communication", "bi-camera-video",     []),
+    ];
+
+    [HttpGet]
+    public async Task<IActionResult> CopyMasters(int id)
+    {
+        if (!User.IsSuperAdmin()) return NotFound();
+        var company = await dbContext.CompanyMasters.FirstOrDefaultAsync(x => x.CompanyId == id);
+        if (company is null) return NotFound();
+
+        ViewBag.Sources = await dbContext.CompanyMasters
+            .Where(x => x.CompanyId != id && x.IsActive)
+            .OrderBy(x => x.CompanyName)
+            .Select(x => new { x.CompanyId, x.CompanyName, x.CompanyCode })
+            .ToListAsync();
+        return View(company);
+    }
+
+    /// <summary>Preview (rolled back) or copy: the result per master.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> CopyMastersRun(int id, int sourceCompanyId, string[] entities, bool preview,
+        [FromServices] EMR.Web.ApiClients.ICompanyCopyApiClient copyClient)
+    {
+        if (!User.IsSuperAdmin()) return NotFound();
+        var keys = (entities ?? []).Where(e => CopyEntities.Any(c => c.Key == e)).Distinct().ToList();
+        if (keys.Count == 0) return Json(new { success = false, message = "Choose at least one master to copy." });
+        if (sourceCompanyId <= 0) return Json(new { success = false, message = "Choose the source company." });
+
+        var (rows, error) = await copyClient.CopyLabMastersAsync(sourceCompanyId, id, keys, preview, User.GetUserId());
+        if (error is not null) return Json(new { success = false, message = error });
+
+        if (!preview)
+        {
+            var source = await dbContext.CompanyMasters.Where(x => x.CompanyId == sourceCompanyId).Select(x => x.CompanyName).FirstOrDefaultAsync();
+            var target = await dbContext.CompanyMasters.Where(x => x.CompanyId == id).Select(x => x.CompanyName).FirstOrDefaultAsync();
+            await auditLogService.LogAsync("Company", "CopyMasters",
+                $"Copied masters from {source} into {target}: " + string.Join(", ", rows.Select(r => $"{r.Entity} {r.Copied} new / {r.Existing} existing")),
+                branchId: User.GetCurrentBranchId());
+        }
+        return Json(new { success = true, preview, rows });
+    }
+
+    // ── Company > Remove data / Delete company (super admin, SQLScripts/2337) ──
+    // TRANSACTIONS: patients, bills, payments, samples / results, accounting, logs, number counters (setup stays)
+    // ALL: everything of the company (masters, settings, users, branches) - the company record stays
+    // DELETE: ALL and the company record. Company 1 holds the data shared by every company and is never removed.
+    public static readonly (string Key, string Name, string Note)[] PurgeLevels =
+    [
+        ("TRANSACTIONS", "Transactions only", "Patients, OPD / LAB bills, payments, samples and results, accounting entries, logs and number counters. Branches, users, masters and settings stay - the company starts clean."),
+        ("ALL",          "Everything",        "Also masters, settings, users and branches. Only the company record stays."),
+        ("DELETE",       "Delete the company", "Everything above and the company record itself."),
+    ];
+
+    [HttpGet]
+    public async Task<IActionResult> RemoveData(int id, string? level)
+    {
+        if (!User.IsSuperAdmin()) return NotFound();
+        var company = await dbContext.CompanyMasters.FirstOrDefaultAsync(x => x.CompanyId == id);
+        if (company is null) return NotFound();
+        ViewBag.Level = PurgeLevels.Any(l => l.Key == level) ? level : "TRANSACTIONS";
+        ViewBag.Blocked = id == 1
+            ? "This is the primary company: it holds the data shared by every company (roles, menus, specialities ...) and cannot be cleared or deleted."
+            : null;
+        ViewBag.OwnCompany = User.GetCompanyId() == id;
+        return View(company);
+    }
+
+    /// <summary>Remove one branch and all its data (SQLScripts/2338): the same page, confirmed with the branch code.</summary>
+    [HttpGet]
+    public async Task<IActionResult> RemoveBranch(int id)
+    {
+        if (!User.IsSuperAdmin()) return NotFound();
+        var branch = await dbContext.BranchMasters.AsNoTracking().FirstOrDefaultAsync(b => b.BranchId == id);
+        if (branch is null) return NotFound();
+        var company = await dbContext.CompanyMasters.FirstOrDefaultAsync(x => x.CompanyId == branch.CompanyId);
+        if (company is null) return NotFound();
+        ViewBag.Branch = branch;
+        ViewBag.Level = "BRANCH";
+        ViewBag.OwnCompany = false;
+        ViewBag.Blocked = branch.IsHOBranch
+            ? "This is the Head Office branch: it holds the company's settings and cannot be removed on its own. Delete the company instead."
+            : User.GetCurrentBranchId() == id
+                ? "You are signed in to this branch. Switch to another branch, then remove it."
+                : null;
+        return View("RemoveData", company);
+    }
+
+    /// <summary>Preview (rolled back) or remove: rows per table. A removal needs the company (or branch) code typed as confirmation.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveDataRun(int id, string level, bool preview, string? confirmCode, int? branchId,
+        [FromServices] EMR.Web.ApiClients.ICompanyPurgeApiClient purgeClient)
+    {
+        if (!User.IsSuperAdmin()) return NotFound();
+        var isBranch = level == "BRANCH";
+        if (!isBranch && !PurgeLevels.Any(l => l.Key == level)) return Json(new { success = false, message = "Choose what to remove." });
+        var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(x => x.CompanyId == id);
+        if (company is null) return Json(new { success = false, message = "Company not found." });
+
+        var branch = isBranch ? await dbContext.BranchMasters.AsNoTracking().FirstOrDefaultAsync(b => b.BranchId == branchId && b.CompanyId == id) : null;
+        if (isBranch && branch is null) return Json(new { success = false, message = "Branch not found." });
+        if (isBranch && branch!.IsHOBranch)   // the Head Office is never removed on its own (also refused by the procedure)
+            return Json(new { success = false, message = "The Head Office branch cannot be removed. Delete the company instead." });
+        if (isBranch && User.GetCurrentBranchId() == branch!.BranchId)
+            return Json(new { success = false, message = "You are signed in to this branch. Switch to another branch, then remove it." });
+        var expected = isBranch ? branch!.BranchCode : company.CompanyCode;
+        if (!preview && !string.Equals((confirmCode ?? "").Trim(), expected, StringComparison.OrdinalIgnoreCase))
+            return Json(new { success = false, message = $"Type the {(isBranch ? "branch" : "company")} code {expected} to confirm." });
+
+        var (rows, error) = await purgeClient.PurgeAsync(id, level, preview, User.GetUserId(), branch?.BranchId);
+        if (error is not null) return Json(new { success = false, message = error });
+
+        if (!preview)
+        {
+            var what = isBranch
+                ? $"Remove branch: {branch!.BranchName} ({branch.BranchCode}, #{branch.BranchId}) of {company.CompanyName}"
+                : $"{PurgeLevels.First(l => l.Key == level).Name}: {company.CompanyName} ({company.CompanyCode}, #{company.CompanyId})";
+            await auditLogService.LogAsync("Company", isBranch ? "RemoveBranch" : level == "DELETE" ? "DeleteCompany" : "RemoveCompanyData",
+                $"{what} - {rows.Sum(r => r.Rows)} row(s): " + string.Join(", ", rows.Select(r => $"{r.TableName} {r.Rows}")),
+                branchId: User.GetCurrentBranchId());
+        }
+        return Json(new
+        {
+            success = true, preview, rows,
+            total = rows.Sum(r => r.Rows),
+            redirect = preview ? null
+                : level == "DELETE" ? Url.Action(nameof(Index))
+                : isBranch ? Url.Action(nameof(Details), new { id }) : null
+        });
+    }
 }

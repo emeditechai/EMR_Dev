@@ -1,0 +1,126 @@
+@model List<EMR.Web.Services.CertificateListRow>
+@{
+    // OPD > Certificates register (SQLScripts/2341)
+    ViewData["Title"] = "Certificates";
+    var types = (List<EMR.Web.Services.CertificateTypeRow>)ViewBag.Types;
+    DateTime from = ViewBag.From, to = ViewBag.To;
+    int page = ViewBag.Page, total = ViewBag.Total, pageSize = ViewBag.PageSize;
+    var pages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+    string StatusPill(string s) => s switch
+    {
+        "I" => "<span class=\"badge bg-success-subtle text-success border border-success-subtle\">Issued</span>",
+        "C" => "<span class=\"badge bg-danger-subtle text-danger border border-danger-subtle\">Cancelled</span>",
+        _ => "<span class=\"badge bg-warning-subtle text-warning-emphasis border border-warning-subtle\">Draft</span>"
+    };
+}
+<style>
+    .ct-type { display:inline-flex; align-items:center; gap:.35rem; font-weight:600; }
+    .ct-type i { color:#0f766e; }
+    .ct-new .dropdown-item i { width:1.25rem; color:#0f766e; }
+    .ct-table td, .ct-table th { vertical-align: middle; }
+</style>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item">OPD</li>
+                <li class="breadcrumb-item active" aria-current="page">Certificates</li>
+            </ol>
+        </nav>
+        <h1 class="h3 mb-0 fw-bold" style="color:var(--emr-primary, #1e3a8a);"><i class="bi bi-patch-check-fill me-2 text-success"></i>Certificates</h1>
+        <p class="text-muted small mb-0 mt-1">Fitness, sick leave, vaccination, disability assessment and other OPD certificates, signed by a registered doctor and verifiable by QR.</p>
+    </div>
+    <div class="dropdown ct-new" asp-permission="OPD.CERTIFICATES:DRAFT">
+        <button class="btn btn-primary shadow-sm dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-plus-circle-fill me-1"></i>New Certificate</button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+            @foreach (var t in types.Where(t => t.IsActive))
+            {
+                <li><a class="dropdown-item" asp-action="Create" asp-route-type="@t.TypeCode"><i class="bi bi-file-earmark-medical"></i>@t.TypeName</a></li>
+            }
+        </ul>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-6 col-md-2"><label class="form-label small fw-semibold mb-1">From</label><input type="date" name="from" class="form-control" value="@from.ToString("yyyy-MM-dd")" /></div>
+            <div class="col-6 col-md-2"><label class="form-label small fw-semibold mb-1">To</label><input type="date" name="to" class="form-control" value="@to.ToString("yyyy-MM-dd")" /></div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small fw-semibold mb-1">Type</label>
+                <select name="type" class="form-select">
+                    <option value="">All types</option>
+                    @foreach (var t in types) { <option value="@t.TypeCode" selected="@(t.TypeCode == (string?)ViewBag.Type)">@t.TypeName</option> }
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small fw-semibold mb-1">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="D" selected="@("D" == (string?)ViewBag.Status)">Draft</option>
+                    <option value="I" selected="@("I" == (string?)ViewBag.Status)">Issued</option>
+                    <option value="C" selected="@("C" == (string?)ViewBag.Status)">Cancelled</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3"><label class="form-label small fw-semibold mb-1">Search</label><input name="search" class="form-control" value="@ViewBag.Search" placeholder="Certificate no., patient name, ID or phone" /></div>
+            <div class="col-12 col-md-1 d-grid"><button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Apply</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">Register</span><span class="text-muted small">@total certificate(s)</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 ct-table">
+            <thead class="table-light small text-uppercase">
+                <tr><th>Certificate</th><th>Patient</th><th>Purpose</th><th>Doctor</th><th>Issued on</th><th>Fee</th><th>Status</th><th class="text-end">Actions</th></tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-patch-question display-6 d-block mb-2 opacity-50"></i>No certificates in this period.</td></tr>
+                }
+                @foreach (var c in Model)
+                {
+                    <tr>
+                        <td>
+                            <div class="ct-type"><i class="bi bi-file-earmark-medical"></i>@c.TypeName</div>
+                            <div class="font-monospace small text-muted">@(c.CertificateNo ?? "draft #" + c.CertificateId)</div>
+                        </td>
+                        <td><div class="fw-semibold">@c.PatientName</div><div class="small text-muted"><span class="font-monospace">@c.PatientCode</span> · @c.PhoneNumber</div></td>
+                        <td class="small">@c.PurposeText</td>
+                        <td class="small">@c.DoctorName</td>
+                        <td class="small text-nowrap">@(c.Status == "D" ? "—" : c.IssueDate?.ToString("dd MMM yyyy") ?? "—")<div class="text-muted">by @c.CreatedByName</div></td>
+                        <td class="small">@(c.FeeMode == "B" ? "Charged" : "Free")</td>
+                        <td>@Html.Raw(StatusPill(c.Status))@if (c.PrintCount > 0) { <div class="small text-muted">printed @c.PrintCount×</div> }</td>
+                        <td class="text-end text-nowrap">
+                            @if (c.Status == "D")
+                            {
+                                <a asp-permission="OPD.CERTIFICATES:DRAFT" asp-action="Edit" asp-route-id="@c.CertificateId" class="btn btn-sm btn-outline-primary" title="Edit draft"><i class="bi bi-pencil"></i></a>
+                            }
+                            <a asp-action="Print" asp-route-id="@c.CertificateId" target="_blank" class="btn btn-sm btn-outline-success" title="View / print"><i class="bi bi-printer"></i></a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    @if (pages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-end">
+            <nav><ul class="pagination pagination-sm mb-0">
+                @for (var i = 1; i <= pages; i++)
+                {
+                    <li class="page-item @(i == page ? "active" : "")">
+                        <a class="page-link" asp-route-page="@i" asp-route-from="@from.ToString("yyyy-MM-dd")" asp-route-to="@to.ToString("yyyy-MM-dd")"
+                           asp-route-type="@ViewBag.Type" asp-route-status="@ViewBag.Status" asp-route-search="@ViewBag.Search">@i</a>
+                    </li>
+                }
+            </ul></nav>
+        </div>
+    }
+</div>

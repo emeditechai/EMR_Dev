@@ -8,6 +8,7 @@ public class EmrTemplateSection
 {
     [Key]
     public int SectionId { get; set; }
+    public int CompanyId { get; set; } = 1;   // company-wise
 
     public int TemplateId { get; set; }
 

@@ -302,6 +302,13 @@
                                                     <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
                                                 </a>
                                             </li>
+                                            @* OPD > Certificates (SQLScripts/2341): a certificate written from this visit *@
+                                            <li>
+                                                <a asp-permission="OPD.CERTIFICATES:DRAFT" class="dropdown-item"
+                                                   href="@Url.Action("Create", "Certificates", new { opdServiceId = b.OPDServiceId })">
+                                                    <i class="bi bi-patch-check me-2 text-primary"></i>Issue Certificate
+                                                </a>
+                                            </li>
                                         </ul>
                                     </div>
                                 </td>

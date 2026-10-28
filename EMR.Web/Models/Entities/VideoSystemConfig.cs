@@ -7,6 +7,7 @@ namespace EMR.Web.Models.Entities;
 public class VideoSystemConfig
 {
     public int ConfigId { get; set; }
+    public int CompanyId { get; set; } = 1;   // company-wise
     public string ConfigKey { get; set; } = string.Empty;
     public string ConfigValue { get; set; } = string.Empty;
     public string? MeetingCreationUrl { get; set; }

@@ -455,12 +455,12 @@ public class MembershipCardsController(
         var selfId = await dbContext.RelationMasters.Where(x => x.IsActive && x.RelationName == "Self").Select(x => (int?)x.RelationId).FirstOrDefaultAsync();
         if (selfId is null) return Json(new { success = false, error = "Relation 'Self' is missing in Relation Master." });
         // as OPD registration (and the database, script 2221): one active Self patient per phone number and per e-mail
-        var dupPhone = await dbContext.PatientMasters.Where(p => p.IsActive && p.RelationId == selfId && p.PhoneNumber == phone)
+        var dupPhone = await dbContext.PatientMasters.Where(p => p.IsActive && p.RelationId == selfId && p.PhoneNumber == phone && p.CompanyId == User.GetCompanyId())
             .Select(p => new { p.PatientCode, p.FirstName, p.LastName }).FirstOrDefaultAsync();
         if (dupPhone != null)
             return Json(new { success = false, error = $"A patient with relation \"Self\" is already registered for phone {phone}: {dupPhone.FirstName} {dupPhone.LastName} ({dupPhone.PatientCode}). Search and select that patient instead." });
         var email = T(r.EmailId)?.ToLowerInvariant();
-        if (email != null && await dbContext.PatientMasters.AnyAsync(p => p.IsActive && p.RelationId == selfId && p.EmailId == email))
+        if (email != null && await dbContext.PatientMasters.AnyAsync(p => p.IsActive && p.RelationId == selfId && p.EmailId == email && p.CompanyId == User.GetCompanyId()))
             return Json(new { success = false, error = $"A patient with relation \"Self\" is already registered with e-mail {email}." });
 
         // files, stored as OPD registration stores them (wwwroot/uploads/patients)

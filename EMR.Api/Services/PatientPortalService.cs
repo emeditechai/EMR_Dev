@@ -44,7 +44,8 @@ public class PatientPortalService(IDbConnectionFactory factory) : IPatientPortal
                 CAST(DATEDIFF(YEAR, p.DateOfBirth, GETDATE()) AS VARCHAR) + ' Yrs' as Age
             FROM PatientMaster p
             LEFT JOIN RelationMaster r ON p.RelationId = r.RelationId
-            WHERE p.PhoneNumber = @Phone AND p.PatientId != @PatientId AND p.IsActive = 1";
+            WHERE p.PhoneNumber = @Phone AND p.PatientId != @PatientId AND p.IsActive = 1
+              AND p.CompanyId = (SELECT CompanyId FROM PatientMaster WHERE PatientId = @PatientId)";   // family of the same company only
             
         return await db.QueryAsync<PortalDependent>(sqlDeps, new { Phone = phone, PatientId = patientId });
     }
@@ -102,9 +103,20 @@ public class PatientPortalService(IDbConnectionFactory factory) : IPatientPortal
                 e.DoctorId,
                 d.FullName as DoctorName,
                 e.OPDServiceId,
-                ISNULL(e.EmrDataJson, '{}') as EmrDataJson
+                ISNULL(e.EmrDataJson, '{}') as EmrDataJson,
+                f.Complaint, f.Diagnosis, f.Advice, f.Medicines
             FROM EmrPatientConsultation e
             LEFT JOIN DoctorMaster d ON e.DoctorId = d.DoctorId
+            -- the EMR keeps answers by template field id: pick the ones a patient needs by field name
+            OUTER APPLY (
+                SELECT MAX(CASE WHEN tf.FieldName = 'Chief Complaint' THEN j.[value] END) AS Complaint,
+                       COALESCE(MAX(CASE WHEN tf.FieldName = 'Final Diagnosis' THEN NULLIF(j.[value], '') END),
+                                MAX(CASE WHEN tf.FieldName = 'Provisional Diagnosis' THEN NULLIF(j.[value], '') END)) AS Diagnosis,
+                       MAX(CASE WHEN tf.FieldName = 'Advice' THEN j.[value] END) AS Advice,
+                       MAX(CASE WHEN tf.FieldType = 'Medication' THEN j.[value] END) AS Medicines
+                  FROM OPENJSON(CASE WHEN ISJSON(e.EmrDataJson) = 1 THEN e.EmrDataJson ELSE '{}' END) j
+                  JOIN EmrTemplateFields tf ON CAST(tf.FieldId AS NVARCHAR(20)) = j.[key]
+                 WHERE ISNULL(j.[value], '') <> '') f
             WHERE e.PatientId = @PatientId
             ORDER BY e.VisitDate DESC";
             

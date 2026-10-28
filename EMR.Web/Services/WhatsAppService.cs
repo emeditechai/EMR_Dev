@@ -43,9 +43,15 @@ public class WhatsAppService(
         }
 
         // 2. Fallback to default (HO) configuration only if this branch has no configuration entry at all
+        //    of the SAME company (company-wise: never another company's WhatsApp account); its HO branch's first
+        var companyId = await db.BranchMasters.Where(b => b.BranchId == branchId).Select(b => (int?)b.CompanyId).FirstOrDefaultAsync();
+        if (companyId is null) return null;
         var defaultConfig = await db.WhatsAppConfigurations
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.IsDefault && c.IsActive);
+            .Where(c => c.IsDefault && c.IsActive && c.CompanyId == companyId)
+            .OrderByDescending(c => db.BranchMasters.Any(b => b.BranchId == c.BranchId && b.IsHOBranch))
+            .ThenBy(c => c.BranchId)
+            .FirstOrDefaultAsync();
 
         return defaultConfig;
     }

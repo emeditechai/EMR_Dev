@@ -80,3 +80,13 @@ public class PatientUpdateRequest : PatientCreateRequest
 {
     public int PatientId { get; set; }
 }
+
+/// <summary>Patient Portal login just saved (EMR.Api api/patients/{id}/portal-login): where to send the credentials.</summary>
+public class PatientPortalLoginTarget
+{
+    public int     PatientId   { get; set; }
+    public string  PatientCode { get; set; } = string.Empty;
+    public string  FullName    { get; set; } = string.Empty;
+    public string? EmailId     { get; set; }
+    public string? PhoneNumber { get; set; }
+}

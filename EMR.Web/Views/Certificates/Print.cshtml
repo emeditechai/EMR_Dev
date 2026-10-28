@@ -1,0 +1,269 @@
+@model EMR.Web.Services.CertificatePrintModel
+@{
+    // OPD > Certificates print (SQLScripts/2341): A4, branch letterhead, formal wording by type, doctor signature, QR to the public check
+    Layout = null;
+    var c = Model.Certificate; var p = Model.Patient; var d = Model.Doctor;
+    var issue = c.IssueDate ?? DateTime.Today;
+    string Dt(DateTime? x) => x?.ToString("dd/MM/yyyy") ?? "________";
+    string Bd(string key) { var v = Model.B(key); return DateTime.TryParse(v, out var x) ? x.ToString("dd/MM/yyyy") : v; }
+    string Blank(string? v, int w = 18) => string.IsNullOrWhiteSpace(v) ? new string('_', w) : v;
+    var title = Model.Type.PrintTitle;
+    var name = $"{p.Salutation} {p.FullName}".Trim();
+    var relation = string.IsNullOrWhiteSpace(p.GuardianName) ? "" : $", {(p.Gender == "Female" ? "D/o or W/o" : "S/o")} {p.GuardianName}";
+    var age = p.AgeText(issue);
+    var days = c.ValidFrom is { } f && c.ValidTo is { } t && t >= f ? (t - f).Days + 1 : 0;
+    var regNo = string.IsNullOrWhiteSpace(d?.RegistrationNo) ? d?.MedicalLicenseNo : d.RegistrationNo;
+    var verdict = Model.B("verdict") switch
+    {
+        "FIT" => "MEDICALLY FIT", "FIT_RESTRICTED" => "MEDICALLY FIT WITH RESTRICTIONS",
+        "TEMP_UNFIT" => "TEMPORARILY UNFIT", "UNFIT" => "MEDICALLY UNFIT", _ => "________"
+    };
+    var watermark = c.Status == "C" ? "CANCELLED" : c.Status == "D" ? "DRAFT" : null;
+    var notifyLog = (List<EMR.Web.Services.CertificateNotificationRow>)ViewBag.NotifyLog;
+    bool notifyEnabled = ViewBag.NotifyEnabled, canNotify = ViewBag.CanNotify;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@(c.CertificateNo ?? "Draft") - @Model.Type.TypeName</title>
+    <style>
+        @@page { size: A4; margin: 14mm 16mm; }
+        * { box-sizing: border-box; }
+        body { font-family: "Times New Roman", Georgia, serif; color: #111; margin: 0; background: #e5e7eb; font-size: 13.5px; line-height: 1.6; }
+        .sheet { width: 210mm; min-height: 297mm; margin: 16px auto; background: #fff; padding: 14mm 16mm; position: relative; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+        .lh { display: flex; gap: 14px; align-items: center; border-bottom: 2px solid #0f3d5e; padding-bottom: 8px; }
+        .lh img { max-height: 64px; max-width: 120px; }
+        .lh .hn { font-size: 21px; font-weight: 700; color: #0f3d5e; letter-spacing: .3px; }
+        .lh .ha { font-size: 11.5px; color: #374151; line-height: 1.4; font-family: Arial, sans-serif; }
+        .meta { display: flex; justify-content: space-between; font-family: Arial, sans-serif; font-size: 11.5px; margin-top: 8px; }
+        h1 { text-align: center; font-size: 17px; letter-spacing: 1.5px; text-decoration: underline; margin: 18px 0 14px; }
+        .pt { display: flex; gap: 14px; }
+        .pt .photo { width: 30mm; height: 36mm; border: 1px solid #9ca3af; object-fit: cover; }
+        .pt .photo-box { width: 30mm; height: 36mm; border: 1px dashed #9ca3af; font: 10px Arial, sans-serif; color: #6b7280; display: grid; place-items: center; text-align: center; padding: 4px; }
+        p { margin: 0 0 9px; text-align: justify; }
+        b.v { border-bottom: 1px dotted #6b7280; padding: 0 2px; }
+        table.g { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 12.5px; }
+        table.g th, table.g td { border: 1px solid #9ca3af; padding: 3px 6px; text-align: left; vertical-align: top; }
+        table.g th { background: #f3f4f6; font-family: Arial, sans-serif; font-size: 11px; }
+        .sig { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 26px; gap: 14px; }
+        .sig .doc { text-align: right; font-size: 12.5px; line-height: 1.45; min-width: 64mm; }
+        .sig .doc img.s { max-height: 46px; max-width: 160px; display: block; margin-left: auto; }
+        .sig .doc img.st { max-height: 70px; max-width: 110px; opacity: .85; }
+        .qr { text-align: center; font: 9.5px Arial, sans-serif; color: #374151; }
+        .qr #qr { width: 84px; height: 84px; margin: 0 auto 3px; }
+        .qr #qr img, .qr #qr canvas { width: 84px !important; height: 84px !important; }
+        .foot { position: absolute; left: 16mm; right: 16mm; bottom: 10mm; border-top: 1px solid #d1d5db; padding-top: 5px; font: 10px Arial, sans-serif; color: #4b5563; }
+        .wm { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+        .wm span { transform: rotate(-30deg); font: 700 92px Arial, sans-serif; color: rgba(220, 38, 38, .13); letter-spacing: 8px; }
+        .bar { max-width: 210mm; margin: 12px auto 0; display: flex; gap: 8px; justify-content: flex-end; font-family: Arial, sans-serif; flex-wrap: wrap; }
+        .bar a, .bar button { border: 1px solid #0f766e; background: #fff; color: #0f766e; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; text-decoration: none; }
+        .bar .pri { background: #0f766e; color: #fff; }
+        .bar .dan { border-color: #dc2626; color: #dc2626; }
+        .note { max-width: 210mm; margin: 8px auto 0; font: 13px Arial, sans-serif; padding: 8px 12px; border-radius: 8px; }
+        .note.c { background: #fef2f2; color: #991b1b; } .note.d { background: #fffbeb; color: #92400e; }
+        .note.n { background: #f0fdfa; color: #134e4a; border: 1px solid #99f6e4; }
+        .note.n ul { margin: 4px 0 0; padding-left: 18px; } .note.n .st-Sent { color: #047857; font-weight: 600; }
+        .note.n .st-Failed { color: #b91c1c; font-weight: 600; } .note.n .st-Skipped { color: #92400e; font-weight: 600; }
+        @@media print { body { background: #fff; } .sheet { margin: 0; box-shadow: none; width: auto; min-height: auto; padding: 0; } .bar, .note { display: none; } .foot { position: fixed; left: 0; right: 0; bottom: 0; } }
+    </style>
+</head>
+<body>
+    <div class="bar">
+        <a href="@Url.Action("Index")">&larr; Register</a>
+        @if (c.Status == "D") { <a href="@Url.Action("Edit", new { id = c.CertificateId })">Edit draft</a> }
+        @if (c.Status != "C" && (bool)ViewBag.CanCancel) { <button type="button" class="dan" id="btnCancel">Cancel certificate</button> }
+        @if (c.Status == "C" && (bool)ViewBag.CanReissue) { <button type="button" id="btnReissue">Reissue</button> }
+        @if (c.Status == "I" && notifyEnabled && canNotify) { <button type="button" id="btnNotify">Send to patient</button> }
+        <button type="button" class="pri" onclick="window.print()">Print</button>
+    </div>
+    @if (c.Status == "C") { <div class="note c">Cancelled on @c.CancelledOn?.ToString("dd MMM yyyy, hh:mm tt") by @c.CancelledByName: @c.CancelReason</div> }
+    @if (c.Status == "I" && (notifyEnabled || notifyLog.Any()))
+    {
+        <div class="note n">
+            <b>Sent to patient (WhatsApp / e-mail)</b>
+            @if (!notifyLog.Any()) { <div>Nothing logged yet@(c.IssuedOn > DateTime.Now.AddMinutes(-2) ? " - sending in the background, refresh in a moment." : ".")</div> }
+            else
+            {
+                <ul>
+                    @foreach (var l in notifyLog)
+                    {
+                        <li>@l.SentOn.ToString("dd MMM yyyy, hh:mm tt") · @l.Channel · <span class="st-@l.Status">@l.Status</span> - @l.Message@(string.IsNullOrWhiteSpace(l.SentByName) ? "" : " (" + l.SentByName + ")")</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+    @if (c.Status == "D") { <div class="note d">Draft - not valid until issued. It has no number or QR code yet.</div> }
+    @Html.AntiForgeryToken()
+
+    <div class="sheet">
+        @if (watermark != null) { <div class="wm"><span>@watermark</span></div> }
+        <div class="lh">
+            @if (!string.IsNullOrWhiteSpace(Model.LogoPath)) { <img src="@Model.LogoPath" alt="" /> }
+            <div>
+                <div class="hn">@Model.HospitalName</div>
+                <div class="ha">@Model.HospitalAddress</div>
+                <div class="ha">@(string.Join("  ·  ", new[] { string.IsNullOrWhiteSpace(Model.HospitalPhone) ? null : "Ph: " + Model.HospitalPhone, Model.HospitalEmail, string.IsNullOrWhiteSpace(Model.HospitalRegNo) ? null : "Regn. No.: " + Model.HospitalRegNo }.Where(x => !string.IsNullOrWhiteSpace(x))))</div>
+            </div>
+        </div>
+        <div class="meta">
+            <span>Certificate No.: <b>@(c.CertificateNo ?? "—")</b></span>
+            <span>Patient ID: <b>@p.PatientCode</b>@(Model.Visit?.OPDBillNo is { } bill ? "  ·  OPD Ref.: " + bill : "")</span>
+            <span>Date: <b>@Dt(issue)</b></span>
+        </div>
+
+        <h1>@title</h1>
+
+        @switch (c.TypeCode)
+        {
+            case "FIT":
+                <div class="pt">
+                    <div style="flex:1">
+                        <p>Certified that I have personally examined <b class="v">@name</b>@relation, aged <b class="v">@Blank(age, 6)</b>, @(p.Gender?.ToLower() ?? ""),
+                           residing at <b class="v">@Blank(p.Address, 30)</b>, on <b class="v">@Dt(c.ValidFrom ?? issue)</b>@(string.IsNullOrWhiteSpace(c.PurposeText) ? "" : " for the purpose of ")<b class="v">@c.PurposeText</b>.</p>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(p.PhotoPath)) { <img class="photo" src="@p.PhotoPath" alt="" /> } else { <div class="photo-box">Affix attested<br />photograph</div> }
+                </div>
+                <table class="g">
+                    <tr><th>Height</th><td>@Blank(Model.B("height"), 6) cm</td><th>Weight</th><td>@Blank(Model.B("weight"), 6) kg</td><th>Blood pressure</th><td>@Blank(Model.B("bp"), 8) mmHg</td></tr>
+                    <tr><th>Pulse</th><td>@Blank(Model.B("pulse"), 6) /min</td><th>Vision (R / L)</th><td>@Blank(Model.B("visionRight"), 4) / @Blank(Model.B("visionLeft"), 4)</td><th>Colour vision</th><td>@Blank(Model.B("colourVision"), 8)</td></tr>
+                    <tr><th>Hearing</th><td>@Blank(Model.B("hearing"), 8)</td><th>Identification marks</th><td colspan="3">1. @Blank(Model.B("idMark1"), 20) &nbsp; 2. @Blank(Model.B("idMark2"), 20)</td></tr>
+                </table>
+                <p>@(string.IsNullOrWhiteSpace(Model.B("findings")) ? "On examination, the person was not found to be suffering from any communicable disease or physical or mental disability that would interfere with the stated purpose." : Model.B("findings"))</p>
+                @if (!string.IsNullOrWhiteSpace(c.Diagnosis)) { <p>Diagnosis / observations: <b class="v">@c.Diagnosis</b></p> }
+                <p>In my opinion, he / she is <b>@verdict</b>@(string.IsNullOrWhiteSpace(Model.B("restrictions")) ? "" : " (" + Model.B("restrictions") + ")")@(c.ValidTo != null ? $". This certificate is valid till {Dt(c.ValidTo)}" : "").</p>
+                break;
+
+            case "SICK":
+                <p>I, Dr. <b class="v">@Blank(d?.DoctorName?.Replace("Dr. ", "").Replace("Dr ", ""), 20)</b>, after careful personal examination of the case, hereby certify that
+                   <b class="v">@name</b>@relation, aged <b class="v">@Blank(age, 6)</b>@(string.IsNullOrWhiteSpace(Model.B("designation")) ? "" : ", " + Model.B("designation"))@(string.IsNullOrWhiteSpace(Model.B("employer")) ? "" : ", " + Model.B("employer")),
+                   whose signature is given below, is suffering from <b class="v">@Blank(c.Diagnosis, 24)</b>, and I consider that a period of absence from duty of
+                   <b class="v">@(days > 0 ? days.ToString() : "____")</b> day(s) with effect from <b class="v">@Dt(c.ValidFrom)</b> to <b class="v">@Dt(c.ValidTo)</b> is absolutely necessary for the restoration of his / her health.</p>
+                <p>Rest advised: <b class="v">@Blank(Model.B("restAdvised"), 16)</b>.@(string.IsNullOrWhiteSpace(c.PurposeText) ? "" : " Issued for: " + c.PurposeText + ".")</p>
+                <p style="margin-top:22px">Signature / thumb impression of the patient: ______________________</p>
+                break;
+
+            case "RESUME":
+                <p>I, Dr. <b class="v">@Blank(d?.DoctorName?.Replace("Dr. ", "").Replace("Dr ", ""), 20)</b>, do hereby certify that I have carefully examined <b class="v">@name</b>@relation, aged <b class="v">@Blank(age, 6)</b>@(string.IsNullOrWhiteSpace(Model.B("designation")) ? "" : ", " + Model.B("designation")),
+                   whose signature is given below, who was under my treatment for <b class="v">@Blank(c.Diagnosis, 24)</b> from <b class="v">@Dt(c.ValidFrom)</b> to <b class="v">@Dt(c.ValidTo)</b>@(string.IsNullOrWhiteSpace(Model.B("leaveCertNo")) ? "" : " (medical certificate no. " + Model.B("leaveCertNo") + ")"),
+                   and find that he / she has recovered from the illness and is now fit to resume duties with effect from <b class="v">@Bd("resumeOn")</b>.</p>
+                <p style="margin-top:22px">Signature / thumb impression of the patient: ______________________</p>
+                break;
+
+            case "VACC":
+                <p>This is to certify that <b class="v">@name</b>@relation, aged <b class="v">@Blank(age, 6)</b>, @(p.Gender?.ToLower() ?? ""), Patient ID <b>@p.PatientCode</b>, has received the following vaccine(s) at this hospital / as recorded below@(string.IsNullOrWhiteSpace(c.PurposeText) ? "" : ", for the purpose of " + c.PurposeText).</p>
+                <table class="g">
+                    <tr><th>#</th><th>Vaccine</th><th>Dose</th><th>Date given</th><th>Batch / Lot no.</th><th>Manufacturer</th><th>Expiry</th><th>Route / site</th><th>Next due</th></tr>
+                    @{ var i = 0; }
+                    @foreach (var v in Model.Vaccinations)
+                    {
+                        <tr><td>@(++i)</td><td>@v.VaccineName</td><td>@v.DoseNo</td><td>@Dt(v.GivenOn)</td><td>@v.BatchNo</td><td>@v.Manufacturer</td><td>@(v.ExpiryDate?.ToString("MM/yyyy"))</td>
+                            <td>@v.Route@(string.IsNullOrWhiteSpace(v.Site) ? "" : " / " + v.Site)</td><td>@(v.NextDueDate?.ToString("dd/MM/yyyy"))</td></tr>
+                    }
+                    @if (!Model.Vaccinations.Any()) { <tr><td colspan="9" style="text-align:center">No doses recorded.</td></tr> }
+                </table>
+                break;
+
+            case "DIS":
+                <div class="pt">
+                    <div style="flex:1">
+                        <p>This is to certify that I have examined <b class="v">@name</b>@relation, aged <b class="v">@Blank(age, 6)</b>, @(p.Gender?.ToLower() ?? ""), residing at <b class="v">@Blank(p.Address, 30)</b>,
+                           Patient ID <b>@p.PatientCode</b>@(string.IsNullOrWhiteSpace(Model.B("udid")) ? "" : ", UDID No. " + Model.B("udid")), on <b class="v">@Dt(c.ValidFrom ?? issue)</b>.</p>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(p.PhotoPath)) { <img class="photo" src="@p.PhotoPath" alt="" /> } else { <div class="photo-box">Affix attested<br />photograph</div> }
+                </div>
+                <table class="g">
+                    <tr><th style="width:38%">Specified disability (RPwD Act, 2016)</th><td>@Blank(Model.DisabilityName, 20)</td></tr>
+                    <tr><th>Diagnosis / cause</th><td>@c.Diagnosis</td></tr>
+                    <tr><th>Part of body / function affected</th><td>@Model.B("bodyPart")</td></tr>
+                    <tr><th>Assessed disability</th><td><b>@Model.B("percentage") %</b> (@Model.B("nature"))</td></tr>
+                    @if (c.ValidTo != null) { <tr><th>Re-assessment due</th><td>@Dt(c.ValidTo)</td></tr> }
+                    <tr><th>Clinical findings</th><td>@Model.B("findings")</td></tr>
+                    <tr><th>Recommendation</th><td>@(string.IsNullOrWhiteSpace(Model.B("recommendation")) ? "Referred to the medical authority notified by the State Government for the disability certificate." : Model.B("recommendation"))</td></tr>
+                </table>
+                <p style="font-size:12px"><i>This is a medical assessment report. It is not a disability certificate under Rule 18 of the RPwD Rules, 2017@(Model.DisabilityForm is { } frm ? " (Form " + frm + ")" : ""), which is issued by the notified medical authority.</i></p>
+                break;
+
+            case "ATTEND":
+                <p>This is to certify that <b class="v">@name</b>@relation, aged <b class="v">@Blank(age, 6)</b>, Patient ID <b>@p.PatientCode</b>, attended the Out-Patient Department of this hospital
+                   @(c.ValidFrom != null && c.ValidTo != null && c.ValidTo != c.ValidFrom ? Html.Raw($"from <b class=\"v\">{Dt(c.ValidFrom)}</b> to <b class=\"v\">{Dt(c.ValidTo)}</b>") : Html.Raw($"on <b class=\"v\">{Dt(c.ValidFrom ?? Model.Visit?.VisitDate ?? issue)}</b>"))
+                   @(string.IsNullOrWhiteSpace(Model.B("timeIn")) ? "" : $"from {Model.B("timeIn")} to {Blank(Model.B("timeOut"), 6)} hours")
+                   @(string.IsNullOrWhiteSpace(c.Diagnosis) ? "" : " for " + c.Diagnosis)@(string.IsNullOrWhiteSpace(Model.B("accompaniedBy")) ? "" : ", accompanied by " + Model.B("accompaniedBy")).</p>
+                @if (!string.IsNullOrWhiteSpace(c.PurposeText)) { <p>This certificate is issued on request for: <b class="v">@c.PurposeText</b>.</p> }
+                break;
+
+            default:
+                <p>This is to certify that <b class="v">@name</b>@relation, aged <b class="v">@Blank(age, 6)</b>, @(p.Gender?.ToLower() ?? ""), Patient ID <b>@p.PatientCode</b>, has been under my treatment
+                   @(c.ValidFrom != null ? Html.Raw($"from <b class=\"v\">{Dt(c.ValidFrom)}</b>") : Html.Raw(""))@(c.ValidTo != null ? Html.Raw($" to <b class=\"v\">{Dt(c.ValidTo)}</b>") : Html.Raw(""))
+                   for <b class="v">@Blank(c.Diagnosis, 24)</b>.</p>
+                @if (!string.IsNullOrWhiteSpace(Model.B("treatment"))) { <p>Treatment given: @Model.B("treatment")</p> }
+                @if (!string.IsNullOrWhiteSpace(Model.B("advice"))) { <p>Advice: @Model.B("advice")</p> }
+                @if (!string.IsNullOrWhiteSpace(c.PurposeText)) { <p>This certificate is issued on request for: <b class="v">@c.PurposeText</b>.</p> }
+                break;
+        }
+
+        @if (!string.IsNullOrWhiteSpace(c.Remarks)) { <p>Remarks: @c.Remarks</p> }
+
+        <div class="sig">
+            <div class="qr">
+                @if (Model.VerifyUrl != null) { <div id="qr"></div><div>Scan to verify</div> }
+                else { <div style="width:84px;height:84px;border:1px dashed #9ca3af;display:grid;place-items:center">QR on issue</div> }
+            </div>
+            <div style="flex:1;text-align:center">
+                @if (!string.IsNullOrWhiteSpace(d?.StampPath)) { <img class="st" src="@d.StampPath" alt="" style="max-height:70px;opacity:.85" /> }
+            </div>
+            <div class="doc">
+                @if (!string.IsNullOrWhiteSpace(d?.SignaturePath) && c.Status == "I") { <img class="s" src="@d.SignaturePath" alt="" /> } else { <div style="height:46px"></div> }
+                <div>______________________________</div>
+                <div><b>@(d?.DoctorName ?? "Signature of the Medical Officer")</b></div>
+                @if (!string.IsNullOrWhiteSpace(d?.Qualification)) { <div>@d.Qualification</div> }
+                @if (!string.IsNullOrWhiteSpace(regNo)) { <div>Regn. No.: @regNo@(string.IsNullOrWhiteSpace(d?.RegistrationCouncil) ? "" : ", " + d.RegistrationCouncil)@(d?.RegistrationYear is int y ? $" ({y})" : "")</div> }
+                <div>@Model.HospitalName</div>
+            </div>
+        </div>
+
+        <div class="foot">
+            @if (!string.IsNullOrWhiteSpace(Model.Type.LegalNote)) { <div>@Model.Type.LegalNote</div> }
+            <div>Computer-generated certificate@(Model.VerifyUrl != null ? ". Verify at " + Model.VerifyUrl : "").</div>
+        </div>
+    </div>
+
+    <script src="~/lib/qrcodejs/qrcode.min.js"></script>
+    <script src="~/lib/sweetalert2/dist/sweetalert2.all.min.js"></script>
+    <script>
+        (function () {
+            const url = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.VerifyUrl));
+            if (url && window.QRCode) new QRCode(document.getElementById('qr'), { text: url, width: 168, height: 168, correctLevel: QRCode.CorrectLevel.M });
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            const post = (u, data) => fetch(u, { method: 'POST', headers: { 'RequestVerificationToken': token }, body: new URLSearchParams(data) }).then(r => r.json());
+            document.getElementById('btnCancel')?.addEventListener('click', async () => {
+                const r = await Swal.fire({ icon: 'warning', title: 'Cancel this certificate?', input: 'text', inputLabel: 'Reason (printed on the record)',
+                    inputValidator: v => !v?.trim() && 'Enter the reason', showCancelButton: true, confirmButtonText: 'Cancel certificate', confirmButtonColor: '#dc2626' });
+                if (!r.isConfirmed) return;
+                const res = await post('@Url.Action("Cancel")', { id: @c.CertificateId, reason: r.value });
+                if (!res.success) { Swal.fire({ icon: 'error', title: res.message }); return; }
+                location.reload();
+            });
+            document.getElementById('btnNotify')?.addEventListener('click', async e => {
+                const r = await Swal.fire({ icon: 'question', title: 'Send this certificate to the patient?', text: 'As a PDF by WhatsApp and e-mail.', showCancelButton: true, confirmButtonText: 'Send' });
+                if (!r.isConfirmed) return;
+                e.target.disabled = true;
+                Swal.fire({ title: 'Sending…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                const res = await post('@Url.Action("Notify")', { id: @c.CertificateId });
+                if (!res.success) { e.target.disabled = false; Swal.fire({ icon: 'error', title: res.message }); return; }
+                const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+                await Swal.fire({ icon: res.outcomes.some(o => o.status === 'Sent') ? 'success' : 'warning', title: 'Send result',
+                    html: res.outcomes.map(o => `<div><b>${esc(o.channel)}</b>: ${esc(o.status)} - ${esc(o.message)}</div>`).join('') });
+                location.reload();
+            });
+            document.getElementById('btnReissue')?.addEventListener('click', async () => {
+                const res = await post('@Url.Action("Reissue")', { id: @c.CertificateId });
+                if (!res.success) { Swal.fire({ icon: 'error', title: res.message }); return; }
+                location.href = res.editUrl;
+            });
+        })();
+    </script>
+</body>
+</html>

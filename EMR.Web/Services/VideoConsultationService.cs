@@ -23,8 +23,9 @@ public class VideoConsultationService(
         string? wherebyError = null;
         try
         {
+            var companyId = await dbContext.BranchMasters.Where(b => b.BranchId == branchId).Select(b => (int?)b.CompanyId).FirstOrDefaultAsync();
             result = await wherebyService.CreateMeetingAsync(
-                patientId, appointmentDate, slotStartTime, slotEndTime, graceTimeMinutes);
+                patientId, appointmentDate, slotStartTime, slotEndTime, graceTimeMinutes, companyId);   // the booking branch's company
         }
         catch (Exception ex)
         {

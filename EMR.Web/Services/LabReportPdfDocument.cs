@@ -53,6 +53,14 @@ public class LabReportPdfDocument : IDocument
         }
     }
 
+    /// <summary>An image of the Print Templates layout: the branch logo, or an uploaded image read beforehand.</summary>
+    private byte[]? TemplateImage(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        if (string.Equals(path, vm.HospitalLogoPath, StringComparison.OrdinalIgnoreCase)) return logo;
+        return vm.PrintImages.GetValueOrDefault(path);
+    }
+
     public DocumentMetadata GetMetadata() => new()
     {
         Title = $"Lab Report {vm.BillNo}",
@@ -115,6 +123,14 @@ public class LabReportPdfDocument : IDocument
                         c.Border(0.6f).BorderColor(Crimson).PaddingHorizontal(3).PaddingVertical(1)
                             .Text($"DUPLICATE COPY · Print #{vm.PrintSequence}").FontSize(6.5f).Bold().FontColor(Crimson).LetterSpacing(0.05f);
                 });
+            }
+            else if (vm.PrintTemplate is not null)
+            {
+                // Utility > Print Templates (SQLScripts/2324): the branch's Lab Report template replaces the letterhead
+                col.Item().PaddingBottom(4).Element(c => PrintBandPdf.Compose(c, vm.PrintTemplate.Header, vm.PrintValues, TemplateImage, isFooter: false));
+                if (vm.IsDuplicate)
+                    col.Item().PaddingBottom(2).AlignRight().Border(0.6f).BorderColor(Crimson).PaddingHorizontal(3).PaddingVertical(1)
+                        .Text($"DUPLICATE COPY · Print #{vm.PrintSequence}").FontSize(6.5f).Bold().FontColor(Crimson).LetterSpacing(0.05f);
             }
             else
             // Letterhead
@@ -459,6 +475,13 @@ public class LabReportPdfDocument : IDocument
             if (!vm.ShowLetterhead)
             {
                 col.Item().Height(15, Unit.Millimetre);
+                return;
+            }
+
+            // Utility > Print Templates (SQLScripts/2324): the template's footer under the signatures
+            if (vm.PrintTemplate is not null)
+            {
+                col.Item().Element(c => PrintBandPdf.Compose(c, vm.PrintTemplate.Footer, vm.PrintValues, TemplateImage, isFooter: true));
                 return;
             }
 

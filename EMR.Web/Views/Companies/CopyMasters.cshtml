@@ -1,0 +1,203 @@
+@model EMR.Web.Models.Entities.CompanyMaster
+@{
+    // Company > Copy master data (super admin, SQLScripts/2328): this company PULLS LAB masters from a source company.
+    ViewData["Title"] = "Copy Master Data";
+    var sources = ((IEnumerable<dynamic>)ViewBag.Sources).ToList();
+    var groups = EMR.Web.Controllers.CompaniesController.CopyEntities.GroupBy(e => e.Group);
+}
+
+<style>
+    .cm-step { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700; font-size: .8rem; background: #ede9fe; color: #5b3fa0; flex-shrink: 0; }
+    .cm-ent { border: 1px solid #e5e7eb; border-radius: 12px; padding: .65rem .8rem; display: flex; gap: .65rem; align-items: center; cursor: pointer; transition: border-color .15s, background .15s; height: 100%; }
+    .cm-ent:hover { border-color: #b9a6e6; }
+    .cm-ent.on { border-color: #6d4bb0; background: #f6f2fd; }
+    .cm-ent.auto { border-style: dashed; }
+    .cm-ent .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #f1ecfa; color: #6d4bb0; flex-shrink: 0; }
+    .cm-ent .nm { font-weight: 600; font-size: .9rem; line-height: 1.2; }
+    .cm-ent .why { font-size: .72rem; color: #6b7280; }
+    .cm-ent input { margin: 0; }
+    .cm-res td, .cm-res th { font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold text-dark"><i class="bi bi-copy text-primary me-2"></i>Copy Master Data</h1>
+        <small class="text-muted">Pull masters from another company into <b>@Model.CompanyName</b> (@Model.CompanyCode).</small>
+    </div>
+    <a asp-action="Details" asp-route-id="@Model.CompanyId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Company</a>
+</div>
+
+<div class="alert alert-light border small mb-4">
+    <i class="bi bi-info-circle text-primary me-1"></i>
+    Nothing in <b>@Model.CompanyName</b> is changed or deleted. A master it already has (same name) is linked and kept as it is;
+    everything else is added with new codes. A master you tick brings the masters it needs (e.g. Investigations bring their
+    categories, sample types and methods), and an investigation brings its parameter options and formula.
+    <b>Preview</b> first - it shows exactly what will happen without saving anything.
+</div>
+
+@Html.AntiForgeryToken()
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-2 mb-3"><span class="cm-step">1</span><h6 class="fw-bold mb-0">Copy from</h6></div>
+                @if (!sources.Any())
+                {
+                    <div class="text-muted small">There is no other active company to copy from.</div>
+                }
+                else
+                {
+                    <select id="cmSource" class="form-select">
+                        <option value="">-- Choose the source company --</option>
+                        @foreach (var c in sources)
+                        {
+                            <option value="@c.CompanyId">@c.CompanyName (@c.CompanyCode)</option>
+                        }
+                    </select>
+                }
+                <div class="d-flex align-items-center gap-2 mt-3 small text-muted">
+                    <i class="bi bi-arrow-down-circle"></i> into <b class="text-dark">@Model.CompanyName</b>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="cm-step">2</span><h6 class="fw-bold mb-0">Masters to copy</h6>
+                    <button type="button" class="btn btn-link btn-sm ms-auto p-0" id="cmAll">Select all</button>
+                </div>
+                @foreach (var g in groups)
+                {
+                    <div class="text-uppercase small fw-semibold text-muted mb-2 mt-3" style="letter-spacing:.05em">@g.Key</div>
+                    <div class="row g-2">
+                        @foreach (var e in g)
+                        {
+                            <div class="col-sm-6">
+                                <label class="cm-ent" data-key="@e.Key" data-needs="@string.Join(",", e.Needs)">
+                                    <input type="checkbox" class="form-check-input cm-chk" value="@e.Key" />
+                                    <span class="ic"><i class="bi @e.Icon"></i></span>
+                                    <span><span class="nm d-block">@e.Name</span><span class="why"></span></span>
+                                </label>
+                            </div>
+                        }
+                    </div>
+                }
+                <div class="small text-muted mt-3"><i class="bi bi-info-circle me-1"></i>Profiles only (not packages). Departments, Lab Units and specialities are shared by all companies.
+                    Shifts and SMTP settings are added to this company's Head Office; SMTP and Video settings are taken from the source company's Head Office.
+                    SMTP is copied only when this company's Head Office has none.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <span class="cm-step">3</span><h6 class="fw-bold mb-0">Preview &amp; copy</h6>
+                    <div class="ms-auto d-flex gap-2">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="cmPreview"><i class="bi bi-eye me-1"></i>Preview</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="cmCopy" disabled><i class="bi bi-copy me-1"></i>Copy</button>
+                    </div>
+                </div>
+                <div id="cmResult">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-list-check display-6 d-block mb-2 opacity-50"></i>
+                        Choose the source company and the masters, then press <b>Preview</b>.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    (function () {
+        const runUrl = '@Url.Action("CopyMastersRun", new { id = Model.CompanyId })';
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const cards = [...document.querySelectorAll('.cm-ent')];
+        const byKey = Object.fromEntries(cards.map(c => [c.dataset.key, c]));
+        const nameOf = k => byKey[k]?.querySelector('.nm').textContent || k;
+        let previewed = null;   // the selection the last preview was made for
+
+        // ticked + the parents they need (shown dashed, "needed by ...")
+        function refresh() {
+            const ticked = cards.filter(c => c.querySelector('.cm-chk').checked).map(c => c.dataset.key);
+            const neededBy = {};
+            ticked.forEach(k => (byKey[k].dataset.needs || '').split(',').filter(Boolean).forEach(n => { (neededBy[n] ||= []).push(k); }));
+            cards.forEach(c => {
+                const k = c.dataset.key, on = ticked.includes(k), auto = !on && neededBy[k];
+                c.classList.toggle('on', on || !!auto);
+                c.classList.toggle('auto', !!auto);
+                c.querySelector('.why').textContent = auto ? 'Needed by ' + neededBy[k].map(nameOf).join(', ') : '';
+            });
+            const sig = selection();
+            document.getElementById('cmCopy').disabled = !previewed || previewed !== sig;
+        }
+        const selection = () => (document.getElementById('cmSource')?.value || '') + '|' + cards.filter(c => c.querySelector('.cm-chk').checked).map(c => c.dataset.key).join(',');
+        cards.forEach(c => c.querySelector('.cm-chk').addEventListener('change', refresh));
+        document.getElementById('cmSource')?.addEventListener('change', refresh);
+        document.getElementById('cmAll').addEventListener('click', () => {
+            const all = cards.every(c => c.querySelector('.cm-chk').checked);
+            cards.forEach(c => c.querySelector('.cm-chk').checked = !all);
+            document.getElementById('cmAll').textContent = all ? 'Select all' : 'Clear';
+            refresh();
+        });
+
+        function table(rows, preview) {
+            const t = { src: 0, ex: 0, cp: 0, sk: 0 };
+            const body = rows.map(r => {
+                t.src += r.inSource; t.ex += r.existing; t.cp += r.copied; t.sk += r.skipped;
+                return `<tr><td>${esc(r.entity)}${r.auto ? ' <span class="badge bg-light text-muted border ms-1">included</span>' : ''}</td>
+                    <td class="text-end">${r.inSource}</td><td class="text-end text-muted">${r.existing}</td>
+                    <td class="text-end fw-bold ${r.copied ? 'text-success' : ''}">${r.copied}</td><td class="text-end ${r.skipped ? 'text-warning' : 'text-muted'}">${r.skipped}</td></tr>`;
+            }).join('');
+            return `<div class="alert ${preview ? 'alert-info' : 'alert-success'} small py-2">
+                    <i class="bi ${preview ? 'bi-eye' : 'bi-check-circle-fill'} me-1"></i>
+                    ${preview ? 'Preview only - nothing has been saved yet. Press <b>Copy</b> to apply exactly this.' : 'Copied. ' + t.cp + ' record(s) added to this company.'}</div>
+                <div class="table-responsive"><table class="table table-sm align-middle cm-res mb-0">
+                <thead class="table-light"><tr><th>Master</th><th class="text-end">In source</th><th class="text-end">Already here</th>
+                <th class="text-end">${preview ? 'Will copy' : 'Copied'}</th><th class="text-end">Skipped</th></tr></thead>
+                <tbody>${body}</tbody>
+                <tfoot class="fw-semibold"><tr><td>Total</td><td class="text-end">${t.src}</td><td class="text-end">${t.ex}</td><td class="text-end text-success">${t.cp}</td><td class="text-end">${t.sk}</td></tr></tfoot></table></div>
+                <div class="small text-muted mt-2">"Already here": same name (shift: code or name; video: setting) in this company - kept, not copied. "Skipped": its parent is deleted in the source, or this company has no Head Office branch.</div>`;
+        }
+
+        async function run(preview) {
+            const source = document.getElementById('cmSource')?.value;
+            const keys = cards.filter(c => c.querySelector('.cm-chk').checked).map(c => c.dataset.key);
+            if (!source) { Swal.fire({ icon: 'warning', title: 'Choose the source company' }); return; }
+            if (!keys.length) { Swal.fire({ icon: 'warning', title: 'Choose at least one master' }); return; }
+            if (!preview) {
+                const ok = await Swal.fire({ icon: 'question', title: 'Copy into @Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(Model.CompanyName))?',
+                    html: 'The masters shown in the preview will be added to this company. Existing masters are not changed.',
+                    showCancelButton: true, confirmButtonText: 'Copy now' });
+                if (!ok.isConfirmed) return;
+            }
+            const box = document.getElementById('cmResult');
+            box.innerHTML = `<div class="text-center text-muted py-5"><div class="spinner-border text-primary mb-2"></div><div>${preview ? 'Preparing the preview...' : 'Copying... this can take a minute.'}</div></div>`;
+            document.getElementById('cmPreview').disabled = true; document.getElementById('cmCopy').disabled = true;
+            try {
+                const body = new URLSearchParams({ sourceCompanyId: source, preview, __RequestVerificationToken: token });
+                keys.forEach(k => body.append('entities', k));
+                const res = await fetch(runUrl, { method: 'POST', body });
+                const r = await res.json();
+                if (!r.success) { box.innerHTML = `<div class="alert alert-danger small">${esc(r.message)}</div>`; previewed = null; return; }
+                box.innerHTML = table(r.rows, preview);
+                previewed = preview ? selection() : null;
+                if (!preview) Swal.fire({ icon: 'success', title: 'Masters copied', timer: 1800, showConfirmButton: false });
+            } catch {
+                box.innerHTML = '<div class="alert alert-danger small">The server could not be reached. Nothing was saved.</div>';
+                previewed = null;
+            } finally {
+                document.getElementById('cmPreview').disabled = false; refresh();
+            }
+        }
+        document.getElementById('cmPreview').addEventListener('click', () => run(true));
+        document.getElementById('cmCopy').addEventListener('click', () => run(false));
+        refresh();
+    })();
+</script>
+}

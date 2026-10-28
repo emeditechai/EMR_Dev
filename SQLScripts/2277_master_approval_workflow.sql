@@ -5,7 +5,7 @@
    - ApprovalModule          : the masters that can be put under approval
    - ApprovalMatrix          : per company and module, either company-wise (Scope 'C', approved in the
                                head-office branch) or branch-wise (Scope 'B', approved in that branch)
-   - ApprovalMatrixApprover  : who approves - system users (User_Type U) holding a Manager role;
+   - ApprovalMatrixApprover  : who approves - active users (any login type) holding a Manager role;
                                branch-wise approvers must also work in that branch (UserBranches)
    - ApprovalRequest         : one row per submitted change, with the old and new values
                                Status P = pending, A = approved, S = sent back, X = replaced by a newer submission

@@ -1,6 +1,8 @@
 @{
     var module = ViewData["Module"] as string ?? "OPD";
-    ViewData["Title"] = module + " Day Closing";
+    var moduleTitle = module == "PHR" ? "Pharmacy" : module;
+    var otherModules = module switch { "OPD" => "LAB / Pharmacy", "LAB" => "OPD / Pharmacy", _ => "OPD / LAB" };
+    ViewData["Title"] = moduleTitle + " Day Closing";
     var notes = new[] { 500, 200, 100, 50, 20, 10, 5, 2, 1 };
     var controller = ViewContext.RouteData.Values["controller"] as string;
 }
@@ -21,12 +23,12 @@
         <div>
             <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
                 <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
-                <li class="breadcrumb-item text-muted">@module</li>
+                <li class="breadcrumb-item text-muted">@moduleTitle</li>
                 <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
             </ol></nav>
             <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-cash-coin me-2"></i>@ViewData["Title"]</h4>
-            <div class="text-muted small">Count your @module cash, hand it over and submit it for verification. Petty cash is shared with the
-                @(module == "OPD" ? "LAB" : "OPD") closing: a float goes into the first closing that takes it.</div>
+            <div class="text-muted small">Count your @moduleTitle cash, hand it over and submit it for verification. Petty cash is shared with the
+                @otherModules closing: a float goes into the first closing that takes it.</div>
         </div>
         <div class="d-flex align-items-end gap-2">
             <div>
@@ -51,8 +53,8 @@
                 </div>
                 <table class="table table-sm mb-0 dc-sum">
                     <tbody>
-                        <tr><td class="lbl">Opening float <span class="small">(kept at your last @module closing)</span></td><td class="dc-amt" id="sOpening">-</td></tr>
-                        <tr><td class="lbl">+ @module cash receipts</td><td class="dc-amt" id="sReceipts">-</td></tr>
+                        <tr><td class="lbl">Opening float <span class="small">(kept at your last @moduleTitle closing)</span></td><td class="dc-amt" id="sOpening">-</td></tr>
+                        <tr><td class="lbl">+ @moduleTitle cash receipts</td><td class="dc-amt" id="sReceipts">-</td></tr>
                         <tr><td class="lbl">&minus; Cash refunds paid</td><td class="dc-amt" id="sRefunds">-</td></tr>
                         <tr><td class="lbl">&minus; Given to petty cash</td><td class="dc-amt" id="sPettyOut">-</td></tr>
                         <tr><td class="lbl">+ Returned from petty cash</td><td class="dc-amt" id="sPettyIn">-</td></tr>
@@ -63,7 +65,7 @@
                     <div class="form-check form-switch mb-0">
                         <input class="form-check-input" type="checkbox" role="switch" id="dcIncludePetty" checked>
                         <label class="form-check-label small" for="dcIncludePetty">Include the petty cash floats of the day in this closing
-                            (<span id="dcPettyCount">0</span> not closed yet). Turn off to leave them for the @(module == "OPD" ? "LAB" : "OPD") closing.</label>
+                            (<span id="dcPettyCount">0</span> not closed yet). Turn off to leave them for the @otherModules closing.</label>
                     </div>
                 </div>
                 <div class="px-3 py-2 border-top small" id="dcNonCash"></div>
@@ -147,7 +149,7 @@
 
     <!-- my closings -->
     <div class="dc-card mt-3">
-        <div class="px-3 py-2 border-bottom fw-semibold"><i class="bi bi-clock-history me-1 text-primary"></i>My @module closings (last 31 days)</div>
+        <div class="px-3 py-2 border-bottom fw-semibold"><i class="bi bi-clock-history me-1 text-primary"></i>My @moduleTitle closings (last 31 days)</div>
         <div class="table-responsive">
             <table class="table table-sm table-hover mb-0 align-middle">
                 <thead class="table-light"><tr><th class="ps-3">Date</th><th>Closing No.</th><th class="text-end">Expected</th><th class="text-end">Counted</th><th class="text-end">Difference</th>

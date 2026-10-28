@@ -1,0 +1,69 @@
+@using EMR.Web.Services
+@model List<PhPayable>
+@{
+    // Pharmacy > Purchase > Supplier Payments > Pay: set the payment off against the supplier's open bills, oldest first (SQLScripts/2344)
+    var s = (PhSupplierInfo)ViewBag.Supplier;
+    decimal returns = ViewBag.Returns;
+    string pc = ViewBag.PageCode;
+    ViewData["Title"] = "Pay " + s.SupplierName;
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Supplier Payments", "bi-cash-coin", "Enter the amount paid; it is set off against the oldest bills first. You can change the split bill by bill.", null, null, "Pay " + s.SupplierName, "Pay", Url.Action("Outstanding"), Section: "Pharmacy", Group: "Purchase"))" />
+
+<form method="post" asp-action="Save" id="payForm">
+@Html.AntiForgeryToken()
+<input type="hidden" name="supplierId" value="@s.SupplierId" />
+<div class="card shadow-sm border-0 mb-3"><div class="card-body row g-3 align-items-end">
+    <div class="col-md-2"><label class="form-label small fw-semibold req">Payment date</label><input type="date" name="paymentDate" class="form-control" value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" required /></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold req">Mode</label><select name="mode" id="mode" class="form-select"><option value="NEFT">NEFT / RTGS</option><option value="CHEQUE">Cheque</option><option value="UPI">UPI</option><option value="CASH">Cash</option><option value="CARD">Card</option></select></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold" id="refLabel">Reference / UTR / cheque no.</label><input name="reference" id="reference" class="form-control" maxlength="50" /></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Amount to pay (₹)</label><input type="number" step="0.01" min="0" id="payAmount" class="form-control fw-bold" /></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold">Remarks</label><input name="remarks" class="form-control" maxlength="300" /></div>
+    @if (returns > 0) { <div class="col-12 small text-muted"><i class="bi bi-info-circle me-1"></i>Debit notes (purchase returns) of ₹ @returns.ToString("N2") are on this supplier's account; deduct them from what you pay as agreed with the supplier.</div> }
+</div></div>
+
+<div class="card shadow-sm border-0"><div class="ph-wrap"><table class="table mb-0 ph-table">
+    <thead><tr><th>#</th><th>GRN</th><th>Supplier bill</th><th>Bill date</th><th>Due</th><th class="text-end">Bill amount</th><th class="text-end">Paid earlier</th><th class="text-end">Balance</th><th class="text-end" style="width:150px">Pay now</th></tr></thead>
+    <tbody>
+    @for (var i = 0; i < Model.Count; i++)
+    {
+        var b = Model[i];
+        <tr><td class="text-muted small">@(i + 1)</td><td class="font-monospace small">@b.GrnNo</td><td>@b.InvoiceNo</td><td>@b.InvoiceDate.ToString("dd-MMM-yyyy")</td>
+            <td class="@(b.DueDate < DateTime.Today ? "text-danger fw-semibold" : "")">@b.DueDate?.ToString("dd-MMM-yyyy")</td>
+            <td class="text-end">@b.NetAmount.ToString("N2")</td><td class="text-end">@b.Paid.ToString("N2")</td><td class="text-end fw-semibold">@b.Balance.ToString("N2")</td>
+            <td><input type="number" step="0.01" min="0" max="@b.Balance" name="alloc[@b.GrnId]" class="form-control form-control-sm text-end alloc" data-bal="@b.Balance" /></td></tr>
+    }
+    </tbody>
+    <tfoot><tr><td colspan="7" class="text-end fw-bold">Total</td><td class="text-end fw-bold">@Model.Sum(b => b.Balance).ToString("N2")</td><td class="text-end fw-bold" id="allocTotal">0.00</td></tr></tfoot>
+</table></div></div>
+
+<div class="ph-actions py-2 px-3 mt-3 d-flex gap-2 justify-content-end rounded-3" style="position:sticky;bottom:0;background:rgba(248,250,252,.96)">
+    <a asp-action="Outstanding" class="btn btn-outline-secondary me-auto"><i class="bi bi-arrow-left me-1"></i>Back</a>
+    <button asp-permission="@($"{pc}:SAVE")" class="btn btn-success px-4"><i class="bi bi-check2-circle me-1"></i>Record payment</button>
+</div>
+</form>
+
+@section Scripts {
+<script>
+(function () {
+    const allocs = [...document.querySelectorAll('.alloc')], total = document.getElementById('allocTotal');
+    const sum = () => total.textContent = allocs.reduce((t, a) => t + (parseFloat(a.value) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('payAmount').addEventListener('input', e => {   // oldest bill first
+        let left = parseFloat(e.target.value) || 0;
+        allocs.forEach(a => { const take = Math.min(left, parseFloat(a.dataset.bal)); a.value = take > 0 ? take.toFixed(2) : ''; left -= take; });
+        sum();
+    });
+    allocs.forEach(a => a.addEventListener('input', sum));
+    const mode = document.getElementById('mode'), ref = document.getElementById('reference');
+    const m = () => { ref.required = mode.value !== 'CASH'; document.getElementById('refLabel').classList.toggle('req', ref.required); }; mode.addEventListener('change', m); m();
+    document.getElementById('payForm').addEventListener('submit', async e => {
+        const t = allocs.reduce((s, a) => s + (parseFloat(a.value) || 0), 0);
+        if (e.target.dataset.ok) return;
+        e.preventDefault();
+        if (t <= 0) { Swal.fire({ icon: 'info', title: 'Enter the amount paid against at least one bill.' }); return; }
+        const r = await Swal.fire({ title: 'Record payment?', text: `₹ ${t.toFixed(2)} to @Html.Raw(System.Text.Json.JsonSerializer.Serialize(s.SupplierName)[1..^1])`, icon: 'question', showCancelButton: true, confirmButtonText: 'Yes, record' });
+        if (r.isConfirmed) { e.target.dataset.ok = '1'; e.target.submit(); }
+    });
+})();
+</script>
+}

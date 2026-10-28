@@ -1,0 +1,215 @@
+@model List<EMR.Web.ApiClients.PrintTemplateRowDto>
+@{
+    ViewData["Title"] = "Print Templates";
+    var assignments = ViewBag.Assignments as List<EMR.Web.ApiClients.PrintTemplateAssignmentDto> ?? new();
+    const string Page = "UTILITY.PRINTTEMPLATES";
+    // head office: create, design, publish and assign; other branches: view and preview only
+    var canManage = ViewBag.CanManage as bool? ?? false;
+    var kinds = new[] { ("BILL", "Bill", "bi-receipt", "LAB and OPD bills, money receipts"), ("REPORT", "Lab Report", "bi-file-earmark-medical", "Lab report PDF - print, email and WhatsApp") };
+}
+
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-layout-text-window me-2"></i>Print Templates</h4>
+            <div class="text-muted small">Design the header and footer of bills and lab reports, then choose which branch prints with which. The rest of the bill and report does not change.</div>
+        </div>
+        @if (canManage)
+        {
+            <button type="button" class="btn btn-primary shadow-sm" asp-permission="@(Page + ":EDIT")" data-bs-toggle="modal" data-bs-target="#newTpl"><i class="bi bi-plus-lg me-1"></i>New Template</button>
+        }
+    </div>
+
+    @if (TempData["SuccessMessage"] is string ok) { <div class="alert alert-success alert-dismissible fade show"><i class="bi bi-check-circle me-2"></i>@ok<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+    @if (TempData["ErrorMessage"] is string bad) { <div class="alert alert-danger alert-dismissible fade show"><i class="bi bi-exclamation-triangle me-2"></i>@bad<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div> }
+
+    @if (!canManage)
+    {
+        <div class="alert alert-warning small py-2 shadow-sm"><i class="bi bi-eye me-1"></i>View only: templates are created, changed and assigned by the head office. You can open and preview them.</div>
+    }
+    <div class="alert alert-info small py-2 shadow-sm">
+        <i class="bi bi-lightbulb me-1"></i><strong>How it works:</strong> 1. New Template (start from a ready layout) &nbsp;→&nbsp; 2. Design it: click a part of the header or footer and change it on the right &nbsp;→&nbsp;
+        3. Preview it on a real bill or report &nbsp;→&nbsp; 4. Publish &nbsp;→&nbsp; 5. Choose it for your branches below. A branch left on <strong>Classic</strong> prints exactly as before.
+    </div>
+
+    <div class="row g-3">
+        @foreach (var (kind, title, icon, what) in kinds)
+        {
+            var list = Model.Where(t => t.Kind == kind).ToList();
+            <div class="col-xl-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="fw-bold mb-0"><i class="bi @icon me-2 text-primary"></i>@title templates</h6>
+                        <div class="small text-muted">@what</div>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex align-items-center gap-3">
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">Classic <span class="badge bg-secondary-subtle text-secondary border ms-1">built in</span></div>
+                                <div class="small text-muted">Today's header and footer. Used by every branch that has no template.</div>
+                            </div>
+                        </div>
+                        @foreach (var t in list)
+                        {
+                            <div class="list-group-item d-flex flex-wrap align-items-center gap-3">
+                                <div class="flex-grow-1" style="min-width:220px;">
+                                    <div class="fw-semibold">
+                                        <a asp-action="Designer" asp-route-id="@t.TemplateId" class="text-decoration-none">@t.Name</a>
+                                        @if (!t.IsPublished) { <span class="badge bg-warning-subtle text-warning-emphasis border ms-1">Draft - not published</span> }
+                                        else
+                                        {
+                                            <span class="badge bg-success-subtle text-success border ms-1">Published v@(t.Version)</span>
+                                            if (t.HasUnpublishedChanges) { <span class="badge bg-warning-subtle text-warning-emphasis border ms-1">unpublished changes</span> }
+                                        }
+                                    </div>
+                                    <div class="small text-muted">
+                                        @(string.IsNullOrWhiteSpace(t.Branches) ? "Not used by any branch" : "Used by: " + t.Branches)
+                                        · changed @t.ModifiedDate.ToString("dd-MMM-yyyy HH:mm")@(t.ModifiedByName is null ? "" : " by " + t.ModifiedByName)
+                                    </div>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <a asp-action="Designer" asp-route-id="@t.TemplateId" class="btn btn-outline-primary">@if (canManage) { <i class="bi bi-pencil-square me-1"></i><span>Design</span> } else { <i class="bi bi-eye me-1"></i><span>View</span> }</a>
+                                    @if (canManage)
+                                    {
+                                        <form asp-action="Copy" method="post" class="d-inline" asp-permission="@(Page + ":EDIT")">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@t.TemplateId" />
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm rounded-0" title="Make a copy"><i class="bi bi-copy"></i></button></form>
+                                        if (string.IsNullOrWhiteSpace(t.Branches))
+                                        {
+                                            <form asp-action="Delete" method="post" class="d-inline pt-delete" asp-permission="@(Page + ":DELETE")" data-name="@t.Name">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@t.TemplateId" />
+                                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-start-0" title="Remove"><i class="bi bi-trash"></i></button></form>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @if (list.Count == 0)
+                        {
+                            <div class="list-group-item small text-muted py-3"><i class="bi bi-info-circle me-1"></i>No @title.ToLowerInvariant() template yet - click New Template.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-white py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Which branch prints with which template</h6>
+            <div class="small text-muted">@(canManage ? "Head office: choose the template of every branch. Changes apply to the next print. Only published templates can be chosen." : "Set by the head office.")</div>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="bg-light"><tr><th class="ps-4">Branch</th><th style="min-width:240px;">Bills</th><th style="min-width:240px;">Lab Reports</th><th class="pe-4" style="width:160px;"></th></tr></thead>
+                <tbody>
+                    @foreach (var a in assignments)
+                    {
+                        <tr>
+                            <td class="ps-4 fw-semibold">@a.BranchName @if (a.IsHOBranch) { <span class="badge bg-primary-subtle text-primary border ms-1">HO</span> }</td>
+                            @foreach (var (kind, title, _, _) in kinds)
+                            {
+                                var current = kind == "BILL" ? a.BillTemplateId : a.ReportTemplateId;
+                                <td>
+                                    @if (!canManage)
+                                    {
+                                        var name = Model.FirstOrDefault(t => t.TemplateId == current)?.Name;
+                                        <span class="@(name is null ? "text-muted" : "fw-semibold")">@(name ?? "Classic (built in)")</span>
+                                        continue;
+                                    }
+                                    <select class="form-select form-select-sm pt-assign" data-branch="@a.BranchId" data-kind="@kind" data-current="@(current?.ToString() ?? "")" asp-permission="@(Page + ":ASSIGN")" asp-permission-mode="hide">
+                                        <option value="">Classic (built in)</option>
+                                        @foreach (var t in Model.Where(t => t.Kind == kind && t.IsPublished))
+                                        {
+                                            <option value="@t.TemplateId" selected="@(t.TemplateId == current)">@t.Name</option>
+                                        }
+                                    </select>
+                                </td>
+                            }
+                            <td class="pe-4 small"><span class="pt-assign-status text-muted" data-branch="@a.BranchId"></span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- New template -->
+<div class="modal fade" id="newTpl" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <form asp-action="Create" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-plus-lg me-2"></i>New print template</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-7">
+                        <label class="form-label fw-semibold">Name</label>
+                        <input name="name" class="form-control" maxlength="100" required placeholder="e.g. Kolkata letterhead 2026" />
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold">For</label>
+                        <select name="kind" class="form-select">
+                            <option value="BILL">Bills (LAB, OPD, receipts)</option>
+                            <option value="REPORT">Lab Reports (PDF)</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Start from</label>
+                        <div class="row g-2">
+                            @foreach (var (val, name, desc, art) in new[]
+                            {
+                                ("standard", "Standard", "Logo left, name and accreditation, emergency number and barcode right, contact line below.", "▣ ▬▬▬▬ ▮▮\n▬ ▬ ▬ ▬"),
+                                ("centred", "Centred", "Logo above the hospital name, everything centred.", "  ▣\n ▬▬▬▬\n ▬ ▬ ▬"),
+                                ("blank", "Blank", "An empty header and footer to build yourself.", "\n  + \n")
+                            })
+                            {
+                                <div class="col-md-4">
+                                    <label class="pt-start card h-100 p-2" style="cursor:pointer;">
+                                        <input type="radio" name="start" value="@val" class="form-check-input me-1" @(val == "standard" ? "checked" : "") />
+                                        <span class="fw-semibold">@name</span>
+                                        <pre class="pt-art mb-1 mt-2">@art</pre>
+                                        <span class="small text-muted">@desc</span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary"><i class="bi bi-arrow-right me-1"></i>Create and design</button></div>
+        </form>
+    </div>
+</div>
+
+<form id="ptTokenForm">@Html.AntiForgeryToken()</form>
+
+<style>
+    .pt-art { font-size: 13px; line-height: 1.25; background: #f6f3fb; border-radius: 6px; padding: 6px; color: #6b5a8e; min-height: 58px; }
+    .pt-start:has(input:checked) { border-color: #7c3aed; box-shadow: 0 0 0 2px rgba(124, 58, 237, .15); }
+</style>
+
+@section Scripts {
+<script>
+(function () {
+    const token = () => document.querySelector('#ptTokenForm input[name="__RequestVerificationToken"]').value;
+    // Remove: a SweetAlert confirmation instead of the browser's
+    document.querySelectorAll('form.pt-delete').forEach(f => f.addEventListener('submit', async e => {
+        if (f.dataset.confirmed) return;
+        e.preventDefault();
+        const r = await Swal.fire({ icon: 'warning', title: 'Remove template?', html: `<b>${f.dataset.name.replace(/[&<>"']/g, '')}</b> will be removed. No branch uses it.`,
+            showCancelButton: true, confirmButtonText: 'Remove', confirmButtonColor: '#dc3545', cancelButtonText: 'Cancel' });
+        if (r.isConfirmed) { f.dataset.confirmed = '1'; f.submit(); }
+    }));
+    document.querySelectorAll('.pt-assign').forEach(sel => sel.addEventListener('change', async () => {
+        const status = document.querySelector(`.pt-assign-status[data-branch="${sel.dataset.branch}"]`);
+        status.className = 'pt-assign-status text-muted'; status.textContent = 'Saving...';
+        const body = new URLSearchParams({ __RequestVerificationToken: token(), branchId: sel.dataset.branch, kind: sel.dataset.kind, templateId: sel.value });
+        try {
+            const r = await fetch('@Url.Action("Assign")', { method: 'POST', body, credentials: 'same-origin' });
+            const d = await r.json();
+            if (d.success) { sel.dataset.current = sel.value; status.className = 'pt-assign-status text-success'; status.innerHTML = '<i class="bi bi-check-circle"></i> Saved'; }
+            else { sel.value = sel.dataset.current; status.className = 'pt-assign-status text-danger'; status.textContent = d.error || 'Not saved'; }
+        } catch (e) { sel.value = sel.dataset.current; status.className = 'pt-assign-status text-danger'; status.textContent = 'Not saved - try again'; }
+    }));
+})();
+</script>
+}

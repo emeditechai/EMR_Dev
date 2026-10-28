@@ -1,0 +1,18 @@
+@using EMR.Web.Services
+@model List<PhSalePayment>
+@{
+    Layout = null;
+    var h = (PhBranchHeader)ViewBag.Header; var total = Model.Sum(p => p.Amount);
+}
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Money receipt @Model[0].ReceiptNo</title>
+<style>body{font-family:Arial,sans-serif;font-size:12px;margin:0}.doc{width:148mm;margin:0 auto;padding:10px}h1{font-size:17px;margin:0;color:#644098}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:3px;text-align:left}.r{text-align:right}@@media print{.noprint{display:none}}</style></head>
+<body onload="setTimeout(() => window.print(), 300)"><div class="doc">
+    <div class="noprint" style="text-align:right"><a href="javascript:history.back()">Back</a> <button onclick="window.print()">Print</button></div>
+    <h1>@h.Name</h1><div>@h.Address</div><hr />
+    <div style="display:flex;justify-content:space-between"><b>MONEY RECEIPT</b><span>@Model[0].ReceiptNo · @Model[0].PaymentDate.ToString("dd-MMM-yyyy HH:mm")</span></div>
+    <p>Received with thanks from <b>@ViewBag.Name</b> @ViewBag.Mobile the sum of <b>₹ @total.ToString("N2")</b> (@PharmacyPurchaseService.AmountInWords(total)) against the pharmacy bills below.</p>
+    <table><thead><tr><th>Mode / reference · bill</th><th class="r">Amount</th></tr></thead>
+        <tbody>@foreach (var p in Model) { <tr><td>@p.MethodName · @p.Ref</td><td class="r">@p.Amount.ToString("N2")</td></tr> }</tbody></table>
+    <br /><div class="r">Authorised signatory</div>
+</div></body></html>

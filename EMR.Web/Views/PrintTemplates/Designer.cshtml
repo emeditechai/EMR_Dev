@@ -1,0 +1,572 @@
+@model EMR.Web.ApiClients.PrintTemplateDetailDto
+@using EMR.Web.Models.ViewModels
+@{
+    ViewData["Title"] = "Design: " + Model.Name;
+    const string Page = "UTILITY.PRINTTEMPLATES";
+    var branches = (ViewBag.Branches as System.Collections.IEnumerable)?.Cast<dynamic>().ToList() ?? new();
+    int previewBranch = ViewBag.PreviewBranchId ?? 0;
+    var isReport = Model.Kind == "REPORT";
+    // head office designs, publishes and assigns; other branches open the template to view and preview only
+    var canManage = ViewBag.CanManage as bool? ?? false;
+    var fields = PrintFields.All.Where(f => f.Kinds.Contains(Model.Kind)).Select(f => new { f.Key, f.Label, f.Group }).ToList();
+}
+
+<div class="container-fluid px-3 py-3 pd-wrap">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <a asp-action="Index" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i></a>
+        <span class="badge @(isReport ? "bg-info-subtle text-info-emphasis" : "bg-primary-subtle text-primary") border">@(isReport ? "Lab Report" : "Bill")</span>
+        <input id="pdName" class="form-control form-control-sm fw-semibold" style="max-width:280px" value="@Model.Name" maxlength="100" @(canManage ? "" : "readonly") />
+        <span id="pdState" class="small text-muted">@(Model.IsPublished ? $"Published v{Model.Version}" : "Draft - not published")</span>
+        <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
+            <label class="small text-muted mb-0">Fill with</label>
+            <select id="pdBranch" class="form-select form-select-sm" style="width:auto">
+                @foreach (var b in branches) { <option value="@b.BranchId" selected="@(b.BranchId == previewBranch)">@b.BranchName</option> }
+            </select>
+            @if (canManage)
+            {
+                <div class="btn-group btn-group-sm">
+                    <button type="button" class="btn btn-outline-secondary" id="pdUndo" title="Undo (Ctrl+Z)"><i class="bi bi-arrow-counterclockwise"></i></button>
+                </div>
+            }
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-eye me-1"></i>Preview</button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    @if (isReport)
+                    {
+                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.Action("PreviewReport", new { id = Model.TemplateId })">On a real lab report (PDF)</a></li>
+                    }
+                    else
+                    {
+                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.Action("PreviewBill", new { id = Model.TemplateId })">On a real LAB bill</a></li>
+                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.Action("PreviewBill", new { id = Model.TemplateId, doc = "opd" })">On a real OPD bill</a></li>
+                    }
+                    <li><hr class="dropdown-divider"></li>
+                    <li><span class="dropdown-item-text small text-muted">Saves the draft first. Nobody else sees the draft.</span></li>
+                </ul>
+            </div>
+            @if (canManage)
+            {
+                <button type="button" class="btn btn-sm btn-outline-primary" id="pdSave" asp-permission="@(Page + ":EDIT")"><i class="bi bi-save me-1"></i>Save draft</button>
+                <button type="button" class="btn btn-sm btn-primary" id="pdPublish" asp-permission="@(Page + ":PUBLISH")"><i class="bi bi-cloud-upload me-1"></i>Publish</button>
+            }
+        </div>
+    </div>
+    @if (TempData["SuccessMessage"] is string ok) { <div class="alert alert-success py-2 small">@ok</div> }
+    @if (TempData["ErrorMessage"] is string bad) { <div class="alert alert-danger py-2 small">@bad</div> }
+    @if (!canManage)
+    {
+        <div class="alert alert-warning small py-2"><i class="bi bi-eye me-1"></i>View only: this template is designed by the head office. You can look at it with your branch's details and preview it on a real bill or report.</div>
+    }
+    <div id="pdMsg" class="small mb-2"></div>
+
+    <div class="pd-grid @(canManage ? "" : "pd-readonly")">
+        <!-- palette -->
+        <div class="pd-pane @(canManage ? "" : "d-none")" asp-permission="@(Page + ":EDIT")" asp-permission-mode="hide">
+            <div class="pd-pane-title">Add to the selected column</div>
+            <div class="d-grid gap-1">
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="field"><i class="bi bi-ui-checks me-2"></i>Data field <span class="text-muted small">(pick)</span></button>
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="logo"><i class="bi bi-image me-2"></i>Logo</button>
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="text"><i class="bi bi-fonts me-2"></i>Text</button>
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="image"><i class="bi bi-patch-check me-2"></i>Image / seal</button>
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="barcode"><i class="bi bi-upc me-2"></i>Barcode (bill no)</button>
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="line"><i class="bi bi-dash-lg me-2"></i>Line</button>
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="spacer"><i class="bi bi-arrows-vertical me-2"></i>Space</button>
+                <button class="btn btn-sm btn-light text-start pd-add" data-type="pageinfo"><i class="bi bi-file-earmark me-2"></i>Page 1 of 1</button>
+            </div>
+            <div class="pd-pane-title mt-3">Add a row</div>
+            <div class="d-flex flex-wrap gap-1">
+                <button class="btn btn-sm btn-outline-secondary pd-row" data-split="12">Full</button>
+                <button class="btn btn-sm btn-outline-secondary pd-row" data-split="6,6">½ ½</button>
+                <button class="btn btn-sm btn-outline-secondary pd-row" data-split="4,4,4">⅓ ⅓ ⅓</button>
+                <button class="btn btn-sm btn-outline-secondary pd-row" data-split="2,7,3">Logo · Name · Right</button>
+                <button class="btn btn-sm btn-outline-secondary pd-row" data-split="3,3,3,3">4 columns</button>
+            </div>
+            <div class="form-check form-switch small mt-2">
+                <input class="form-check-input" type="checkbox" id="pdRowToFooter"><label class="form-check-label" for="pdRowToFooter">add the row to the footer</label>
+            </div>
+            <div class="small text-muted mt-3"><i class="bi bi-hand-index me-1"></i>Click any part of the header or footer to select it, then change it on the right. Empty fields of a branch are skipped when printing.</div>
+            <div class="small text-muted mt-2"><i class="bi bi-rulers me-1"></i>Sizes are real print sizes (pt / mm): the header and footer print exactly this size on A4 and A5 bills and in the lab report PDF.</div>
+            <div class="small text-muted mt-2"><i class="bi bi-arrows-move me-1"></i><strong>Drag on the page:</strong> a block to another column or place · the edge between columns for width · the bottom edge of a logo, image, barcode or space for height · the ⋮⋮ grip to move a row · the purple bar under the header / footer for its height.</div>
+            @if (Model.Versions.Count > 0)
+            {
+                <div class="pd-pane-title mt-3">Published versions</div>
+                @foreach (var v in Model.Versions.Take(8))
+                {
+                    <form asp-action="Restore" method="post" class="d-flex justify-content-between align-items-center small mb-1 pd-restore" asp-permission="@(Page + ":EDIT")" data-version="@v.VersionNo">
+                        @Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.TemplateId" /><input type="hidden" name="versionNo" value="@v.VersionNo" />
+                        <span>v@(v.VersionNo) · @v.PublishedDate.ToString("dd-MMM HH:mm")</span>
+                        <button class="btn btn-link btn-sm p-0" type="submit">restore</button>
+                    </form>
+                }
+            }
+        </div>
+
+        <!-- canvas -->
+        <div class="pd-paper-wrap">
+            <div class="pd-paper" id="pdCanvas"><div class="text-muted small p-4">Loading...</div></div>
+        </div>
+
+        <!-- properties -->
+        <div class="pd-pane" id="pdProps"></div>
+    </div>
+</div>
+
+<form id="pdToken">@Html.AntiForgeryToken()</form>
+
+<style>
+    .pd-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr) 280px; gap: 12px; align-items: start; }
+    .pd-grid.pd-readonly { grid-template-columns: minmax(0, 1fr) 280px; }
+    .pd-fmt .btn { font-size: 13px; line-height: 1.2; min-width: 0; }
+    /* drag handles (head office only) */
+    #pdCanvas .ptpl-band, #pdCanvas .ptpl-row, #pdCanvas .ptpl-col, #pdCanvas .ptpl-block { position: relative; }
+    .pd-h { position: absolute; z-index: 5; opacity: 0; transition: opacity .12s; }
+    #pdCanvas .ptpl-row:hover > .pd-h-row, #pdCanvas .ptpl-col:hover > .pd-h-col, #pdCanvas .ptpl-block:hover > .pd-h-height,
+    #pdCanvas .ptpl-band:hover > .pd-h-band, .pd-dragging .pd-h { opacity: 1; }
+    .pd-h-col { top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; background: linear-gradient(90deg, transparent 3px, #7c3aed 3px, #7c3aed 5px, transparent 5px); }
+    .pd-h-height { left: 25%; right: 25%; bottom: -4px; height: 8px; cursor: ns-resize; background: linear-gradient(transparent 3px, #7c3aed 3px, #7c3aed 5px, transparent 5px); }
+    .pd-h-band { left: 40%; right: 40%; bottom: -5px; height: 10px; cursor: ns-resize; border-radius: 4px; background: #7c3aed; opacity: .0; }
+    #pdCanvas .ptpl-band:hover > .pd-h-band { opacity: .55; }
+    .pd-h-row { left: -22px; top: 50%; transform: translateY(-50%); width: 16px; padding: 2px 0; cursor: grab; color: #7c3aed; font-size: 12px; line-height: 1; text-align: center; letter-spacing: -2px; user-select: none; }
+    .pd-tip { position: absolute; right: 2px; top: -18px; background: #2b1a4a; color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 4px; white-space: nowrap; z-index: 6; pointer-events: none; }
+    .pd-tip:empty { display: none; }
+    .pd-ghost { opacity: .4; }
+    .pd-drop { height: 0; border-top: 2px solid #7c3aed; margin: 1px 0; }
+    .pd-drop-row { border-top-width: 3px; }
+    #pdCanvas .ptpl-block[draggable="true"] { cursor: grab; }
+    .pd-dragging, .pd-dragging * { user-select: none !important; }
+    .pd-readonly #pdProps input, .pd-readonly #pdProps select, .pd-readonly #pdProps textarea, .pd-readonly #pdProps button { pointer-events: none; opacity: .75; }
+    @@media (max-width: 1200px) { .pd-grid { grid-template-columns: 1fr; } }
+    .pd-pane { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 12px; position: sticky; top: 8px; }
+    .pd-pane-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #6b5a8e; margin-bottom: 6px; }
+    .pd-paper-wrap { background: #e9e6f0; border-radius: 10px; padding: 16px; overflow-x: auto; }
+    .pd-paper { width: 190mm; margin: 0 auto; background: #fff; padding: 6mm 8mm; box-shadow: 0 2px 10px rgba(0,0,0,.12); font-size: 11px; }
+    .pd-band-label { font-size: 10px; font-weight: 700; color: #9a8fb3; letter-spacing: .08em; text-transform: uppercase; margin: 2mm 0 1mm; }
+    .pd-body { border: 1px dashed #d8d2e6; background: repeating-linear-gradient(135deg, #faf9fc, #faf9fc 8px, #f3f1f8 8px, #f3f1f8 16px); height: 60mm; margin: 3mm 0; display: flex; align-items: center; justify-content: center; text-align: center; color: #9a8fb3; font-size: 11px; }
+    .pd-body-title { font-weight: 700; font-size: 13px; }
+    .pd-props .form-label { font-size: 11px; font-weight: 600; color: #555; margin-bottom: 2px; }
+    #pdProps .form-control, #pdProps .form-select { font-size: 12px; }
+</style>
+
+@section Scripts {
+<script>
+(function () {
+    const KIND = '@Model.Kind', ID = @Model.TemplateId, CAN_MANAGE = @(canManage ? "true" : "false");
+    const FIELDS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(fields, PrintLayout.Json));
+    const FONTS = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(PrintFonts.All, PrintLayout.Json));
+    let layout = @Html.Raw(PrintLayout.Parse(Model.DraftJson)?.ToJson() ?? PrintLayoutStarters.Blank().ToJson());
+    let selected = 'h.r0.c0', dirty = false, history = [];
+    const $ = s => document.querySelector(s);
+    const token = () => $('#pdToken input[name="__RequestVerificationToken"]').value;
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const msg = (text, kind) => { const m = $('#pdMsg'); m.className = 'small mb-2 text-' + (kind || 'muted'); m.innerHTML = text || ''; };
+
+    // ── layout paths: h | h.r0 | h.r0.c1 | h.r0.c1.b2 ──
+    function parse(path) {
+        const p = (path || 'h').split('.'), band = p[0] === 'f' ? layout.footer : layout.header;
+        const r = p[1] ? +p[1].slice(1) : null, c = p[2] ? +p[2].slice(1) : null, b = p[3] ? +p[3].slice(1) : null;
+        const row = r !== null ? band.rows[r] : null, col = row && c !== null ? row.cols[c] : null, block = col && b !== null ? col.blocks[b] : null;
+        return { band, bandKey: p[0], r, c, b, row, col, block, level: block ? 'block' : col ? 'col' : row ? 'row' : 'band' };
+    }
+    function change(fn) {
+        if (!CAN_MANAGE) return;   // view only (not the head office)
+        history.push(JSON.stringify(layout)); if (history.length > 60) history.shift();
+        fn(); dirty = true; $('#pdState').textContent = 'Unsaved changes'; render(); props();
+    }
+
+    // ── canvas: drawn by the server with the same page part the bills print with ──
+    let renderTimer;
+    function render() {
+        clearTimeout(renderTimer);
+        renderTimer = setTimeout(async () => {
+            const body = new URLSearchParams({ __RequestVerificationToken: token(), LayoutJson: JSON.stringify(layout), BranchId: $('#pdBranch').value, Kind: KIND, Selected: selected });
+            const r = await fetch('@Url.Action("Render")', { method: 'POST', body, credentials: 'same-origin' });
+            $('#pdCanvas').innerHTML = r.ok ? await r.text() : '<div class="text-danger p-3">The preview could not be drawn.</div>';
+            if (r.ok && CAN_MANAGE) addDragHandles();
+        }, 120);
+    }
+
+    // ── drag on the canvas: column width, heights, block and row position ──
+    const pxPerMm = () => $('#pdCanvas').getBoundingClientRect().width / 190;   // the paper is 190 mm wide
+    let dragging = false;
+    function handle(cls, title) { const h = document.createElement('div'); h.className = 'pd-h ' + cls; h.title = title; return h; }
+    function track(ev, onMove, onDone, cursor) {
+        ev.preventDefault(); ev.stopPropagation(); dragging = true;
+        const x0 = ev.clientX, y0 = ev.clientY;
+        document.body.classList.add('pd-dragging'); document.body.style.cursor = cursor;
+        const move = e => onMove(e.clientX - x0, e.clientY - y0);
+        const up = e => {
+            document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+            document.body.classList.remove('pd-dragging'); document.body.style.cursor = '';
+            onDone(e.clientX - x0, e.clientY - y0);
+            setTimeout(() => dragging = false, 0);
+        };
+        document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+    }
+    function addDragHandles() {
+        const canvas = $('#pdCanvas');
+        // 1. column width: the edge between two columns - any width the user drags to (0.1% steps)
+        canvas.querySelectorAll('.ptpl-row[data-path]').forEach(rowEl => {
+            const cols = [...rowEl.querySelectorAll(':scope > .ptpl-col')];
+            cols.slice(0, -1).forEach((colEl, i) => {
+                const h = handle('pd-h-col', 'Drag to change the width of the columns');
+                colEl.appendChild(h);
+                h.addEventListener('mousedown', ev => {
+                    const s = parse(colEl.dataset.path), a = s.row.cols[i], b = s.row.cols[i + 1];
+                    const a0 = a.span, pair = a.span + b.span, unit = rowEl.getBoundingClientRect().width / 12;
+                    const next = cols[i + 1], tip = document.createElement('div'); tip.className = 'pd-tip'; colEl.appendChild(tip);
+                    const minSpan = 0.24;   // 2% of the row
+                    const calc = dx => Math.round(Math.min(pair - minSpan, Math.max(minSpan, a0 + dx / unit)) * 1200) / 1200;
+                    const pct = n => (n / 12 * 100).toFixed(1).replace(/\.0$/, '') + '%';
+                    track(ev, dx => {
+                        const n = calc(dx);
+                        colEl.style.flex = `0 0 ${n / 12 * 100}%`; colEl.style.maxWidth = `${n / 12 * 100}%`;
+                        next.style.flex = `0 0 ${(pair - n) / 12 * 100}%`; next.style.maxWidth = `${(pair - n) / 12 * 100}%`;
+                        tip.textContent = `${pct(n)} | ${pct(pair - n)}`;
+                    }, dx => {
+                        const n = calc(dx);
+                        if (Math.abs(n - a0) < 0.001) { render(); return; }
+                        selected = colEl.dataset.path;
+                        change(() => { a.span = n; b.span = pair - n; });
+                    }, 'col-resize');
+                });
+            });
+        });
+        // 2. height of a logo, image, barcode or space block: its bottom edge
+        canvas.querySelectorAll('.ptpl-block[data-path]').forEach(blockEl => {
+            const s = parse(blockEl.dataset.path);
+            if (!s.block || !['logo', 'image', 'barcode', 'spacer'].includes(s.block.type)) return;
+            const h = handle('pd-h-height', 'Drag to change the height');
+            blockEl.appendChild(h);
+            h.addEventListener('mousedown', ev => {
+                const b = parse(blockEl.dataset.path).block;
+                const h0 = b.heightMm || ({ logo: 14, image: 12, barcode: 8, spacer: 3 }[b.type]);
+                const target = blockEl.querySelector('img, .ptpl-barcode, .ptpl-ph') || blockEl.firstElementChild || blockEl;
+                const tip = document.createElement('div'); tip.className = 'pd-tip'; blockEl.appendChild(tip);
+                const calc = dy => Math.min(60, Math.max(2, Math.round((h0 + dy / pxPerMm()) * 2) / 2));
+                track(ev, (dx, dy) => { const mm = calc(dy); if (b.type === 'spacer') blockEl.style.height = mm + 'mm'; else target.style.height = mm + 'mm'; tip.textContent = mm + ' mm'; },
+                    (dx, dy) => { const mm = calc(dy); if (mm === h0) { render(); return; } selected = blockEl.dataset.path; change(() => b.heightMm = mm); }, 'ns-resize');
+            });
+        });
+        // 3. lowest height of the header / footer: the bottom edge of the band
+        canvas.querySelectorAll('.ptpl-band[data-path]').forEach(bandEl => {
+            const h = handle('pd-h-band', 'Drag to set the lowest height of the ' + (bandEl.dataset.path === 'f' ? 'footer' : 'header'));
+            bandEl.appendChild(h);
+            h.addEventListener('mousedown', ev => {
+                const s = parse(bandEl.dataset.path), start = bandEl.getBoundingClientRect().height / pxPerMm();
+                const tip = document.createElement('div'); tip.className = 'pd-tip'; bandEl.appendChild(tip);
+                const calc = dy => Math.min(120, Math.max(0, Math.round(start + dy / pxPerMm())));
+                track(ev, (dx, dy) => { const mm = calc(dy); bandEl.style.minHeight = mm + 'mm'; tip.textContent = 'at least ' + mm + ' mm'; },
+                    (dx, dy) => { const mm = calc(dy); selected = bandEl.dataset.path; change(() => s.band.minHeightMm = Math.abs(dy) < 3 ? s.band.minHeightMm : mm); }, 'ns-resize');
+            });
+        });
+        // 4. move a block to another column, or another place in its column
+        canvas.querySelectorAll('.ptpl-block[data-path]').forEach(blockEl => {
+            blockEl.draggable = true;
+            blockEl.addEventListener('dragstart', e => { e.dataTransfer.setData('text/pd-block', blockEl.dataset.path); e.dataTransfer.effectAllowed = 'move'; blockEl.classList.add('pd-ghost'); });
+            blockEl.addEventListener('dragend', () => { blockEl.classList.remove('pd-ghost'); clearDrop(); });
+        });
+        canvas.querySelectorAll('.ptpl-col[data-path]').forEach(colEl => {
+            colEl.addEventListener('dragover', e => {
+                if (![...e.dataTransfer.types].includes('text/pd-block')) return;
+                e.preventDefault(); clearDrop();
+                const idx = dropIndex(colEl, e.clientY), blocks = [...colEl.querySelectorAll(':scope > .ptpl-block')];
+                const mark = document.createElement('div'); mark.className = 'pd-drop';
+                if (idx < blocks.length) colEl.insertBefore(mark, blocks[idx]); else colEl.appendChild(mark);
+            });
+            colEl.addEventListener('drop', e => {
+                const from = e.dataTransfer.getData('text/pd-block'); if (!from) return;
+                e.preventDefault(); clearDrop();
+                const src = parse(from), dst = parse(colEl.dataset.path);
+                let idx = dropIndex(colEl, e.clientY);
+                change(() => {
+                    const [blk] = src.col.blocks.splice(src.b, 1);
+                    if (src.col === dst.col && src.b < idx) idx--;
+                    dst.col.blocks.splice(idx, 0, blk);
+                    selected = `${dst.bandKey}.r${dst.r}.c${dst.c}.b${idx}`;
+                });
+            });
+        });
+        // 5. move a row up or down (also between header and footer): the grip on its left
+        canvas.querySelectorAll('.ptpl-row[data-path]').forEach(rowEl => {
+            const grip = handle('pd-h-row', 'Drag to move the row'); grip.innerHTML = '⋮⋮'; grip.draggable = true;
+            rowEl.appendChild(grip);
+            grip.addEventListener('dragstart', e => { e.stopPropagation(); e.dataTransfer.setData('text/pd-row', rowEl.dataset.path); rowEl.classList.add('pd-ghost'); });
+            grip.addEventListener('dragend', () => { rowEl.classList.remove('pd-ghost'); clearDrop(); });
+            rowEl.addEventListener('dragover', e => {
+                if (![...e.dataTransfer.types].includes('text/pd-row')) return;
+                e.preventDefault(); e.stopPropagation(); clearDrop();
+                const r = rowEl.getBoundingClientRect(), mark = document.createElement('div'); mark.className = 'pd-drop pd-drop-row';
+                rowEl.parentNode.insertBefore(mark, e.clientY < r.top + r.height / 2 ? rowEl : rowEl.nextSibling);
+            });
+            rowEl.addEventListener('drop', e => {
+                const from = e.dataTransfer.getData('text/pd-row'); if (!from) return;
+                e.preventDefault(); e.stopPropagation(); clearDrop();
+                const src = parse(from), dst = parse(rowEl.dataset.path), rr = rowEl.getBoundingClientRect();
+                let idx = dst.r + (e.clientY < rr.top + rr.height / 2 ? 0 : 1);
+                if (src.band === dst.band && src.r === dst.r) return;
+                change(() => {
+                    const [row] = src.band.rows.splice(src.r, 1);
+                    if (src.band === dst.band && src.r < idx) idx--;
+                    dst.band.rows.splice(idx, 0, row);
+                    selected = `${dst.bandKey}.r${idx}`;
+                });
+            });
+        });
+    }
+    function dropIndex(colEl, y) {
+        const blocks = [...colEl.querySelectorAll(':scope > .ptpl-block')];
+        const i = blocks.findIndex(b => { const r = b.getBoundingClientRect(); return y < r.top + r.height / 2; });
+        return i < 0 ? blocks.length : i;
+    }
+    function clearDrop() { document.querySelectorAll('#pdCanvas .pd-drop').forEach(x => x.remove()); }
+
+    $('#pdCanvas').addEventListener('click', e => {
+        if (dragging || e.target.closest('.pd-h')) return;
+        const el = e.target.closest('[data-path]');
+        if (!el) return;
+        e.preventDefault();
+        selected = el.dataset.path;
+        document.querySelectorAll('#pdCanvas .ptpl-sel').forEach(x => x.classList.remove('ptpl-sel'));
+        if (el.classList.contains('ptpl-band')) { /* band selected */ } else el.classList.add('ptpl-sel');
+        props();
+    });
+    $('#pdBranch').addEventListener('change', render);
+
+    // ── palette ──
+    const defaults = {
+        field: () => ({ type: 'field', field: (FIELDS[0] || {}).key, size: 9, align: 'left', color: '#111111' }),
+        text: () => ({ type: 'text', text: 'Your text', size: 9, align: 'left', color: '#111111' }),
+        logo: () => ({ type: 'logo', heightMm: 14, align: 'left' }),
+        image: () => ({ type: 'image', heightMm: 12, align: 'left' }),
+        barcode: () => ({ type: 'barcode', heightMm: 8, widthPct: 100, align: 'right' }),
+        line: () => ({ type: 'line', thickness: 1, widthPct: 100, color: '#999999' }),
+        spacer: () => ({ type: 'spacer', heightMm: 3 }),
+        pageinfo: () => ({ type: 'pageinfo', size: 7.5, align: 'right', color: '#555555' })
+    };
+    document.querySelectorAll('.pd-add').forEach(btn => btn.addEventListener('click', () => {
+        let s = parse(selected);
+        if (!s.col) {   // no column selected: the first column of the band's first row
+            if (!s.band.rows.length) s.band.rows.push({ cols: [{ span: 12, vAlign: 'top', blocks: [] }] });
+            selected = `${s.bandKey}.r0.c0`; s = parse(selected);
+        }
+        change(() => { s.col.blocks.push(defaults[btn.dataset.type]()); selected = `${s.bandKey}.r${s.r}.c${s.c}.b${s.col.blocks.length - 1}`; });
+    }));
+    document.querySelectorAll('.pd-row').forEach(btn => btn.addEventListener('click', () => {
+        const bandKey = $('#pdRowToFooter').checked ? 'f' : 'h', band = bandKey === 'f' ? layout.footer : layout.header;
+        change(() => {
+            band.rows.push({ cols: btn.dataset.split.split(',').map(n => ({ span: +n, vAlign: 'top', blocks: [] })) });
+            selected = `${bandKey}.r${band.rows.length - 1}.c0`;
+        });
+    }));
+    $('#pdUndo').addEventListener('click', undo);
+    document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); undo(); } });
+    function undo() { if (!history.length) return; layout = JSON.parse(history.pop()); dirty = true; render(); props(); }
+
+    // ── properties ──
+    const pctOf = span => Math.round(span / 12 * 1000) / 10;   // a column's span (twelfths) as % of the row
+    const opt = (v, t, cur) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(t)}</option>`;
+    const alignBtns = cur => `<div class="btn-group btn-group-sm w-100" role="group">${['left', 'center', 'right'].map(a =>
+        `<button type="button" class="btn ${a === (cur || 'left') ? 'btn-primary' : 'btn-outline-secondary'}" data-set="align" data-val="${a}"><i class="bi bi-text-${a === 'center' ? 'center' : a}"></i></button>`).join('')}</div>`;
+    const moveBar = (what) => `<div class="d-flex gap-1 mt-3">
+        <button class="btn btn-sm btn-outline-secondary flex-fill" data-act="up"><i class="bi bi-arrow-up"></i> Up</button>
+        <button class="btn btn-sm btn-outline-secondary flex-fill" data-act="down"><i class="bi bi-arrow-down"></i> Down</button>
+        <button class="btn btn-sm btn-outline-danger flex-fill" data-act="remove"><i class="bi bi-trash"></i> Remove ${what}</button></div>`;
+    const fieldOptions = cur => {
+        let html = '', group = '';
+        FIELDS.forEach(f => { if (f.group !== group) { if (group) html += '</optgroup>'; group = f.group; html += `<optgroup label="${esc(group)}">`; } html += opt(f.key, f.label, cur); });
+        return html + '</optgroup>';
+    };
+
+    function props() {
+        const s = parse(selected), p = $('#pdProps');
+        const where = `<div class="small text-muted mb-2">${s.bandKey === 'f' ? 'Footer' : 'Header'}${s.row ? ' · row ' + (s.r + 1) : ''}${s.col ? ' · column ' + (s.c + 1) : ''}</div>`;
+        let h = '';
+        if (s.level === 'block') {
+            const b = s.block, text = ['field', 'text', 'pageinfo'].includes(b.type);
+            const title = { field: 'Data field', text: 'Text', logo: 'Logo', image: 'Image', barcode: 'Barcode', line: 'Line', spacer: 'Space', pageinfo: 'Page number' }[b.type];
+            h += `<div class="pd-pane-title">${title}</div>${where}`;
+            if (b.type === 'field') h += `<label class="form-label">Shows</label><select class="form-select form-select-sm mb-2" data-set="field">${fieldOptions(b.field)}</select>
+                <div class="form-check form-switch small mb-1"><input class="form-check-input" type="checkbox" data-set="showLabel" ${b.showLabel ? 'checked' : ''}><label class="form-check-label">Show the label before it (e.g. "Email: ...")</label></div>
+                ${b.showLabel ? `<label class="form-label">Own label <span class="text-muted">(optional)</span></label><input class="form-control form-control-sm mb-2" data-set="text" value="${esc(b.text)}" placeholder="default label">` : ''}`;
+            if (b.type === 'text') h += `<label class="form-label">Text</label><textarea class="form-control form-control-sm mb-2" rows="3" data-set="text">${esc(b.text)}</textarea>`;
+            if (b.type === 'pageinfo') h += `<label class="form-label">Word before the number</label><input class="form-control form-control-sm mb-2" data-set="text" value="${esc(b.text)}" placeholder="Page">`;
+            if (text) {
+                const tg = (key, icon, title, extra) => `<button type="button" class="btn ${b[key] ? 'btn-primary' : 'btn-outline-secondary'}" data-toggle="${key}" title="${title}" ${extra || ''}>${icon}</button>`;
+                h += `<label class="form-label">Font</label>
+                    <select class="form-select form-select-sm mb-1" data-set="font">${FONTS.map(f => `<option value="${esc(f.name)}" style="font-family:${esc(f.css)}" ${(b.font || 'Arial') === f.name ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>
+                    <div class="text-end mb-2"><button type="button" class="btn btn-link btn-sm p-0" data-act="fontall">Use this font for every block</button></div>
+                    <div class="row g-2 mb-2"><div class="col-6"><label class="form-label">Size (pt)</label><input type="number" min="5" max="28" step="0.5" class="form-control form-control-sm" data-set="size" value="${b.size || 9}"></div>
+                    <div class="col-6"><label class="form-label">Colour</label><input type="color" class="form-control form-control-sm form-control-color w-100" data-set="color" value="${esc(b.color || '#111111')}"></div></div>
+                    <label class="form-label">Style</label>
+                    <div class="btn-group btn-group-sm w-100 mb-2 pd-fmt" role="group">
+                        ${tg('bold', '<b>B</b>', 'Bold')}${tg('italic', '<i style="font-family:Georgia,serif">I</i>', 'Italic')}${tg('underline', '<u>U</u>', 'Underline')}${tg('strike', '<s>S</s>', 'Strikethrough')}${tg('upper', 'AA', 'CAPITALS')}
+                    </div>
+                    <div class="row g-2 mb-2 align-items-end">
+                        <div class="col-7"><label class="form-label">Letter spacing</label><select class="form-select form-select-sm" data-set="letterSpacing">
+                            ${[[0, 'Normal'], [0.03, 'Slightly wide'], [0.06, 'Wide'], [0.12, 'Very wide'], [0.2, 'Extra wide']].map(([v, t]) => opt(v, t, b.letterSpacing || 0)).join('')}</select></div>
+                        ${b.type !== 'pageinfo' ? `<div class="col-5 small pb-1"><label><input type="checkbox" data-set="style" data-on="badge" data-off="plain" ${b.style === 'badge' ? 'checked' : ''}> Pill</label></div>` : ''}
+                    </div>`;
+            }
+            if (['logo', 'image', 'barcode', 'spacer'].includes(b.type)) h += `<label class="form-label">Height (mm)</label><input type="number" min="2" max="60" step="1" class="form-control form-control-sm mb-2" data-set="heightMm" value="${b.heightMm || ''}">`;
+            if (b.type === 'image') h += `<label class="form-label">Image (PNG / JPG, up to 2 MB)</label><input type="file" accept=".png,.jpg,.jpeg" class="form-control form-control-sm mb-2" id="pdImage">
+                ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" style="max-height:48px" class="mb-2 border rounded">` : ''}`;
+            if (b.type === 'logo') h += `<div class="small text-muted mb-2">The logo comes from Settings › Hospital Settings of each branch.</div>`;
+            if (b.type === 'barcode') h += `<div class="form-check form-switch small mb-2"><input class="form-check-input" type="checkbox" data-set="showLabel" ${b.showLabel ? 'checked' : ''}><label class="form-check-label">Bill no under the bars</label></div>
+                <label class="form-label">Width (% of the column)</label><input type="number" min="10" max="100" class="form-control form-control-sm mb-2" data-set="widthPct" value="${b.widthPct || 100}">`;
+            if (b.type === 'line') h += `<div class="row g-2 mb-2"><div class="col-6"><label class="form-label">Thickness</label><input type="number" min="0.5" max="4" step="0.5" class="form-control form-control-sm" data-set="thickness" value="${b.thickness || 1}"></div>
+                <div class="col-6"><label class="form-label">Colour</label><input type="color" class="form-control form-control-sm form-control-color w-100" data-set="color" value="${esc(b.color || '#999999')}"></div></div>
+                <label class="form-label">Width (% of the column)</label><input type="number" min="10" max="100" class="form-control form-control-sm mb-2" data-set="widthPct" value="${b.widthPct || 100}">`;
+            if (b.type !== 'spacer') h += `<label class="form-label">Alignment</label>${alignBtns(b.align)}`;
+            h += moveBar('block');
+        } else if (s.level === 'col') {
+            h += `<div class="pd-pane-title">Column</div>${where}
+                <label class="form-label">Width (% of the row)</label>
+                <div class="d-flex gap-2 align-items-center mb-1">
+                    <input type="range" class="form-range flex-grow-1" min="2" max="100" step="0.5" data-width="1" value="${pctOf(s.col.span)}">
+                    <div class="input-group input-group-sm" style="width:96px"><input type="number" class="form-control" min="2" max="100" step="0.1" data-width="1" value="${pctOf(s.col.span)}"><span class="input-group-text">%</span></div>
+                </div>
+                <div class="small text-muted mb-2">${s.row.cols.length > 1 ? `The ${s.c < s.row.cols.length - 1 ? 'next' : 'previous'} column takes up the difference. Or drag the edge between columns on the page.` : 'The only column of this row.'}</div>
+                <label class="form-label">Vertical position</label><select class="form-select form-select-sm mb-2" data-set="vAlign">${opt('top', 'Top', s.col.vAlign)}${opt('middle', 'Middle', s.col.vAlign)}${opt('bottom', 'Bottom', s.col.vAlign)}</select>
+                <div class="small text-muted">${s.col.blocks.length} block(s). Add more with the buttons on the left.</div>
+                <div class="d-flex gap-1 mt-3"><button class="btn btn-sm btn-outline-secondary flex-fill" data-act="addcol"><i class="bi bi-layout-split"></i> Add column</button>
+                <button class="btn btn-sm btn-outline-danger flex-fill" data-act="remove"><i class="bi bi-trash"></i> Remove column</button></div>`;
+            const total = s.row.cols.reduce((a, c) => a + c.span, 0);
+            if (Math.abs(total - 12) > 0.01) h += `<div class="small text-warning mt-2"><i class="bi bi-exclamation-triangle"></i> The columns of this row add up to ${pctOf(total)}% of the row.
+                <button class="btn btn-link btn-sm p-0 align-baseline" data-act="fitrow">Make them fill 100%</button></div>`;
+        } else if (s.level === 'row') {
+            h += `<div class="pd-pane-title">Row</div>${where}${moveBar('row')}`;
+        }
+        // band settings are always shown under the selection
+        const band = s.band, bk = s.bandKey === 'f' ? 'Footer' : 'Header';
+        h += `<hr><div class="pd-pane-title">${bk} settings</div>
+            <div class="row g-2 mb-1">
+                <div class="col-6"><label class="form-label">Space above (mm)</label><input type="number" min="0" max="80" step="0.5" class="form-control form-control-sm" data-band="marginTopMm" value="${band.marginTopMm || 0}"></div>
+                <div class="col-6"><label class="form-label">Space below (mm)</label><input type="number" min="0" max="80" step="0.5" class="form-control form-control-sm" data-band="marginBottomMm" value="${band.marginBottomMm || 0}"></div>
+            </div>
+            <div class="small text-muted mb-2">${s.bandKey === 'f'
+                ? 'Above: gap after the bill / report. Below: gap under the footer.'
+                : 'Above: gap from the top of the paper. Below: gap before the bill / report.'} Added to the page margin of the print.</div>
+            <div class="row g-2 mb-2"><div class="col-6"><label class="form-label">Lowest height (mm)</label><input type="number" min="0" max="120" class="form-control form-control-sm" data-band="minHeightMm" value="${band.minHeightMm || 0}"></div>
+            <div class="col-6"><label class="form-label">Inner padding (mm)</label><input type="number" min="0" max="10" step="0.5" class="form-control form-control-sm" data-band="paddingMm" value="${band.paddingMm ?? 1}"></div></div>
+            <div class="row g-2 align-items-end"><div class="col-6 small"><label><input type="checkbox" data-band="border" ${band.border ? 'checked' : ''}> ${s.bandKey === 'f' ? 'Line above' : 'Line below'}</label></div>
+            <div class="col-6"><input type="color" class="form-control form-control-sm form-control-color w-100" data-band="borderColor" value="${esc(band.borderColor || '#1a3a6b')}" title="Line colour"></div></div>
+            <label class="form-label mt-2">Background</label><div class="d-flex gap-2"><input type="color" class="form-control form-control-sm form-control-color" data-band="background" value="${esc(band.background || '#ffffff')}"><button class="btn btn-sm btn-link p-0" data-band-clear="background">none</button></div>`;
+        p.innerHTML = h;
+    }
+
+    $('#pdProps').addEventListener('input', e => apply(e.target));
+    $('#pdProps').addEventListener('change', e => { if (e.target.id === 'pdImage') upload(e.target); else apply(e.target, true); });
+    $('#pdProps').addEventListener('click', e => {
+        const btn = e.target.closest('button'); if (!btn) return;
+        if (btn.dataset.set === 'align') { const s = parse(selected); change(() => s.block.align = btn.dataset.val); return; }
+        if (btn.dataset.toggle) { const s = parse(selected), k = btn.dataset.toggle; change(() => s.block[k] = !s.block[k]); return; }
+        if (btn.dataset.bandClear) { const s = parse(selected); change(() => delete s.band[btn.dataset.bandClear]); return; }
+        if (btn.dataset.act) act(btn.dataset.act);
+    });
+    function apply(el, rerenderProps) {
+        if (!CAN_MANAGE) return;
+        if (el.dataset.width) {   // column width in %: the neighbour (next, else previous) takes the difference
+            const s = parse(selected); if (!s.col) return;
+            const others = s.row.cols.length > 1, ni = s.c < s.row.cols.length - 1 ? s.c + 1 : s.c - 1, nb = others ? s.row.cols[ni] : null;
+            const pair = nb ? s.col.span + nb.span : 12;
+            let span = (Math.min(100, Math.max(2, +el.value || 0)) / 100) * 12;
+            if (nb) span = Math.min(pair - 0.24, span);
+            history.push(JSON.stringify(layout));
+            s.col.span = Math.round(span * 1200) / 1200;
+            if (nb) nb.span = Math.round((pair - s.col.span) * 1200) / 1200;
+            dirty = true; $('#pdState').textContent = 'Unsaved changes'; render();
+            document.querySelectorAll('#pdProps [data-width]').forEach(x => { if (x !== el) x.value = pctOf(s.col.span); });
+            return;
+        }
+        const s = parse(selected);
+        if (el.dataset.band) {
+            const k = el.dataset.band, v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value;
+            history.push(JSON.stringify(layout)); s.band[k] = v; dirty = true; render(); return;
+        }
+        const k = el.dataset.set; if (!k || k === 'align') return;
+        const target = s.level === 'block' ? s.block : s.col; if (!target) return;
+        let v = el.type === 'checkbox' ? (el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.checked) : el.type === 'number' || k === 'span' || k === 'letterSpacing' ? +el.value : el.value;
+        history.push(JSON.stringify(layout)); target[k] = v; dirty = true; $('#pdState').textContent = 'Unsaved changes'; render();
+        if (rerenderProps && (el.type === 'checkbox' || el.tagName === 'SELECT')) props();
+    }
+    function act(a) {
+        const s = parse(selected);
+        if (a === 'fontall') {
+            const font = s.block?.font || 'Arial';
+            change(() => [layout.header, layout.footer].forEach(band => band.rows.forEach(r => r.cols.forEach(c => c.blocks.forEach(b => { if (['field', 'text', 'pageinfo'].includes(b.type)) b.font = font; })))));
+            msg(`<i class="bi bi-check-circle"></i> ${esc(font)} is now used by every text of the header and footer.`, 'success');
+            return;
+        }
+        change(() => {
+            if (s.level === 'block') {
+                const list = s.col.blocks, i = s.b;
+                if (a === 'remove') { list.splice(i, 1); selected = `${s.bandKey}.r${s.r}.c${s.c}`; }
+                if (a === 'up' && i > 0) { [list[i - 1], list[i]] = [list[i], list[i - 1]]; selected = `${s.bandKey}.r${s.r}.c${s.c}.b${i - 1}`; }
+                if (a === 'down' && i < list.length - 1) { [list[i + 1], list[i]] = [list[i], list[i + 1]]; selected = `${s.bandKey}.r${s.r}.c${s.c}.b${i + 1}`; }
+            } else if (s.level === 'col') {
+                if (a === 'remove') { s.row.cols.splice(s.c, 1); if (!s.row.cols.length) s.band.rows.splice(s.r, 1); selected = s.bandKey; }
+                if (a === 'addcol') { const half = Math.round(s.col.span / 2 * 1200) / 1200; s.col.span = Math.round((s.col.span - half) * 1200) / 1200; s.row.cols.splice(s.c + 1, 0, { span: half, vAlign: 'top', blocks: [] }); selected = `${s.bandKey}.r${s.r}.c${s.c + 1}`; }
+                if (a === 'fitrow') { const total = s.row.cols.reduce((x, c) => x + c.span, 0); s.row.cols.forEach(c => c.span = Math.round(c.span / total * 12 * 1200) / 1200); }
+            } else if (s.level === 'row') {
+                const rows = s.band.rows, i = s.r;
+                if (a === 'remove') { rows.splice(i, 1); selected = s.bandKey; }
+                if (a === 'up' && i > 0) { [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; selected = `${s.bandKey}.r${i - 1}`; }
+                if (a === 'down' && i < rows.length - 1) { [rows[i + 1], rows[i]] = [rows[i], rows[i + 1]]; selected = `${s.bandKey}.r${i + 1}`; }
+            }
+        });
+    }
+    async function upload(input) {
+        if (!input.files.length) return;
+        const fd = new FormData(); fd.append('file', input.files[0]); fd.append('__RequestVerificationToken', token());
+        const r = await fetch('@Url.Action("UploadImage")', { method: 'POST', body: fd, credentials: 'same-origin' });
+        const d = await r.json();
+        if (!d.success) { msg(esc(d.error), 'danger'); return; }
+        const s = parse(selected); change(() => s.block.imageUrl = d.url);
+    }
+
+    // ── save / publish / preview ──
+    async function post(action) {
+        const body = new URLSearchParams({ __RequestVerificationToken: token(), id: ID, name: $('#pdName').value, kind: KIND, layoutJson: JSON.stringify(layout) });
+        const r = await fetch(action, { method: 'POST', body, credentials: 'same-origin' });
+        if (r.status === 403) return { success: false, error: 'You do not have permission for this.' };
+        return r.json();
+    }
+    async function save(quiet) {
+        const d = await post('@Url.Action("Save")');
+        if (d.success) { dirty = false; $('#pdState').textContent = 'Draft saved'; if (!quiet) msg('<i class="bi bi-check-circle"></i> Draft saved. Branches keep printing with the published version until you publish.', 'success'); }
+        else msg(esc(d.error || 'Not saved'), 'danger');
+        return d.success;
+    }
+    $('#pdSave')?.addEventListener('click', () => save(false));
+    $('#pdPublish')?.addEventListener('click', async () => {
+        const ok = await Swal.fire({ icon: 'question', title: 'Publish this template?', text: 'Every branch that uses it prints with it from the next bill / report.',
+            showCancelButton: true, confirmButtonText: 'Publish', cancelButtonText: 'Cancel', confirmButtonColor: '#6f42c1' });
+        if (!ok.isConfirmed) return;
+        const d = await post('@Url.Action("Publish")');
+        if (d.success) {
+            dirty = false; $('#pdState').textContent = 'Published v' + d.version; msg('', '');
+            Swal.fire({ icon: 'success', title: 'Published', html: `Version ${d.version} is live. Choose it for your branches on the <a href="@Url.Action("Index")">Print Templates</a> page.`, confirmButtonColor: '#6f42c1' });
+        }
+        else Swal.fire({ icon: 'error', title: 'Not published', text: d.error || 'Please try again.' });
+    });
+    document.querySelectorAll('.pd-preview').forEach(a => a.addEventListener('click', async e => {
+        e.preventDefault();
+        const w = window.open('about:blank', '_blank');
+        if (dirty && !(await save(true))) { w?.close(); return; }
+        const url = a.dataset.url + (a.dataset.url.includes('?') ? '&' : '?') + 'branchId=' + $('#pdBranch').value;
+        if (w) w.location = url; else location.href = url;
+    }));
+    window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+    // Restore a version: SweetAlert confirmation
+    document.querySelectorAll('form.pd-restore').forEach(f => f.addEventListener('submit', async e => {
+        if (f.dataset.confirmed) return;
+        e.preventDefault();
+        const r = await Swal.fire({ icon: 'warning', title: `Restore version ${f.dataset.version}?`, text: 'It comes back into the draft; your unsaved changes are lost. Publish afterwards to make it live.',
+            showCancelButton: true, confirmButtonText: 'Restore', cancelButtonText: 'Cancel', confirmButtonColor: '#6f42c1' });
+        if (r.isConfirmed) { dirty = false; f.dataset.confirmed = '1'; f.submit(); }
+    }));
+
+    render(); props();
+})();
+</script>
+}

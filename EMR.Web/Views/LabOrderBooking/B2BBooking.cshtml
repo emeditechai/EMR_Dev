@@ -12,6 +12,9 @@
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="~/lib/leaflet/dist/leaflet.css" />
     <style>
+        /* patient grid: title select sits inside the First Name field at a fixed width */
+        .b2b-pt-row .b2b-title { flex: 0 0 88px; max-width: 88px; padding-left: .55rem; padding-right: 1.6rem; background-position: right .45rem center; }
+        .b2b-pt-row .form-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #leafletMapContainer {
             height: 380px;
             width: 100%;
@@ -455,9 +458,10 @@
         </div>
 
         <div class="reg-section-body">
-            @* ── Row 1: Phone Number* | Relation* | Profile Picture ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-4 position-relative">
+            @* ── Patient grid: four equal columns per row; the wide items (address, picture, ID upload) take half ── *@
+            @* Row 1: Phone* | Relation* | Gender* | Blood Group *@
+            <div class="row g-3 mb-3 b2b-pt-row">
+                <div class="col-12 col-sm-6 col-lg-3 position-relative">
                     <label asp-for="PhoneNumber" class="form-label fw-semibold small">
                         Phone Number <span class="text-danger">*</span>
                     </label>
@@ -474,10 +478,9 @@
                     <div id="phoneError" class="text-danger small" style="display:none"></div>
                     <div id="phoneSearchDropdown"
                          class="list-group position-absolute shadow"
-                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
+                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;min-width:min(440px,92vw);"></div>
                 </div>
-
-                <div class="col-12 col-sm-6 col-md-4">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="RelationId" class="form-label fw-semibold small">
                         Relation <span class="text-danger">*</span>
                     </label>
@@ -487,11 +490,137 @@
                     </select>
                     <span asp-validation-for="RelationId" class="text-danger small"></span>
                 </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="Gender" class="form-label fw-semibold small">
+                        Gender <span class="text-danger">*</span>
+                    </label>
+                    <select asp-for="Gender" id="ddlGender" class="form-select s2-basic">
+                        <option value="">-- Select --</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <span asp-validation-for="Gender" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
+                    <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
+                        <option value="">-- Select --</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="Unknown">Unknown</option>
+                    </select>
+                </div>
+            </div>
 
-                <div class="col-12 col-sm-12 col-md-4">
+            @* Row 2: Title + First Name* | Middle Name | Last Name* | Date of Birth *@
+            <div class="row g-3 mb-3 b2b-pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="FirstName" class="form-label fw-semibold small">
+                        First Name <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <select asp-for="Salutation" id="ddlSalutation" class="form-select b2b-title">
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Master">Master</option>
+                        <option value="Dr.">Dr.</option>
+                        <option value="Prof.">Prof.</option>
+                        <option value="Baby">Baby</option>
+                    </select>
+                        <input asp-for="FirstName" id="FirstName" class="form-control text-capitalize" maxlength="100" placeholder="Enter first name" style="text-transform: capitalize;" />
+                    </div>
+                    <span asp-validation-for="FirstName" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
+                    <input asp-for="MiddleName" id="MiddleName" class="form-control text-capitalize" maxlength="100" placeholder="Optional" style="text-transform: capitalize;" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="LastName" class="form-label fw-semibold small">
+                        Last Name <span class="text-danger">*</span>
+                    </label>
+                    <input asp-for="LastName" id="LastName" class="form-control text-capitalize" maxlength="100" placeholder="Enter last name" style="text-transform: capitalize;" />
+                    <span asp-validation-for="LastName" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
+                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
+                           max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+                </div>
+            </div>
+
+            @* Row 3: Age* | Secondary Number | Email | Referred By Doctor *@
+            <div class="row g-3 mb-3 b2b-pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span> <span class="text-muted fw-normal">(Years / Months / Days)</span></label>
+                    <div class="d-flex gap-1 align-items-center">
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
+                                   min="0" max="110" placeholder="00" title="Years (0-110)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Years">Y</span>
+                        </div>
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeMonths" type="number" id="AgeMonths" class="form-control px-2 text-center"
+                                   min="0" max="12" placeholder="00" title="Months (Max 12)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Months">M</span>
+                        </div>
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeDays" type="number" id="AgeDays" class="form-control px-2 text-center"
+                                   min="0" max="30" placeholder="00" title="Days (Max 30)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Days">D</span>
+                        </div>
+                    </div>
+                    <div id="ageValidationFeedback" class="text-danger small mt-1 d-none"></div>
+                    <span asp-validation-for="AgeYears" class="text-danger small d-block"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
+                        <input asp-for="SecondaryPhoneNumber" id="SecondaryPhoneNumber" class="form-control"
+                               maxlength="15" placeholder="Optional" autocomplete="off" role="presentation" data-lpignore="true" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="EmailId" class="form-label fw-semibold small">Email ID</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-envelope text-secondary"></i></span>
+                        <input asp-for="EmailId" id="EmailId" class="form-control text-lowercase" maxlength="150" placeholder="Optional" style="text-transform: lowercase;" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referred By Doctor</label>
+                    <select title="Doctors of a LAB-type department (Doctor Master)" asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search" asp-items="Model.ReferralDoctorOptions">
+                        <option value="">-- Self / Direct --</option>
+                    </select>
+                </div>
+            </div>
+
+            @* Row 4: Residential Address (half) | Pincode | Profile Picture (saved as ", PIN: nnnnnn" - 2339) *@
+            <div class="row g-3 mb-1 b2b-pt-row">
+                <div class="col-12 col-lg-6">
+                    <label asp-for="Address" class="form-label fw-semibold small">Residential Address</label>
+                    <input asp-for="Address" id="Address" class="form-control" placeholder="Patient residential address" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="Pincode" class="form-label fw-semibold small">Pincode</label>
+                    <input asp-for="Pincode" id="Pincode" class="form-control" maxlength="6" inputmode="numeric" pattern="[0-9]{6}"
+                           placeholder="6-digit PIN" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)" />
+                    <span asp-validation-for="Pincode" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label class="form-label fw-semibold small">
                         Profile Picture
-                        <span class="text-muted fw-normal">(JPG / PNG / GIF)</span>
+                        <span class="text-muted fw-normal">(JPG/PNG/GIF)</span>
                     </label>
                     <div class="d-flex align-items-center gap-2">
                         <div class="flex-grow-1">
@@ -512,129 +641,6 @@
                 </div>
             </div>
 
-            @* ── Row 2: Title | First Name* | Middle Name | Last Name* ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-4 col-sm-3 col-md-2">
-                    <label asp-for="Salutation" class="form-label fw-semibold small">Title</label>
-                    <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic px-1">
-                        <option value="Mr.">Mr.</option>
-                        <option value="Mrs.">Mrs.</option>
-                        <option value="Ms.">Ms.</option>
-                        <option value="Master">Master</option>
-                        <option value="Dr.">Dr.</option>
-                        <option value="Prof.">Prof.</option>
-                        <option value="Baby">Baby</option>
-                    </select>
-                </div>
-                <div class="col-8 col-sm-5 col-md-4">
-                    <label asp-for="FirstName" class="form-label fw-semibold small">
-                        First Name <span class="text-danger">*</span>
-                    </label>
-                    <input asp-for="FirstName" id="FirstName" class="form-control text-capitalize" maxlength="100" placeholder="Enter first name" style="text-transform: capitalize;" />
-                    <span asp-validation-for="FirstName" class="text-danger small"></span>
-                </div>
-                <div class="col-12 col-sm-4 col-md-2">
-                    <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
-                    <input asp-for="MiddleName" id="MiddleName" class="form-control text-capitalize" maxlength="100" placeholder="Optional" style="text-transform: capitalize;" />
-                </div>
-                <div class="col-12 col-sm-6 col-md-4">
-                    <label asp-for="LastName" class="form-label fw-semibold small">
-                        Last Name <span class="text-danger">*</span>
-                    </label>
-                    <input asp-for="LastName" id="LastName" class="form-control text-capitalize" maxlength="100" placeholder="Enter last name" style="text-transform: capitalize;" />
-                    <span asp-validation-for="LastName" class="text-danger small"></span>
-                </div>
-            </div>
-
-            @* ── Row 3: Secondary Number | Email | Gender* | Date of Birth | Age* ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-2">
-                    <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
-                        <input asp-for="SecondaryPhoneNumber" id="SecondaryPhoneNumber" class="form-control"
-                               maxlength="15" placeholder="Optional" autocomplete="off" role="presentation" data-lpignore="true" />
-                    </div>
-                </div>
-                <div class="col-12 col-sm-6 col-md-2">
-                    <label asp-for="EmailId" class="form-label fw-semibold small">Email ID</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-envelope text-secondary"></i></span>
-                        <input asp-for="EmailId" id="EmailId" class="form-control text-lowercase" maxlength="150" placeholder="Optional" style="text-transform: lowercase;" />
-                    </div>
-                </div>
-                <div class="col-12 col-sm-4 col-md-2">
-                    <label asp-for="Gender" class="form-label fw-semibold small">
-                        Gender <span class="text-danger">*</span>
-                    </label>
-                    <select asp-for="Gender" id="ddlGender" class="form-select s2-basic">
-                        <option value="">-- Select --</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                    </select>
-                    <span asp-validation-for="Gender" class="text-danger small"></span>
-                </div>
-                <div class="col-12 col-sm-4 col-md-2">
-                    <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
-                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
-                           max="@DateTime.Today.ToString("yyyy-MM-dd")" />
-                    <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
-                </div>
-                <div class="col-12 col-sm-8 col-md-4">
-                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span></label>
-                    <div class="d-flex gap-1 align-items-center">
-                        <div class="input-group flex-fill" style="min-width: 0;">
-                            <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
-                                   min="0" max="110" placeholder="00" title="Years (0-110)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Year</span>
-                        </div>
-                        <div class="input-group flex-fill" style="min-width: 0;">
-                            <input asp-for="AgeMonths" type="number" id="AgeMonths" class="form-control px-2 text-center"
-                                   min="0" max="12" placeholder="00" title="Months (Max 12)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Month</span>
-                        </div>
-                        <div class="input-group flex-fill" style="min-width: 0;">
-                            <input asp-for="AgeDays" type="number" id="AgeDays" class="form-control px-2 text-center"
-                                   min="0" max="30" placeholder="00" title="Days (Max 30)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Days</span>
-                        </div>
-                    </div>
-                    <div id="ageValidationFeedback" class="text-danger small mt-1 d-none"></div>
-                    <span asp-validation-for="AgeYears" class="text-danger small d-block"></span>
-                </div>
-            </div>
-
-            @* ── Row 4: Blood Group | Referred By Doctor | Address ── *@
-            <div class="row g-3 mb-1">
-                <div class="col-12 col-sm-6 col-md-3">
-                    <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
-                    <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
-                        <option value="">-- Select --</option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="Unknown">Unknown</option>
-                    </select>
-                </div>
-                <div class="col-12 col-sm-6 col-md-3">
-                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referred By Doctor</label>
-                    <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search" asp-items="Model.ReferralDoctorOptions">
-                        <option value="">-- Self / Direct --</option>
-                    </select>
-                    <div class="form-text">Doctors of a LAB-type department (Doctor Master)</div>
-                </div>
-                <div class="col-12 col-md-6">
-                    <label asp-for="Address" class="form-label fw-semibold small">Residential Address</label>
-                    <input asp-for="Address" id="Address" class="form-control" placeholder="Patient residential address" />
-                </div>
-            </div>
-
             @* ── Identification (as B2C booking; saved on the patient master) ── *@
             <div class="id-block mt-3">
                 <p class="text-muted small fw-bold mb-2">
@@ -643,19 +649,19 @@
                 </p>
                 <input asp-for="IdentificationFilePath" type="hidden" />
                 <div class="row g-3">
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-lg-3">
                         <label asp-for="IdentificationTypeId" class="form-label fw-semibold small">ID Type</label>
                         <select asp-for="IdentificationTypeId" id="ddlIdType" class="form-select s2-search"
                                 asp-items="Model.IdentificationTypeOptions">
                             <option value="">-- Select ID Type --</option>
                         </select>
                     </div>
-                    <div class="col-12 col-sm-6 col-md-4">
+                    <div class="col-12 col-sm-6 col-lg-3">
                         <label asp-for="IdentificationNumber" class="form-label fw-semibold small">ID Number</label>
                         <input asp-for="IdentificationNumber" class="form-control" maxlength="100"
                                placeholder="Enter identification number" />
                     </div>
-                    <div class="col-12 col-md-5">
+                    <div class="col-12 col-lg-6">
                         <label class="form-label fw-semibold small">
                             Upload ID Document
                             <span class="text-muted fw-normal">(PDF / JPG / JPEG / PNG)</span>
@@ -1126,7 +1132,7 @@
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/leaflet/dist/leaflet.js"></script>
-    <script src="~/js/lab-compliance-docs.js"></script>
+    <script src="~/js/lab-compliance-docs.js" asp-append-version="true"></script>
     <script>
         const opdBase = '@Url.Content("~/OPD/")';
         var lineItems = [];
@@ -2122,7 +2128,10 @@
             setVal('MiddleName', p.middleName);
             setVal('LastName', p.lastName);
             setVal('EmailId', p.emailId);
-            setVal('Address', p.address);
+            // the saved address ends with ", PIN: nnnnnn" (2339): the PIN goes to its own box
+            const pinM = (p.address || '').match(/\s*,?\s*PIN\s*:\s*(\d{6})\s*$/i);
+            setVal('Address', pinM ? p.address.slice(0, pinM.index).trim().replace(/,$/, '').trim() : p.address);
+            setVal('Pincode', p.pincode || (pinM ? pinM[1] : ''));
             setVal('HomeCollectionAddress', p.homeCollectionAddress || p.address);
             if (p.homeCollectionAddress || p.address) {
                 const btnClearHome = document.getElementById('btnClearHomeAddr');

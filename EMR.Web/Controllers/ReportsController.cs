@@ -250,6 +250,7 @@ public class ReportsController : Controller
         ["membership-points"]   = new[] { "txnType", "planId", "createdBy" },
         // B2B partner-account reports: branch-wide for every user of the branch
         ["b2b-partner-billing"] = new[] { "partnerType", "partner", "paymentMethod" },
+        ["b2b-billing-report"]  = new[] { "partnerType", "partner", "paymentMethod" },   // SQLScripts/2340
         ["franchise-wallet"]    = new[] { "transactionType", "franchiseId" },
         ["b2b-outstanding"]     = new[] { "partnerType", "ageBucket" },
         // Sample stage (LR-10 / LR-11 / LR-12)
@@ -307,6 +308,7 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabCancellationRefund() => LabReportPage("LabCancellationRefund");
     [HttpGet] public IActionResult LabMembershipPoints() => LabReportPage("LabMembershipPoints");
     [HttpGet] public IActionResult LabB2BPartnerBilling() => LabReportPage("LabB2BPartnerBilling");
+    [HttpGet] public IActionResult LabB2BBillingReport() => LabReportPage("LabB2BBillingReport");
     [HttpGet] public IActionResult LabFranchiseWallet() => LabReportPage("LabFranchiseWallet");
     [HttpGet] public IActionResult LabB2BOutstanding() => LabReportPage("LabB2BOutstanding");
     [HttpGet] public IActionResult LabSamplesPending() => LabReportPage("LabSamplesPending");

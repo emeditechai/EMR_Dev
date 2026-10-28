@@ -1,0 +1,16 @@
+@model string
+@{
+    var (label, css) = Model switch
+    {
+        "DRAFT" => ("Draft", "bg-secondary-subtle text-secondary-emphasis border"),
+        "REQUESTED" => ("Requested", "bg-info-subtle text-info-emphasis border"),
+        "DISPATCHED" => ("In transit", "bg-warning-subtle text-warning-emphasis border"),
+        "RECEIVED" => ("Received", "bg-success-subtle text-success border"),
+        "SUBMITTED" => ("Awaiting approval", "bg-info-subtle text-info-emphasis border"),
+        "COUNTING" => ("Counting", "bg-warning-subtle text-warning-emphasis border"),
+        "APPROVED" => ("Approved", "bg-success-subtle text-success border"),
+        "REJECTED" => ("Rejected", "bg-danger-subtle text-danger border"),
+        _ => ("Cancelled", "bg-light text-secondary border")
+    };
+}
+<span class="badge @css">@label</span>

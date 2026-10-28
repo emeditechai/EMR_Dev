@@ -212,6 +212,63 @@
         </div>
     </div>
 
+    <!-- 2b. Pharmacy & drug licence (SQLScripts/2343): one pharmacy per branch -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color:var(--emr-primary, #644098)"><i class="bi bi-capsule-pill me-2"></i>Pharmacy &amp; Drug Licence</h6>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyEnabled">
+                <label class="form-check-label fw-semibold" asp-for="PharmacyEnabled">Pharmacy Enabled at this Branch</label>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="PharmacyName" class="form-label fw-semibold">Pharmacy Display Name</label>
+                    <input asp-for="PharmacyName" class="form-control" placeholder="empty = hospital name (e.g. CarePlus Pharmacy)" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyGstin" class="form-label fw-semibold">Pharmacy GSTIN</label>
+                    <input asp-for="PharmacyGstin" class="form-control text-uppercase" maxlength="15" placeholder="empty = hospital GSTIN" />
+                    <span asp-validation-for="PharmacyGstin" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyContactNo" class="form-label fw-semibold">Pharmacy Contact No.</label>
+                    <input asp-for="PharmacyContactNo" class="form-control" placeholder="e.g. 033-2456 7891" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyDrugLicence20B" class="form-label fw-semibold">Drug Licence No. (Form 20B)</label>
+                    <input asp-for="PharmacyDrugLicence20B" class="form-control" placeholder="Retail - drugs other than Schedule C / C1 / X" />
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="PharmacyDrugLicence20BValidTo" class="form-label fw-semibold">Valid To</label>
+                    <input asp-for="PharmacyDrugLicence20BValidTo" type="date" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyDrugLicence21B" class="form-label fw-semibold">Drug Licence No. (Form 21B)</label>
+                    <input asp-for="PharmacyDrugLicence21B" class="form-control" placeholder="Retail - Schedule C / C1 drugs" />
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="PharmacyDrugLicence21BValidTo" class="form-label fw-semibold">Valid To</label>
+                    <input asp-for="PharmacyDrugLicence21BValidTo" type="date" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacistName" class="form-label fw-semibold">Pharmacist In-charge</label>
+                    <input asp-for="PharmacistName" class="form-control" placeholder="Registered pharmacist" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacistRegNo" class="form-label fw-semibold">Pharmacist Registration No.</label>
+                    <input asp-for="PharmacistRegNo" class="form-control" placeholder="State Pharmacy Council reg. no." />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyNdpsLicenceNo" class="form-label fw-semibold">NDPS / Schedule X Licence No.</label>
+                    <input asp-for="PharmacyNdpsLicenceNo" class="form-control" placeholder="only if narcotics are stocked" />
+                </div>
+            </div>
+            <div class="small text-muted mt-3"><i class="bi bi-info-circle me-1"></i>Licence numbers, GSTIN and the pharmacist's registration print on every pharmacy bill. Sale and IPD issue are refused when the pharmacy is not enabled or the drug licence has expired (warning from 30 days before).</div>
+        </div>
+    </div>
+
     <!-- 3. Operating Timings & Global Status -->
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-header bg-white border-bottom py-3">
@@ -326,6 +383,20 @@
                                 <label class="form-check-label" asp-for="OpdFollowUpNotificationRequired">Send follow-up reminders</label>
                             </div>
                             <span asp-validation-for="OpdFollowUpNotificationRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Notification Required for Issue Certificate</div>
+                            <div class="lp-desc">Yes: when a certificate is issued (OPD &gt; Certificates), the patient gets it as a PDF by WhatsApp and e-mail, with the QR verify link. No: nothing is sent.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="OpdCertificateNotificationRequired">
+                                <label class="form-check-label" asp-for="OpdCertificateNotificationRequired">Send issued certificates to the patient</label>
+                            </div>
+                            <span asp-validation-for="OpdCertificateNotificationRequired" class="text-danger small d-block mt-1"></span>
                         </div>
                     </div>
                 </div>
@@ -492,7 +563,7 @@
                         <div class="lp-icon"><i class="bi bi-chat-square-heart"></i></div>
                         <div class="lp-body">
                             <div class="lp-label">Enable Ask AI Features</div>
-                            <div class="lp-desc">Yes: the AI Help Assistant (Ask AI) on the Home dashboard and in the Help Center. No: not shown; the Help Center guides stay.</div>
+                            <div class="lp-desc">Yes: the AI Help Assistant (Ask eMedi) on the Home dashboard and in the Help Center. No: not shown; the Help Center guides stay.</div>
                             <div class="form-check form-switch lp-switch ps-0">
                                 <input class="form-check-input" type="checkbox" role="switch" asp-for="EnableAskAiFeatures">
                                 <label class="form-check-label" asp-for="EnableAskAiFeatures">Enable Ask AI Features</label>
@@ -654,10 +725,10 @@
                         <div class="lp-icon"><i class="bi bi-person-badge-fill"></i></div>
                         <div class="lp-body">
                             <div class="lp-label">Required Patient Portal</div>
-                            <div class="lp-desc">Yes: a B2C lab booking creates the patient's Patient Portal login and e-mails the credentials (once per patient, when the patient has a mobile number and an e-mail). No: lab bookings do not create portal logins. B2B bookings are never affected.</div>
+                            <div class="lp-desc">Yes: OPD registration / booking and B2C lab booking create the patient's Patient Portal login and send the Patient ID and password by e-mail and WhatsApp (once per patient, when the patient has a mobile number or an e-mail). No: no automatic logins; staff can still send one from Patient Master. B2B bookings are never affected.</div>
                             <div class="form-check form-switch lp-switch ps-0">
                                 <input class="form-check-input" type="checkbox" role="switch" asp-for="LabPatientPortalRequired">
-                                <label class="form-check-label" asp-for="LabPatientPortalRequired">Create Patient Portal login for B2C patients</label>
+                                <label class="form-check-label" asp-for="LabPatientPortalRequired">Create Patient Portal login for OPD and B2C patients</label>
                             </div>
                             <span asp-validation-for="LabPatientPortalRequired" class="text-danger small d-block mt-1"></span>
                         </div>
@@ -822,19 +893,78 @@
             </div>
         </div>
 
-        @* MED *@
+        @* MED / Pharmacy (SQLScripts/2343) *@
         <div class="tab-pane fade module-tab-pane" id="editTabMed" role="tabpanel">
-            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Pharmacy/MED specific parameters will be configurable here.</p>
+            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Pharmacy rules for this branch. Licence details are under <b>Pharmacy &amp; Drug Licence</b> above.</p>
             <div class="row g-3">
-                @foreach (var p in new[] { "Invoice Prefix","GST Registration No.","Drug License No.","Low Stock Alert (Qty)","Expiry Alert (Days)","Return Policy (Days)","Auto Reorder","Print Prescription" })
-                {
-                    <div class="col-6 col-md-3">
-                        <div class="param-placeholder">
-                            <div class="param-label">@p</div>
-                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                        </div>
+                <div class="col-12 small fw-bold text-uppercase" style="color:#6f42c1;letter-spacing:.05em">Stock &amp; expiry</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMinShelfLifeSaleDays" class="form-label fw-semibold small">Min. Shelf Life for Sale (Days)</label>
+                    <input asp-for="PharmacyMinShelfLifeSaleDays" type="number" min="0" max="365" class="form-control" />
+                    <div class="form-text">A batch expiring sooner is not sold over the counter.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMinShelfLifeIpdDays" class="form-label fw-semibold small">Min. Shelf Life for IPD Issue (Days)</label>
+                    <input asp-for="PharmacyMinShelfLifeIpdDays" type="number" min="0" max="365" class="form-control" />
+                    <div class="form-text">0 = until the expiry date.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMinShelfLifeGrnDays" class="form-label fw-semibold small">Min. Shelf Life to Accept at GRN (Days)</label>
+                    <input asp-for="PharmacyMinShelfLifeGrnDays" type="number" min="0" max="730" class="form-control" />
+                    <div class="form-text">Short-expiry supplies are warned at receipt.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyNearExpiryAlertDays" class="form-label fw-semibold small">Near-Expiry Alert (Days)</label>
+                    <input asp-for="PharmacyNearExpiryAlertDays" type="number" min="0" max="365" class="form-control" />
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyAllowNegativeStock">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyAllowNegativeStock">Allow Negative Stock</label>
                     </div>
-                }
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Purchase</div>
+                <div class="col-md-6">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyGrnNotRequired">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyGrnNotRequired">GRN Not Required</label>
+                        <div class="form-text mt-0">Yes: the purchase order takes the supplier bill, batch, expiry and MRP, and approving it adds the stock. No: stock comes in on the GRN.</div>
+                    </div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Counter sale &amp; returns</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacySaleReturnDays" class="form-label fw-semibold small">Sale Return Allowed Within (Days)</label>
+                    <input asp-for="PharmacySaleReturnDays" type="number" min="0" max="90" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMaxManualDiscountPercent" class="form-label fw-semibold small">Max. Manual Discount % (without approval)</label>
+                    <input asp-for="PharmacyMaxManualDiscountPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyBillPrintFormat" class="form-label fw-semibold small">Pharmacy Bill Print Format</label>
+                    <select asp-for="PharmacyBillPrintFormat" class="form-select">
+                        <option value="A4">A4</option><option value="A5">A5 (half page)</option><option value="80MM">80 mm thermal</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex flex-column justify-content-end gap-2">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLooseReturnAllowed"><label class="form-check-label small fw-semibold" asp-for="PharmacyLooseReturnAllowed">Loose / Cut-Strip Return Allowed</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyRoundOffBill"><label class="form-check-label small fw-semibold" asp-for="PharmacyRoundOffBill">Round Off Bill to Rupee</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyBillNotificationRequired"><label class="form-check-label small fw-semibold" asp-for="PharmacyBillNotificationRequired">Send Bill by WhatsApp / E-mail</label></div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">IPD issue</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyTtoBillingMode" class="form-label fw-semibold small">Discharge Medicines (TTO) Billed On</label>
+                    <select asp-for="PharmacyTtoBillingMode" class="form-select">
+                        <option value="IPD">Patient's IPD bill</option><option value="SALE">Separate pharmacy bill</option>
+                    </select>
+                </div>
+                <div class="col-md-5 d-flex flex-column justify-content-end gap-2">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyIpdGstExempt"><label class="form-check-label small fw-semibold" asp-for="PharmacyIpdGstExempt">IPD Issue GST Exempt (part of healthcare service - confirm with your CA)</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyBlockDischargeOnPendingIndent"><label class="form-check-label small fw-semibold" asp-for="PharmacyBlockDischargeOnPendingIndent">Block Discharge on Pending Pharmacy Indent / Return</label></div>
+                </div>
             </div>
         </div>
 

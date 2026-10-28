@@ -30,6 +30,10 @@ public interface ILabReportPdfService
 
     /// <summary>The reports of the bill that have something to print in this scope: Numeric (Lab Report) and/or Template (Microbiology).</summary>
     Task<List<string>> GetPrintableReportTypesAsync(int labOrderId, string scope = LabReportPrintBuilder.ScopeAll);
+
+    /// <summary>Utility > Print Templates (SQLScripts/2324): puts the branch's Lab Report template (or, for the designer's
+    /// preview, a template's draft) on the report. BuildAsync already applies the published one.</summary>
+    Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId);
 }
 
 /// <summary>
@@ -62,7 +66,8 @@ public class LabReportPdfService(
     ILabDefaultSignatoryApiClient defaultSignatoryApiClient,
     ILabParameterOptionApiClient parameterOptionApiClient,
     ApplicationDbContext dbContext,
-    IWebHostEnvironment env) : ILabReportPdfService
+    IWebHostEnvironment env,
+    IPrintTemplateRuntime printTemplates) : ILabReportPdfService
 {
     public const string PrintedAction = "LAB.ReportPrinted";
 
@@ -99,6 +104,23 @@ public class LabReportPdfService(
         try { signoffLevels = await labReportingApiClient.GetSignoffPanelAsync(labOrderId, detail.BranchId, reportingType: reportingType); }
         catch (HttpRequestException) { /* the report still prints without the signature panel */ }
 
+        // Investigation Master > Reporting Name is the name printed on the report (every format); the screens keep the
+        // Test Name. A test without a reporting name prints its Test Name (SQLScripts/2223).
+        try
+        {
+            var ids = detail.Items.Select(i => i.InvestigationID).Where(i => i > 0).Distinct().ToList();
+            if (ids.Count > 0)
+            {
+                var names = (await Dapper.SqlMapper.QueryAsync<(int Id, string Name)>(dbContext.Database.GetDbConnection(),
+                        @"SELECT Test_ID, LTRIM(RTRIM(Reporting_Name)) FROM dbo.LabInvestigationMaster
+                           WHERE Test_ID IN @ids AND NULLIF(LTRIM(RTRIM(Reporting_Name)), '') IS NOT NULL", new { ids }))
+                    .ToDictionary(x => x.Id, x => x.Name);
+                foreach (var item in detail.Items)
+                    if (names.TryGetValue(item.InvestigationID, out var printName)) item.TestName = printName;
+            }
+        }
+        catch (Exception) { /* the report prints with the Test Name */ }
+
         var vm = LabReportPrintBuilder.Build(detail, order, meta, settings, branch, printedBy, DateTime.Now, scope, signoffLevels);
         // franchise B2B bill whose Report Header Required is No: no header / footer (B2C and company B2B unchanged)
         vm.FranchiseHeaderRequired = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId);
@@ -120,7 +142,34 @@ public class LabReportPdfService(
         // Every copy after the first one is a duplicate, on screen and on paper.
         vm.PrintSequence = await GetPrintCountAsync(vm.BillNo, scope, reportingType) + 1;
 
+        // Utility > Print Templates (SQLScripts/2324): the billing branch's Lab Report template, for every print,
+        // email and WhatsApp copy alike (none = the Classic letterhead and footer)
+        await ApplyPrintTemplateAsync(vm, user, branch?.CompanyId ?? user.GetCompanyId(), null);
+
         return vm;
+    }
+
+    public async Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId)
+    {
+        if (vm.BranchId <= 0) return;
+        var lab = vm.ProcessingLabName ?? vm.HospitalName;
+        var (layout, values) = await printTemplates.ForReportAsync(user, companyId, vm.BranchId, new PrintDocInfo
+        {
+            DocNo = vm.BillNo,
+            DocDate = vm.Reported?.ToString("dd-MMM-yyyy hh:mm tt"),
+            CopyLabel = vm.IsDuplicate ? $"Duplicate copy - print #{vm.PrintSequence}" : "Original",
+            ProcessingLab = string.IsNullOrWhiteSpace(vm.ProcessingLabAddress) ? lab : $"{lab}, {vm.ProcessingLabAddress}",
+            PrintedAt = vm.PrintedOn.ToString("dd-MMM-yyyy hh:mm tt"),
+            PrintedBy = vm.PrintedBy
+        }, previewTemplateId);
+        vm.PrintTemplate = layout;
+        vm.PrintValues = values;
+        vm.PrintImages.Clear();
+        if (layout is null) return;
+        // uploaded images are read now: the PDF is drawn without file access
+        foreach (var path in new[] { layout.Header, layout.Footer }.SelectMany(b => b.Rows).SelectMany(r => r.Cols).SelectMany(c => c.Blocks)
+                     .Where(b => b.Type == "image" && !string.IsNullOrWhiteSpace(b.ImageUrl)).Select(b => b.ImageUrl!).Distinct())
+            if (LoadLogo(path) is { } bytes) vm.PrintImages[path] = bytes;
     }
 
     private async Task FillPicklistRangesAsync(LabReportingOrderDetailDto detail, ClaimsPrincipal user)

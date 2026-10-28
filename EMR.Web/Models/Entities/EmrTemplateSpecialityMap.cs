@@ -6,6 +6,7 @@ namespace EMR.Web.Models.Entities;
 public class EmrTemplateSpecialityMap
 {
     public int TemplateId { get; set; }
+    public int CompanyId { get; set; } = 1;   // company-wise
     public int SpecialityId { get; set; }
     public bool IsActive { get; set; } = true;
     public int? CreatedBy { get; set; }

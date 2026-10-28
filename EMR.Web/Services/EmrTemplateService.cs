@@ -6,12 +6,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Services;
 
-public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
+public class EmrTemplateService(ApplicationDbContext db, IHttpContextAccessor http) : IEmrTemplateService
 {
+    // EMR templates are company-wise: the signed-in user's company (script 2336 copies them between companies)
+    private int Co => int.TryParse(http.HttpContext?.User?.FindFirst("CompanyId")?.Value, out var c) && c > 0 ? c : 1;
+
     public async Task<IEnumerable<EmrTemplateListViewModel>> GetListAsync()
     {
         var templates = await db.EmrTemplates
             .AsNoTracking()
+            .Where(x => x.CompanyId == Co)
             .OrderBy(x => x.TemplateName)
             .ToListAsync();
 
@@ -42,7 +46,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
     {
         var template = await db.EmrTemplates
             .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.TemplateId == id);
+            .FirstOrDefaultAsync(x => x.TemplateId == id && x.CompanyId == Co);
 
         if (template is null) return null;
 
@@ -136,6 +140,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
         {
             var template = new EmrTemplate
             {
+                CompanyId = Co,
                 TemplateName = model.TemplateName.Trim(),
                 Description = model.Description?.Trim(),
                 IsActive = model.IsActive,
@@ -150,6 +155,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
             {
                 db.EmrTemplateSpecialityMaps.Add(new EmrTemplateSpecialityMap
                 {
+                    CompanyId = Co,
                     TemplateId = template.TemplateId,
                     SpecialityId = specId,
                     IsActive = true,
@@ -164,6 +170,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
             {
                 var section = new EmrTemplateSection
                 {
+                    CompanyId = Co,
                     TemplateId = template.TemplateId,
                     SectionName = secVm.SectionName.Trim(),
                     DisplayOrder = secOrder++,
@@ -202,6 +209,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
 
                     db.EmrTemplateFields.Add(new EmrTemplateField
                     {
+                        CompanyId = Co,
                         SectionId = section.SectionId,
                         FieldName = fieldVm.FieldName.Trim(),
                         FieldType = fieldVm.FieldType,
@@ -229,7 +237,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
     public async Task<bool> UpdateAsync(EmrTemplateViewModel model, int userId)
     {
         var template = await db.EmrTemplates.FindAsync(model.TemplateId);
-        if (template is null) return false;
+        if (template is null || template.CompanyId != Co) return false;
 
         using var tx = await db.Database.BeginTransactionAsync();
         try
@@ -250,6 +258,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
             {
                 db.EmrTemplateSpecialityMaps.Add(new EmrTemplateSpecialityMap
                 {
+                    CompanyId = Co,
                     TemplateId = template.TemplateId,
                     SpecialityId = specId,
                     IsActive = true,
@@ -271,6 +280,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
             {
                 var section = new EmrTemplateSection
                 {
+                    CompanyId = Co,
                     TemplateId = template.TemplateId,
                     SectionName = secVm.SectionName.Trim(),
                     DisplayOrder = secOrder++,
@@ -303,6 +313,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
 
                     db.EmrTemplateFields.Add(new EmrTemplateField
                     {
+                        CompanyId = Co,
                         SectionId = section.SectionId,
                         FieldName = fieldVm.FieldName.Trim(),
                         FieldType = fieldVm.FieldType,
@@ -330,7 +341,7 @@ public class EmrTemplateService(ApplicationDbContext db) : IEmrTemplateService
     public async Task<bool> ToggleActiveAsync(int id)
     {
         var template = await db.EmrTemplates.FindAsync(id);
-        if (template is null) return false;
+        if (template is null || template.CompanyId != Co) return false;
 
         template.IsActive = !template.IsActive;
         template.ModifiedDate = DateTime.Now;

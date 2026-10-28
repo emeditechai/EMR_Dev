@@ -69,6 +69,7 @@ public class FranchiseTopUpController(
     public async Task<IActionResult> Statement(int franchiseId, string? fromDate, string? toDate)
     {
         if (franchiseId <= 0) return Json(new { success = false, message = "Select a franchise." });
+        if (!await OwnFranchiseAsync(franchiseId)) return Json(new { success = false, message = "Franchise not found." });
         if (!TryRange(fromDate, toDate, out var f, out var t, out var error))
             return Json(new { success = false, message = error });
         try
@@ -110,7 +111,8 @@ public class FranchiseTopUpController(
                 SELECT f.Franchise_Name, CAST(ISNULL(f.IsActive, 0) AS BIT), ISNULL(c.Credit_Facility_Type, 1)
                 FROM dbo.LabFranchiseMaster f
                 LEFT JOIN dbo.LabFranchiseCreditLimitMaster c ON c.Franchise_ID = f.Franchise_ID
-                WHERE f.Franchise_ID = @Id AND ISNULL(f.IsDeleted, 0) = 0", new { Id = request.FranchiseId });
+                WHERE f.Franchise_ID = @Id AND ISNULL(f.IsDeleted, 0) = 0 AND f.CompanyId = @CompanyId",   // the user's company only
+                new { Id = request.FranchiseId, CompanyId = User.GetCompanyId() });
             if (fr.Name is null) return Json(new { success = false, message = "Franchise not found." });
             if (!fr.IsActive) return Json(new { success = false, message = $"{fr.Name} is inactive. Activate it in Franchise Master before a top-up." });
             if (fr.Facility != PrepaidWallet)
@@ -168,7 +170,7 @@ public class FranchiseTopUpController(
         {
             using var con = db.CreateConnection();
             vm = await con.QueryFirstOrDefaultAsync<FranchiseTopUpReceiptViewModel>("dbo.usp_FranchiseTopUp_Receipt",
-                new { ReceiptNo = receiptNo }, commandType: CommandType.StoredProcedure);
+                new { ReceiptNo = receiptNo, CompanyId = User.GetCompanyId() }, commandType: CommandType.StoredProcedure);
         }
         catch (Exception ex)
         {
@@ -304,6 +306,14 @@ public class FranchiseTopUpController(
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────
+    /// <summary>A franchise of the signed-in company (franchises are company-wise).</summary>
+    private async Task<bool> OwnFranchiseAsync(int franchiseId)
+    {
+        using var con = db.CreateConnection();
+        return await con.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM dbo.LabFranchiseMaster WHERE Franchise_ID = @Id AND CompanyId = @CompanyId",
+            new { Id = franchiseId, CompanyId = User.GetCompanyId() }) > 0;
+    }
+
     private async Task<FranchiseTopUpDashboard> LoadAsync(DateTime from, DateTime to, int? franchiseId, int? paymentMethodId, string? search)
     {
         using var con = db.CreateConnection();
@@ -313,7 +323,8 @@ public class FranchiseTopUpController(
             ToDate = to.Date,
             FranchiseId = franchiseId is > 0 ? franchiseId : null,
             PaymentMethodId = paymentMethodId is >= 0 ? paymentMethodId : null,
-            Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim()[..Math.Min(search.Trim().Length, 100)]
+            Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim()[..Math.Min(search.Trim().Length, 100)],
+            CompanyId = User.GetCompanyId()   // only this company's franchises (script 2335)
         }, commandType: CommandType.StoredProcedure);
         var data = new FranchiseTopUpDashboard
         {

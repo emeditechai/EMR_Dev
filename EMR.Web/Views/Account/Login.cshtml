@@ -30,7 +30,13 @@
                     <div class="alert alert-success ar-alert"><i class="bi bi-patch-check-fill"></i><span>@licenseMessage</span></div>
                 }
 
-                <form asp-action="Login" method="post" novalidate id="loginForm">
+                @* shown here, where the user signs in again - reading it also stops it reappearing on the page after sign-in *@
+                @if (TempData["Warning"] is string signInWarning)
+                {
+                    <div class="alert alert-warning ar-alert"><i class="bi bi-clock-history"></i><span>@signInWarning</span></div>
+                }
+
+                <form asp-action="Login" method="post" novalidate id="loginForm" autocomplete="on">
                     @Html.AntiForgeryToken()
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger ar-alert ar-summary"></div>
 
@@ -38,7 +44,7 @@
                         <label asp-for="Email" class="ar-label"></label>
                         <div class="ar-control">
                             <i class="bi bi-envelope ar-lead-ico"></i>
-                            <input asp-for="Email" type="email" class="form-control ar-input" placeholder="name@example.com" autocomplete="username email" autofocus />
+                            <input asp-for="Email" type="email" class="form-control ar-input" placeholder="name@example.com" autocomplete="username" autocorrect="off" spellcheck="false" autofocus />
                         </div>
                         <span asp-validation-for="Email" class="ar-error"></span>
                     </div>
@@ -47,7 +53,7 @@
                         <label asp-for="Password" class="ar-label"></label>
                         <div class="ar-control">
                             <i class="bi bi-lock ar-lead-ico"></i>
-                            <input asp-for="Password" id="passwordInput" class="form-control ar-input ar-input-pw" placeholder="Enter your password" autocomplete="current-password" />
+                            <input asp-for="Password" type="password" id="passwordInput" class="form-control ar-input ar-input-pw" placeholder="Enter your password" autocomplete="current-password" autocorrect="off" autocapitalize="off" spellcheck="false" />
                             <button type="button" class="ar-eye" onclick="togglePassword()" aria-label="Show password" title="Show password" id="eyeBtn">
                                 <i class="bi bi-eye" id="eyeIcon"></i>
                             </button>
@@ -73,6 +79,10 @@
                     <i class="bi bi-shield-lock-fill"></i>
                     <span>Secured &amp; HIPAA-compliant access</span>
                 </div>
+                <div class="ar-credit">
+                    <span class="ar-credit-label">Developed &amp; Powered by</span>
+                    <span class="ar-credit-name">EMeditech Plus LLP</span>
+                </div>
 
                 @if (Licensing.Enabled)
                 {
@@ -93,6 +103,61 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
+        // "Remember me": the app keeps the e-mail in this browser (the last one is filled in, up to 5 are offered as you
+        // type) and lets the browser's own password manager save the password - encrypted by the browser, never by the app.
+        // Not ticked: the e-mail is forgotten and the password is not offered to the password manager.
+        // Unticking: the remembered e-mail is forgotten at once and both boxes are cleared.
+        (function () {
+            const KEY = 'emr.rememberedEmails';
+            const email = document.querySelector('#loginForm input[name="Email"]');
+            const remember = document.querySelector('#loginForm input[name="RememberMe"][type="checkbox"]');
+            const pw = document.getElementById('passwordInput');
+            let list = [];
+            try {
+                list = JSON.parse(localStorage.getItem(KEY) || '[]');
+                const old = localStorage.getItem('emr.rememberedEmail');   // earlier single-e-mail key
+                if (old && !list.includes(old)) list.unshift(old);
+                localStorage.removeItem('emr.rememberedEmail');
+            } catch { list = []; }
+            if (email) {
+                const dl = document.createElement('datalist');
+                dl.id = 'rememberedEmails';
+                list.forEach(e => { const o = document.createElement('option'); o.value = e; dl.appendChild(o); });
+                email.after(dl);
+                email.setAttribute('list', dl.id);
+                if (list.length && !email.value) { email.value = list[0]; if (remember) remember.checked = true; pw?.focus(); }
+            }
+            const save = () => { try { localStorage.setItem(KEY, JSON.stringify(list.slice(0, 5))); } catch { } };
+            remember?.addEventListener('change', () => {
+                if (remember.checked) return;
+                const v = email?.value.trim().toLowerCase();
+                if (v) { list = list.filter(e => e.toLowerCase() !== v); save(); }
+                document.getElementById('rememberedEmails')?.querySelectorAll('option').forEach(o => { if (o.value.toLowerCase() === v) o.remove(); });
+                if (email) email.value = '';
+                if (pw) pw.value = '';
+                email?.focus();
+            });
+            const form = document.getElementById('loginForm');
+            form?.addEventListener('submit', () => {
+                const $f = window.jQuery ? jQuery(form) : null;
+                if ($f && $f.valid && !$f.valid()) return;
+                const v = email?.value.trim().toLowerCase();
+                if (v) {
+                    list = list.filter(e => e.toLowerCase() !== v);
+                    if (remember?.checked) list.unshift(email.value.trim());
+                    save();
+                }
+                // not remembered: post the password from a hidden field and empty the password box, so the browser
+                // has no password to offer to save
+                if (pw && !remember?.checked) {
+                    const h = document.createElement('input');
+                    h.type = 'hidden'; h.name = pw.name; h.value = pw.value;
+                    form.appendChild(h);
+                    pw.removeAttribute('name'); pw.value = '';
+                }
+            });
+        })();
+
         document.getElementById('licRevalidateForm')?.addEventListener('submit', function () {
             const b = document.getElementById('licRevalidateBtn');
             b.disabled = true;

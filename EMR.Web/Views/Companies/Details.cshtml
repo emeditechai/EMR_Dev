@@ -38,6 +38,23 @@
         <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-primary btn-sm px-3 shadow-sm">
             <i class="bi bi-plus-circle-fill me-1"></i> Add Branch
         </a>
+        @if (EMR.Web.Extensions.ClaimsPrincipalExtensions.IsSuperAdmin(User))
+        {
+            @* super admin only: this company pulls masters from another company (SQLScripts/2328, 2336) *@
+            <a asp-action="CopyMasters" asp-route-id="@Model.CompanyId" class="btn btn-outline-dark btn-sm px-3">
+                <i class="bi bi-copy me-1"></i> Copy Master Data
+            </a>
+            @if (Model.CompanyId != 1)
+            {
+                @* super admin only: remove this company's data / delete it (SQLScripts/2337); company 1 holds the shared data *@
+                <a asp-action="RemoveData" asp-route-id="@Model.CompanyId" class="btn btn-outline-danger btn-sm px-3">
+                    <i class="bi bi-eraser me-1"></i> Remove Data
+                </a>
+                <a asp-action="RemoveData" asp-route-id="@Model.CompanyId" asp-route-level="DELETE" class="btn btn-danger btn-sm px-3">
+                    <i class="bi bi-trash3 me-1"></i> Delete Company
+                </a>
+            }
+        }
         <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
             <i class="bi bi-arrow-left me-1"></i> Back to List
         </a>
@@ -187,6 +204,13 @@
                                             <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-primary" title="Edit Branch">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
+                                            @if (EMR.Web.Extensions.ClaimsPrincipalExtensions.IsSuperAdmin(User) && !b.IsHOBranch)
+                                            {
+                                                @* super admin only: remove this branch and all its data (SQLScripts/2338); never the Head Office *@
+                                                <a asp-action="RemoveBranch" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-danger" title="Remove Branch">
+                                                    <i class="bi bi-trash3"></i>
+                                                </a>
+                                            }
                                         </td>
                                     </tr>
                                 }
