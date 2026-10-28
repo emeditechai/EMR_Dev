@@ -1,6 +1,7 @@
 @{
     var module = ViewData["Module"] as string ?? "OPD";
-    ViewData["Title"] = module + " Day Closing Verification";
+    var moduleLabel = module == "PHR" ? "Pharmacy" : module;
+    ViewData["Title"] = moduleLabel + " Day Closing Verification";
     var controller = ViewContext.RouteData.Values["controller"] as string;
 }
 <style>
@@ -14,11 +15,11 @@
         <div>
             <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
                 <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
-                <li class="breadcrumb-item text-muted">@module</li>
+                <li class="breadcrumb-item text-muted">@moduleLabel</li>
                 <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
             </ol></nav>
             <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-clipboard-check me-2"></i>@ViewData["Title"]</h4>
-            <div class="text-muted small">The @module cash closings of the branch. The Super Admin or a Manager / Finance user with the Verify permission verifies them (a shortage is recoverable from the cashier,
+            <div class="text-muted small">The @moduleLabel cash closings of the branch. The Super Admin or a Manager / Finance user with the Verify permission verifies them (a shortage is recoverable from the cashier,
                 an excess goes to income) or sends them back. Your own closing only when Hospital Settings allows it.</div>
         </div>
         <div class="d-flex align-items-end gap-2">

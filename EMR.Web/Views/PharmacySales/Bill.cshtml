@@ -1,0 +1,77 @@
+@using EMR.Web.Services
+@model PhSaleBill
+@{
+    // Pharmacy > Sales > Sale Bills > one bill (SQLScripts/2348): print, send, return, cancel - each a page control
+    var b = Model;
+    ViewData["Title"] = "Bill " + b.SaleNo;
+    string Badge(string s) => s switch { "POSTED" => "<span class=\"badge bg-success\">Saved</span>", "HOLD" => "<span class=\"badge bg-warning text-dark\">Held</span>", _ => "<span class=\"badge bg-secondary\">Cancelled</span>" };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Sale Bills", "bi-receipt", $"{b.SaleDate:dd-MMM-yyyy HH:mm} · by {b.CreatedByName}", null, null, "Bill " + b.SaleNo, b.SaleNo, Url.Action("Index"), Section: "Pharmacy", Group: "Sales"))" />
+<div class="row g-3">
+    <div class="col-xl-8">
+        <div class="card shadow-sm border-0 mb-3"><div class="card-body d-flex flex-wrap gap-4 small">
+            <div><div class="text-muted">Customer</div><b>@(b.CustomerName ?? "Walk-in")</b>@if (b.PatientCode != null) { <span class="ms-1">UHID @b.PatientCode</span> }<div>@b.Mobile @b.Email</div><div class="text-muted">@b.Address</div></div>
+            <div><div class="text-muted">Doctor / prescription</div><b>@(b.DoctorName ?? "—")</b> @b.DoctorRegNo<div>@(b.RxNo != null ? "Rx " + b.RxNo : "")@(b.RxDate != null ? " · " + b.RxDate.Value.ToString("dd-MMM-yyyy") : "")</div></div>
+            <div><div class="text-muted">Status</div>@Html.Raw(Badge(b.Status))@if (b.CancelReason != null) { <div class="text-danger">@b.CancelReason</div> }</div>
+        </div></div>
+        <div class="card shadow-sm border-0 mb-3"><div class="table-responsive"><table class="table table-sm mb-0 ph-table">
+            <thead><tr><th>#</th><th>Item</th><th>Batch · exp.</th><th class="text-end">Qty</th><th class="text-end">MRP</th><th class="text-end">Rate</th><th class="text-end">Disc %</th><th class="text-end">GST %</th><th class="text-end">Amount</th><th class="text-end">Returned</th></tr></thead>
+            <tbody>@for (var i = 0; i < b.Lines.Count; i++) { var l = b.Lines[i];
+                <tr><td>@(i + 1)</td><td class="fw-semibold">@l.FormShort @l.ItemName <span class="badge sch sch-@l.ScheduleCode">@l.ScheduleCode</span></td><td class="small">@l.BatchNo · @l.ExpiryDate.ToString("MMM-yy")</td>
+                    <td class="text-end">@l.Qty.ToString("0.##") @l.SaleUom</td><td class="text-end">@((l.UnitMrp * l.Qty).ToString("N2"))</td><td class="text-end">@l.UnitPrice.ToString("0.00##")</td><td class="text-end">@l.DiscPercent.ToString("0.##")</td>
+                    <td class="text-end">@l.GstPercent.ToString("0.##")</td><td class="text-end fw-semibold">@l.Amount.ToString("N2")</td><td class="text-end">@(l.ReturnedQty > 0 ? l.ReturnedQty.ToString("0.##") : "—")</td></tr> }</tbody>
+        </table></div></div>
+        @if (b.Returns.Count > 0)
+        {
+            <div class="card shadow-sm border-0"><div class="card-body py-2 fw-bold small">Returns</div><table class="table table-sm mb-0 small"><tbody>
+            @foreach (var r in b.Returns) { <tr><td><a asp-controller="PhSaleReturns" asp-action="Print" asp-route-id="@r.ReturnId" target="_blank">@r.ReturnNo</a></td><td>@r.ReturnDate.ToString("dd-MMM HH:mm")</td><td>@r.ReasonName</td><td>@r.RefundMode</td><td class="text-end">₹ @r.NetAmount.ToString("N2")</td><td>@r.CreatedByName</td></tr> }
+            </tbody></table></div>
+        }
+    </div>
+    <div class="col-xl-4">
+        <div class="card shadow-sm border-0 mb-3"><div class="card-body small">
+            <table class="w-100">
+                <tr><td>MRP value</td><td class="text-end">@b.MrpAmount.ToString("N2")</td></tr><tr><td>Discount</td><td class="text-end">@b.DiscountAmount.ToString("N2")</td></tr>
+                <tr><td>Taxable</td><td class="text-end">@b.TaxableAmount.ToString("N2")</td></tr><tr><td>CGST / SGST</td><td class="text-end">@b.CgstAmount.ToString("N2") / @b.SgstAmount.ToString("N2")</td></tr>
+                <tr><td>Round off</td><td class="text-end">@b.RoundOff.ToString("N2")</td></tr>
+                <tr class="fs-5 fw-bold" style="color:var(--emr-primary,#644098)"><td>Net</td><td class="text-end">₹ @b.NetAmount.ToString("N2")</td></tr>
+                <tr><td>Paid</td><td class="text-end">@b.PaidAmount.ToString("N2")</td></tr><tr><td>Returned</td><td class="text-end">@b.ReturnedAmount.ToString("N2")</td></tr>
+                <tr class="@(b.BalanceDue > 0 ? "text-danger fw-bold" : "")"><td>Due</td><td class="text-end">@b.BalanceDue.ToString("N2")</td></tr>
+            </table>
+            <hr />
+            @foreach (var p in b.Payments) { <div class="d-flex justify-content-between"><span>@p.MethodName <span class="text-muted">@p.Ref</span><br /><span class="text-muted">@p.ReceiptNo · @p.PaymentDate.ToString("dd-MMM HH:mm")</span></span><b>@p.Amount.ToString("N2")</b></div> }
+        </div></div>
+        <div class="d-grid gap-2">
+            @if (b.Status != "HOLD")
+            {
+                <div class="btn-group" asp-permission="PHARMACY.SALEBILLS:PRINT">
+                    <a asp-action="Print" asp-route-id="@b.SaleId" asp-route-format="80MM" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>80 mm</a>
+                    <a asp-action="Print" asp-route-id="@b.SaleId" asp-route-format="A5" target="_blank" class="btn btn-outline-secondary">A5</a>
+                    <a asp-action="Print" asp-route-id="@b.SaleId" asp-route-format="A4" target="_blank" class="btn btn-outline-secondary">A4</a>
+                    <a asp-action="Pdf" asp-route-id="@b.SaleId" class="btn btn-outline-secondary"><i class="bi bi-filetype-pdf"></i></a>
+                </div>
+                <form method="post" asp-action="Send" asp-route-id="@b.SaleId" asp-permission="PHARMACY.SALEBILLS:SEND" class="d-grid"><button class="btn btn-outline-primary"><i class="bi bi-whatsapp me-1"></i>Send by WhatsApp / e-mail</button></form>
+            }
+            @if (b.Status == "POSTED")
+            {
+                <a asp-controller="PhSaleReturns" asp-action="Form" asp-route-saleId="@b.SaleId" asp-permission="PHARMACY.SALERETURN:SAVE" class="btn btn-outline-warning"><i class="bi bi-arrow-return-left me-1"></i>Sale return</a>
+                if (b.SaleDate.Date == DateTime.Today && b.ReturnedAmount == 0)
+                {
+                    <form method="post" asp-action="Cancel" asp-route-id="@b.SaleId" asp-permission="PHARMACY.SALEBILLS:CANCEL" id="cancelForm" class="d-grid"><input type="hidden" name="reason" /><button class="btn btn-outline-danger"><i class="bi bi-x-octagon me-1"></i>Cancel bill</button></form>
+                }
+            }
+            <a asp-action="Index" class="btn btn-light"><i class="bi bi-arrow-left me-1"></i>Back to bills</a>
+        </div>
+    </div>
+</div>
+@section Scripts {
+<script>
+const cf = document.getElementById('cancelForm');
+cf && cf.addEventListener('submit', async e => {
+    if (cf.dataset.ok) return; e.preventDefault();
+    const r = await Swal.fire({ title: 'Cancel this bill?', text: 'Stock goes back and the money taken is refunded (shown in your day closing).', input: 'text', inputLabel: 'Reason', icon: 'warning', showCancelButton: true, inputValidator: v => !v.trim() ? 'Reason is required.' : null });
+    if (!r.isConfirmed) return; cf.querySelector('[name=reason]').value = r.value; cf.dataset.ok = '1'; cf.submit();
+});
+</script>
+}

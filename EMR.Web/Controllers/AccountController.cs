@@ -810,7 +810,7 @@ public class AccountController(
             if (pending.Count == 0) { await svc.ClearPendingNoticesIfDoneAsync(userId); return; }
             // per branch: a day closing belongs to the branch the cash was taken at, so the branch is always named
             var text = string.Join("; ", pending.GroupBy(p => p.BranchName ?? $"Branch {p.BranchId}").Select(b =>
-                $"{b.Key} - " + string.Join(", ", b.GroupBy(p => p.Module == "PETTY" ? "petty cash (close in OPD or LAB)" : p.Module)
+                $"{b.Key} - " + string.Join(", ", b.GroupBy(p => p.Module == "PETTY" ? "petty cash (close in OPD or LAB)" : p.Module == "PHR" ? "Pharmacy" : p.Module)
                     .Select(g => $"{g.Key} {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"))));
             // Hospital Settings "Remind Day Closing Notification" (SQLScripts/2313), per branch: the pop-up lists only the days of
             // branches set to Yes (a day closing belongs to the branch the cash was taken at, and a Super Admin signs in
@@ -832,7 +832,7 @@ public class AccountController(
                         .Select(g => $"{g.Key} {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"))));
                 var otherBranch = remind.Any(p => p.BranchId != branchId);
                 TempData["Warning"] = $"Cash not closed for earlier days: {remindText}." +
-                    (otherBranch ? " Switch to that branch and use OPD / LAB Day Closing there." : " Use OPD / LAB Day Closing.");
+                    (otherBranch ? " Switch to that branch and use OPD / LAB / Pharmacy Day Closing there." : " Use OPD / LAB / Pharmacy Day Closing.");
             }
             // one current reminder: the older days' reminders are replaced by today's
             using (var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection())
@@ -841,8 +841,9 @@ public class AccountController(
                     new { userId, today = $"DAY_CLOSING_PENDING:{userId}:{DateTime.Today:yyyyMMdd}" });
             var notes = HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Notifications.INotificationService>();
             var opd = pending.Any(p => p.Module is "OPD" or "PETTY");
+            var link = opd ? "/OpdDayClosing/Index" : pending.Any(p => p.Module == "LAB") ? "/LabDayClosing/Index" : "/PhDayClosing/Index";   // PHR: SQLScripts/2348
             await notes.NotifyUsersAsync([userId], "DAY_CLOSING", "WARNING", "Day closing pending",
-                $"Your cash is not closed for earlier days - {text}.", opd ? "/OpdDayClosing/Index" : "/LabDayClosing/Index", "CASH", null,
+                $"Your cash is not closed for earlier days - {text}.", link, "CASH", null,
                 $"DAY_CLOSING_PENDING:{userId}:{DateTime.Today:yyyyMMdd}", branchId, null);
         }
         catch (Exception ex)

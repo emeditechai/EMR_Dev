@@ -1,0 +1,36 @@
+@using EMR.Web.Services
+@model List<PhSaleListRow>
+@{
+    var c = (PhCreditCustomer)ViewBag.Customer; var methods = (List<PhOption>)ViewBag.Methods;
+    ViewData["Title"] = "Collect from " + c.CustomerName;
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Credit Collection", "bi-wallet2", $"{c.Mobile} · credit limit ₹{c.CreditLimit:N2} · due ₹{c.Outstanding:N2}", null, null, c.CustomerName, "Collect", Url.Action("Index"), Section: "Pharmacy", Group: "Sales"))" />
+<form method="post" asp-action="Save" id="colForm">
+@Html.AntiForgeryToken()
+<input type="hidden" name="customerId" value="@c.CustomerId" />
+<div class="card shadow-sm border-0 mb-3"><div class="card-body row g-3 align-items-end">
+    <div class="col-md-3"><label class="form-label small fw-semibold">Amount received (₹)</label><input type="number" step="0.01" min="0" id="amt" class="form-control form-control-lg fw-bold" autofocus /></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold req">Mode</label><select name="mode" id="mode" class="form-select">@foreach (var m in methods) { <option value="@m.Value">@m.Text</option> }</select></div>
+    <div class="col-md-3"><label class="form-label small fw-semibold" id="refL">Reference</label><input name="reference" id="ref" class="form-control" maxlength="50" /></div>
+</div></div>
+<div class="card shadow-sm border-0"><div class="ph-wrap"><table class="table mb-0 ph-table">
+    <thead><tr><th>Bill</th><th>Date</th><th class="text-end">Net</th><th class="text-end">Paid</th><th class="text-end">Returned</th><th class="text-end">Due</th><th class="text-end" style="width:150px">Collect now</th></tr></thead>
+    <tbody>@foreach (var b in Model) {
+        <tr><td class="font-monospace small"><a asp-controller="PhSales" asp-action="Bill" asp-route-id="@b.SaleId" target="_blank">@b.SaleNo</a></td><td>@b.SaleDate.ToString("dd-MMM-yyyy")</td><td class="text-end">@b.NetAmount.ToString("N2")</td>
+            <td class="text-end">@b.PaidAmount.ToString("N2")</td><td class="text-end">@b.ReturnedAmount.ToString("N2")</td><td class="text-end fw-bold">@b.BalanceDue.ToString("N2")</td>
+            <td><input type="number" step="0.01" min="0" max="@b.BalanceDue" name="alloc[@b.SaleId]" data-due="@b.BalanceDue" class="form-control form-control-sm text-end al" /></td></tr> }</tbody>
+    <tfoot><tr><td colspan="6" class="text-end fw-bold">Total</td><td class="text-end fw-bold" id="alT">0.00</td></tr></tfoot>
+</table></div></div>
+<div class="d-flex justify-content-end gap-2 mt-3"><a asp-action="Index" class="btn btn-outline-secondary">Back</a><button asp-permission="PHARMACY.CREDITCOLLECTION:COLLECT" class="btn btn-success px-4"><i class="bi bi-check2-circle me-1"></i>Receive &amp; print receipt</button></div>
+</form>
+@section Scripts {
+<script>
+(function () {
+    const al = [...document.querySelectorAll('.al')], t = document.getElementById('alT'), sum = () => t.textContent = al.reduce((s, a) => s + (parseFloat(a.value) || 0), 0).toFixed(2);
+    document.getElementById('amt').addEventListener('input', e => { let left = parseFloat(e.target.value) || 0; al.forEach(a => { const v = Math.min(left, parseFloat(a.dataset.due)); a.value = v > 0 ? v.toFixed(2) : ''; left -= v; }); sum(); });
+    al.forEach(a => a.addEventListener('input', sum));
+    const mode = document.getElementById('mode'), m = () => { document.getElementById('ref').required = mode.value !== 'CASH'; document.getElementById('refL').classList.toggle('req', mode.value !== 'CASH'); }; mode.addEventListener('change', m); m();
+})();
+</script>
+}

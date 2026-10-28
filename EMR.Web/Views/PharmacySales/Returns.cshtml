@@ -1,0 +1,25 @@
+@using EMR.Web.Services
+@model List<PhSaleReturnRow>
+@{
+    // Pharmacy > Sales > Sale Return list (SQLScripts/2348)
+    ViewData["Title"] = "Sale Return";
+    var (search, from, to) = ((string?, DateTime?, DateTime?))ViewBag.Filter;
+    var stats = new List<KeyValuePair<string, int>> { new("Returns", Model.Count), new("Refunded", Model.Count(m => m.RefundAmount > 0)), new("Set off credit", Model.Count(m => m.AdjustedAmount > 0)) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Sale Return", "bi-arrow-return-left", "Medicines taken back against the original bill: within the return period, returnable items only, not expired. Stock goes back to the same batch; money is refunded or set off against a credit bill.", null, null, Stats: stats, Section: "Pharmacy", Group: "Sales"))" />
+<div class="card shadow-sm border-0">
+    <form method="get" id="phFilter" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width:320px"><span class="input-group-text bg-white"><i class="bi bi-search"></i></span><input name="search" value="@search" class="form-control" placeholder="Return / bill no., customer, mobile" /></div>
+        <div class="input-group input-group-sm" style="width:auto"><span class="input-group-text bg-white">From</span><input type="date" name="from" value="@from?.ToString("yyyy-MM-dd")" class="form-control" onchange="this.form.submit()" /><span class="input-group-text bg-white">To</span><input type="date" name="to" value="@to?.ToString("yyyy-MM-dd")" class="form-control" onchange="this.form.submit()" /></div>
+        <span class="small text-muted">@Model.Count shown · ₹ @Model.Sum(m => m.NetAmount).ToString("N2")</span>
+        <a asp-action="Form" asp-permission="PHARMACY.SALERETURN:SAVE" class="btn btn-sm btn-primary ms-auto"><i class="bi bi-plus-circle me-1"></i>New return</a>
+    </form>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable">
+        <thead><tr><th>#</th><th>Return no.</th><th>Date</th><th>Bill</th><th>Customer</th><th>Reason</th><th>Mode</th><th class="text-end">Value</th><th class="text-end">Refunded</th><th class="text-end">Set off</th><th>By</th></tr></thead>
+        <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
+            <tr onclick="window.open('@Url.Action("Print", new { id = r.ReturnId })','_blank')"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@r.ReturnNo</td><td class="small">@r.ReturnDate.ToString("dd-MMM HH:mm")</td><td class="font-monospace small">@r.SaleNo</td>
+                <td>@r.CustomerName</td><td class="small">@r.ReasonName</td><td>@r.RefundMode</td><td class="text-end fw-semibold">@r.NetAmount.ToString("N2")</td><td class="text-end">@r.RefundAmount.ToString("N2")</td><td class="text-end">@r.AdjustedAmount.ToString("N2")</td><td class="small">@r.CreatedByName</td></tr> }</tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No returns in this period.</div> }</div>
+</div>

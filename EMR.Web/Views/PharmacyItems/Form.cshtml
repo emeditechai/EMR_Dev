@@ -1,0 +1,279 @@
+@using System.Text.Json
+@using EMR.Web.Services
+@model PhItemForm
+@{
+    // Master > Pharmacy Master > Item / Drug Master > add / edit (SQLScripts/2343)
+    var isNew = Model.ItemId == 0;
+    ViewData["Title"] = isNew ? "New Pharmacy Item" : "Item " + Model.ItemCode;
+    var lk = (PhItemLookups)ViewBag.Lookups;
+    var subs = (List<PhItemListRow>)ViewBag.Substitutes;
+    bool canEdit = ViewBag.CanEdit;
+    var jo = new JsonSerializerOptions { PropertyNamingPolicy = null };
+    string J(object o) => JsonSerializer.Serialize(o, jo);
+}
+<link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<style>
+    .ph-sec { border: 0; border-radius: 12px; }
+    .ph-sec .card-header { background: #fff; border-bottom: 1px solid #eef2f7; font-weight: 700; font-size: .9rem; color: var(--emr-primary, #644098); padding: .7rem 1rem; }
+    .ph-sec .form-label { font-size: .78rem; font-weight: 600; color: #334155; margin-bottom: .2rem; }
+    .ph-side { position: sticky; top: 12px; }
+    .ph-label { border: 2px dashed #d6c6ee; background: #f8f5ff; border-radius: 12px; padding: 14px; }
+    .ph-label .nm { font-size: 1.15rem; font-weight: 800; color: #3b2160; }
+    .ph-flagbox { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; height: 100%; }
+    .ph-flagbox .form-check-label { font-weight: 600; font-size: .85rem; }
+    .ph-flagbox .small { font-size: .74rem; }
+    .ph-actions { position: sticky; bottom: 0; background: rgba(248,250,252,.96); border-top: 1px solid #e2e8f0; z-index: 10; backdrop-filter: blur(4px); }
+</style>
+
+<form method="post" asp-action="Save" id="itemForm" novalidate>
+@Html.AntiForgeryToken()
+<input type="hidden" asp-for="ItemId" />
+<input type="hidden" name="next" id="next" value="" />
+
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Item / Drug Master", isNew ? "bi-plus-circle" : "bi-capsule", isNew ? "Add a medicine, surgical or consumable. Fields marked * are required." : $"{Model.ItemCode} · edit details, packing, tax and this branch's rack and stock levels.", null, null, isNew ? "New item" : Model.ItemName, isNew ? "New" : Model.ItemCode, Url.Action("Index")))" />
+
+<div class="row g-3">
+<div class="col-xl-9">
+    @* ── 1. identity ── *@
+    <div class="card shadow-sm ph-sec mb-3">
+        <div class="card-header"><i class="bi bi-1-circle-fill me-2"></i>Item details</div>
+        <div class="card-body row g-3">
+            <div class="col-md-6">
+                <label class="form-label req" for="ItemName">Item / brand name (as on the pack)</label>
+                <input asp-for="ItemName" class="form-control fw-semibold" maxlength="200" required autocomplete="off" placeholder="e.g. Dolo 650" autofocus />
+                <div id="similar" class="form-text text-warning-emphasis"></div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="ItemCode">Item code</label>
+                <input asp-for="ItemCode" class="form-control text-uppercase font-monospace" maxlength="20" placeholder="auto (PH00021)" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="Barcode">Barcode (EAN / GTIN)</label>
+                <div class="input-group"><span class="input-group-text"><i class="bi bi-upc-scan"></i></span><input asp-for="Barcode" class="form-control font-monospace" maxlength="50" placeholder="scan" /></div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label d-flex justify-content-between" for="GenericId"><span>Generic / composition</span><a asp-controller="PharmacyMasters" asp-action="Generics" target="_blank" class="small fw-normal">+ new generic</a></label>
+                <select asp-for="GenericId" class="form-select" data-ts>
+                    <option value="">— not a drug / none —</option>
+                    @foreach (var o in lk.Generics) { <option value="@o.Value">@o.Text</option> }
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label d-flex justify-content-between" for="ManufacturerId"><span>Manufacturer / marketer</span><a asp-controller="PharmacyMasters" asp-action="Manufacturers" target="_blank" class="small fw-normal">+ new manufacturer</a></label>
+                <select asp-for="ManufacturerId" class="form-select" data-ts>
+                    <option value="">— select —</option>
+                    @foreach (var o in lk.Manufacturers) { <option value="@o.Value">@o.Text</option> }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label req" for="CategoryId">Category</label>
+                <select asp-for="CategoryId" class="form-select" data-ts required>
+                    <option value="">— select —</option>
+                    @foreach (var o in lk.Categories) { <option value="@o.Value">@o.Text</option> }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="DosageFormId">Dosage form</label>
+                <select asp-for="DosageFormId" class="form-select">
+                    <option value="">— none —</option>
+                    @foreach (var o in lk.DosageForms) { <option value="@o.Value">@o.Text</option> }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="Strength">Strength</label>
+                <input asp-for="Strength" class="form-control" maxlength="60" placeholder="650 mg" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="PackSize">Pack size (as printed)</label>
+                <input asp-for="PackSize" class="form-control" maxlength="60" placeholder="Strip of 15 tablets" />
+            </div>
+        </div>
+    </div>
+
+    @* ── 2. packing ── *@
+    <div class="card shadow-sm ph-sec mb-3">
+        <div class="card-header"><i class="bi bi-2-circle-fill me-2"></i>Packing &amp; units <span class="fw-normal text-muted small ms-2">MRP is per purchase unit; stock is kept in sale units</span></div>
+        <div class="card-body row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label req" for="PurchaseUomId">Purchase unit (pack)</label>
+                <select asp-for="PurchaseUomId" class="form-select" required>
+                    <option value="">— select —</option>
+                    @foreach (var o in lk.Uoms) { <option value="@o.Value">@o.Text</option> }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label req" for="ConversionQty">Sale units in one pack</label>
+                <input asp-for="ConversionQty" type="number" min="1" max="10000" class="form-control fw-semibold" required />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label req" for="SaleUomId">Sale unit (smallest)</label>
+                <select asp-for="SaleUomId" class="form-select" required>
+                    <option value="">— select —</option>
+                    @foreach (var o in lk.Uoms) { <option value="@o.Value">@o.Text</option> }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="form-check form-switch mb-2"><input asp-for="AllowLooseSale" class="form-check-input" role="switch" /><label class="form-check-label fw-semibold" asp-for="AllowLooseSale">Loose sale allowed</label></div>
+            </div>
+            <div class="col-12"><div class="alert alert-info py-2 mb-0 small" id="convHint"></div></div>
+        </div>
+    </div>
+
+    @* ── 3. tax & regulatory ── *@
+    <div class="card shadow-sm ph-sec mb-3">
+        <div class="card-header"><i class="bi bi-3-circle-fill me-2"></i>Tax &amp; regulatory</div>
+        <div class="card-body row g-3">
+            <div class="col-md-6">
+                <label class="form-label req" for="HsnId">HSN code / GST</label>
+                <select asp-for="HsnId" class="form-select" required>
+                    <option value="">— select —</option>
+                    @foreach (var h in lk.Hsn) { <option value="@h.Id">@h.Code · @h.Gst.ToString("0.##")% · @h.Description</option> }
+                </select>
+                <div class="form-text" id="gstHint"></div>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label req" for="ScheduleCode">Drug schedule</label>
+                <select asp-for="ScheduleCode" class="form-select" required>
+                    @foreach (var s in lk.Schedules) { <option value="@s.Code">@s.Code - @s.Name</option> }
+                </select>
+                <div class="form-text" id="schHint"></div>
+            </div>
+            <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsColdChain" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsColdChain"><i class="bi bi-snow text-info"></i> Cold chain</label></div><div class="small text-muted">Store at 2-8 °C; not returnable once sold.</div></div></div>
+            <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsHighAlert" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsHighAlert"><i class="bi bi-exclamation-octagon-fill text-danger"></i> High alert</label></div><div class="small text-muted">Warning on issue (insulin, KCl, heparin ...).</div></div></div>
+            <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsLasa" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsLasa"><i class="bi bi-eye-fill text-warning"></i> LASA</label></div><div class="small text-muted">Look-alike / sound-alike: double check.</div></div></div>
+            <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsReturnable" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsReturnable">Returnable</label></div><div class="small text-muted">Customer / ward may return it.</div></div></div>
+            <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsDiscountAllowed" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsDiscountAllowed">Discount allowed</label></div><div class="small text-muted">Bill discounts apply to it.</div></div></div>
+        </div>
+    </div>
+
+    @* ── 4. stock control ── *@
+    <div class="card shadow-sm ph-sec mb-3">
+        <div class="card-header"><i class="bi bi-4-circle-fill me-2"></i>Stock control <span class="fw-normal text-muted small ms-2">quantities in purchase units</span></div>
+        <div class="card-body row g-3">
+            <div class="col-12 small fw-semibold text-muted">Default for all branches</div>
+            <div class="col-md-3"><label class="form-label" for="MinQty">Minimum</label><input asp-for="MinQty" type="number" step="0.01" min="0" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label" for="ReorderLevel">Reorder level</label><input asp-for="ReorderLevel" type="number" step="0.01" min="0" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label" for="MaxQty">Maximum</label><input asp-for="MaxQty" type="number" step="0.01" min="0" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label" for="LeadDays">Supplier lead time (days)</label><input asp-for="LeadDays" type="number" min="0" max="90" class="form-control" /></div>
+            <div class="col-12 small fw-semibold text-muted border-top pt-3">This branch <span class="fw-normal">(empty = default)</span></div>
+            <div class="col-md-3"><label class="form-label" for="RackNo">Rack / bin</label><input asp-for="RackNo" class="form-control text-uppercase" maxlength="30" placeholder="A-03-2" /></div>
+            <div class="col-md-2"><label class="form-label" for="BranchMinQty">Minimum</label><input asp-for="BranchMinQty" type="number" step="0.01" min="0" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label" for="BranchReorderLevel">Reorder</label><input asp-for="BranchReorderLevel" type="number" step="0.01" min="0" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label" for="BranchMaxQty">Maximum</label><input asp-for="BranchMaxQty" type="number" step="0.01" min="0" class="form-control" /></div>
+            <div class="col-md-3 d-flex align-items-end"><div class="form-check form-switch mb-2"><input asp-for="IsStocked" class="form-check-input" role="switch" /><label class="form-check-label fw-semibold" asp-for="IsStocked">Stocked at this branch</label></div></div>
+            <div class="col-12"><label class="form-label" for="Remarks">Remarks</label><input asp-for="Remarks" class="form-control" maxlength="300" /></div>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3">
+    <div class="ph-side">
+        <div class="card shadow-sm ph-sec mb-3"><div class="card-body">
+            <div class="small text-muted fw-semibold mb-2">HOW IT PRINTS ON THE BILL</div>
+            <div class="ph-label">
+                <div class="nm" id="pvName"></div>
+                <div class="small text-muted" id="pvGeneric"></div>
+                <div class="small mt-1" id="pvMfr"></div>
+                <div class="d-flex flex-wrap gap-1 mt-2" id="pvBadges"></div>
+            </div>
+            <div class="form-check form-switch mt-3"><input asp-for="IsActive" class="form-check-input" role="switch" /><label class="form-check-label fw-semibold" asp-for="IsActive">Active (can be bought, sold and issued)</label></div>
+        </div></div>
+        @if (!isNew)
+        {
+            <div class="card shadow-sm ph-sec"><div class="card-header"><i class="bi bi-arrow-left-right me-2"></i>Substitutes (same generic)</div>
+                <div class="list-group list-group-flush small">
+                    @if (subs.Count == 0) { <div class="list-group-item text-muted">None in the master.</div> }
+                    @foreach (var s in subs)
+                    {
+                        <a class="list-group-item list-group-item-action" asp-action="Form" asp-route-id="@s.ItemId"><div class="fw-semibold">@s.FormShort @s.ItemName</div><div class="text-muted">@s.ManufacturerName · @s.PackSize</div></a>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+</div>
+
+<div class="ph-actions py-2 px-3 mt-3 d-flex flex-wrap gap-2 justify-content-end rounded-3">
+    <span class="me-auto small text-muted align-self-center"><span class="ph-kbd">Ctrl+S</span> save · <span class="ph-kbd">Esc</span> back to list</span>
+    <a asp-action="Index" class="btn btn-outline-secondary" id="btnBack">Cancel</a>
+    @if (!isNew && canEdit) { <a asp-action="Form" asp-route-copyOf="@Model.ItemId" class="btn btn-outline-secondary"><i class="bi bi-copy me-1"></i>Copy to new item</a> }
+    @if (canEdit)
+    {
+        <button class="btn btn-outline-primary" data-next="copy"><i class="bi bi-copy me-1"></i>Save &amp; copy</button>
+        <button class="btn btn-outline-primary" data-next="new"><i class="bi bi-plus-circle me-1"></i>Save &amp; new</button>
+        <button class="btn btn-primary px-4" data-next=""><i class="bi bi-save me-1"></i>Save</button>
+    }
+</div>
+</form>
+
+@section Scripts {
+<script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
+<script>
+(function () {
+    const hsn = @Html.Raw(J(lk.Hsn.Select(h => new { h.Id, h.Code, h.Gst })));
+    const sch = @Html.Raw(J(lk.Schedules.Select(s => new { s.Code, s.Name, s.Warning, s.Rx })));
+    const canEdit = @(canEdit ? "true" : "false");
+    const $ = id => document.getElementById(id);
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const txt = s => s.selectedIndex >= 0 && s.value ? s.options[s.selectedIndex].text : '';
+    const form = $('itemForm');
+    document.querySelectorAll('select[data-ts]').forEach(s => new TomSelect(s, { allowEmptyOption: true, maxOptions: 1000, onChange: refresh }));
+    if (!canEdit) form.querySelectorAll('input, select').forEach(i => i.disabled = true);
+
+    function uomCode(s) { const m = txt(s).match(/\(([^)]+)\)$/); return m ? m[1] : ''; }
+    function refresh() {
+        const form_ = txt($('DosageFormId')).match(/\(([^)]+)\)$/);
+        $('pvName').textContent = ((form_ ? form_[1] + ' ' : '') + $('ItemName').value + ($('Strength').value ? ' ' + $('Strength').value : '')).toUpperCase() || '—';
+        $('pvGeneric').textContent = txt($('GenericId')).replace(' (inactive)', '');
+        $('pvMfr').textContent = [txt($('ManufacturerId')), $('PackSize').value].filter(Boolean).join(' · ');
+        const s = sch.find(x => x.Code === $('ScheduleCode').value) || {};
+        const h = hsn.find(x => String(x.Id) === $('HsnId').value);
+        let b = `<span class="badge sch sch-${esc(s.Code)}">${esc(s.Code)}</span>`;
+        if (s.Rx) b += '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Rx only</span>';
+        if (h) b += `<span class="badge bg-light text-dark border">GST ${h.Gst}%</span>`;
+        if ($('IsColdChain').checked) b += '<span class="badge bg-info-subtle text-info-emphasis border"><i class="bi bi-snow"></i> 2-8 °C</span>';
+        if ($('IsHighAlert').checked) b += '<span class="badge bg-danger">High alert</span>';
+        if ($('IsLasa').checked) b += '<span class="badge bg-warning text-dark">LASA</span>';
+        $('pvBadges').innerHTML = b;
+        $('schHint').innerHTML = s.Warning ? `<i class="bi bi-exclamation-triangle text-danger me-1"></i>${esc(s.Warning)}` : 'No prescription needed.';
+        $('gstHint').textContent = h ? `Counter sale: CGST ${h.Gst / 2}% + SGST ${h.Gst / 2}%; inter-state purchase: IGST ${h.Gst}%.` : '';
+        const controlled = s.Code === 'X' || s.Code === 'NDPS';
+        if (controlled) $('IsReturnable').checked = false;
+        $('IsReturnable').disabled = controlled || !canEdit;
+        const pu = uomCode($('PurchaseUomId')), su = uomCode($('SaleUomId')), n = Number($('ConversionQty').value) || 0;
+        const same = $('PurchaseUomId').value && $('PurchaseUomId').value === $('SaleUomId').value;
+        if (same && n !== 1) $('ConversionQty').value = 1;
+        $('ConversionQty').readOnly = same;
+        $('convHint').innerHTML = pu && su
+            ? `<i class="bi bi-box-seam me-1"></i>1 <b>${esc(pu)}</b> = <b>${same ? 1 : n}</b> ${esc(su)}. MRP is entered per ${esc(pu)} at GRN; ${$('AllowLooseSale').checked && !same ? `the counter may sell single ${esc(su)} at MRP ÷ ${n}.` : 'sold only in full packs.'}`
+            : 'Pick purchase and sale units.';
+    }
+    form.addEventListener('input', refresh); form.addEventListener('change', refresh); refresh();
+
+    // similar items already in the master (avoid duplicates)
+    let t;
+    $('ItemName').addEventListener('input', () => {
+        clearTimeout(t);
+        const q = $('ItemName').value.trim();
+        if (q.length < 3) { $('similar').textContent = ''; return; }
+        t = setTimeout(async () => {
+            const r = await fetch('@Url.Action("Search")?q=' + encodeURIComponent(q)).then(x => x.json()).catch(() => []);
+            const others = r.filter(x => x.itemId !== @Model.ItemId).slice(0, 4);
+            $('similar').innerHTML = others.length ? '<i class="bi bi-info-circle me-1"></i>Already in master: ' + others.map(x => `<a href="@Url.Action("Form")?id=${x.itemId}" target="_blank">${esc(x.itemName)}</a> <span class="text-muted">(${esc(x.manufacturerName || '')})</span>`).join(', ') : '';
+        }, 350);
+    });
+
+    form.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => $('next').value = b.dataset.next));
+    form.addEventListener('submit', e => {
+        $('IsReturnable').disabled = false;
+        if (!form.checkValidity()) { e.preventDefault(); form.classList.add('was-validated'); const bad = form.querySelector(':invalid'); bad && bad.focus(); }
+    });
+    document.addEventListener('keydown', e => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && canEdit) { e.preventDefault(); $('next').value = 'stay'; form.requestSubmit(); }
+        if (e.key === 'Escape' && !document.querySelector('.ts-dropdown[style*="block"]')) location.href = $('btnBack').href;
+    });
+})();
+</script>
+}

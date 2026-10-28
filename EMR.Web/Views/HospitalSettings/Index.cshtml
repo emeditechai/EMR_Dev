@@ -637,61 +637,49 @@ else
             </div>
         </div>
 
-        @* ── MED Tab ── *@
+        @* ── MED Tab (SQLScripts/2343) ── *@
         <div class="tab-pane fade module-tab-pane" id="tabMed" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#6f42c1"><i class="bi bi-capsule me-1"></i>MED / Pharmacy Configuration</span>
-                <span class="coming-soon-badge">Parameters coming soon</span>
+                @if (Model.PharmacyEnabled) { <span class="badge bg-success">Pharmacy enabled</span> } else { <span class="badge bg-secondary">Pharmacy not enabled</span> }
             </div>
+            @{
+                string D(DateTime? d) => d?.ToString("dd-MMM-yyyy") ?? "—";
+                string V(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+                string Lic(string? no, DateTime? to) => string.IsNullOrWhiteSpace(no) ? "—" : no + (to.HasValue ? (to.Value < DateTime.Today ? " (expired " : " (valid to ") + D(to) + ")" : "");
+                var medParams = new (string Label, string Value)[]
+                {
+                    ("Pharmacy Name", V(Model.PharmacyName ?? Model.HospitalName)),
+                    ("Pharmacy GSTIN", V(Model.PharmacyGstin ?? Model.GSTCode)),
+                    ("Drug Licence 20B", Lic(Model.PharmacyDrugLicence20B, Model.PharmacyDrugLicence20BValidTo)),
+                    ("Drug Licence 21B", Lic(Model.PharmacyDrugLicence21B, Model.PharmacyDrugLicence21BValidTo)),
+                    ("Pharmacist In-charge", V(Model.PharmacistName) + (string.IsNullOrWhiteSpace(Model.PharmacistRegNo) ? "" : " · Reg. " + Model.PharmacistRegNo)),
+                    ("NDPS / Schedule X Licence", V(Model.PharmacyNdpsLicenceNo)),
+                    ("Pharmacy Contact", V(Model.PharmacyContactNo)),
+                    ("GRN Not Required", Model.PharmacyGrnNotRequired ? "Yes - PO approval adds stock" : "No - stock on GRN"),
+                    ("Negative Stock", Model.PharmacyAllowNegativeStock ? "Allowed" : "Not allowed"),
+                    ("Min. Shelf Life - Sale", Model.PharmacyMinShelfLifeSaleDays + " days"),
+                    ("Min. Shelf Life - IPD", Model.PharmacyMinShelfLifeIpdDays == 0 ? "Until expiry" : Model.PharmacyMinShelfLifeIpdDays + " days"),
+                    ("Min. Shelf Life - GRN", Model.PharmacyMinShelfLifeGrnDays + " days"),
+                    ("Near-Expiry Alert", Model.PharmacyNearExpiryAlertDays + " days"),
+                    ("Sale Return Within", Model.PharmacySaleReturnDays + " days" + (Model.PharmacyLooseReturnAllowed ? " · loose allowed" : " · full packs only")),
+                    ("Max. Manual Discount", Model.PharmacyMaxManualDiscountPercent.ToString("0.##") + "%"),
+                    ("Bill", Model.PharmacyBillPrintFormat + (Model.PharmacyRoundOffBill ? " · rounded off" : "") + (Model.PharmacyBillNotificationRequired ? " · WhatsApp / e-mail" : "")),
+                    ("IPD Issue GST", Model.PharmacyIpdGstExempt ? "Exempt" : "Charged"),
+                    ("Discharge Medicines (TTO)", Model.PharmacyTtoBillingMode == "SALE" ? "Separate pharmacy bill" : "On IPD bill"),
+                    ("Discharge with Pending Indent", Model.PharmacyBlockDischargeOnPendingIndent ? "Blocked" : "Allowed")
+                };
+            }
             <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Invoice Prefix</div>
-                        <div class="param-value text-muted">—</div>
+                @foreach (var (label, value) in medParams)
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="param-card">
+                            <div class="param-label">@label</div>
+                            <div class="param-value @(value.Contains("(expired") ? "text-danger" : "")">@value</div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">GST Registration No.</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Drug License No.</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Low Stock Alert (Qty)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Expiry Alert (Days)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Return Policy (Days)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Auto Reorder</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Print Prescription</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
+                }
             </div>
         </div>
 

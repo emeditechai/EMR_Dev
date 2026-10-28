@@ -100,7 +100,7 @@
                 '<div class="lcd-section border rounded-3 p-3 mb-3' + (required ? '' : ' d-none') + '" data-key="' + key + '">' +
                     '<div class="d-flex justify-content-between align-items-center mb-2">' +
                         '<span class="fw-bold text-dark"><i class="bi bi-file-earmark-medical text-primary me-1"></i>' + label + '</span>' +
-                        '<div class="form-check form-switch m-0">' +
+                        '<div class="form-check form-switch m-0 lcd-switch">' +
                             '<input class="form-check-input lcd-bypass" type="checkbox" data-key="' + key + '" id="lcdBypass_' + key + '" ' + (bypass ? 'checked' : '') + '>' +
                             '<label class="form-check-label small text-muted" for="lcdBypass_' + key + '">Not available &mdash; add remark instead</label>' +
                         '</div>' +
@@ -146,7 +146,17 @@
                 $modal = $('#' + cfg.modalId);
                 return;
             }
+            // The booking pages make a focused switch's label bold; here that widened the label and moved the switch
+            // away from the pointer between mouse-down and mouse-up, so the first click on it was lost.
+            // Keep the label's size fixed (and show focus on the switch only) so every click toggles at once.
+            var sel = '#' + cfg.modalId;
             var html =
+                '<style>' +
+                    sel + ' .lcd-switch { min-width: 0; }' +
+                    sel + ' .lcd-switch .form-check-input { cursor: pointer; }' +
+                    sel + ' .lcd-switch .form-check-label { cursor: pointer; user-select: none; }' +
+                    sel + ' .lcd-switch .form-check-input:focus + .form-check-label { font-weight: inherit !important; color: inherit !important; }' +
+                '</style>' +
                 '<div class="modal fade" id="' + cfg.modalId + '" tabindex="-1" aria-hidden="true">' +
                     '<div class="modal-dialog modal-dialog-centered">' +
                         '<div class="modal-content">' +

@@ -122,6 +122,10 @@ builder.Services.AddScoped<IDiscountTypeService, DiscountTypeService>();
 builder.Services.AddScoped<IPatientService, PatientService>();
 builder.Services.AddScoped<ICertificateService, CertificateService>();   // OPD > Certificates (SQLScripts/2341)
 builder.Services.AddScoped<ICertificateNotificationService, CertificateNotificationService>();   // certificate WhatsApp / e-mail (SQLScripts/2342)
+builder.Services.AddScoped<IPharmacyMasterService, PharmacyMasterService>();   // Master > Pharmacy Master (SQLScripts/2343)
+builder.Services.AddScoped<IPharmacyPurchaseService, PharmacyPurchaseService>();   // Pharmacy > Purchase (SQLScripts/2344)
+builder.Services.AddScoped<IPharmacySaleService, PharmacySaleService>();   // Pharmacy > Sales (SQLScripts/2348)
+builder.Services.AddScoped<IPharmacyBillNotifier, PharmacyBillNotifier>();   // pharmacy bill PDF + WhatsApp / e-mail (SQLScripts/2348)
 
 // EMR Template Service (EF Core)
 builder.Services.AddScoped<IEmrTemplateService, EmrTemplateService>();

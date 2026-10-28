@@ -1,0 +1,24 @@
+/* Master > Pharmacy Master (theme colours from site --emr-*): one look for every pharmacy master page (list, toolbar, table, dialog / form). */
+.ph-head { background: var(--emr-gradient, linear-gradient(135deg, #644098 0%, #7e52b8 50%, #a8407a 100%)); color: #fff; border-radius: 14px; padding: 18px 22px; }
+.ph-head .breadcrumb-item, .ph-head .breadcrumb-item + .breadcrumb-item::before, .ph-head .breadcrumb-item a { color: rgba(255,255,255,.8); }
+.ph-head h1 { font-size: 1.35rem; }
+.ph-stat { background: rgba(255,255,255,.14); border-radius: 10px; padding: 6px 14px; text-align: center; min-width: 86px; }
+.ph-stat b { display: block; font-size: 1.15rem; }
+.ph-stat span { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .85; }
+.ph-toolbar { position: sticky; top: 0; z-index: 5; background: var(--bs-body-bg, #fff); }
+.ph-table thead th { position: sticky; top: 0; background: #f1f5f9; font-size: .74rem; text-transform: uppercase; letter-spacing: .03em; color: #475569; white-space: nowrap; z-index: 2; }
+.ph-table td { font-size: .875rem; vertical-align: middle; }
+.ph-table.ph-editable tbody tr { cursor: pointer; }
+.ph-table tbody tr.inactive td { color: #94a3b8; }
+.ph-wrap { max-height: calc(100vh - 290px); overflow: auto; }
+.ph-sub td:nth-child(2) { padding-left: 2rem; }
+.ph-kbd { font-size: .7rem; border: 1px solid #cbd5e1; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: #64748b; background: #f8fafc; }
+.ph-form-tag { font-size: .68rem; font-weight: 700; color: var(--emr-primary, #644098); background: #f1ecff; border-radius: 4px; padding: 1px 5px; margin-right: 4px; }
+.ph-flag { font-size: .95rem; margin-right: 2px; }
+.sch { font-weight: 700; min-width: 42px; }
+.sch-OTC { background: #dcfce7; color: #166534; } .sch-G { background: #e0f2fe; color: #075985; } .sch-H { background: #fee2e2; color: #991b1b; }
+.sch-H1 { background: #991b1b; color: #fff; } .sch-X, .sch-NDPS { background: #111827; color: #fff; }
+#phModal .form-label { font-size: .8rem; font-weight: 600; margin-bottom: .2rem; }
+.req::after { content: " *"; color: #dc2626; }
+.ph-dialog-head { background: #f5f0ff; }
+.ph-dialog-head .bi { color: var(--emr-primary, #644098); }

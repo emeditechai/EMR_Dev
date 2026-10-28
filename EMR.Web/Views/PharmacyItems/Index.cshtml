@@ -1,0 +1,126 @@
+@using EMR.Web.Services
+@model List<PhItemListRow>
+@{
+    // Master > Pharmacy Master > Item / Drug Master (SQLScripts/2343) - same layout as every pharmacy master page
+    ViewData["Title"] = "Item / Drug Master";
+    var lk = (PhItemLookups)ViewBag.Lookups;
+    var f = (PhItemFilter)ViewBag.Filter;
+    var counts = ((int Total, int Active))ViewBag.Counts;
+    int total = ViewBag.Total, pageSize = ViewBag.PageSize, page = f.Page;
+    bool canEdit = ViewBag.CanEdit;
+    int pages = Math.Max(1, (int)Math.Ceiling(total / (double)pageSize));
+    object Route(int p) => new { search = f.Search, categoryId = f.CategoryId, schedule = f.Schedule, manufacturerId = f.ManufacturerId, active = f.Active, page = p };
+    var first = (page - 1) * pageSize;
+}
+<link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Item / Drug Master", "bi-capsule", "Every medicine, surgical and consumable the pharmacy stocks: brand, generic, schedule, GST and packing. Batch, MRP and expiry come in with each purchase (GRN).", counts.Total, counts.Active))" />
+
+<div class="card shadow-sm border-0">
+    <form method="get" id="phFilter" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width:360px">
+            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+            <input name="search" id="phSearch" value="@f.Search" class="form-control" placeholder="Search brand, generic, code or scan barcode..." autocomplete="off" />
+            <span class="input-group-text bg-white"><span class="ph-kbd">/</span></span>
+        </div>
+        <select name="active" class="form-select form-select-sm" style="width:auto" data-auto>
+            <option value="" selected="@(f.Active == null)">All</option>
+            <option value="true" selected="@(f.Active == true)">Active</option>
+            <option value="false" selected="@(f.Active == false)">Inactive</option>
+        </select>
+        <select name="categoryId" class="form-select form-select-sm" style="width:200px" data-auto>
+            <option value="">All categories</option>
+            @foreach (var c in lk.Categories) { <option value="@c.Value" selected="@(c.Value == f.CategoryId?.ToString())">@c.Text</option> }
+        </select>
+        <select name="schedule" class="form-select form-select-sm" style="width:auto" data-auto>
+            <option value="">All schedules</option>
+            @foreach (var s in lk.Schedules) { <option value="@s.Code" selected="@(s.Code == f.Schedule)">@s.Code - @s.Name</option> }
+        </select>
+        <div style="width:210px"><select name="manufacturerId" id="phMfr" class="form-select form-select-sm">
+            <option value="">All manufacturers</option>
+            @foreach (var m in lk.Manufacturers) { <option value="@m.Value" selected="@(m.Value == f.ManufacturerId?.ToString())">@m.Text</option> }
+        </select></div>
+        <span class="small text-muted">@Model.Count of @total shown</span>
+        <div class="ms-auto d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-success" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            @if (canEdit)
+            {
+                <a asp-action="Form" class="btn btn-sm btn-primary" id="phAdd" title="Alt + N"><i class="bi bi-plus-circle me-1"></i>Add item <span class="ph-kbd ms-1 bg-transparent text-white border-light">Alt+N</span></a>
+            }
+        </div>
+    </form>
+    <div class="ph-wrap">
+        <table class="table table-hover mb-0 ph-table ph-editable" id="phTable">
+            <thead><tr>
+                <th style="width:48px">#</th><th>Code</th><th>Item</th><th>Generic</th><th>Manufacturer</th><th>Category</th><th>Sch.</th><th>Packing</th><th>HSN / GST</th><th>Rack</th><th title="Cold chain / High alert / LASA">Flags</th><th>Status</th><th></th>
+            </tr></thead>
+            <tbody>
+            @for (var i = 0; i < Model.Count; i++)
+            {
+                var r = Model[i];
+                <tr class="@(r.IsActive ? "" : "inactive")" data-href="@Url.Action("Form", new { id = r.ItemId })">
+                    <td class="text-muted small">@(first + i + 1)</td>
+                    <td class="font-monospace small">@r.ItemCode</td>
+                    <td><div class="fw-semibold">@if (!string.IsNullOrEmpty(r.FormShort)) { <span class="ph-form-tag">@r.FormShort</span> }@r.ItemName</div><div class="small text-muted">@r.Strength@(string.IsNullOrEmpty(r.PackSize) ? "" : " · " + r.PackSize)</div></td>
+                    <td>@if (r.GenericName == null) { <span class="text-muted">—</span> } else { @r.GenericName }</td>
+                    <td>@if (r.ManufacturerName == null) { <span class="text-muted">—</span> } else { @r.ManufacturerName }</td>
+                    <td>@r.CategoryName</td>
+                    <td><span class="badge sch sch-@r.ScheduleCode">@r.ScheduleCode</span></td>
+                    <td class="text-nowrap">1 @r.PurchaseUom = @r.ConversionQty @r.SaleUom</td>
+                    <td class="text-nowrap">@r.HsnCode · <b>@r.GstPercent.ToString("0.##")%</b></td>
+                    <td>@if (r.RackNo == null) { <span class="text-muted">—</span> } else { @r.RackNo }</td>
+                    <td class="text-nowrap">
+                        @if (r.IsColdChain) { <i class="bi bi-snow ph-flag text-info" title="Cold chain (2-8 °C)"></i> }
+                        @if (r.IsHighAlert) { <i class="bi bi-exclamation-octagon-fill ph-flag text-danger" title="High-alert medicine"></i> }
+                        @if (r.IsLasa) { <i class="bi bi-eye-fill ph-flag text-warning" title="Look-alike / sound-alike"></i> }
+                        @if (!r.IsColdChain && !r.IsHighAlert && !r.IsLasa) { <span class="text-muted">—</span> }
+                    </td>
+                    <td>@Html.Raw(r.IsActive ? "<span class=\"badge bg-success-subtle text-success border border-success-subtle\">Active</span>" : "<span class=\"badge bg-light text-secondary border\">Inactive</span>")</td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Form", new { id = r.ItemId })" title="@(canEdit ? "Edit" : "View")"><i class="bi @(canEdit ? "bi-pencil" : "bi-eye")"></i></a></td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Nothing matches.</div> }
+    </div>
+    @if (pages > 1)
+    {
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center small">
+            <span class="text-muted">Page @(page) of @pages</span>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(page <= 1 ? "disabled" : "")"><a class="page-link" href="@Url.Action("Index", Route(page - 1))">‹ Prev</a></li>
+                @for (var p = Math.Max(1, page - 3); p <= Math.Min(pages, page + 3); p++) { <li class="page-item @(p == page ? "active" : "")"><a class="page-link" href="@Url.Action("Index", Route(p))">@p</a></li> }
+                <li class="page-item @(page >= pages ? "disabled" : "")"><a class="page-link" href="@Url.Action("Index", Route(page + 1))">Next ›</a></li>
+            </ul>
+        </div>
+    }
+</div>
+<div class="small text-muted mt-2"><i class="bi bi-mouse me-1"></i>Click a row to @(canEdit ? "edit" : "view"). <i class="bi bi-snow text-info ms-2"></i> cold chain · <i class="bi bi-exclamation-octagon-fill text-danger"></i> high alert · <i class="bi bi-eye-fill text-warning"></i> look-alike / sound-alike.</div>
+
+@section Scripts {
+<script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
+<script src="~/lib/xlsx/xlsx.full.min.js"></script>
+<script>
+(function () {
+    const form = document.getElementById('phFilter');
+    const search = document.getElementById('phSearch');
+    new TomSelect('#phMfr', { allowEmptyOption: true, onChange: () => form.submit() });
+    form.querySelectorAll('select[data-auto]').forEach(s => s.addEventListener('change', () => form.submit()));
+    // search as you type (server side, the list is paged)
+    let t;
+    search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => form.submit(), 450); });
+    if (search.value) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+    document.querySelectorAll('#phTable tr[data-href]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('a')) location.href = tr.dataset.href; }));
+    document.addEventListener('keydown', e => {
+        if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); search.focus(); search.select(); }
+        const add = document.getElementById('phAdd');
+        if (e.altKey && (e.key === 'n' || e.key === 'N') && add) { e.preventDefault(); location.href = add.href; }
+    });
+    document.getElementById('phExport').addEventListener('click', () => {
+        const ws = XLSX.utils.table_to_sheet(document.getElementById('phTable'), { raw: true });
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Items'); XLSX.writeFile(wb, 'Item_Drug_Master.xlsx');
+    });
+})();
+</script>
+}

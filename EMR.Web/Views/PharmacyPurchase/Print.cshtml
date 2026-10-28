@@ -1,0 +1,92 @@
+@using EMR.Web.Services
+@model PhDoc
+@{
+    // Pharmacy > Purchase: printable indent / purchase order / GRN / debit note / payment voucher (SQLScripts/2344)
+    Layout = null;
+    var h = (PhBranchHeader)ViewBag.Header;
+    string kind = ViewBag.Kind;
+    var d = Model;
+    var docTitle = kind switch { "indent" => "PURCHASE INDENT", "po" => "PURCHASE ORDER", "grn" => "GOODS RECEIPT NOTE", "return" => "DEBIT NOTE (PURCHASE RETURN)", _ => "PAYMENT VOUCHER" };
+    var gst = d.GstAmount;
+    string Inr(decimal v) => v.ToString("N2");
+}
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>@docTitle @d.DocNo</title>
+<link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+<style>
+    body { font-size: 12px; color: #111; } .doc { max-width: 900px; margin: 16px auto; }
+    .hd { border-bottom: 2px solid #644098; padding-bottom: 8px; margin-bottom: 10px; }
+    .hd h4 { color: #644098; margin: 0; } table.l th { background: #f1ecff; font-size: 11px; } table.l td, table.l th { padding: 4px 6px; border: 1px solid #d4d4d8; }
+    .ttl { font-size: 15px; font-weight: 800; letter-spacing: .05em; } .sign { margin-top: 48px; }
+    @@media print { .noprint { display: none; } .doc { margin: 0; } }
+</style></head>
+<body><div class="doc">
+    <div class="noprint text-end mb-2"><button class="btn btn-sm btn-primary" onclick="window.print()">Print</button></div>
+    <div class="hd d-flex justify-content-between align-items-start">
+        <div class="d-flex gap-2 align-items-start">
+            @if (!string.IsNullOrEmpty(h.LogoPath)) { <img src="@h.LogoPath" style="max-height:52px" alt="" /> }
+            <div><h4>@h.Name</h4><div>@h.Address</div><div>@(h.Phone != null ? "Ph: " + h.Phone : "")@(h.Gstin != null ? "  ·  GSTIN: " + h.Gstin : "")</div>
+                @if (h.Licence20B != null || h.Licence21B != null) { <div>D.L. No.: @h.Licence20B @(h.Licence21B != null ? " / " + h.Licence21B : "")</div> }</div>
+        </div>
+        <div class="text-end"><div class="ttl">@docTitle</div><div><b>@(d.DocNo ?? "DRAFT")</b></div><div>Date: @d.DocDate.ToString("dd-MMM-yyyy")</div>
+            @if (d.Status == "CANCELLED") { <div class="text-danger fw-bold">CANCELLED</div> }</div>
+    </div>
+
+    <div class="row mb-2">
+        @if (kind != "indent")
+        {
+            <div class="col-6"><div class="text-muted">@(kind == "po" ? "To" : "Supplier")</div><b>@d.SupplierName</b></div>
+        }
+        <div class="col-6 text-end">
+            @if (kind == "po") { <div>Expected delivery: @d.ExpectedDate?.ToString("dd-MMM-yyyy")</div> if (d.RefNo != null) { <div>Indent: @d.RefNo</div> } }
+            @if (kind == "grn") { <div>Supplier bill: <b>@d.InvoiceNo</b> dated @d.InvoiceDate?.ToString("dd-MMM-yyyy")</div> if (d.RefNo != null) { <div>PO: @d.RefNo</div> } <div>Due: @d.DueDate?.ToString("dd-MMM-yyyy")</div> }
+            @if (kind == "indent") { <div>Priority: @d.Priority</div> }
+            @if (kind == "payment") { <div>Mode: <b>@d.Priority</b> @(d.InvoiceNo != null ? "· Ref " + d.InvoiceNo : "")</div> }
+        </div>
+    </div>
+
+    <table class="w-100 l mb-2">
+        @if (kind == "payment")
+        {
+            <tr><th>#</th><th>GRN</th><th>Supplier bill</th><th>Bill date</th><th class="text-end">Bill amount</th><th class="text-end">Paid now</th></tr>
+            @for (var i = 0; i < d.Lines.Count; i++) { var l = d.Lines[i]; <tr><td>@(i + 1)</td><td>@l.ItemName</td><td>@l.ItemCode</td><td>@l.ExpiryDate?.ToString("dd-MMM-yyyy")</td><td class="text-end">@Inr(l.Mrp)</td><td class="text-end">@Inr(l.TaxableAmount)</td></tr> }
+            <tr><td colspan="5" class="text-end fw-bold">Total paid</td><td class="text-end fw-bold">₹ @Inr(d.NetAmount)</td></tr>
+        }
+        else if (kind == "indent")
+        {
+            <tr><th>#</th><th>Item</th><th class="text-end">Stock when raised</th><th class="text-end">Qty required</th><th>Remarks</th></tr>
+            @for (var i = 0; i < d.Lines.Count; i++) { var l = d.Lines[i]; <tr><td>@(i + 1)</td><td>@l.FormShort @l.ItemName</td><td class="text-end">@l.Stock.ToString("0.##") @l.SaleUom</td><td class="text-end">@l.Qty.ToString("0.##") @l.PurchaseUom</td><td>@l.Remarks</td></tr> }
+        }
+        else
+        {
+            <tr><th>#</th><th>Item</th>@if (kind != "po") { <th>Batch</th><th>Exp.</th><th class="text-end">MRP</th> }<th class="text-end">Qty</th>@if (kind != "return") { <th class="text-end">Free</th> }<th class="text-end">Rate</th>@if (kind != "return") { <th class="text-end">Disc%</th> }<th class="text-end">GST%</th><th class="text-end">Taxable</th><th class="text-end">GST</th><th class="text-end">Amount</th></tr>
+            @for (var i = 0; i < d.Lines.Count; i++)
+            {
+                var l = d.Lines[i];
+                <tr><td>@(i + 1)</td><td>@l.FormShort @l.ItemName</td>
+                    @if (kind != "po") { <td>@l.BatchNo</td><td>@l.ExpiryDate?.ToString("MM/yy")</td><td class="text-end">@Inr(l.Mrp)</td> }
+                    <td class="text-end">@l.Qty.ToString("0.##") @(kind == "return" ? l.SaleUom : l.PurchaseUom)</td>
+                    @if (kind != "return") { <td class="text-end">@l.FreeQty.ToString("0.##")</td> }
+                    <td class="text-end">@l.Rate.ToString("0.00##")</td>
+                    @if (kind != "return") { <td class="text-end">@l.DiscPercent.ToString("0.##")</td> }
+                    <td class="text-end">@l.GstPercent.ToString("0.##")</td><td class="text-end">@Inr(l.TaxableAmount)</td><td class="text-end">@Inr(l.GstAmount)</td><td class="text-end">@Inr(l.TaxableAmount + l.GstAmount)</td></tr>
+            }
+        }
+    </table>
+
+    @if (kind is "po" or "grn" or "return")
+    {
+        <div class="d-flex justify-content-end"><table class="l" style="min-width:300px">
+            <tr><td>Taxable value</td><td class="text-end">@Inr(d.TaxableAmount)</td></tr>
+            @if (d.IsInterState) { <tr><td>IGST</td><td class="text-end">@Inr(gst)</td></tr> }
+            else { <tr><td>CGST</td><td class="text-end">@Inr(Math.Round(gst / 2, 2, MidpointRounding.AwayFromZero))</td></tr><tr><td>SGST</td><td class="text-end">@Inr(gst - Math.Round(gst / 2, 2, MidpointRounding.AwayFromZero))</td></tr> }
+            @if (kind == "grn" && d.OtherCharges != 0) { <tr><td>Freight / other</td><td class="text-end">@Inr(d.OtherCharges)</td></tr> }
+            @if (d.RoundOff != 0) { <tr><td>Round off</td><td class="text-end">@Inr(d.RoundOff)</td></tr> }
+            <tr><td class="fw-bold">Net amount</td><td class="text-end fw-bold">₹ @Inr(d.NetAmount)</td></tr>
+        </table></div>
+    }
+    @if (kind != "indent") { <div class="mt-2"><b>Amount in words:</b> @PharmacyPurchaseService.AmountInWords(d.NetAmount)</div> }
+    @if (!string.IsNullOrEmpty(d.Terms)) { <div class="mt-2"><b>Terms:</b> @d.Terms</div> }
+    @if (!string.IsNullOrEmpty(d.Remarks)) { <div class="mt-1"><b>Remarks:</b> @d.Remarks</div> }
+    <div class="row sign"><div class="col-4">Prepared by: @d.CreatedByName</div><div class="col-4 text-center">@(d.ApprovedByName != null ? (kind is "grn" or "return" ? "Posted by: " : "Approved by: ") + d.ApprovedByName : "")</div><div class="col-4 text-end">Authorised signatory</div></div>
+</div></body></html>

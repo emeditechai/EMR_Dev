@@ -87,6 +87,36 @@ public class HospitalSettings
     /// closed; No = no pop-up (the bell notification stays).</summary>
     public bool DayClosingLoginReminder { get; set; } = true;
 
+    // ── Pharmacy (SQLScripts/2343): one pharmacy per branch - licence details (Hospital Information) and parameters (MED tab) ──
+    public bool PharmacyEnabled { get; set; } = false;
+    public string? PharmacyName { get; set; }
+    public string? PharmacyDrugLicence20B { get; set; }
+    public DateTime? PharmacyDrugLicence20BValidTo { get; set; }
+    public string? PharmacyDrugLicence21B { get; set; }
+    public DateTime? PharmacyDrugLicence21BValidTo { get; set; }
+    public string? PharmacyGstin { get; set; }
+    public string? PharmacistName { get; set; }
+    public string? PharmacistRegNo { get; set; }
+    public string? PharmacyNdpsLicenceNo { get; set; }
+    public string? PharmacyContactNo { get; set; }
+    public bool PharmacyAllowNegativeStock { get; set; } = false;
+    public int PharmacyMinShelfLifeSaleDays { get; set; } = 30;
+    public int PharmacyMinShelfLifeIpdDays { get; set; } = 0;
+    public int PharmacyMinShelfLifeGrnDays { get; set; } = 90;
+    public int PharmacyNearExpiryAlertDays { get; set; } = 90;
+    public int PharmacySaleReturnDays { get; set; } = 7;
+    public bool PharmacyLooseReturnAllowed { get; set; } = false;
+    [Microsoft.EntityFrameworkCore.Precision(5, 2)]
+    public decimal PharmacyMaxManualDiscountPercent { get; set; } = 10m;
+    public bool PharmacyIpdGstExempt { get; set; } = true;
+    public bool PharmacyBlockDischargeOnPendingIndent { get; set; } = true;
+    public string PharmacyTtoBillingMode { get; set; } = "IPD";
+    public bool PharmacyRoundOffBill { get; set; } = true;
+    public string PharmacyBillPrintFormat { get; set; } = "A4";
+    public bool PharmacyBillNotificationRequired { get; set; } = false;
+    /// <summary>SQLScripts/2346: Yes = approving a purchase order posts the stock (no separate GRN); No (default) = stock comes in on the GRN.</summary>
+    public bool PharmacyGrnNotRequired { get; set; } = false;
+
     /// <summary>SQLScripts/2320: wrong passwords allowed before the account is locked for 10 minutes; 0 (default) = no lock.</summary>
     public int LoginRetryCount { get; set; }
 

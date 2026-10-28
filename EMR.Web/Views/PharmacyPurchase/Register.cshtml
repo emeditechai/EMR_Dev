@@ -1,0 +1,74 @@
+@using EMR.Web.Services
+@model List<PhRegisterRow>
+@{
+    // Pharmacy > Purchase > Purchase Register (SQLScripts/2345): posted GRNs and debit notes (minus) with the GST split, and a GST-rate summary
+    ViewData["Title"] = "Purchase Register";
+    var (from, to, supplierId) = ((DateTime, DateTime, int?))ViewBag.Filter;
+    var suppliers = (List<PhOption>)ViewBag.Suppliers;
+    var gst = (List<PhGstSummaryRow>)ViewBag.Gst;
+    var stats = new List<KeyValuePair<string, int>> { new("GRNs", Model.Count(r => r.DocType == "Purchase")), new("Debit notes", Model.Count(r => r.DocType != "Purchase")), new("Suppliers", Model.Select(r => r.SupplierName).Distinct().Count()) };
+    string N(decimal v) => v.ToString("N2");
+}
+<link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Purchase Register", "bi-journal-text", "Posted purchases (GRN) and purchase returns (debit notes, shown minus) with the GST split, for GST input and supplier reconciliation.", null, null, Stats: stats, Section: "Pharmacy", Group: "Purchase"))" />
+
+<div class="card shadow-sm border-0 mb-3">
+    <form method="get" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="width:auto">
+            <span class="input-group-text bg-white">From</span><input type="date" name="from" value="@from.ToString("yyyy-MM-dd")" class="form-control" data-auto />
+            <span class="input-group-text bg-white">To</span><input type="date" name="to" value="@to.ToString("yyyy-MM-dd")" class="form-control" data-auto />
+        </div>
+        <div style="width:260px"><select name="supplierId" id="phSup" class="form-select form-select-sm">
+            <option value="">All suppliers</option>
+            @foreach (var s in suppliers) { <option value="@s.Value" selected="@(s.Value == supplierId?.ToString())">@s.Text</option> }
+        </select></div>
+        <span class="small text-muted">@Model.Count row(s)</span>
+        <button type="button" class="btn btn-sm btn-outline-success ms-auto" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+    </form>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table" id="phTable">
+        <thead><tr><th>#</th><th>Type</th><th>Number</th><th>Date</th><th>Supplier</th><th>GSTIN</th><th>Supplier bill</th><th>Bill date</th><th class="text-end">Taxable</th><th class="text-end">CGST</th><th class="text-end">SGST</th><th class="text-end">IGST</th><th class="text-end">Other</th><th class="text-end">Round off</th><th class="text-end">Net</th></tr></thead>
+        <tbody>
+        @for (var i = 0; i < Model.Count; i++)
+        {
+            var r = Model[i];
+            var url = r.DocType == "Purchase" ? Url.Action("Form", "PhGrns", new { id = r.Id }) : Url.Action("Form", "PhPurchaseReturns", new { id = r.Id });
+            <tr class="@(r.DocType != "Purchase" ? "text-danger" : "")" style="cursor:pointer" onclick="location.href='@url'">
+                <td class="text-muted small">@(i + 1)</td><td>@r.DocType</td><td class="font-monospace small">@r.DocNo</td><td class="text-nowrap">@r.DocDate.ToString("dd-MMM-yyyy")</td>
+                <td>@r.SupplierName</td><td class="small">@r.Gstin</td><td>@r.InvoiceNo</td><td class="text-nowrap">@r.InvoiceDate?.ToString("dd-MMM-yyyy")</td>
+                <td class="text-end">@N(r.Taxable)</td><td class="text-end">@N(r.Cgst)</td><td class="text-end">@N(r.Sgst)</td><td class="text-end">@N(r.Igst)</td><td class="text-end">@N(r.Other)</td><td class="text-end">@N(r.RoundOff)</td><td class="text-end fw-semibold">@N(r.Net)</td>
+            </tr>
+        }
+        </tbody>
+        <tfoot class="fw-bold"><tr><td colspan="8" class="text-end">Total</td><td class="text-end">@N(Model.Sum(r => r.Taxable))</td><td class="text-end">@N(Model.Sum(r => r.Cgst))</td><td class="text-end">@N(Model.Sum(r => r.Sgst))</td><td class="text-end">@N(Model.Sum(r => r.Igst))</td><td class="text-end">@N(Model.Sum(r => r.Other))</td><td class="text-end">@N(Model.Sum(r => r.RoundOff))</td><td class="text-end">@N(Model.Sum(r => r.Net))</td></tr></tfoot>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No posted purchases in this period.</div> }
+    </div>
+</div>
+
+<div class="card shadow-sm border-0" style="max-width:560px">
+    <div class="card-body py-2 border-bottom fw-bold small" style="color:var(--emr-primary,#644098)"><i class="bi bi-percent me-1"></i>GST rate-wise summary (input tax)</div>
+    <table class="table table-sm mb-0 ph-table" id="phGst">
+        <thead><tr><th>GST rate</th><th class="text-end">Taxable</th><th class="text-end">GST</th><th class="text-end">Total</th></tr></thead>
+        <tbody>@foreach (var g in gst) { <tr><td>@g.GstPercent.ToString("0.##")%</td><td class="text-end">@N(g.Taxable)</td><td class="text-end">@N(g.Gst)</td><td class="text-end">@N(g.Taxable + g.Gst)</td></tr> }</tbody>
+        <tfoot class="fw-bold"><tr><td>Total</td><td class="text-end">@N(gst.Sum(g => g.Taxable))</td><td class="text-end">@N(gst.Sum(g => g.Gst))</td><td class="text-end">@N(gst.Sum(g => g.Taxable + g.Gst))</td></tr></tfoot>
+    </table>
+</div>
+
+@section Scripts {
+<script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
+<script src="~/lib/xlsx/xlsx.full.min.js"></script>
+<script>
+(function () {
+    const form = document.querySelector('form');
+    form.querySelectorAll('[data-auto]').forEach(i => i.addEventListener('change', () => form.submit()));
+    new TomSelect('#phSup', { allowEmptyOption: true, onChange: () => form.submit() });
+    document.getElementById('phExport').addEventListener('click', () => {
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.getElementById('phTable'), { raw: true }), 'Register');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.getElementById('phGst'), { raw: true }), 'GST summary');
+        XLSX.writeFile(wb, 'Purchase_Register_@(from.ToString("yyyyMMdd"))_@(to.ToString("yyyyMMdd")).xlsx');
+    });
+})();
+</script>
+}

@@ -204,6 +204,100 @@ public class HospitalSettingsViewModel
     [Display(Name = "Remind Day Closing Notification")]
     public bool DayClosingLoginReminder { get; set; } = true;
 
+    // ── Pharmacy (SQLScripts/2343) ──
+    [Display(Name = "Pharmacy Enabled")]
+    public bool PharmacyEnabled { get; set; } = false;
+
+    [Display(Name = "Pharmacy Display Name")]
+    [StringLength(150)]
+    public string? PharmacyName { get; set; }
+
+    [Display(Name = "Drug Licence No. (Form 20B)")]
+    [StringLength(50)]
+    public string? PharmacyDrugLicence20B { get; set; }
+
+    [Display(Name = "20B Valid To")]
+    public DateTime? PharmacyDrugLicence20BValidTo { get; set; }
+
+    [Display(Name = "Drug Licence No. (Form 21B)")]
+    [StringLength(50)]
+    public string? PharmacyDrugLicence21B { get; set; }
+
+    [Display(Name = "21B Valid To")]
+    public DateTime? PharmacyDrugLicence21BValidTo { get; set; }
+
+    [Display(Name = "Pharmacy GSTIN")]
+    [RegularExpression("^[0-9]{2}[A-Za-z]{5}[0-9]{4}[A-Za-z][1-9A-Za-z][Zz][0-9A-Za-z]$", ErrorMessage = "Pharmacy GSTIN is not in the 15-character format.")]
+    public string? PharmacyGstin { get; set; }
+
+    [Display(Name = "Pharmacist In-charge")]
+    [StringLength(100)]
+    public string? PharmacistName { get; set; }
+
+    [Display(Name = "Pharmacist Registration No.")]
+    [StringLength(50)]
+    public string? PharmacistRegNo { get; set; }
+
+    [Display(Name = "NDPS / Schedule X Licence No.")]
+    [StringLength(50)]
+    public string? PharmacyNdpsLicenceNo { get; set; }
+
+    [Display(Name = "Pharmacy Contact No.")]
+    [StringLength(30)]
+    public string? PharmacyContactNo { get; set; }
+
+    [Display(Name = "Allow Negative Stock")]
+    public bool PharmacyAllowNegativeStock { get; set; } = false;
+
+    [Display(Name = "Min. Shelf Life for Sale (Days)")]
+    [Range(0, 365)]
+    public int PharmacyMinShelfLifeSaleDays { get; set; } = 30;
+
+    [Display(Name = "Min. Shelf Life for IPD Issue (Days)")]
+    [Range(0, 365)]
+    public int PharmacyMinShelfLifeIpdDays { get; set; } = 0;
+
+    [Display(Name = "Min. Shelf Life to Accept at GRN (Days)")]
+    [Range(0, 730)]
+    public int PharmacyMinShelfLifeGrnDays { get; set; } = 90;
+
+    [Display(Name = "Near-Expiry Alert (Days)")]
+    [Range(0, 365)]
+    public int PharmacyNearExpiryAlertDays { get; set; } = 90;
+
+    [Display(Name = "Sale Return Allowed Within (Days)")]
+    [Range(0, 90)]
+    public int PharmacySaleReturnDays { get; set; } = 7;
+
+    [Display(Name = "Loose / Cut-Strip Return Allowed")]
+    public bool PharmacyLooseReturnAllowed { get; set; } = false;
+
+    [Display(Name = "Max. Manual Discount % (without approval)")]
+    [Range(0, 100)]
+    public decimal PharmacyMaxManualDiscountPercent { get; set; } = 10m;
+
+    [Display(Name = "IPD Issue GST Exempt")]
+    public bool PharmacyIpdGstExempt { get; set; } = true;
+
+    [Display(Name = "Block Discharge on Pending Pharmacy Indent")]
+    public bool PharmacyBlockDischargeOnPendingIndent { get; set; } = true;
+
+    [Display(Name = "Discharge Medicines (TTO) Billed On")]
+    public string PharmacyTtoBillingMode { get; set; } = "IPD";
+
+    [Display(Name = "Round Off Pharmacy Bill")]
+    public bool PharmacyRoundOffBill { get; set; } = true;
+
+    [Display(Name = "Pharmacy Bill Print Format")]
+    public string PharmacyBillPrintFormat { get; set; } = "A4";
+
+    [Display(Name = "Send Pharmacy Bill by WhatsApp / E-mail")]
+    public bool PharmacyBillNotificationRequired { get; set; } = false;
+
+    [Display(Name = "GRN Not Required")]
+    public bool PharmacyGrnNotRequired { get; set; }
+
+
     [Display(Name = "Login Retry Count")]
     [Range(0, 20, ErrorMessage = "Login Retry Count must be between 0 and 20 (0 = no lock).")]
     public int LoginRetryCount { get; set; }

@@ -1,0 +1,27 @@
+@using EMR.Web.Services
+@model List<dynamic>
+@{
+    // Pharmacy > Sales > Schedule H1 / X Register (Drugs & Cosmetics Rules, 1945 r.65(3); NDPS) - SQLScripts/2348
+    ViewData["Title"] = "Schedule H1 / X Register";
+    var (from, to, schedule) = ((DateTime, DateTime, string?))ViewBag.Filter;
+    var stats = new List<KeyValuePair<string, int>> { new("Entries", Model.Count), new("H1", Model.Count(r => (string)r.ScheduleCode == "H1")), new("X / NDPS", Model.Count(r => (string)r.ScheduleCode is "X" or "NDPS")) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Schedule H1 / X Register", "bi-journal-medical", "Kept automatically from the bills: patient, prescriber, drug, batch and quantity of every Schedule H1 / X / NDPS sale. Keep for 3 years; produce on inspection.", null, null, Stats: stats, Section: "Pharmacy", Group: "Sales"))" />
+<div class="card shadow-sm border-0">
+    <form method="get" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="width:auto"><span class="input-group-text bg-white">From</span><input type="date" name="from" value="@from.ToString("yyyy-MM-dd")" class="form-control" onchange="this.form.submit()" /><span class="input-group-text bg-white">To</span><input type="date" name="to" value="@to.ToString("yyyy-MM-dd")" class="form-control" onchange="this.form.submit()" /></div>
+        <select name="schedule" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()"><option value="">All schedules</option>@foreach (var s in new[] { "H1", "X", "NDPS" }) { <option value="@s" selected="@(s == schedule)">@s</option> }</select>
+        <button type="button" class="btn btn-sm btn-outline-success ms-auto" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+    </form>
+    <div class="ph-wrap"><table class="table table-sm mb-0 ph-table" id="phTable">
+        <thead><tr><th>#</th><th>Date</th><th>Bill</th><th>Sch.</th><th>Drug</th><th>Manufacturer</th><th>Batch</th><th>Exp.</th><th class="text-end">Qty</th><th>Patient &amp; address</th><th>Prescriber</th><th>Rx no.</th><th>Dispensed by</th></tr></thead>
+        <tbody>@{ var n = 0; }@foreach (var r in Model) {
+            <tr class="@((bool)r.IsCancelled ? "text-decoration-line-through text-muted" : "")"><td>@(++n)</td><td class="text-nowrap small">@(((DateTime)r.EntryDate).ToString("dd-MMM-yy HH:mm"))</td><td class="font-monospace small">@r.SaleNo</td>
+                <td><span class="badge sch sch-@r.ScheduleCode">@r.ScheduleCode</span></td><td class="fw-semibold">@r.ItemName</td><td class="small">@r.ManufacturerName</td><td>@r.BatchNo</td><td>@(((DateTime)r.ExpiryDate).ToString("MM/yy"))</td>
+                <td class="text-end">@(((decimal)r.Qty).ToString("0.##")) @r.SaleUom</td><td class="small"><b>@r.PatientName</b><br />@r.PatientAddress</td><td class="small">@r.PrescriberName<br />@r.PrescriberRegNo</td><td>@r.RxNo</td><td class="small">@r.DispensedBy</td></tr> }</tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No entries in this period.</div> }</div>
+</div>
+@section Scripts { <script src="~/lib/xlsx/xlsx.full.min.js"></script><script>document.getElementById('phExport').addEventListener('click', () => { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.getElementById('phTable'), { raw: true }), 'Register'); XLSX.writeFile(wb, 'Schedule_H1_X_Register.xlsx'); });</script> }
