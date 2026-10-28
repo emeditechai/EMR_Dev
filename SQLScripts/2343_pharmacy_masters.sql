@@ -462,7 +462,8 @@ BEGIN
         SELECT @CompanyId, @BranchId, t, n, p FROM (VALUES ('SALE',N'Pharmacy Sale Bill','PS'),('SRET',N'Sale Return','PSR'),
             ('IPDI',N'IPD Issue','PII'),('IPDR',N'IPD Return','PIR'),('INDT',N'IPD / Ward Indent','PIN'),('PO',N'Purchase Order','PO'),
             ('GRN',N'Goods Receipt (GRN)','GRN'),('PRET',N'Purchase Return','PRT'),('TRF',N'Stock Transfer','TRF'),('ADJ',N'Stock Adjustment','ADJ'),
-            ('PIND',N'Purchase Indent','PRQ'),('SPAY',N'Supplier Payment','SPY')) v (t, n, p);
+            ('PIND',N'Purchase Indent','PRQ'),('SPAY',N'Supplier Payment','SPY'),
+            ('BIND',N'Branch Indent','BIN'),('WOF',N'Expiry / Damage Write-off','WOF'),('PCNT',N'Physical Stock Verification','PSV'),('BCOR',N'Batch Correction','BCR')) v (t, n, p);
     END
 END;
 GO

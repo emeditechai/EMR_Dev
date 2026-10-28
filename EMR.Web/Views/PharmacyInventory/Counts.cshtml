@@ -1,0 +1,26 @@
+@using EMR.Web.Services
+@model List<PhInvDocRow>
+@{
+    ViewData["Title"] = "Physical Stock Verification";
+    var cats = (List<PhOption>)ViewBag.Categories;
+    var stats = new List<KeyValuePair<string, int>> { new("Open", Model.Count(m => m.Status is "COUNTING" or "SUBMITTED")), new("Approved", Model.Count(m => m.Status == "APPROVED")) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Physical Stock Verification", "bi-clipboard-check", "Freeze the system stock, count by rack on a blind count sheet, enter the counts, review the variance, submit; another user approves and the differences are adjusted and posted.", null, null, Stats: stats, Section: "Pharmacy", Group: "Inventory"))" />
+<form method="post" asp-action="Create" asp-permission="PHARMACY.STOCKCOUNT:CREATE" class="card shadow-sm border-0 mb-3">
+    @Html.AntiForgeryToken()
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-2"><label class="form-label small fw-semibold">Racks starting with</label><input name="rack" class="form-control form-control-sm text-uppercase" placeholder="all racks" maxlength="30" /></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Category</label><select name="categoryId" class="form-select form-select-sm"><option value="">All</option>@foreach (var c in cats) { <option value="@c.Value">@c.Text</option> }</select></div>
+        <div class="col-md-2"><div class="form-check mb-1"><input type="checkbox" class="form-check-input" name="includeZero" value="true" id="z"><label class="form-check-label small" for="z">Include zero-stock batches</label></div></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Remarks</label><input name="remarks" class="form-control form-control-sm" maxlength="300" /></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-snow me-1"></i>Freeze &amp; start</button></div>
+    </div>
+</form>
+<div class="card shadow-sm border-0"><div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable">
+    <thead><tr><th>#</th><th>Number</th><th>Frozen at</th><th>Scope</th><th class="text-end">Batches</th><th class="text-end">Difference (cost)</th><th>By</th><th>Status</th></tr></thead>
+    <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
+        <tr onclick="location.href='@Url.Action("Form", new { id = r.Id })'"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@r.DocNo</td><td>@r.DocDate.ToString("dd-MMM-yyyy HH:mm")</td><td class="small">@r.Party</td>
+            <td class="text-end">@r.Lines</td><td class="text-end @(r.Value < 0 ? "text-danger" : "")">@r.Value.ToString("N2")</td><td class="small">@r.CreatedByName</td><td><partial name="_InvStatus" model="r.Status" /></td></tr> }</tbody>
+</table>
+@if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No verification yet.</div> }</div></div>

@@ -1,0 +1,59 @@
+@using EMR.Web.Services
+@model PhInvDoc
+@{
+    var d = Model; int me = ViewBag.UserId; var mine = d.CreatedBy == me;
+    var counting = d.Status == "COUNTING"; var showSystem = !counting || Context.Request.Query["variance"] == "True" || Context.Request.Query["variance"] == "true";
+    ViewData["Title"] = d.DocNo;
+    var counted = d.Lines.Count(l => l.CountedQty != null);
+    var diffValue = d.Lines.Where(l => l.CountedQty != null).Sum(l => (l.CountedQty!.Value - l.SystemQty) * l.UnitCost);
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Physical Stock Verification", "bi-clipboard-check", $"Frozen {d.FrozenAt:dd-MMM-yyyy HH:mm} · {d.Scope} · by {d.CreatedByName}", null, null, d.DocNo, d.DocNo, Url.Action("Index"),
+    new List<KeyValuePair<string, int>> { new("Batches", d.Lines.Count), new("Counted", counted), new("Differences", d.Lines.Count(l => l.CountedQty != null && l.CountedQty != l.SystemQty)) }, "Pharmacy", "Inventory"))" />
+@if (d.ActionRemarks != null) { <div class="alert alert-warning small"><b>Note:</b> @d.ActionRemarks</div> }
+<div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+    <partial name="_InvStatus" model="d.Status" />
+    <a asp-action="Sheet" asp-route-id="@d.Id" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>Count sheet (blind)</a>
+    @if (counting) { <a asp-action="Form" asp-route-id="@d.Id" asp-route-variance="@(!showSystem)" class="btn btn-sm btn-outline-secondary">@(showSystem ? "Hide system stock" : "Show variance")</a> }
+    <input id="q" class="form-control form-control-sm" style="max-width:260px" placeholder="Find item / batch / rack" />
+    @if (showSystem) { <span class="ms-auto small">Difference at cost <b class="@(diffValue < 0 ? "text-danger" : "text-success")">₹ @diffValue.ToString("N2")</b></span> }
+</div>
+<form method="post" asp-action="SaveCounts" asp-route-id="@d.Id" id="cntForm">
+@Html.AntiForgeryToken()
+<div class="card shadow-sm border-0 mb-3"><div class="ph-wrap" style="max-height:calc(100vh - 340px)"><table class="table table-sm mb-0 ph-table" id="tbl">
+    <thead><tr><th>Rack</th><th>Item</th><th>Batch · exp.</th>@if (showSystem) { <th class="text-end">System</th> }<th class="text-end" style="width:130px">Counted</th>@if (showSystem) { <th class="text-end">Difference</th><th class="text-end">Value</th> }</tr></thead>
+    <tbody>@foreach (var l in d.Lines) { var diff = l.CountedQty - l.SystemQty;
+        <tr class="@(showSystem && diff != null && diff != 0 ? (diff < 0 ? "table-danger" : "table-success") : "")"><td>@(l.RackNo ?? "—")</td><td class="fw-semibold">@l.FormShort @l.ItemName</td><td class="small">@l.BatchNo · @l.ExpiryDate?.ToString("MMM-yy")</td>
+            @if (showSystem) { <td class="text-end">@l.SystemQty.ToString("0.##")</td> }
+            <td class="text-end">@if (counting) { <input type="number" min="0" step="1" name="count[@l.LineId]" value="@l.CountedQty?.ToString("0.###")" class="form-control form-control-sm text-end ms-auto" style="width:100px" /> } else { @l.CountedQty?.ToString("0.##") } <span class="small text-muted">@l.SaleUom</span></td>
+            @if (showSystem) { <td class="text-end fw-semibold">@diff?.ToString("+0.##;-0.##;0")</td><td class="text-end">@(((diff ?? 0) * l.UnitCost).ToString("N2"))</td> }</tr> }</tbody>
+</table></div></div>
+</form>
+<div class="d-flex flex-wrap gap-2 justify-content-end">
+    <a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+    @if (counting)
+    {
+        <button asp-permission="PHARMACY.STOCKCOUNT:COUNT" form="cntForm" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save counts</button>
+        <form method="post" asp-action="Submit" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:SUBMIT" data-confirm="Submit the counts for approval? Save your counts first."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form>
+    }
+    @if (d.Status == "SUBMITTED" && !mine)
+    {
+        <form method="post" asp-action="Reject" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:REJECT" data-remarks="What is to be recounted" data-required="1"><button class="btn btn-outline-warning">Send back for recount</button></form>
+        <form method="post" asp-action="Approve" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:APPROVE" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve &amp; adjust</button></form>
+    }
+    @if (d.Status is "COUNTING" or "SUBMITTED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:CANCEL" data-remarks="Reason for cancelling"><button class="btn btn-outline-danger">Cancel</button></form> }
+</div>
+@section Scripts {
+<script>
+document.getElementById('q').addEventListener('input', e => { const q = e.target.value.toLowerCase(); document.querySelectorAll('#tbl tbody tr').forEach(tr => tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none'); });
+document.querySelectorAll('#tbl input').forEach((i, k, all) => i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); (all[k + 1] || i).focus(); all[k + 1]?.select(); } }));
+document.querySelectorAll('form[data-confirm], form[data-remarks]').forEach(f => f.addEventListener('submit', async e => {
+    if (f.dataset.ok) return; e.preventDefault();
+    const r = f.dataset.remarks ? await Swal.fire({ title: f.querySelector('button').innerText.trim(), input: 'text', inputLabel: f.dataset.remarks, showCancelButton: true, inputValidator: x => f.dataset.required && !x.trim() ? 'Required.' : null })
+                                : await Swal.fire({ title: 'Please confirm', text: f.dataset.confirm, icon: 'question', showCancelButton: true });
+    if (!r.isConfirmed) return;
+    if (f.dataset.remarks) { const h = document.createElement('input'); h.type = 'hidden'; h.name = 'remarks'; h.value = r.value || ''; f.appendChild(h); }
+    f.dataset.ok = '1'; f.submit();
+}));
+</script>
+}

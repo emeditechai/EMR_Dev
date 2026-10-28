@@ -1,0 +1,127 @@
+@using System.Text.Json
+@using EMR.Web.Services
+@model PhInvDoc
+@{
+    var d = Model; int me = ViewBag.BranchId; var branches = (List<PhOption>)ViewBag.Branches;
+    var isNew = d.Id == 0; var asker = d.ToBranchId == me; var editable = asker && d.Status == "DRAFT";
+    var canDispatch = !asker && d.Status == "REQUESTED"; var canReceive = asker && d.Status == "DISPATCHED";
+    ViewData["Title"] = isNew ? "New branch indent" : (d.TransferNo ?? d.DocNo ?? "Draft indent");
+    string J(object? o) => JsonSerializer.Serialize(o, new JsonSerializerOptions { PropertyNamingPolicy = null });
+    var requested = d.Lines.Where(l => l.Qty > 0).ToList(); var sent = d.Lines.Where(l => l.DispatchQty > 0).ToList();
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Branch Indent & Transfer", "bi-arrow-left-right", isNew ? "Ask another branch for stock." : $"{d.ToBranch} asks {d.FromBranch}" + (d.IsOtherGstin ? " · branches have different GSTINs (inter-branch tax invoice is phase 2)" : ""), null, null, ViewData["Title"]!.ToString(), isNew ? "New" : "Indent", Url.Action("Index"), Section: "Pharmacy", Group: "Inventory"))" />
+<div class="card shadow-sm border-0 mb-3"><div class="card-body d-flex flex-wrap gap-4 small align-items-center">
+    <div><div class="text-muted">Status</div><partial name="_InvStatus" model="d.Status" /></div>
+    @if (!isNew) { <div><div class="text-muted">Indent</div><b>@(d.DocNo ?? "draft")</b> · @d.CreatedByName</div><div><div class="text-muted">Transfer</div><b>@(d.TransferNo ?? "—")</b> @d.DispatchDate?.ToString("dd-MMM HH:mm")</div><div><div class="text-muted">Received</div>@(d.ReceiveDate?.ToString("dd-MMM HH:mm") ?? "—")@if (d.VarianceValue != 0) { <span class="text-danger"> · short ₹ @d.VarianceValue.ToString("N2")</span> }</div> }
+</div></div>
+
+@if (editable || isNew)
+{
+    <form method="post" asp-action="Save" id="reqForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="json" id="json" /><input type="hidden" name="submit" id="submit" value="false" />
+    <div class="card shadow-sm border-0 mb-3"><div class="card-body row g-3">
+        <div class="col-md-4"><label class="form-label small fw-semibold req">Ask from branch</label><select id="from" class="form-select"><option value="">— select —</option>@foreach (var b in branches) { <option value="@b.Value" selected="@(b.Value == d.FromBranchId.ToString())">@b.Text</option> }</select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold">Priority</label><select id="prio" class="form-select"><option value="NORMAL">Normal</option><option value="URGENT" selected="@(d.Priority == "URGENT")">Urgent</option></select></div>
+        <div class="col-md-6"><label class="form-label small fw-semibold">Remarks</label><input id="remarks" class="form-control" maxlength="300" value="@d.Remarks" /></div>
+        <div class="col-md-6 position-relative"><label class="form-label small fw-semibold">Add item</label><input id="pick" class="form-control" placeholder="Brand or generic" autocomplete="off" /><div id="pickList" class="list-group position-absolute w-100 shadow d-none" style="z-index:30"></div></div>
+    </div>
+    <table class="table table-sm mb-0 ph-table"><thead><tr><th>Item</th><th class="text-end">Stock here</th><th class="text-end" style="width:200px">Quantity asked (units)</th><th></th></tr></thead><tbody id="reqLines"></tbody></table>
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+        @if (!isNew) { <button asp-permission="PHARMACY.TRANSFER:CANCEL" form="cnDraft" class="btn btn-outline-danger">Cancel indent</button> }
+        <button asp-permission="PHARMACY.TRANSFER:REQUEST" form="reqForm" class="btn btn-outline-primary" data-sub="false">Save draft</button>
+        <button asp-permission="PHARMACY.TRANSFER:REQUEST" form="reqForm" class="btn btn-primary" data-sub="true"><i class="bi bi-send me-1"></i>Send to branch</button>
+    </div>
+    </form>
+    @if (!isNew) { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnDraft">@Html.AntiForgeryToken()</form> }
+}
+else if (canDispatch)
+{
+    <form method="post" asp-action="Dispatch" asp-route-id="@d.Id" id="dspForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="json" id="json" />
+    <div class="card shadow-sm border-0 mb-3"><div class="card-body py-2 small fw-semibold">Send from this branch: batches are filled first expiry first; change them if needed.</div>
+    <table class="table table-sm mb-0 ph-table"><thead><tr><th>Item</th><th class="text-end">Asked</th><th>Batch</th><th class="text-end" style="width:140px">Send (units)</th></tr></thead><tbody id="dspLines"></tbody></table></div>
+    <div class="d-flex gap-2 align-items-center"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+        <input name="remarks" class="form-control" style="max-width:320px" placeholder="Dispatch remarks (vehicle, carrier...)" />
+        <button asp-permission="PHARMACY.TRANSFER:CANCEL" form="cnForm" class="btn btn-outline-danger">Decline</button>
+        <button asp-permission="PHARMACY.TRANSFER:DISPATCH" class="btn btn-success"><i class="bi bi-truck me-1"></i>Dispatch</button></div>
+    </form>
+    <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnForm">@Html.AntiForgeryToken()</form>
+}
+else
+{
+    <form method="post" asp-action="Receive" asp-route-id="@d.Id">
+    @Html.AntiForgeryToken()
+    <div class="card shadow-sm border-0 mb-3"><table class="table table-sm mb-0 ph-table">
+        <thead><tr><th>Item</th><th>Batch · exp.</th><th class="text-end">Asked</th><th class="text-end">Sent</th><th class="text-end">Received</th><th>Short reason</th><th class="text-end">Cost</th></tr></thead>
+        <tbody>
+        @foreach (var g in d.Lines.GroupBy(l => l.ItemId))
+        {
+            var ask = g.Sum(l => l.Qty);
+            foreach (var l in g.Where(l => l.DispatchQty > 0 || !sent.Any()))
+            {
+                <tr><td class="fw-semibold">@l.FormShort @l.ItemName</td><td class="small">@l.BatchNo @l.ExpiryDate?.ToString("MMM-yy")</td><td class="text-end">@ask.ToString("0.##")</td><td class="text-end">@l.DispatchQty.ToString("0.##")</td>
+                    <td class="text-end">@if (canReceive && l.DispatchQty > 0) { <input type="number" name="received[@l.LineId]" value="@l.DispatchQty.ToString("0.###")" min="0" max="@l.DispatchQty" step="1" class="form-control form-control-sm text-end ms-auto" style="width:90px" /> } else { @l.ReceivedQty?.ToString("0.##") }</td>
+                    <td>@if (canReceive && l.DispatchQty > 0) { <input name="reasons[@l.LineId]" class="form-control form-control-sm" maxlength="150" placeholder="if short" /> } else { @l.Remarks }</td>
+                    <td class="text-end">@((l.DispatchQty * l.UnitCost).ToString("N2"))</td></tr>
+            }
+        }
+        </tbody></table></div>
+    <div class="d-flex gap-2 align-items-center"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+        @if (d.Status != "DRAFT" && d.Status != "CANCELLED") { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
+        @if (canReceive) { <input name="remarks" class="form-control" style="max-width:320px" placeholder="Receipt remarks" /><button asp-permission="PHARMACY.TRANSFER:RECEIVE" class="btn btn-success"><i class="bi bi-box-arrow-in-down me-1"></i>Receive</button> }
+    </div>
+    </form>
+    @if (asker && d.Status == "REQUESTED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="PHARMACY.TRANSFER:CANCEL" class="mt-2 text-end">@Html.AntiForgeryToken()<button class="btn btn-sm btn-outline-danger">Cancel indent</button></form> }
+}
+
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const doc = @Html.Raw(J(new { d.Id, Lines = requested.Select(l => new { l.ItemId, l.ItemName, l.FormShort, l.SaleUom, l.Qty, l.Stock }) }));
+    const reqBody = document.getElementById('reqLines');
+    if (reqBody) {
+        let lines = doc.Lines.map(l => ({ ...l }));
+        const render = () => reqBody.innerHTML = lines.map((l, i) => `<tr><td class="fw-semibold">${esc(l.FormShort || '')} ${esc(l.ItemName)}</td><td class="text-end">${l.Stock ?? ''} ${esc(l.SaleUom)}</td>
+            <td><input type="number" min="1" class="form-control form-control-sm text-end" data-i="${i}" value="${l.Qty || ''}"></td><td><button type="button" class="btn btn-sm btn-link text-danger" data-del="${i}"><i class="bi bi-x-circle"></i></button></td></tr>`).join('')
+            || '<tr><td colspan="4" class="text-center text-muted py-3">Add the items needed.</td></tr>';
+        reqBody.addEventListener('input', e => { if (e.target.dataset.i) lines[e.target.dataset.i].Qty = parseFloat(e.target.value) || 0; });
+        reqBody.addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (b) { lines.splice(+b.dataset.del, 1); render(); } });
+        const pick = document.getElementById('pick'), list = document.getElementById('pickList'); let t, res = [];
+        pick.addEventListener('input', () => { clearTimeout(t); if (pick.value.trim().length < 2) { list.classList.add('d-none'); return; }
+            t = setTimeout(async () => { res = await fetch('@Url.Action("ItemSearch")?q=' + encodeURIComponent(pick.value.trim())).then(r => r.json());
+                list.innerHTML = res.map((r, k) => `<a href="#" class="list-group-item list-group-item-action py-1" data-k="${k}">${esc(r.formShort || '')} ${esc(r.itemName)} <span class="small text-muted">stock ${r.stock} ${esc(r.saleUom)}</span></a>`).join('') || '<div class="list-group-item small text-muted">Nothing found.</div>';
+                list.classList.remove('d-none'); }, 250); });
+        list.addEventListener('mousedown', e => { const a = e.target.closest('[data-k]'); if (!a) return; e.preventDefault(); const r = res[a.dataset.k];
+            if (!lines.some(l => l.ItemId === r.itemId)) lines.push({ ItemId: r.itemId, ItemName: r.itemName, FormShort: r.formShort, SaleUom: r.saleUom, Stock: r.stock, Qty: r.conversionQty });
+            list.classList.add('d-none'); pick.value = ''; render(); });
+        document.querySelectorAll('[data-sub]').forEach(b => b.addEventListener('click', () => document.getElementById('submit').value = b.dataset.sub));
+        document.getElementById('reqForm').addEventListener('submit', () => document.getElementById('json').value = JSON.stringify({ Id: doc.Id, FromBranchId: +document.getElementById('from').value || 0,
+            Priority: document.getElementById('prio').value, Remarks: document.getElementById('remarks').value, Lines: lines.map(l => ({ ItemId: l.ItemId, Qty: l.Qty })) }));
+        render();
+    }
+    const dsp = document.getElementById('dspLines');
+    if (dsp) {
+        const rows = [];
+        (async () => {
+            for (const l of doc.Lines) {
+                const bs = await fetch('@Url.Action("Batches")?itemId=' + l.ItemId).then(r => r.json());
+                let left = l.Qty;
+                if (!bs.length) rows.push({ l, b: null, q: 0 });
+                bs.forEach(b => { const q = Math.min(left, b.stock); if (q > 0 || !rows.some(r => r.l === l)) rows.push({ l, b, q, bs }); left -= q; });
+            }
+            dsp.innerHTML = rows.map((r, i) => `<tr><td class="fw-semibold">${esc(r.l.ItemName)}</td><td class="text-end">${r.l.Qty}</td>
+                <td>${r.b ? `${esc(r.b.batchNo)} · ${new Date(r.b.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })} · stock ${r.b.stock}` : '<span class="text-danger">no sellable stock</span>'}</td>
+                <td>${r.b ? `<input type="number" min="0" max="${r.b.stock}" class="form-control form-control-sm text-end" data-i="${i}" value="${r.q}">` : ''}</td></tr>`).join('');
+        })();
+        dsp.addEventListener('input', e => { if (e.target.dataset.i) rows[e.target.dataset.i].q = parseFloat(e.target.value) || 0; });
+        document.getElementById('dspForm').addEventListener('submit', () => document.getElementById('json').value = JSON.stringify(rows.filter(r => r.b && r.q > 0).map(r => ({ BatchId: r.b.batchId, DispatchQty: r.q }))));
+    }
+})();
+</script>
+}

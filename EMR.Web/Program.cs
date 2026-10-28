@@ -126,6 +126,7 @@ builder.Services.AddScoped<IPharmacyMasterService, PharmacyMasterService>();   /
 builder.Services.AddScoped<IPharmacyPurchaseService, PharmacyPurchaseService>();   // Pharmacy > Purchase (SQLScripts/2344)
 builder.Services.AddScoped<IPharmacySaleService, PharmacySaleService>();   // Pharmacy > Sales (SQLScripts/2348)
 builder.Services.AddScoped<IPharmacyBillNotifier, PharmacyBillNotifier>();   // pharmacy bill PDF + WhatsApp / e-mail (SQLScripts/2348)
+builder.Services.AddScoped<IPharmacyInventoryService, PharmacyInventoryService>();   // Pharmacy > Inventory (SQLScripts/2349)
 
 // EMR Template Service (EF Core)
 builder.Services.AddScoped<IEmrTemplateService, EmrTemplateService>();

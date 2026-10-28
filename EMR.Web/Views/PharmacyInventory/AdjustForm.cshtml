@@ -1,0 +1,99 @@
+@using System.Text.Json
+@using EMR.Web.Services
+@model PhInvDoc
+@{
+    var d = Model; string page = ViewBag.Page, title = ViewBag.Title; int me = ViewBag.UserId; var approvers = (List<int>)ViewBag.Approvers;
+    var wo = d.Kind == "WRITEOFF"; var editable = d.Status == "DRAFT"; var isNew = d.Id == 0; var mine = d.CreatedBy == me;
+    var reasons = (List<PhOption>)ViewBag.Reasons;
+    ViewData["Title"] = isNew ? "New " + title.ToLower() : d.DocNo ?? "Draft";
+    string J(object? o) => JsonSerializer.Serialize(o, new JsonSerializerOptions { PropertyNamingPolicy = null });
+    string D(DateTime? v) => v?.ToString("yyyy-MM-dd") ?? "";
+    var ro = !editable;
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader(title, wo ? "bi-trash3" : "bi-plus-slash-minus", isNew ? (wo ? "Pick expired / damaged batches and record how they are destroyed." : "Pick batches and enter + found / − short.") : $"by {d.CreatedByName}, {d.CreatedDate:dd-MMM-yyyy HH:mm}" + (d.ApprovedByName != null ? $" · decided by {d.ApprovedByName}, {d.ApprovedDate:dd-MMM HH:mm}" : ""), null, null, ViewData["Title"]!.ToString(), isNew ? "New" : d.DocNo ?? "Draft", Url.Action("Index"), Section: "Pharmacy", Group: "Inventory"))" />
+@if (d.ActionRemarks != null) { <div class="alert alert-light border small"><b>Approver's note:</b> @d.ActionRemarks</div> }
+@if (d.Status == "SUBMITTED") { <div class="alert alert-info small py-2"><i class="bi bi-person-check me-1"></i>@(approvers.Count > 0 ? "Approval Matrix applies: only its named approvers can approve." : "Any other user with the Approve permission can approve.") @(mine ? "You made this document, so you cannot approve it." : "")</div> }
+<form method="post" asp-action="Save" id="adjForm">
+@Html.AntiForgeryToken()
+<input type="hidden" name="json" id="json" />
+<div class="card shadow-sm border-0 mb-3"><div class="card-body row g-3">
+    <div class="col-md-2"><label class="form-label small fw-semibold">Status</label><div><partial name="_InvStatus" model="d.Status" /></div></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold req">Date</label><input type="date" id="docDate" class="form-control" value="@D(d.DocDate)" max="@D(DateTime.Today)" disabled="@ro" /></div>
+    <div class="col-md-4"><label class="form-label small fw-semibold req">Reason</label><select id="reason" class="form-select" disabled="@ro"><option value="">— select —</option>@foreach (var r in reasons) { <option value="@r.Value" selected="@(r.Value == d.ReasonId?.ToString())">@r.Text</option> }</select></div>
+    <div class="col-md-4"><label class="form-label small fw-semibold">Remarks</label><input id="remarks" class="form-control" maxlength="300" value="@d.Remarks" disabled="@ro" /></div>
+    @if (wo)
+    {
+        <div class="col-12 small fw-bold text-uppercase" style="color:var(--emr-primary,#644098)">Destruction record</div>
+        <div class="col-md-4"><label class="form-label small fw-semibold req">Method</label><input id="dMethod" class="form-control" list="methods" maxlength="100" value="@d.DisposalMethod" disabled="@ro" placeholder="Incineration through the BMW agency" />
+            <datalist id="methods"><option>Incineration through the bio-medical waste agency</option><option>Returned to manufacturer for destruction</option><option>Chemical / deep burial as per BMW Rules</option></datalist></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Agency</label><input id="dAgency" class="form-control" maxlength="150" value="@d.DisposalAgency" disabled="@ro" /></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold req">Date</label><input type="date" id="dDate" class="form-control" value="@D(d.DisposalDate)" disabled="@ro" /></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Certificate / manifest no.</label><input id="dCert" class="form-control" maxlength="60" value="@d.CertificateNo" disabled="@ro" /></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold req">Witness 1</label><input id="w1" class="form-control" maxlength="100" value="@d.Witness1" disabled="@ro" /></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold">Witness 2</label><input id="w2" class="form-control" maxlength="100" value="@d.Witness2" disabled="@ro" /></div>
+    }
+    @if (editable) { <div class="col-md-6 position-relative"><label class="form-label small fw-semibold">Add batch</label><input id="pick" class="form-control" placeholder="Item, batch or barcode" autocomplete="off" /><div id="pickList" class="list-group position-absolute w-100 shadow d-none" style="z-index:30"></div></div> }
+</div>
+<table class="table table-sm mb-0 ph-table"><thead><tr><th>Item</th><th>Batch · expiry</th><th class="text-end">Stock</th><th class="text-end" style="width:150px">@(wo ? "Quantity destroyed" : "Change (+ / −)")</th><th class="text-end">Cost</th><th class="text-end">Value</th><th>Remarks</th><th></th></tr></thead><tbody id="lines"></tbody>
+    <tfoot><tr><td colspan="5" class="text-end fw-bold">Total</td><td class="text-end fw-bold" id="tot"></td><td colspan="2"></td></tr></tfoot></table>
+</div>
+</form>
+<div class="d-flex flex-wrap gap-2 justify-content-end align-items-center">
+    <a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+    @if (!isNew && d.Status != "DRAFT") { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
+    @if (editable) { <button asp-permission="@($"{page}:SAVE")" form="adjForm" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save draft</button> }
+    @if (!isNew && d.Status == "DRAFT") { <form method="post" asp-action="Submit" asp-route-id="@d.Id" asp-permission="@($"{page}:SUBMIT")" data-confirm="Submit for approval? It cannot be changed after that."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form> }
+    @if (d.Status == "SUBMITTED" && !mine)
+    {
+        <form method="post" asp-action="Reject" asp-route-id="@d.Id" asp-permission="@($"{page}:REJECT")" data-remarks="Reason for rejecting" data-required="1"><button class="btn btn-outline-danger">Reject</button></form>
+        <form method="post" asp-action="Approve" asp-route-id="@d.Id" asp-permission="@($"{page}:APPROVE")" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve</button></form>
+    }
+    @if (d.Status is "DRAFT" or "SUBMITTED" && !isNew) { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="@($"{page}:CANCEL")" data-confirm="Cancel this document?"><button class="btn btn-outline-danger">Cancel</button></form> }
+</div>
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const wo = @(wo ? "true" : "false"), editable = @(editable ? "true" : "false");
+    let lines = @Html.Raw(J(d.Lines.Select(l => new { l.BatchId, l.ItemName, l.FormShort, l.BatchNo, l.ExpiryDate, l.Stock, l.SaleUom, l.UnitCost, Qty = d.Kind == "WRITEOFF" ? Math.Abs(l.Qty) : l.Qty, l.Remarks })));
+    const body = document.getElementById('lines');
+    const render = () => {
+        let tot = 0;
+        body.innerHTML = lines.map((l, i) => { const v = (wo ? -1 : 1) * (parseFloat(l.Qty) || 0) * l.UnitCost; tot += v;
+            return `<tr><td class="fw-semibold">${esc(l.FormShort || '')} ${esc(l.ItemName)}</td><td class="small">${esc(l.BatchNo)} · ${new Date(l.ExpiryDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })}</td>
+            <td class="text-end">${l.Stock} ${esc(l.SaleUom)}</td><td>${editable ? `<input type="number" step="1" ${wo ? 'min="0"' : ''} class="form-control form-control-sm text-end" data-i="${i}" data-f="Qty" value="${l.Qty}">` : `<div class="text-end">${l.Qty}</div>`}</td>
+            <td class="text-end">${(+l.UnitCost).toFixed(2)}</td><td class="text-end ${v < 0 ? 'text-danger' : 'text-success'}">${v.toFixed(2)}</td>
+            <td>${editable ? `<input class="form-control form-control-sm" data-i="${i}" data-f="Remarks" value="${esc(l.Remarks || '')}" maxlength="200">` : esc(l.Remarks || '')}</td>
+            <td>${editable ? `<button type="button" class="btn btn-sm btn-link text-danger p-0" data-del="${i}"><i class="bi bi-x-circle"></i></button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="8" class="text-center text-muted py-3">Add batches.</td></tr>';
+        document.getElementById('tot').textContent = tot.toFixed(2);
+    };
+    body.addEventListener('change', e => { const t = e.target; if (t.dataset.i) { lines[t.dataset.i][t.dataset.f] = t.dataset.f === 'Qty' ? parseFloat(t.value) || 0 : t.value; render(); } });
+    body.addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (b) { lines.splice(+b.dataset.del, 1); render(); } });
+    const pick = document.getElementById('pick');
+    if (pick) {
+        const list = document.getElementById('pickList'); let t, res = [];
+        pick.addEventListener('input', () => { clearTimeout(t); if (pick.value.trim().length < 2) { list.classList.add('d-none'); return; }
+            t = setTimeout(async () => { res = await fetch('@Url.Action("BatchSearch")?q=' + encodeURIComponent(pick.value.trim())).then(r => r.json());
+                list.innerHTML = res.map((r, k) => `<a href="#" class="list-group-item list-group-item-action py-1" data-k="${k}"><b>${esc(r.itemName)}</b> · ${esc(r.batchNo)} · exp ${new Date(r.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })} · stock ${r.stock} ${esc(r.saleUom)}${r.daysToExpiry <= 0 ? ' <span class="badge bg-danger">expired</span>' : ''}</a>`).join('') || '<div class="list-group-item small text-muted">Nothing in stock matches.</div>';
+                list.classList.remove('d-none'); }, 250); });
+        list.addEventListener('mousedown', e => { const a = e.target.closest('[data-k]'); if (!a) return; e.preventDefault(); const r = res[a.dataset.k];
+            if (!lines.some(l => l.BatchId === r.batchId)) lines.push({ BatchId: r.batchId, ItemName: r.itemName, FormShort: r.formShort, BatchNo: r.batchNo, ExpiryDate: r.expiryDate, Stock: r.stock, SaleUom: r.saleUom, UnitCost: r.landedCost, Qty: wo ? r.stock : 0, Remarks: '' });
+            list.classList.add('d-none'); pick.value = ''; render(); });
+    }
+    const v = id => document.getElementById(id)?.value || null;
+    document.getElementById('adjForm').addEventListener('submit', () => document.getElementById('json').value = JSON.stringify({ Id: @d.Id, DocDate: v('docDate'), ReasonId: +v('reason') || null, Remarks: v('remarks'),
+        DisposalMethod: v('dMethod'), DisposalAgency: v('dAgency'), DisposalDate: v('dDate'), CertificateNo: v('dCert'), Witness1: v('w1'), Witness2: v('w2'),
+        Lines: lines.map(l => ({ BatchId: l.BatchId, Qty: l.Qty, Remarks: l.Remarks })) }));
+    render();
+    document.querySelectorAll('form[data-confirm], form[data-remarks]').forEach(f => f.addEventListener('submit', async e => {
+        if (f.dataset.ok) return; e.preventDefault();
+        const r = f.dataset.remarks ? await Swal.fire({ title: f.querySelector('button').innerText.trim(), input: 'text', inputLabel: f.dataset.remarks, showCancelButton: true, inputValidator: x => f.dataset.required && !x.trim() ? 'Required.' : null })
+                                    : await Swal.fire({ title: 'Please confirm', text: f.dataset.confirm, icon: 'question', showCancelButton: true });
+        if (!r.isConfirmed) return;
+        if (f.dataset.remarks) { const h = document.createElement('input'); h.type = 'hidden'; h.name = 'remarks'; h.value = r.value || ''; f.appendChild(h); }
+        f.dataset.ok = '1'; f.submit();
+    }));
+})();
+</script>
+}
