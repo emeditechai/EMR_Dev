@@ -1,0 +1,23 @@
+#!/bin/sh
+# Data dictionary auto-refresh (installed by Tools/datadictionary/install_hooks.sh).
+# After a commit that touches SQLScripts/ or Tools/datadictionary/, re-reads the database schema and, when the
+# data dictionary changed, commits the refreshed Docs/DataDictionary in a follow-up commit.
+# Skip once with:  DD_SKIP=1 git commit ...
+[ -n "$DD_HOOK_RUNNING" ] && exit 0
+[ -n "$DD_SKIP" ] && exit 0
+ROOT=$(git rev-parse --show-toplevel) || exit 0
+cd "$ROOT" || exit 0
+[ -f Tools/datadictionary/update_data_dictionary.py ] || exit 0
+git diff-tree --no-commit-id --name-only -r HEAD | grep -qE '^(SQLScripts/|Tools/datadictionary/)' || exit 0
+
+echo "data dictionary: checking the database schema ..."
+PY=$(command -v python3 || command -v python)
+"$PY" Tools/datadictionary/update_data_dictionary.py --quiet || { echo "data dictionary: not refreshed (see message above)."; exit 0; }
+
+git add Docs/DataDictionary
+if ! git diff --cached --quiet -- Docs/DataDictionary; then
+    DD_HOOK_RUNNING=1 git -c user.name="$(git log -1 --format=%an)" -c user.email="$(git log -1 --format=%ae)" \
+        commit --no-verify -q -m "Docs: data dictionary refreshed (auto)" -- Docs/DataDictionary \
+        && echo "data dictionary: refreshed and committed."
+fi
+exit 0

@@ -1,0 +1,18 @@
+[
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "Initial release: Common foundation, OPD and LAB (185 tables)"
+  ],
+  "date": "28 Oct 2026",
+  "version": "1.0"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "Added Part D Pharmacy, Part E Accounts and Part F Inventory (268 tables)"
+  ],
+  "date": "28 Oct 2026",
+  "version": "1.1"
+ }
+]
