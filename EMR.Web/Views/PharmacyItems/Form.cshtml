@@ -139,6 +139,7 @@
                 </select>
                 <div class="form-text" id="schHint"></div>
             </div>
+            <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="PrescriptionRequired" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="PrescriptionRequired"><i class="bi bi-prescription2 text-danger"></i> Prescription required</label></div><div class="small text-muted">Counter must enter doctor and Rx no. Always on for H1 / X / NDPS.</div></div></div>
             <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsColdChain" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsColdChain"><i class="bi bi-snow text-info"></i> Cold chain</label></div><div class="small text-muted">Store at 2-8 °C; not returnable once sold.</div></div></div>
             <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsHighAlert" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsHighAlert"><i class="bi bi-exclamation-octagon-fill text-danger"></i> High alert</label></div><div class="small text-muted">Warning on issue (insulin, KCl, heparin ...).</div></div></div>
             <div class="col-md-4 col-xl"><div class="ph-flagbox"><div class="form-check form-switch"><input asp-for="IsLasa" class="form-check-input" role="switch" /><label class="form-check-label" asp-for="IsLasa"><i class="bi bi-eye-fill text-warning"></i> LASA</label></div><div class="small text-muted">Look-alike / sound-alike: double check.</div></div></div>
@@ -240,6 +241,9 @@
         $('schHint').innerHTML = s.Warning ? `<i class="bi bi-exclamation-triangle text-danger me-1"></i>${esc(s.Warning)}` : 'No prescription needed.';
         $('gstHint').textContent = h ? `Counter sale: CGST ${h.Gst / 2}% + SGST ${h.Gst / 2}%; inter-state purchase: IGST ${h.Gst}%.` : '';
         const controlled = s.Code === 'X' || s.Code === 'NDPS';
+        const register = controlled || s.Code === 'H1';
+        if (register) $('PrescriptionRequired').checked = true;
+        $('PrescriptionRequired').disabled = register || !canEdit;
         if (controlled) $('IsReturnable').checked = false;
         $('IsReturnable').disabled = controlled || !canEdit;
         const pu = uomCode($('PurchaseUomId')), su = uomCode($('SaleUomId')), n = Number($('ConversionQty').value) || 0;
@@ -251,6 +255,8 @@
             : 'Pick purchase and sale units.';
     }
     form.addEventListener('input', refresh); form.addEventListener('change', refresh); refresh();
+    // a new schedule suggests its default (H and above need a prescription); the user can still change it for H / OTC / G
+    $('ScheduleCode').addEventListener('change', () => { const s = sch.find(x => x.Code === $('ScheduleCode').value); if (s) { $('PrescriptionRequired').checked = !!s.Rx; refresh(); } });
 
     // similar items already in the master (avoid duplicates)
     let t;
@@ -267,7 +273,7 @@
 
     form.querySelectorAll('[data-next]').forEach(b => b.addEventListener('click', () => $('next').value = b.dataset.next));
     form.addEventListener('submit', e => {
-        $('IsReturnable').disabled = false;
+        $('IsReturnable').disabled = false; $('PrescriptionRequired').disabled = false;
         if (!form.checkValidity()) { e.preventDefault(); form.classList.add('was-validated'); const bad = form.querySelector(':invalid'); bad && bad.focus(); }
     });
     document.addEventListener('keydown', e => {

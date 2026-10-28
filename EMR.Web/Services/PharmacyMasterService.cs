@@ -291,6 +291,7 @@ public class PhItemListRow
     public bool IsColdChain { get; set; }
     public bool IsHighAlert { get; set; }
     public bool IsLasa { get; set; }
+    public bool PrescriptionRequired { get; set; }
     public string? RackNo { get; set; }
     public bool IsActive { get; set; }
     public int TotalCount { get; set; }
@@ -318,6 +319,7 @@ public class PhItemForm
     public bool IsLasa { get; set; }
     public bool IsReturnable { get; set; } = true;
     public bool IsDiscountAllowed { get; set; } = true;
+    public bool PrescriptionRequired { get; set; } = true;   // SQLScripts/2350: doctor + Rx no. asked at the counter
     public string? Barcode { get; set; }
     public decimal ReorderLevel { get; set; }
     public decimal MinQty { get; set; }
@@ -557,7 +559,7 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
         SELECT i.ItemId, i.ItemCode, i.ItemName, df.ShortName AS FormShort, i.Strength, i.PackSize, g.GenericName, m.ManufacturerName,
                CASE WHEN pc.CategoryId IS NULL THEN c.CategoryName ELSE pc.CategoryName + N' › ' + c.CategoryName END AS CategoryName,
                i.ScheduleCode, h.HsnCode, h.GstPercent, pu.UomCode AS PurchaseUom, su.UomCode AS SaleUom, i.ConversionQty,
-               i.IsColdChain, i.IsHighAlert, i.IsLasa, ib.RackNo, i.IsActive";
+               i.IsColdChain, i.IsHighAlert, i.IsLasa, i.PrescriptionRequired, ib.RackNo, i.IsActive";
     private const string ItemFrom = @"
         FROM dbo.PhItem i
         JOIN dbo.PhCategory c ON c.CategoryId = i.CategoryId LEFT JOIN dbo.PhCategory pc ON pc.CategoryId = c.ParentCategoryId
@@ -650,6 +652,7 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
         if (f.MinQty < 0 || f.ReorderLevel < 0 || f.MaxQty < 0) return (0, "Stock levels cannot be negative.");
         if (f.MaxQty > 0 && (f.MinQty > f.MaxQty || f.ReorderLevel > f.MaxQty)) return (0, "Minimum and reorder level must not be above the maximum.");
         if (f.ScheduleCode is "X" or "NDPS") f.IsReturnable = false;   // controlled drugs are never taken back over the counter
+        if (f.ScheduleCode is "H1" or "X" or "NDPS") f.PrescriptionRequired = true;   // register drugs: prescriber and Rx no. are statutory
 
         using var con = db.CreateConnection();
         if (con.State != ConnectionState.Open) con.Open();
@@ -665,7 +668,7 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
                 "SELECT 'PH' + RIGHT('00000' + CAST(ISNULL(MAX(ItemId), 0) + 1 AS VARCHAR(10)), 5) FROM dbo.PhItem WITH (UPDLOCK, HOLDLOCK)", transaction: tx);
             var p = new DynamicParameters(f);
             p.Add("companyId", companyId); p.Add("branchId", branchId); p.Add("userId", userId);
-            const string cols = "ItemCode, ItemName, GenericId, ManufacturerId, CategoryId, DosageFormId, Strength, PackSize, ScheduleCode, HsnId, PurchaseUomId, SaleUomId, ConversionQty, AllowLooseSale, IsColdChain, IsHighAlert, IsLasa, IsReturnable, IsDiscountAllowed, Barcode, ReorderLevel, MinQty, MaxQty, LeadDays, Remarks, IsActive";
+            const string cols = "ItemCode, ItemName, GenericId, ManufacturerId, CategoryId, DosageFormId, Strength, PackSize, ScheduleCode, HsnId, PurchaseUomId, SaleUomId, ConversionQty, AllowLooseSale, IsColdChain, IsHighAlert, IsLasa, IsReturnable, IsDiscountAllowed, PrescriptionRequired, Barcode, ReorderLevel, MinQty, MaxQty, LeadDays, Remarks, IsActive";
             if (f.ItemId == 0)
                 f.ItemId = await con.ExecuteScalarAsync<int>($"INSERT dbo.PhItem (CompanyId, {cols}, CreatedBy) VALUES (@companyId, {string.Join(", ", cols.Split(", ").Select(c => "@" + c))}, @userId); SELECT CAST(SCOPE_IDENTITY() AS INT);", p, tx);
             else if (await con.ExecuteAsync($"UPDATE dbo.PhItem SET {string.Join(", ", cols.Split(", ").Select(c => $"{c} = @{c}"))}, ModifiedBy = @userId, ModifiedDate = GETDATE() WHERE ItemId = @ItemId AND CompanyId = @companyId", p, tx) == 0)

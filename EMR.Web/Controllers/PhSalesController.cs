@@ -59,8 +59,8 @@ public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseServ
         using var con = db.CreateConnection();
         return Json(await con.QueryAsync(@"SELECT TOP 15 pm.PatientId id, pm.PatientCode uhid, LTRIM(RTRIM(ISNULL(pm.FirstName, '') + ' ' + ISNULL(pm.LastName, ''))) name, pm.PhoneNumber mobile,
                 pm.EmailId email, pm.Address address, pm.Gender gender,
-                (SELECT TOP 1 ISNULL(d.NamePrefix + ' ', '') + d.FullName FROM dbo.PatientOPDService v JOIN dbo.DoctorMaster d ON d.DoctorId = v.DoctorId WHERE v.PatientId = pm.PatientId ORDER BY v.OPDServiceId DESC) lastDoctor,
-                (SELECT TOP 1 v.DoctorId FROM dbo.PatientOPDService v WHERE v.PatientId = pm.PatientId ORDER BY v.OPDServiceId DESC) lastDoctorId
+                (SELECT TOP 1 ISNULL(d.NamePrefix + ' ', '') + d.FullName FROM dbo.PatientOPDService v JOIN dbo.DoctorMaster d ON d.DoctorId = v.ConsultingDoctorId WHERE v.PatientId = pm.PatientId ORDER BY v.OPDServiceId DESC) lastDoctor,
+                (SELECT TOP 1 v.ConsultingDoctorId FROM dbo.PatientOPDService v WHERE v.PatientId = pm.PatientId ORDER BY v.OPDServiceId DESC) lastDoctorId
             FROM dbo.PatientMaster pm WHERE pm.CompanyId = @co AND pm.IsActive = 1
               AND (pm.PatientCode LIKE @like OR pm.PhoneNumber LIKE @like OR pm.FirstName LIKE @like OR pm.LastName LIKE @like OR (pm.FirstName + ' ' + pm.LastName) LIKE @like)
             ORDER BY CASE WHEN pm.PatientCode = @q OR pm.PhoneNumber = @q THEN 0 ELSE 1 END, pm.FirstName", new { co = CompanyId, q = q.Trim(), like = "%" + q.Trim() + "%" }));

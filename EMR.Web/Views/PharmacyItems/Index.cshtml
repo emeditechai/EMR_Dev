@@ -66,7 +66,7 @@
                     <td>@if (r.GenericName == null) { <span class="text-muted">—</span> } else { @r.GenericName }</td>
                     <td>@if (r.ManufacturerName == null) { <span class="text-muted">—</span> } else { @r.ManufacturerName }</td>
                     <td>@r.CategoryName</td>
-                    <td><span class="badge sch sch-@r.ScheduleCode">@r.ScheduleCode</span></td>
+                    <td><span class="badge sch sch-@r.ScheduleCode">@r.ScheduleCode</span>@if (r.PrescriptionRequired) { <span class="badge bg-danger-subtle text-danger border ms-1" title="Prescription required">Rx</span> }</td>
                     <td class="text-nowrap">1 @r.PurchaseUom = @r.ConversionQty @r.SaleUom</td>
                     <td class="text-nowrap">@r.HsnCode · <b>@r.GstPercent.ToString("0.##")%</b></td>
                     <td>@if (r.RackNo == null) { <span class="text-muted">—</span> } else { @r.RackNo }</td>

@@ -49,14 +49,14 @@ else if (set.Licence20BValidTo is { } lic && lic < DateTime.Today.AddDays(30)) {
         @* customer + prescription *@
         <div class="pos-card p-2 mb-2">
             <div class="row g-2 align-items-end">
-                <div class="col-lg-4">
+                <div class="col-lg-5">
                     <div class="btn-group btn-group-sm w-100 pos-seg" role="group">
                         <input type="radio" class="btn-check" name="ck" id="ckW" value="WALKIN" checked><label class="btn btn-outline-primary" for="ckW"><i class="bi bi-person me-1"></i>Walk-in</label>
                         <input type="radio" class="btn-check" name="ck" id="ckP" value="PATIENT"><label class="btn btn-outline-primary" for="ckP"><i class="bi bi-person-vcard me-1"></i>Patient</label>
-                        <input type="radio" class="btn-check" name="ck" id="ckC" value="CUSTOMER"><label class="btn btn-outline-primary" for="ckC"><i class="bi bi-wallet2 me-1"></i>Credit cust.</label>
+                        <input type="radio" class="btn-check" name="ck" id="ckC" value="CUSTOMER"><label class="btn btn-outline-primary" for="ckC" title="A regular buyer registered in Master > Pharmacy Master > Pharmacy Customer: buys on credit within a limit (pays later in Credit Collection), gets a fixed discount scheme or staff price, or needs a GST invoice."><i class="bi bi-wallet2 me-1"></i>Credit customer</label>
                     </div>
                 </div>
-                <div class="col-lg-8" id="custBox"></div>
+                <div class="col-lg-7" id="custBox"></div>
                 <div class="col-md-4 position-relative">
                     <label class="form-label small fw-semibold mb-0" id="docLbl">Doctor</label>
                     <input id="docName" class="form-control form-control-sm" placeholder="Search doctor or type name" autocomplete="off" maxlength="150">

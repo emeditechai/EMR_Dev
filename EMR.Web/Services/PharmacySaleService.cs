@@ -295,7 +295,7 @@ public class PharmacySaleService(IDbConnectionFactory db) : IPharmacySaleService
         using var con = db.CreateConnection();
         return (await con.QueryAsync<PhPosItem>($@"
             SELECT TOP 25 i.ItemId, i.ItemCode, i.ItemName, df.ShortName FormShort, i.Strength, i.PackSize, i.GenericId, g.GenericName, m.ManufacturerName, i.CategoryId,
-                   i.ScheduleCode, sc.RxRequired, sc.RegisterRequired, sc.IsNarcotic, sc.LabelWarning, su.UomCode SaleUom, pu.UomCode PurchaseUom, i.ConversionQty,
+                   i.ScheduleCode, i.PrescriptionRequired RxRequired, sc.RegisterRequired, sc.IsNarcotic, sc.LabelWarning, su.UomCode SaleUom, pu.UomCode PurchaseUom, i.ConversionQty,
                    i.AllowLooseSale, i.IsDiscountAllowed, i.IsReturnable, i.IsHighAlert, i.IsLasa, i.IsColdChain, h.GstPercent, ib.RackNo,
                    ISNULL(st.Qty, 0) Stock, st.NearestExpiry, st.PackMrp
             FROM dbo.PhItem i
@@ -419,7 +419,7 @@ public class PharmacySaleService(IDbConnectionFactory db) : IPharmacySaleService
 
             // items and batches: first expiry first, split over batches; a chosen batch is used as it is
             var items = (await con.QueryAsync<(int ItemId, string ItemName, int Conv, bool Loose, bool DiscOk, string Schedule, bool Rx, bool Reg, bool Narc, bool Active)>(@"
-                SELECT i.ItemId, i.ItemName, i.ConversionQty, i.AllowLooseSale, i.IsDiscountAllowed, i.ScheduleCode, sc.RxRequired, sc.RegisterRequired, sc.IsNarcotic, i.IsActive
+                SELECT i.ItemId, i.ItemName, i.ConversionQty, i.AllowLooseSale, i.IsDiscountAllowed, i.ScheduleCode, i.PrescriptionRequired, sc.RegisterRequired, sc.IsNarcotic, i.IsActive
                 FROM dbo.PhItem i JOIN dbo.PhDrugSchedule sc ON sc.ScheduleCode = i.ScheduleCode WHERE i.CompanyId = @companyId AND i.ItemId IN @ids",
                 new { companyId, ids = lines.Select(l => l.ItemId).Distinct() }, tx)).ToDictionary(i => i.ItemId);
             var priced = new List<Priced>();
@@ -471,7 +471,7 @@ public class PharmacySaleService(IDbConnectionFactory db) : IPharmacySaleService
 
             // prescription and register
             if (!hold && priced.Any(p => items[p.ItemId].Rx) && (string.IsNullOrWhiteSpace(r.DoctorName) || string.IsNullOrWhiteSpace(r.RxNo)))
-            { tx.Rollback(); return Fail("A prescription drug (Schedule H / H1 / X) is on the bill: enter the doctor and the prescription number."); }
+            { tx.Rollback(); return Fail("An item that needs a prescription is on the bill: enter the doctor and the prescription number."); }
             if (!hold && priced.Any(p => p.Register) && (string.IsNullOrWhiteSpace(r.CustomerName) || string.IsNullOrWhiteSpace(r.Address)))
             { tx.Rollback(); return Fail("A Schedule H1 / X drug is on the bill: the patient's name and address are needed for the register."); }
 

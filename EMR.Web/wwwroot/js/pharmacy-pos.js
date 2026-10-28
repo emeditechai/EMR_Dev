@@ -90,7 +90,7 @@
             if (kind === 'WALKIN' && $('wName')) { $('wName').classList.toggle('rx-need', reg && !$('wName').value.trim()); $('wAddress').classList.toggle('rx-need', reg && !$('wAddress').value.trim()); }
             const w = lines.filter(l => l.item.labelWarning || l.item.isHighAlert || l.item.isLasa);
             $('rxWarn').classList.toggle('d-none', !rx && !w.length);
-            $('rxWarn').innerHTML = (rx ? `<div class="alert alert-danger py-1 px-2 small mb-1"><i class="bi bi-prescription2 me-1"></i>Prescription drug on the bill: doctor and prescription no. are required${reg ? '; Schedule H1 / X: patient name and address go to the register' : ''}.</div>` : '')
+            $('rxWarn').innerHTML = (rx ? `<div class="alert alert-danger py-1 px-2 small mb-1"><i class="bi bi-prescription2 me-1"></i>An item needing a prescription is on the bill: doctor and prescription no. are required${reg ? '; Schedule H1 / X: patient name and address go to the register' : ''}.</div>` : '')
                 + w.filter(l => l.item.isHighAlert || l.item.isLasa).map(l => `<div class="alert alert-warning py-1 px-2 small mb-1"><i class="bi bi-exclamation-octagon me-1"></i>${esc(l.item.itemName)}: ${l.item.isHighAlert ? 'HIGH-ALERT medicine - double check dose. ' : ''}${l.item.isLasa ? 'Look-alike / sound-alike - confirm the pack.' : ''}</div>`).join('');
         }
 
