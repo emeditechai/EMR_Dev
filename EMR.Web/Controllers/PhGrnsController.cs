@@ -65,7 +65,8 @@ public class PhGrnsController(IPharmacyPurchaseService purchase, IAuditLogServic
 
     private static readonly Dictionary<string, string> BillTypes = new() { [".pdf"] = "application/pdf", [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg", [".png"] = "image/png", [".webp"] = "image/webp" };
 
-    /// <summary>Scanned supplier bill: kept outside wwwroot (App_Data/pharmacy/grn) and served only through Attachment.</summary>
+    /// <summary>Scanned supplier bill: saved in wwwroot/uploads/pharmacy/grn like the other uploads; the GRN page opens it through
+    /// Attachment (VIEW of the GRN page). Scans saved earlier in App_Data/pharmacy/grn still open.</summary>
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Attach(int id, IFormFile? file)
     {
@@ -73,12 +74,12 @@ public class PhGrnsController(IPharmacyPurchaseService purchase, IAuditLogServic
         if (file == null || file.Length == 0) return await Done(id, "Choose the scanned bill (PDF or image).", "Attach", "");
         if (!BillTypes.ContainsKey(ext)) return await Done(id, "Bill scan: PDF, JPG, PNG or WEBP only.", "Attach", "");
         if (file.Length > 5 * 1024 * 1024) return await Done(id, "Bill scan: up to 5 MB.", "Attach", "");
-        var dir = Path.Combine(env.ContentRootPath, "App_Data", "pharmacy", "grn");
+        var dir = Path.Combine(env.WebRootPath, "uploads", "pharmacy", "grn");
         Directory.CreateDirectory(dir);
         var name = $"grn{id}_{Guid.NewGuid():N}{ext}";
         await using (var fs = System.IO.File.Create(Path.Combine(dir, name))) await file.CopyToAsync(fs);
         var original = Path.GetFileName(file.FileName);
-        return await Done(id, await Purchase.AttachAsync(CompanyId, BranchId, id, name, original.Length > 150 ? original[^150..] : original), "Attach", "Supplier bill attached.");
+        return await Done(id, await Purchase.AttachAsync(CompanyId, BranchId, id, "/uploads/pharmacy/grn/" + name, original.Length > 150 ? original[^150..] : original), "Attach", "Supplier bill attached.");
     }
 
     [HttpGet]
@@ -86,7 +87,10 @@ public class PhGrnsController(IPharmacyPurchaseService purchase, IAuditLogServic
     {
         var d = await Purchase.GetAsync(Kind, CompanyId, BranchId, id);
         if (d?.AttachmentPath == null) return NotFound();
-        var path = Path.Combine(env.ContentRootPath, "App_Data", "pharmacy", "grn", Path.GetFileName(d.AttachmentPath));
+        var file = Path.GetFileName(d.AttachmentPath);
+        var path = d.AttachmentPath.StartsWith("/uploads/", StringComparison.Ordinal)
+            ? Path.Combine(env.WebRootPath, "uploads", "pharmacy", "grn", file)
+            : Path.Combine(env.ContentRootPath, "App_Data", "pharmacy", "grn", file);   // saved before the move to wwwroot/uploads
         if (!System.IO.File.Exists(path)) return NotFound();
         return PhysicalFile(path, BillTypes.GetValueOrDefault(Path.GetExtension(path).ToLowerInvariant(), "application/octet-stream"), enableRangeProcessing: true);
     }
