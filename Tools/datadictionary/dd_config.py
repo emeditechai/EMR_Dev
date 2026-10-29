@@ -153,7 +153,8 @@ MODULES = [
                "default signatories and the e-mail / WhatsApp dispatch log.",
          tables=["labentrydetails", "Reportentrystatus", "LabReportTestRemarks", "LabCriticalCommunication",
                  "LabApprovalFlow", "LabApprovalFlowLevel", "LabApprovalFlowApprover", "LabReportApproval",
-                 "LabReportUnapproval", "LabReportDefaultSignatory", "LabReportEmailLog", "LabReportWhatsAppLog"]),
+                 "LabReportUnapproval", "LabReportDefaultSignatory", "LabReportEmailLog", "LabReportWhatsAppLog",
+                 "LabExternalDocument", "LabFtpSettings"]),
     dict(code="C8", part="C", name="Quality Control & Equipment",
          intro="Internal QC (control materials, lots, targets, runs and Westgard results), external quality "
                "assessment (EQAS programmes, cycles and results), CAPA, and the equipment register with calibration, "

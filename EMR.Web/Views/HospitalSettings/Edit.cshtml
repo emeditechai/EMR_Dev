@@ -884,6 +884,41 @@
                 </div>
             </div>
 
+            @* FTP for external lab documents (SQLScripts/2354): saved on its own, not with the main form *@
+            <div class="lab-section-title">FTP Credentials for Report Docs</div>
+            <div class="lab-param mb-3" style="--lp:#0369a1;--lp-bg:#e0f2fe;" id="ftpBox">
+                <div class="lp-icon"><i class="bi bi-hdd-network-fill"></i></div>
+                <div class="lp-body w-100">
+                    <div class="lp-label">FTP server for External Document Upload</div>
+                    <div class="lp-desc">Documents uploaded in LAB &gt; External Document Upload are stored at
+                        <code>&lt;Root folder&gt;/&lt;Company&gt;/&lt;Branch&gt;/&lt;yyyy-MM-dd&gt;/BranchId_BookingId_TestId</code>. Folders are created when missing.
+                        <span id="ftpInherited" class="d-none text-warning-emphasis"></span></div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-5"><label class="form-label small mb-0">Host name / IP <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="ftpHost" maxlength="200" autocomplete="off" placeholder="e.g. ftp.example.com" /></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Port</label>
+                            <input type="number" class="form-control form-control-sm" id="ftpPort" min="1" max="65535" value="21" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Root folder</label>
+                            <input type="text" class="form-control form-control-sm" id="ftpRoot" maxlength="300" value="emedidoc/reports" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">User ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="ftpUser" maxlength="150" autocomplete="off" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Password <span class="text-danger" id="ftpPwdReq">*</span></label>
+                            <input type="password" class="form-control form-control-sm" id="ftpPassword" maxlength="200" autocomplete="new-password" /></div>
+                        <div class="col-md-6 d-flex gap-4 align-items-center">
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="ftpPassive" checked>
+                                <label class="form-check-label small" for="ftpPassive">Passive mode</label></div>
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="ftpFtps">
+                                <label class="form-check-label small" for="ftpFtps">FTPS (TLS)</label></div>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="ftpTest"><i class="bi bi-plug me-1"></i>Test connection</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="ftpSave"><i class="bi bi-save me-1"></i>Save FTP credentials</button>
+                        </div>
+                    </div>
+                    <div class="small mt-1 text-muted" id="ftpStatus"></div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })
@@ -1021,6 +1056,54 @@
 </div>
 
 @section Scripts {
+<script>
+(function () {
+    const $ = id => document.getElementById(id);
+    if (!$('ftpBox')) return;
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const status = (t, cls) => { $('ftpStatus').className = 'small mt-1 ' + (cls || 'text-muted'); $('ftpStatus').textContent = t; };
+    function body() {
+        const b = new FormData();
+        b.append('host', $('ftpHost').value.trim()); b.append('port', $('ftpPort').value || '21');
+        b.append('userName', $('ftpUser').value.trim()); b.append('password', $('ftpPassword').value);
+        b.append('rootFolder', $('ftpRoot').value.trim());
+        b.append('usePassive', $('ftpPassive').checked); b.append('useFtps', $('ftpFtps').checked);
+        b.append('__RequestVerificationToken', token());
+        return b;
+    }
+    async function load() {
+        try {
+            const r = await (await fetch('@Url.Action("FtpSettings")')).json();
+            if (!r.success) return;
+            $('ftpHost').value = r.host || ''; $('ftpPort').value = r.port || 21; $('ftpUser').value = r.userName || '';
+            $('ftpRoot').value = r.rootFolder || 'emedidoc/reports'; $('ftpPassive').checked = r.usePassive; $('ftpFtps').checked = r.useFtps;
+            $('ftpPassword').placeholder = r.hasPassword ? '•••••••• saved — leave blank to keep' : '';
+            $('ftpPwdReq').classList.toggle('d-none', r.hasPassword);
+            if (!r.own && r.inheritedFromBranchId) {
+                $('ftpInherited').classList.remove('d-none');
+                $('ftpInherited').textContent = ' This branch uses the FTP settings of another branch; save here to give it its own.';
+            }
+            if (r.modifiedDate) status('Last saved ' + new Date(r.modifiedDate).toLocaleString('en-GB'));
+        } catch { }
+    }
+    async function post(url, btn) {
+        btn.disabled = true; status('Working…');
+        try {
+            const r = await (await fetch(url, { method: 'POST', body: body() })).json();
+            status(r.message, r.success ? 'text-success' : 'text-danger');
+            return r.success;
+        } catch { status('Could not reach the server.', 'text-danger'); return false; }
+        finally { btn.disabled = false; }
+    }
+    $('ftpBox').addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    $('ftpTest').addEventListener('click', () => post('@Url.Action("TestFtpSettings")', $('ftpTest')));
+    $('ftpSave').addEventListener('click', async () => {
+        if (await post('@Url.Action("SaveFtpSettings")', $('ftpSave'))) { $('ftpPassword').value = ''; load(); }
+    });
+    load();
+})();
+</script>
+
     <script>
         // Critical value communication: the target minutes only matter while the feature is on
         $(function () {

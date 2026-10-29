@@ -18,8 +18,86 @@ public class HospitalSettingsController(
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
     IWebHostEnvironment webHostEnvironment,
-    ILabDefaultSignatoryApiClient signatoryApiClient) : Controller
+    ILabDefaultSignatoryApiClient signatoryApiClient,
+    ILabFtpService labFtpService) : Controller
 {
+    // ── FTP credentials for external lab report documents (Lab tab, SQLScripts/2354) ─────────
+    // Saved on their own (not with the main form). The password is encrypted and never sent back to the page.
+
+    [HttpGet]
+    public async Task<IActionResult> FtpSettings()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var own = await labFtpService.GetOwnAsync(branchId.Value);
+        var used = own ?? await labFtpService.GetForBranchAsync(User.GetCompanyId(), branchId.Value);
+        return Json(new
+        {
+            success = true,
+            own = own is not null,
+            inheritedFromBranchId = own is null ? used?.BranchId : null,
+            host = used?.Host, port = used?.Port ?? 21, userName = used?.UserName,
+            rootFolder = used?.RootFolder ?? "emedidoc/reports", usePassive = used?.UsePassive ?? true, useFtps = used?.UseFtps ?? false,
+            hasPassword = !string.IsNullOrEmpty(own?.PasswordEnc), modifiedDate = own?.ModifiedDate
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        var own = await labFtpService.GetOwnAsync(branchId.Value);
+        if (string.IsNullOrEmpty(password) && string.IsNullOrEmpty(own?.PasswordEnc))
+            return Json(new { success = false, message = "Enter the FTP password." });
+
+        await labFtpService.SaveAsync(settings!, password, User.GetUserId());
+        await auditLogService.LogAsync("Update", "HospitalSettings",
+            $"FTP credentials for report documents saved (host {settings!.Host}, user {settings.UserName})", User.GetUserId(), branchId);
+        return Json(new { success = true, message = "FTP credentials saved." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> TestFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        if (string.IsNullOrEmpty(password))
+        {
+            var stored = await labFtpService.GetOwnAsync(branchId.Value);
+            if (string.IsNullOrEmpty(stored?.PasswordEnc)) return Json(new { success = false, message = "Enter the FTP password." });
+            settings!.PasswordEnc = stored.PasswordEnc;
+        }
+        var (ok, message) = await labFtpService.TestAsync(settings!, password);
+        return Json(new { success = ok, message });
+    }
+
+    private async Task<(Services.LabFtpSettings? Settings, string? Error)> ReadFtpForm(int branchId, string? host, int? port,
+        string? userName, string? rootFolder, bool usePassive, bool useFtps)
+    {
+        host = host?.Trim().Replace("ftp://", "", StringComparison.OrdinalIgnoreCase).TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(host) || host.Length > 200 || host.Any(char.IsWhiteSpace))
+            return (null, "Enter a valid FTP host name or IP address.");
+        if (port is < 1 or > 65535) return (null, "Port must be between 1 and 65535.");
+        if (string.IsNullOrWhiteSpace(userName)) return (null, "Enter the FTP user ID.");
+        rootFolder = (rootFolder ?? "").Trim().Replace('\\', '/').Trim('/');
+        if (rootFolder.Contains("..") || rootFolder.Length > 300) return (null, "Enter a valid root folder (e.g. emedidoc/reports).");
+        var companyId = await dbContext.BranchMasters.Where(b => b.BranchId == branchId).Select(b => b.CompanyId).FirstOrDefaultAsync();
+        return (new Services.LabFtpSettings
+        {
+            CompanyId = companyId == 0 ? User.GetCompanyId() : companyId, BranchId = branchId, Host = host,
+            Port = port ?? 21, UserName = userName.Trim(), RootFolder = rootFolder, UsePassive = usePassive, UseFtps = useFtps
+        }, null);
+    }
+
     // ── Default report signatories (Level 1..3) ──────────────────────────────
     // Configured when "Pathologist Approval Required" is switched off, so a released report still has named
     // signatories. Stored server-side only for now; no report or approval behaviour is changed by them yet.

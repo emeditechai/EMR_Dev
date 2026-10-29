@@ -1,0 +1,173 @@
+@{
+    ViewData["Title"] = "External Document Upload";
+    var ftpReady = (bool)ViewBag.FtpReady;
+}
+
+<style>
+    .xd-file { max-width: 260px; }
+    .xd-done { color: #166534; }
+    .xd-path { font-size: .74rem; color: #64748b; word-break: break-all; }
+    .xd-booking { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .6rem; padding: .7rem 1rem; }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">LAB</li>
+                <li class="breadcrumb-item active" aria-current="page">External Document Upload</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-cloud-arrow-up-fill me-2"></i>External Document Upload</h4>
+        <div class="text-muted small mt-1">Upload the external document of tests marked "Has External Document" for a lab booking. Files are stored on the FTP server by company, branch and date.</div>
+    </div>
+
+    @if (!ftpReady)
+    {
+        <div class="alert alert-warning d-flex align-items-center gap-2">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <div>FTP is not set up yet. Enter the <b>FTP Credentials for Report Docs</b> in
+                <a asp-controller="HospitalSettings" asp-action="Edit">Hospital Settings &gt; Lab</a> before uploading.</div>
+        </div>
+    }
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <form id="xdSearch" class="row g-2 align-items-end" autocomplete="off">
+                <div class="col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Booking date <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control form-control-sm" id="xdDate" required value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-6 col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Patient mobile no.</label>
+                    <input type="text" class="form-control form-control-sm" id="xdMobile" maxlength="15" inputmode="numeric" />
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Patient name</label>
+                    <input type="text" class="form-control form-control-sm" id="xdName" maxlength="100" />
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Lab booking no.</label>
+                    <input type="text" class="form-control form-control-sm" id="xdBill" maxlength="50" placeholder="e.g. LAB/HO2627000296" />
+                </div>
+                <div class="col-md-2 d-grid">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Search</button>
+                </div>
+            </form>
+
+            <div class="row g-2 mt-2">
+                <div class="col-lg-8">
+                    <label class="form-label small fw-semibold mb-1">Lab booking</label>
+                    <select class="form-select form-select-sm" id="xdBooking" disabled>
+                        <option value="">Search to list the bookings</option>
+                    </select>
+                    <div class="form-text" id="xdBookingHint">Only active bookings with tests needing an external document are listed.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm d-none" id="xdTestsCard">
+        <div class="card-body">
+            <div class="xd-booking mb-3" id="xdBookingInfo"></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light small text-uppercase text-muted">
+                        <tr><th>Test</th><th>Current document</th><th style="width:38%">Upload</th></tr>
+                    </thead>
+                    <tbody id="xdTests"></tbody>
+                </table>
+            </div>
+            <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>PDF, JPG, PNG, DOC or DOCX up to 20 MB. The file is renamed to BranchId_BookingId_TestId; uploading again replaces the current document.</div>
+        </div>
+    </div>
+</div>
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+(function () {
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const dt = s => s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const size = b => b == null ? '' : b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+    const sel = document.getElementById('xdBooking');
+    const card = document.getElementById('xdTestsCard');
+
+    document.getElementById('xdSearch').addEventListener('submit', async e => {
+        e.preventDefault();
+        if (!xdDate.value) { Swal.fire({ icon: 'warning', text: 'Choose the booking date.' }); return; }
+        card.classList.add('d-none');
+        sel.innerHTML = '<option value="">Searching…</option>'; sel.disabled = true;
+        const qs = new URLSearchParams({ date: xdDate.value, mobile: xdMobile.value.trim(), name: xdName.value.trim(), billNo: xdBill.value.trim() });
+        try {
+            const res = await (await fetch('@Url.Action("Bookings")?' + qs)).json();
+            if (!res.success) { sel.innerHTML = '<option value="">' + esc(res.message) + '</option>'; return; }
+            if (!res.rows.length) {
+                sel.innerHTML = '<option value="">No booking found</option>';
+                xdBookingHint.textContent = 'No active booking of this date with tests needing an external document matches the filters.';
+                return;
+            }
+            sel.innerHTML = '<option value="">-- Select lab booking (' + res.rows.length + ') --</option>' + res.rows.map(r =>
+                `<option value="${r.LabOrderId}">${esc(r.BillNo)} — ${esc(r.PatientName)} (${esc(r.Mobile || '')}) — ${r.UploadedCount}/${r.TestCount} uploaded</option>`).join('');
+            sel.disabled = false;
+            xdBookingHint.textContent = res.rows.length + ' booking(s) found.';
+            if (res.rows.length === 1) { sel.selectedIndex = 1; loadTests(); }
+        } catch { sel.innerHTML = '<option value="">Could not search. Try again.</option>'; }
+    });
+
+    sel.addEventListener('change', loadTests);
+
+    async function loadTests() {
+        if (!sel.value) { card.classList.add('d-none'); return; }
+        const res = await (await fetch('@Url.Action("Tests")?labOrderId=' + sel.value)).json();
+        if (!res.success) { Swal.fire({ icon: 'error', text: res.message }); return; }
+        const b = res.booking;
+        xdBookingInfo.innerHTML = `<div class="d-flex flex-wrap gap-4 small">
+            <div><span class="text-muted">Booking</span><div class="fw-bold">${esc(b.BillNo)}</div></div>
+            <div><span class="text-muted">Patient</span><div class="fw-semibold">${esc(b.PatientName)} <span class="text-muted">(${esc(b.PatientCode)})</span></div></div>
+            <div><span class="text-muted">Mobile</span><div>${esc(b.Mobile || '—')}</div></div>
+            <div><span class="text-muted">Booked on</span><div>${dt(b.OrderDate)}</div></div></div>`;
+        xdTests.innerHTML = res.tests.map(t => `
+            <tr data-test="${t.Test_ID}">
+                <td><div class="fw-semibold">${esc(t.Test_Name)}</div>
+                    <div class="small text-muted">${esc(t.Test_Code)}${t.ViaName ? ' · in ' + esc(t.ViaName) : ''}</div></td>
+                <td class="xd-current">${current(t)}</td>
+                <td><div class="input-group input-group-sm">
+                        <input type="file" class="form-control xd-file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                        <button type="button" class="btn ${t.DocumentId ? 'btn-outline-primary' : 'btn-primary'} xd-up">
+                            <i class="bi bi-cloud-arrow-up me-1"></i>${t.DocumentId ? 'Replace' : 'Upload'}</button>
+                    </div></td>
+            </tr>`).join('');
+        card.classList.remove('d-none');
+    }
+
+    function current(t) {
+        if (!t.DocumentId) return '<span class="badge bg-warning-subtle text-warning-emphasis">Not uploaded</span>';
+        return `<div class="xd-done fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>${esc(t.FileName)}</div>
+                <div class="small text-muted">${esc(t.OriginalFileName)} · ${size(t.FileSizeBytes)} · ${esc(t.UpdatedByName)} · ${dt(t.UpdatedDate)}${t.UploadCount > 1 ? ' · uploaded ' + t.UploadCount + ' times' : ''}</div>
+                <div class="xd-path">${esc(t.FilePath)}</div>`;
+    }
+
+    xdTests.addEventListener('click', async e => {
+        const btn = e.target.closest('.xd-up'); if (!btn) return;
+        const tr = btn.closest('tr'); const input = tr.querySelector('.xd-file');
+        if (!input.files.length) { Swal.fire({ icon: 'warning', text: 'Choose the file to upload.' }); return; }
+        const f = input.files[0];
+        if (f.size > 20 * 1024 * 1024) { Swal.fire({ icon: 'warning', text: 'The file is larger than 20 MB.' }); return; }
+        const body = new FormData();
+        body.append('labOrderId', sel.value); body.append('testId', tr.dataset.test); body.append('file', f);
+        body.append('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+        const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Uploading';
+        try {
+            const res = await (await fetch('@Url.Action("Upload")', { method: 'POST', body })).json();
+            if (res.success) {
+                Swal.fire({ icon: 'success', title: 'Uploaded', html: 'Saved as <b>' + esc(res.fileName) + '</b><br><small>' + esc(res.path) + '</small>', timer: 2600 });
+                await loadTests();
+            } else Swal.fire({ icon: 'error', text: res.message });
+        } catch { Swal.fire({ icon: 'error', text: 'Upload failed. Check the connection and try again.' }); }
+        finally { btn.disabled = false; btn.innerHTML = old; }
+    });
+})();
+</script>
+}
