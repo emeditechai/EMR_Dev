@@ -14,5 +14,15 @@
   ],
   "date": "28 Oct 2026",
   "version": "1.1"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table LabExternalDocument (16 columns, module C7)",
+   "New table LabFtpSettings (13 columns, module C7)",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "30 Oct 2026",
+  "version": "1.2"
  }
 ]

@@ -21113,6 +21113,214 @@
    "type": "datetime2"
   },
   {
+   "col": "DocumentId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "LabOrderId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "InvestigationId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "LabOrderItemId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 6,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "OriginalFileName",
+   "def": null,
+   "descr": "Name of the file as chosen by the user.",
+   "ident": false,
+   "len": 520,
+   "nullable": false,
+   "ord": 7,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "nvarchar"
+  },
+  {
+   "col": "FileName",
+   "def": null,
+   "descr": "Name stored on the FTP server: <BranchId>_<LabOrderId>_<Test_ID>.<ext>.",
+   "ident": false,
+   "len": 520,
+   "nullable": false,
+   "ord": 8,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "nvarchar"
+  },
+  {
+   "col": "FilePath",
+   "def": null,
+   "descr": "Full path of the file on the FTP server.",
+   "ident": false,
+   "len": 2000,
+   "nullable": false,
+   "ord": 9,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "nvarchar"
+  },
+  {
+   "col": "FileSizeBytes",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 10,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "bigint"
+  },
+  {
+   "col": "ContentType",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 11,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "nvarchar"
+  },
+  {
+   "col": "IsActive",
+   "def": "((1))",
+   "descr": "1 = current document of the test, 0 = replaced by a later upload.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 12,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "bit"
+  },
+  {
+   "col": "UpdatedBy",
+   "def": null,
+   "descr": "User who uploaded the file (Users.Id).",
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 13,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "UpdatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 14,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabExternalDocument",
+   "type": "datetime"
+  },
+  {
+   "col": "ReplacedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 15,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "int"
+  },
+  {
+   "col": "ReplacedDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 16,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabExternalDocument",
+   "type": "datetime"
+  },
+  {
    "col": "Parameter_ID",
    "def": null,
    "descr": null,
@@ -22476,6 +22684,175 @@
    "scale": 0,
    "tbl": "LabFranchiseWalletTransaction",
    "type": "int"
+  },
+  {
+   "col": "FtpSettingId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "int"
+  },
+  {
+   "col": "Host",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 400,
+   "nullable": false,
+   "ord": 4,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Port",
+   "def": "((21))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "int"
+  },
+  {
+   "col": "UserName",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 300,
+   "nullable": false,
+   "ord": 6,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "nvarchar"
+  },
+  {
+   "col": "PasswordEnc",
+   "def": null,
+   "descr": "FTP password, encrypted with ASP.NET Core Data Protection; never shown back.",
+   "ident": false,
+   "len": 4000,
+   "nullable": true,
+   "ord": 7,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "nvarchar"
+  },
+  {
+   "col": "RootFolder",
+   "def": "(N'emedidoc/reports')",
+   "descr": "Base folder on the FTP server; documents go to <RootFolder>/<Company>/<Branch>/<yyyy-MM-dd>/.",
+   "ident": false,
+   "len": 600,
+   "nullable": false,
+   "ord": 8,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "nvarchar"
+  },
+  {
+   "col": "UsePassive",
+   "def": "((1))",
+   "descr": "1 = passive mode transfers (works through most firewalls).",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 9,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "bit"
+  },
+  {
+   "col": "UseFtps",
+   "def": "((0))",
+   "descr": "1 = explicit FTPS (TLS).",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 10,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "bit"
+  },
+  {
+   "col": "IsActive",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 11,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "bit"
+  },
+  {
+   "col": "ModifiedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 12,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabFtpSettings",
+   "type": "int"
+  },
+  {
+   "col": "ModifiedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 13,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabFtpSettings",
+   "type": "datetime"
   },
   {
    "col": "Test_ID",
@@ -49402,7 +49779,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-10-28T23:57:21",
+ "extracted_on": "2026-10-30T00:20:28",
  "fk": [
   {
    "col": "LedgerId",
@@ -53328,6 +53705,11 @@
    "tbl": "LabExpertRuleMaster"
   },
   {
+   "col": "DocumentId",
+   "k": 1,
+   "tbl": "LabExternalDocument"
+  },
+  {
    "col": "Parameter_ID",
    "k": 1,
    "tbl": "LabFormulaParameterMaster"
@@ -53361,6 +53743,11 @@
    "col": "TransactionId",
    "k": 1,
    "tbl": "LabFranchiseWalletTransaction"
+  },
+  {
+   "col": "FtpSettingId",
+   "k": 1,
+   "tbl": "LabFtpSettings"
   },
   {
    "col": "Test_ID",
@@ -54510,6 +54897,7 @@
   "LabCriticalCommunication",
   "LabDescriptiveTestTemplate",
   "LabExpertRuleMaster",
+  "LabExternalDocument",
   "LabFormulaParameterMaster",
   "LabFranchiseBarcodePool",
   "LabFranchiseBarcodeSeries",
@@ -54517,6 +54905,7 @@
   "LabFranchiseMaster",
   "LabFranchiseWallet",
   "LabFranchiseWalletTransaction",
+  "LabFtpSettings",
   "LabInvestigationMaster",
   "LabInvestigationProfileDetail",
   "LabInvestigationProfileHeader",
@@ -54701,7 +55090,16 @@
   "tbl_centralemailtemplates",
   "tbl_mst_analyzer"
  ],
- "tdesc": [],
+ "tdesc": [
+  {
+   "d": "External documents uploaded to FTP against a lab booking and test (tests with Has External Document). A re-upload replaces the previous file (kept inactive).",
+   "tbl": "LabExternalDocument"
+  },
+  {
+   "d": "FTP server for uploading external lab documents, per branch (Hospital Settings > Lab tab). The password is encrypted by the application.",
+   "tbl": "LabFtpSettings"
+  }
+ ],
  "uq": [
   {
    "cols": "LedgerCode",
@@ -55052,6 +55450,11 @@
    "cols": "Franchise_ID",
    "idx": "UQ__LabFranc__ED56773C9D791207",
    "tbl": "LabFranchiseWallet"
+  },
+  {
+   "cols": "BranchId",
+   "idx": "UX_LabFtpSettings_Branch",
+   "tbl": "LabFtpSettings"
   },
   {
    "cols": "Profile_Code",
