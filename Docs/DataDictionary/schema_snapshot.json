@@ -21206,7 +21206,7 @@
   {
    "col": "FileName",
    "def": null,
-   "descr": "Name stored on the FTP server: <BranchId>_<LabOrderId>_<Test_ID>.<ext>.",
+   "descr": "Name stored on the FTP server: <BranchCode>_<Lab booking no>_<Investigation name>.<ext> (characters other than letters, digits, . _ - become _).",
    "ident": false,
    "len": 520,
    "nullable": false,
@@ -49779,7 +49779,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-10-30T00:20:28",
+ "extracted_on": "2026-10-30T01:12:33",
  "fk": [
   {
    "col": "LedgerId",
