@@ -225,6 +225,10 @@ namespace EMR.Web.Controllers
                 {
                     ModelState.AddModelError(nameof(model.LineItemsJson), "One or more tests have an invalid Investigation ID. Please re-select the tests.");
                 }
+                else if (lineItems.Any(x => (x.B2BRate is > 0 ? x.B2BRate.Value : x.Price) <= 0))
+                {
+                    ModelState.AddModelError(nameof(model.LineItemsJson), ZeroPriceMessage(lineItems.Where(x => (x.B2BRate is > 0 ? x.B2BRate.Value : x.Price) <= 0)));
+                }
             }
 
             // Validate & Reconcile Age / Date of Birth
@@ -791,6 +795,15 @@ namespace EMR.Web.Controllers
             return RedirectToAction(nameof(B2BBooking), new { registered = true });
         }
 
+        /// <summary>A test with no price (Rs 0) cannot be billed.</summary>
+        private static string ZeroPriceMessage(IEnumerable<LabOrderItemRequestDto> items)
+        {
+            var names = items.Select(x => x.TestName ?? x.Name ?? x.TestCode ?? x.Code).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+            return names.Count > 0
+                ? $"These tests have a price of Rs 0.00 and cannot be billed: {string.Join(", ", names)}. Set their rate first, or remove them."
+                : "One or more tests have a price of Rs 0.00 and cannot be billed. Set their rate first, or remove them.";
+        }
+
         [HttpGet]
         public async Task<IActionResult> B2CBooking(int? patientId)
         {
@@ -887,6 +900,10 @@ namespace EMR.Web.Controllers
                 else if (lineItems.Any(x => x.InvestigationId <= 0))
                 {
                     ModelState.AddModelError(nameof(model.LineItemsJson), "One or more tests have an invalid Investigation ID. Please re-select the tests.");
+                }
+                else if (lineItems.Any(x => x.Price <= 0))
+                {
+                    ModelState.AddModelError(nameof(model.LineItemsJson), ZeroPriceMessage(lineItems.Where(x => x.Price <= 0)));
                 }
             }
 
@@ -1228,6 +1245,9 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, error = "Please select at least one investigation test." });
             }
+
+            if (lineItems.Any(x => x.Price <= 0))
+                return Json(new { success = false, error = ZeroPriceMessage(lineItems.Where(x => x.Price <= 0)) });
 
             // misc charges (SQLScripts/2240): ids and quantities only - priced from the master by the order procedure
             var (bookingMisc, bookingMiscError) = EMR.Web.Services.LabMiscCharges.Parse(model.MiscChargesJson);

@@ -1380,6 +1380,18 @@
                 var sampleType = opt.attr('data-sample') || '';
                 var method = opt.attr('data-method') || '';
 
+                // a test without a rate cannot go on the bill
+                if (!(b2bRate > 0)) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Rate not set',
+                        html: `<b>${$('<div>').text(name || code).html()}</b> has a rate of ₹0.00 and cannot be added to the bill.<br><span class="small text-muted">Set its B2B rate / MRP first.</span>`,
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $(this).val('').trigger('change.select2');
+                    return;
+                }
+
                 if (lineItems.some(x => x.itemType === itemType && x.id === id)) {
                     Swal.fire({
                         icon: 'info',
