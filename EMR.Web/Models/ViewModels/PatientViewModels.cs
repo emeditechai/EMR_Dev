@@ -176,6 +176,22 @@ public class PatientRegistrationViewModel
     [Display(Name = "Identification Number")]
     public string? IdentificationNumber { get; set; }
 
+    // Optional (SQLScripts/2355). Empty stays "" so a cleared field differs from a field the form did not show.
+    [DisplayFormat(ConvertEmptyStringToNull = false)]
+    [RegularExpression(@"^\s*\d{2}-?\d{4}-?\d{4}-?\d{4}\s*$", ErrorMessage = "ABHA Number must have 14 digits.")]
+    [Display(Name = "ABHA Number")]
+    public string? AbhaNumber { get; set; }
+
+    [DisplayFormat(ConvertEmptyStringToNull = false)]
+    [MaxLength(100)]
+    [Display(Name = "ABHA Address")]
+    public string? AbhaAddress { get; set; }
+
+    [DisplayFormat(ConvertEmptyStringToNull = false)]
+    [MaxLength(30)]
+    [Display(Name = "Ayushman Card No.")]
+    public string? AyushmanCardNo { get; set; }
+
     // Holds the stored file path (on server); uploaded via IFormFile
     public string? IdentificationFilePath { get; set; }
 

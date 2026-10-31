@@ -118,6 +118,17 @@ namespace EMR.Web.Models.ViewModels
         [Display(Name = "Identification Number")]
         public string? IdentificationNumber { get; set; }
 
+        // Optional (SQLScripts/2355). Empty stays "" so a cleared field differs from a field the form did not show.
+        [DisplayFormat(ConvertEmptyStringToNull = false)]
+        [RegularExpression(@"^\s*\d{2}-?\d{4}-?\d{4}-?\d{4}\s*$", ErrorMessage = "ABHA Number must have 14 digits.")]
+        [Display(Name = "ABHA Number")]
+        public string? AbhaNumber { get; set; }
+
+        [DisplayFormat(ConvertEmptyStringToNull = false)]
+        [MaxLength(100)]
+        [Display(Name = "ABHA Address")]
+        public string? AbhaAddress { get; set; }
+
         // ── Section 2: Other Info ─────────────────────────────────────────────────
 
         [Display(Name = "Occupation")]

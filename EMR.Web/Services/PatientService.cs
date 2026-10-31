@@ -257,6 +257,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
 
         await con.ExecuteAsync("dbo.usp_Patient_Create", p, commandType: CommandType.StoredProcedure);
         await SavePincodeAsync(con, p.Get<int>("@NewPatientId"), patient.Pincode);
+        await SaveGovernmentIdsAsync(con, p.Get<int>("@NewPatientId"), patient);
 
         return (
             p.Get<string>("@PatientCode"),
@@ -294,6 +295,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
 
         await con.ExecuteAsync("dbo.usp_Patient_Update", p, commandType: CommandType.StoredProcedure);
         await SavePincodeAsync(con, patient.PatientId, patient.Pincode);
+        await SaveGovernmentIdsAsync(con, patient.PatientId, patient);
 
         return (
             p.Get<string>("@OPDBillNo"),
@@ -307,6 +309,27 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
         => patientId <= 0 ? Task.CompletedTask
             : con.ExecuteAsync("UPDATE dbo.PatientMaster SET Pincode = @Pin WHERE PatientId = @Id",
                 new { Pin = string.IsNullOrWhiteSpace(pincode) ? null : pincode.Trim(), Id = patientId });
+
+    // ABHA and Ayushman card (SQLScripts/2355), both optional: null = the form did not show the field, keep the value; "" = cleared
+    private static Task SaveGovernmentIdsAsync(IDbConnection con, int patientId, PatientMaster patient)
+    {
+        if (patientId <= 0 || (patient.AbhaNumber is null && patient.AbhaAddress is null && patient.AyushmanCardNo is null))
+            return Task.CompletedTask;
+        var digits = new string((patient.AbhaNumber ?? "").Where(char.IsDigit).ToArray());
+        return con.ExecuteAsync(@"
+            UPDATE dbo.PatientMaster SET
+                AbhaNumber     = CASE WHEN @AbhaNumber IS NULL THEN AbhaNumber ELSE NULLIF(@AbhaNumber, '') END,
+                AbhaAddress    = CASE WHEN @AbhaAddress IS NULL THEN AbhaAddress ELSE NULLIF(@AbhaAddress, '') END,
+                AyushmanCardNo = CASE WHEN @AyushmanCardNo IS NULL THEN AyushmanCardNo ELSE NULLIF(@AyushmanCardNo, '') END
+            WHERE PatientId = @PatientId",
+            new
+            {
+                AbhaNumber = digits.Length == 14 ? $"{digits[..2]}-{digits[2..6]}-{digits[6..10]}-{digits[10..]}" : patient.AbhaNumber?.Trim(),
+                AbhaAddress = patient.AbhaAddress?.Trim(),
+                AyushmanCardNo = patient.AyushmanCardNo?.Trim(),
+                PatientId = patientId
+            });
+    }
 
     // ─── Shared parameter builder ─────────────────────────────────────────────
 
@@ -419,6 +442,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
                 ModifiedBy             = @ModifiedBy,
                 ModifiedDate           = @ModifiedDate
             WHERE PatientId = @PatientId", patient);
+        await SaveGovernmentIdsAsync(con, patient.PatientId, patient);
     }
 
     public async Task<int> CreateDemographicsOnlyAsync(PatientMaster patient, int? userId)
@@ -438,6 +462,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
 
         await con.ExecuteAsync("dbo.usp_PatientMaster_Insert", p, commandType: CommandType.StoredProcedure);
         await SavePincodeAsync(con, p.Get<int>("@NewPatientId"), patient.Pincode);
+        await SaveGovernmentIdsAsync(con, p.Get<int>("@NewPatientId"), patient);
         
         return p.Get<int>("@NewPatientId");
     }

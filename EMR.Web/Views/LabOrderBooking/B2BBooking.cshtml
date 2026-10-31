@@ -1,9 +1,11 @@
 @model EMR.Web.Models.ViewModels.LabOrderBookingViewModel
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
 @inject EMR.Web.Services.IAiBillingFeatures AiBillingFeatures
+@inject EMR.Web.Services.IGovernmentIdFeatures GovernmentIds
 @{
     ViewData["Title"] = "B2B Lab Order Registration & Billing";
     var token = Xsrf.GetAndStoreTokens(Context).RequestToken;
+    var governmentIds = await GovernmentIds.GetAsync(Context);
 }
 
 @section HeadStyles {
@@ -672,6 +674,18 @@
                         <div id="idDocExisting" class="id-doc-existing d-none" data-path="@Model.IdentificationFilePath"></div>
                         <span asp-validation-for="IdentificationFilePath" class="text-danger small"></span>
                     </div>
+                    @if (governmentIds.Abha)
+                    {
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <label asp-for="AbhaNumber" class="form-label fw-semibold small">ABHA Number <span class="text-muted fw-normal">(optional)</span></label>
+                            <input asp-for="AbhaNumber" class="form-control" maxlength="17" inputmode="numeric" placeholder="14 digits" />
+                            <span asp-validation-for="AbhaNumber" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <label asp-for="AbhaAddress" class="form-label fw-semibold small">ABHA Address <span class="text-muted fw-normal">(optional)</span></label>
+                            <input asp-for="AbhaAddress" class="form-control" maxlength="100" placeholder="name@abdm" />
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -2172,6 +2186,8 @@
             // identification (patient master)
             $('#ddlIdType').val(p.identificationTypeId ? String(p.identificationTypeId) : '').trigger('change.select2');
             setVal('IdentificationNumber', p.identificationNumber || '');
+            setVal('AbhaNumber', p.abhaNumber || '');
+            setVal('AbhaAddress', p.abhaAddress || '');
             setVal('IdentificationFilePath', p.identificationFilePath || '');
             // the ID document already on record: Preview under "Upload ID Document"
             window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');

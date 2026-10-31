@@ -127,6 +127,8 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
+                    model.AbhaNumber = patient.AbhaNumber;
+                    model.AbhaAddress = patient.AbhaAddress;
                     model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
                     model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
@@ -342,6 +344,8 @@ namespace EMR.Web.Controllers
                 IdentificationFilePath = model.IdentificationFilePath,
                 IdentificationTypeId = model.IdentificationTypeId,
                 IdentificationNumber = model.IdentificationNumber,
+                AbhaNumber = model.AbhaNumber,
+                AbhaAddress = model.AbhaAddress,
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -833,6 +837,8 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
+                    model.AbhaNumber = patient.AbhaNumber;
+                    model.AbhaAddress = patient.AbhaAddress;
                     model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
                     model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
@@ -1018,6 +1024,8 @@ namespace EMR.Web.Controllers
                 IdentificationFilePath = model.IdentificationFilePath,
                 IdentificationTypeId = model.IdentificationTypeId,
                 IdentificationNumber = model.IdentificationNumber,
+                AbhaNumber = model.AbhaNumber,
+                AbhaAddress = model.AbhaAddress,
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -1176,6 +1184,9 @@ namespace EMR.Web.Controllers
             [FromForm] string? bookingRequestKey)
         {
             LockToOwnFranchise(model);
+            // This route does not stop on ModelState: refuse a wrong ABHA Number before anything is saved (SQLScripts/2355)
+            if (ModelState[nameof(model.AbhaNumber)]?.Errors.Count > 0)
+                return Json(new { success = false, error = "ABHA Number must have 14 digits." });
             // One bill per booking (SQLScripts/2310): the key of this booking form; a retry reuses the bill it created
             Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
             bool keyClaimed = false;      // this request holds the key and has not created the bill yet
@@ -1355,6 +1366,8 @@ namespace EMR.Web.Controllers
                 IdentificationFilePath = model.IdentificationFilePath,
                 IdentificationTypeId = model.IdentificationTypeId,
                 IdentificationNumber = model.IdentificationNumber,
+                AbhaNumber = model.AbhaNumber,
+                AbhaAddress = model.AbhaAddress,
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,

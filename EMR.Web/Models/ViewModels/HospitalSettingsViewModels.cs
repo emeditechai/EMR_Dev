@@ -90,6 +90,12 @@ public class HospitalSettingsViewModel
     [Display(Name = "Global Patient Search Required")]
     public bool GlobalPatientSearchRequired { get; set; } = false;
 
+    [Display(Name = "Enable ABHA")]
+    public bool EnableAbha { get; set; }
+
+    [Display(Name = "Enable Ayushman Bharat")]
+    public bool EnableAyushmanBharat { get; set; }
+
     [Display(Name = "Email Notification (Bill/Prescription) Required")]
     public bool EmailNotificationRequired { get; set; } = true;
 

@@ -64,6 +64,10 @@ public class HospitalSettings
     public int? OpdRegistrationValidityDays { get; set; }
 
     public bool GlobalPatientSearchRequired { get; set; } = false;
+    /// <summary>SQLScripts/2355: optional ABHA fields on OPD registration and LAB booking; per company, default off.</summary>
+    public bool EnableAbha { get; set; } = false;
+    /// <summary>SQLScripts/2355: optional Ayushman Card No. on OPD registration; per company, default off.</summary>
+    public bool EnableAyushmanBharat { get; set; } = false;
 
     public bool EmailNotificationRequired { get; set; } = true;
 

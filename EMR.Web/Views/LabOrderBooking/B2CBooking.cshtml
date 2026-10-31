@@ -1,6 +1,7 @@
 @inject Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> PrescriptionAssistOptions
 @inject EMR.Web.Services.IAiBillingFeatures AiBillingFeatures
-@{ var aiBilling = await AiBillingFeatures.IsEnabledAsync(Context); }
+@inject EMR.Web.Services.IGovernmentIdFeatures GovernmentIds
+@{ var aiBilling = await AiBillingFeatures.IsEnabledAsync(Context); var governmentIds = await GovernmentIds.GetAsync(Context); }
 @model EMR.Web.Models.ViewModels.LabOrderBookingViewModel
 @{
     ViewData["Title"] = "LAB Order Booking/Registration - B2C";
@@ -576,6 +577,18 @@
                         <div id="idDocExisting" class="id-doc-existing d-none" data-path="@Model.IdentificationFilePath"></div>
                         <span asp-validation-for="IdentificationFilePath" class="text-danger small"></span>
                     </div>
+                    @if (governmentIds.Abha)
+                    {
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <label asp-for="AbhaNumber" class="form-label fw-semibold small">ABHA Number <span class="text-muted fw-normal">(optional)</span></label>
+                            <input asp-for="AbhaNumber" class="form-control" maxlength="17" inputmode="numeric" placeholder="14 digits" />
+                            <span asp-validation-for="AbhaNumber" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <label asp-for="AbhaAddress" class="form-label fw-semibold small">ABHA Address <span class="text-muted fw-normal">(optional)</span></label>
+                            <input asp-for="AbhaAddress" class="form-control" maxlength="100" placeholder="name@abdm" />
+                        </div>
+                    }
                 </div>
             </div>
 
@@ -3119,6 +3132,8 @@
             ['PhoneNumber','SecondaryPhoneNumber','FirstName','MiddleName','LastName',
              'EmailId','GuardianName','IdentificationNumber','KnownAllergies','Remarks'
             ].forEach(f => setVal(f, p[f.charAt(0).toLowerCase() + f.slice(1)]));
+            setVal('AbhaNumber', p.abhaNumber || '');
+            setVal('AbhaAddress', p.abhaAddress || '');
             // the ID document already on record: Preview under "Upload ID Document"
             window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');
 

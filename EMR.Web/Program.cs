@@ -73,6 +73,7 @@ builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionT
 builder.Services.AddSingleton<EMR.Web.Services.IdDocumentAssist.IIdDocumentReader, EMR.Web.Services.IdDocumentAssist.IdDocumentReader>();
 // Hospital Settings > LAB > Enable AI Features at Billing (per branch, SQLScripts/2286)
 builder.Services.AddScoped<EMR.Web.Services.IAiBillingFeatures, EMR.Web.Services.AiBillingFeatures>();
+builder.Services.AddScoped<EMR.Web.Services.IGovernmentIdFeatures, EMR.Web.Services.GovernmentIdFeatures>();
 // Hospital Settings > LAB > Enable Ask AI Features (per branch, SQLScripts/2302): the AI Help Assistant
 builder.Services.AddScoped<EMR.Web.Services.IAskAiFeatures, EMR.Web.Services.AskAiFeatures>();
 // AI test suggestions at B2C billing: learned from past bills, kept in memory per branch (SQLScripts/2287)

@@ -15783,6 +15783,32 @@
    "type": "bit"
   },
   {
+   "col": "EnableAbha",
+   "def": "((0))",
+   "descr": "1 = OPD registration and LAB booking show optional ABHA fields. Saved for all branches of the company.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 99,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "EnableAyushmanBharat",
+   "def": "((0))",
+   "descr": "1 = OPD registration shows the optional Ayushman Card No. Saved for all branches of the company.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 100,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -32495,6 +32521,45 @@
    "len": 20,
    "nullable": true,
    "ord": 55,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PatientMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "AbhaNumber",
+   "def": null,
+   "descr": "14-digit ABHA number as nn-nnnn-nnnn-nnnn, optional; typed by the desk, not verified with ABDM.",
+   "ident": false,
+   "len": 40,
+   "nullable": true,
+   "ord": 56,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PatientMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "AbhaAddress",
+   "def": null,
+   "descr": "ABHA address, optional; typed by the desk, not verified with ABDM.",
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 57,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PatientMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "AyushmanCardNo",
+   "def": null,
+   "descr": "Ayushman Bharat (AB-PMJAY) card or beneficiary number, optional; typed by the desk, not verified.",
+   "ident": false,
+   "len": 60,
+   "nullable": true,
+   "ord": 58,
    "prec": 0,
    "scale": 0,
    "tbl": "PatientMaster",
@@ -49779,7 +49844,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-10-30T01:12:33",
+ "extracted_on": "2026-10-31T11:22:11",
  "fk": [
   {
    "col": "LedgerId",

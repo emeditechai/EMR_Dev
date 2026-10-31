@@ -67,6 +67,16 @@ public class PatientMaster
     [MaxLength(100)]
     public string? IdentificationNumber { get; set; }
 
+    // Optional, typed by the desk, not verified with ABDM (SQLScripts/2355). On save: null = the form did not show the field, keep the value.
+    [MaxLength(20)]
+    public string? AbhaNumber { get; set; }
+
+    [MaxLength(100)]
+    public string? AbhaAddress { get; set; }
+
+    [MaxLength(30)]
+    public string? AyushmanCardNo { get; set; }
+
     [MaxLength(500)]
     public string? IdentificationFilePath { get; set; }
 

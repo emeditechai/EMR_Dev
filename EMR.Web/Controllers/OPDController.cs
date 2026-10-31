@@ -714,6 +714,9 @@ public class OPDController(
         // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
         if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
             return Json(new { success = false, error = "The selected patient does not belong to this company. Search the patient again." });
+        // This route does not stop on ModelState: refuse a wrong ABHA Number before anything is saved (SQLScripts/2355)
+        if (ModelState[nameof(model.AbhaNumber)]?.Errors.Count > 0)
+            return Json(new { success = false, error = "ABHA Number must have 14 digits." });
         // One bill per booking (SQLScripts/2310): the key of this registration form; a retry reuses the bill it created
         Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
         bool keyClaimed = false;      // this request holds the key and has not created the bill yet
@@ -1888,6 +1891,7 @@ public class OPDController(
             patient.Salutation, patient.FirstName, patient.MiddleName, patient.LastName,
             patient.Gender, patient.EmailId, patient.GuardianName,
             patient.IdentificationTypeId, patient.IdentificationNumber, patient.IdentificationFilePath,
+            patient.AbhaNumber, patient.AbhaAddress, patient.AyushmanCardNo,
             patient.PhotoPath,
             IdentificationTypeName = idTypeName,
             patient.BloodGroup, patient.KnownAllergies, patient.Remarks, patient.DateOfBirth,
@@ -2485,6 +2489,9 @@ public class OPDController(
         RelationId            = m.RelationId,
         IdentificationTypeId  = m.IdentificationTypeId,
         IdentificationNumber  = m.IdentificationNumber?.Trim(),
+        AbhaNumber            = m.AbhaNumber,
+        AbhaAddress           = m.AbhaAddress,
+        AyushmanCardNo        = m.AyushmanCardNo,
         IdentificationFilePath= m.IdentificationFilePath,
         PhotoPath             = m.PhotoPath,
         OccupationId          = m.OccupationId,
@@ -2536,6 +2543,9 @@ public class OPDController(
             RelationId            = p.RelationId,
             IdentificationTypeId  = p.IdentificationTypeId,
             IdentificationNumber  = p.IdentificationNumber,
+            AbhaNumber            = p.AbhaNumber,
+            AbhaAddress           = p.AbhaAddress,
+            AyushmanCardNo        = p.AyushmanCardNo,
             IdentificationFilePath= p.IdentificationFilePath,
             PhotoPath             = p.PhotoPath,
             OccupationId          = p.OccupationId,

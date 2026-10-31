@@ -261,10 +261,13 @@ public class HospitalSettingsController(
 
         if (settings is null)
         {
+            var governmentIds = await GovernmentIdOptionsAsync();
             var empty = new HospitalSettingsViewModel
             {
                 BranchId = branchId.Value,
-                BranchName = branch?.BranchName ?? string.Empty
+                BranchName = branch?.BranchName ?? string.Empty,
+                EnableAbha = governmentIds.Abha,
+                EnableAyushmanBharat = governmentIds.AyushmanBharat
             };
             return View(empty);
         }
@@ -334,10 +337,13 @@ public class HospitalSettingsController(
 
         if (settings is null)
         {
+            var governmentIds = await GovernmentIdOptionsAsync();
             return View(new HospitalSettingsViewModel
             {
                 BranchId = branchId.Value,
                 BranchName = branch?.BranchName ?? string.Empty,
+                EnableAbha = governmentIds.Abha,
+                EnableAyushmanBharat = governmentIds.AyushmanBharat,
                 IsActive = true
             });
         }
@@ -379,6 +385,7 @@ public class HospitalSettingsController(
             dbContext.HospitalSettings.Add(entity);
 
             await dbContext.SaveChangesAsync();
+            await SaveGovernmentIdOptionsForCompanyAsync(model);
             await auditLogService.LogAsync("Create", "HospitalSettings",
                 $"Hospital settings created for branch {branchId}", userId, branchId);
             TempData["Success"] = "Hospital settings saved successfully.";
@@ -405,6 +412,8 @@ public class HospitalSettingsController(
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
             existing.OpdRegistrationValidityDays = model.OpdRegistrationValidityDays;
             existing.GlobalPatientSearchRequired = model.GlobalPatientSearchRequired;
+            existing.EnableAbha = model.EnableAbha;
+            existing.EnableAyushmanBharat = model.EnableAyushmanBharat;
             existing.EmailNotificationRequired = model.EmailNotificationRequired;
             existing.LabEmailNotificationRequired = model.LabEmailNotificationRequired;
             existing.IsSampleCollectionMandatory = model.IsSampleCollectionMandatory;
@@ -475,6 +484,7 @@ public class HospitalSettingsController(
             existing.LastModifiedBy = userId;
 
             await dbContext.SaveChangesAsync();
+            await SaveGovernmentIdOptionsForCompanyAsync(model);
             await auditLogService.LogAsync("Update", "HospitalSettings",
                 $"Hospital settings updated for branch {branchId}", userId, branchId);
             TempData["Success"] = "Hospital settings updated successfully.";
@@ -484,6 +494,20 @@ public class HospitalSettingsController(
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private Task<EMR.Web.Services.GovernmentIdOptions> GovernmentIdOptionsAsync() =>
+        HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IGovernmentIdFeatures>().GetAsync(HttpContext);
+
+    // ABHA / Ayushman Bharat are one setting for all branches of the company (SQLScripts/2355)
+    private async Task SaveGovernmentIdOptionsForCompanyAsync(HospitalSettingsViewModel model)
+    {
+        var companyId = User.GetCompanyId();
+        await dbContext.HospitalSettings.Where(s => s.CompanyId == companyId).ExecuteUpdateAsync(u => u
+            .SetProperty(s => s.EnableAbha, model.EnableAbha)
+            .SetProperty(s => s.EnableAyushmanBharat, model.EnableAyushmanBharat));
+        EMR.Web.Services.GovernmentIdFeatures.Invalidate(
+            HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), companyId);
+    }
 
     private static HospitalSettingsViewModel MapToViewModel(HospitalSettings s, string branchName) =>
         new()
@@ -513,6 +537,8 @@ public class HospitalSettingsController(
                 ? s.CheckOutTime.Value.ToString(@"hh\:mm") : null,
             OpdRegistrationValidityDays = s.OpdRegistrationValidityDays,
             GlobalPatientSearchRequired = s.GlobalPatientSearchRequired,
+            EnableAbha = s.EnableAbha,
+            EnableAyushmanBharat = s.EnableAyushmanBharat,
             EmailNotificationRequired = s.EmailNotificationRequired,
             LabEmailNotificationRequired = s.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,
@@ -606,6 +632,8 @@ public class HospitalSettingsController(
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
             OpdRegistrationValidityDays = m.OpdRegistrationValidityDays,
             GlobalPatientSearchRequired = m.GlobalPatientSearchRequired,
+            EnableAbha = m.EnableAbha,
+            EnableAyushmanBharat = m.EnableAyushmanBharat,
             EmailNotificationRequired = m.EmailNotificationRequired,
             LabEmailNotificationRequired = m.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = m.IsSampleCollectionMandatory,

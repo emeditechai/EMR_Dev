@@ -279,6 +279,26 @@ else
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-person-vcard"></i></div>
+                        <div>
+                            <div class="lp-label">ABHA</div>
+                            <div class="lp-desc">Optional ABHA fields on OPD and LAB forms. Applies to all branches.</div>
+                            <span class="lp-pill @(Model.EnableAbha ? "yes" : "no")"><i class="bi @(Model.EnableAbha ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAbha ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-shield-plus"></i></div>
+                        <div>
+                            <div class="lp-label">Ayushman Bharat</div>
+                            <div class="lp-desc">Optional Ayushman Card No. on OPD registration. Applies to all branches.</div>
+                            <span class="lp-pill @(Model.EnableAyushmanBharat ? "yes" : "no")"><i class="bi @(Model.EnableAyushmanBharat ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAyushmanBharat ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#4f46e5;--lp-bg:#e0e7ff;">
                         <div class="lp-icon"><i class="bi bi-envelope-fill"></i></div>
                         <div>
