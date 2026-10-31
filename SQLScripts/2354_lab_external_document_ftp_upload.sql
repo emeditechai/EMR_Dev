@@ -4,7 +4,7 @@
    Tests marked "Has External Document" (LabInvestigationMaster.Has_External_Document, script 2352) get their
    external document (outside report, scan) uploaded against the lab booking. The file goes to the FTP server
    configured per branch in Hospital Settings > Lab tab:
-       <RootFolder>/<Company name>/<Branch name>/<yyyy-MM-dd>/<BranchCode>_<Lab booking no>_<Investigation name>.<ext>
+       <RootFolder>/<Company name>/<Branch name>/<yyyy-MM-dd>/<BranchCode>_<Lab booking no>_<Test code>.<ext>
    (the record keeps BranchId, LabOrderId and InvestigationId)
    Folders are created when missing. Every upload is logged in LabExternalDocument; re-uploading a test's
    document replaces the previous one (kept inactive for history).
@@ -75,7 +75,7 @@ INSERT @d VALUES
  (N'LabFtpSettings', N'UsePassive', N'1 = passive mode transfers (works through most firewalls).'),
  (N'LabFtpSettings', N'UseFtps', N'1 = explicit FTPS (TLS).'),
  (N'LabExternalDocument', NULL, N'External documents uploaded to FTP against a lab booking and test (tests with Has External Document). A re-upload replaces the previous file (kept inactive).'),
- (N'LabExternalDocument', N'FileName', N'Name stored on the FTP server: <BranchCode>_<Lab booking no>_<Investigation name>.<ext> (characters other than letters, digits, . _ - become _).'),
+ (N'LabExternalDocument', N'FileName', N'Name stored on the FTP server: <BranchCode>_<Lab booking no>_<Test code>.<ext> (characters other than letters, digits, . _ - become _).'),
  (N'LabExternalDocument', N'FilePath', N'Full path of the file on the FTP server.'),
  (N'LabExternalDocument', N'OriginalFileName', N'Name of the file as chosen by the user.'),
  (N'LabExternalDocument', N'UpdatedBy', N'User who uploaded the file (Users.Id).'),

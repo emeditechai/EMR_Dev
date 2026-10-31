@@ -10,8 +10,8 @@ namespace EMR.Web.Controllers;
 /// <summary>
 /// LAB > External Document Upload (SQLScripts/2354). For an active lab booking of the current branch, uploads the
 /// external document of each test marked "Has External Document" to the FTP server set in Hospital Settings > Lab:
-/// &lt;Root&gt;/&lt;Company&gt;/&lt;Branch&gt;/&lt;yyyy-MM-dd&gt;/&lt;BranchCode&gt;_&lt;Lab booking no&gt;_&lt;Investigation name&gt;.&lt;ext&gt;,
-/// and records it in LabExternalDocument (with the branch, booking and investigation IDs). Cancelled bookings and cancelled tests are never offered.
+/// &lt;Root&gt;/&lt;Company&gt;/&lt;Branch&gt;/&lt;yyyy-MM-dd&gt;/&lt;BranchCode&gt;_&lt;Lab booking no&gt;_&lt;Test code&gt;.&lt;ext&gt;,
+/// and records it in LabExternalDocument (with the branch, booking and investigation IDs and the lab booking no). Cancelled bookings and cancelled tests are never offered.
 /// </summary>
 [Authorize]
 public class LabExternalDocumentsController(
@@ -89,16 +89,16 @@ public class LabExternalDocumentsController(
             new { labOrderId, testId, branchId });
         if (item is null) return Fail("This test is cancelled, not on the booking, or the booking is not of your branch.");
 
-        var names = await con.QueryFirstAsync<(string Company, string Branch, string BranchCode, string BillNo, string TestName)>(
+        var names = await con.QueryFirstAsync<(string Company, string Branch, string BranchCode, string BillNo, string TestCode)>(
             @"SELECT ISNULL((SELECT CompanyName FROM dbo.CompanyMaster WHERE CompanyId = @companyId), 'Company'),
                      ISNULL((SELECT BranchName FROM dbo.Branchmaster WHERE BranchID = @branchId), 'Branch'),
                      ISNULL((SELECT NULLIF(BranchCode, '') FROM dbo.Branchmaster WHERE BranchID = @branchId), CAST(@branchId AS VARCHAR(12))),
                      ISNULL((SELECT NULLIF(BillNo, '') FROM dbo.LabOrder WHERE LabOrderId = @labOrderId), CAST(@labOrderId AS VARCHAR(12))),
-                     ISNULL((SELECT Test_Name FROM dbo.LabInvestigationMaster WHERE Test_ID = @testId), CAST(@testId AS VARCHAR(12)))",
+                     ISNULL((SELECT NULLIF(Test_Code, '') FROM dbo.LabInvestigationMaster WHERE Test_ID = @testId), CAST(@testId AS VARCHAR(12)))",
             new { companyId, branchId, labOrderId, testId });
 
-        // file name: <BranchCode>_<Lab booking no>_<Investigation name>; the record keeps the branch, booking and test IDs
-        var fileName = ftp.SafeName($"{names.BranchCode}_{names.BillNo}_{names.TestName}") + ext;
+        // file name: <BranchCode>_<Lab booking no>_<Test code>; the record keeps the branch, booking and test IDs and the lab booking no
+        var fileName = ftp.SafeName($"{names.BranchCode}_{names.BillNo}_{names.TestCode}") + ext;
         string path;
         try
         {
@@ -114,7 +114,7 @@ public class LabExternalDocumentsController(
 
         await con.ExecuteAsync("dbo.usp_Lab_ExternalDoc_Save", new
         {
-            CompanyId = companyId, BranchId = branchId, LabOrderId = labOrderId, InvestigationId = testId, LabOrderItemId = item,
+            CompanyId = companyId, BranchId = branchId, LabOrderId = labOrderId, LabBookingNo = names.BillNo, InvestigationId = testId, LabOrderItemId = item,
             OriginalFileName = Path.GetFileName(file.FileName), FileName = fileName, FilePath = path,
             FileSizeBytes = file.Length, ContentType = file.ContentType, UserId = User.GetUserId()
         }, commandType: System.Data.CommandType.StoredProcedure);
