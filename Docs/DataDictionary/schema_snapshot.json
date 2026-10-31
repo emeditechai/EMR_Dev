@@ -21232,7 +21232,7 @@
   {
    "col": "FileName",
    "def": null,
-   "descr": "Name stored on the FTP server: <BranchCode>_<Lab booking no>_<Investigation name>.<ext> (characters other than letters, digits, . _ - become _).",
+   "descr": "Name stored on the FTP server: <BranchCode>_<Lab booking no>_<Test code>.<ext> (characters other than letters, digits, . _ - become _).",
    "ident": false,
    "len": 520,
    "nullable": false,
@@ -21345,6 +21345,19 @@
    "scale": 3,
    "tbl": "LabExternalDocument",
    "type": "datetime"
+  },
+  {
+   "col": "LabBookingNo",
+   "def": null,
+   "descr": "Lab booking no (LabOrder.BillNo) at the time of upload.",
+   "ident": false,
+   "len": 100,
+   "nullable": true,
+   "ord": 17,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabExternalDocument",
+   "type": "nvarchar"
   },
   {
    "col": "Parameter_ID",
@@ -49844,7 +49857,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-10-31T11:22:11",
+ "extracted_on": "2026-10-31T17:11:31",
  "fk": [
   {
    "col": "LedgerId",

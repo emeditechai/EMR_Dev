@@ -42,5 +42,14 @@
   ],
   "date": "31 Oct 2026",
   "version": "1.4"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "LabExternalDocument: new column(s) LabBookingNo",
+   "MS_Description changed on LabExternalDocument"
+  ],
+  "date": "31 Oct 2026",
+  "version": "1.5"
  }
 ]
