@@ -172,6 +172,14 @@ MODULES = [
                "Doctor IP screens.",
          tables=["Doctor_IP_Hdr", "Doctor_IP_Dtl", "Doctor_IP_Commission_Hdr", "Doctor_IP_Commission_Dtl",
                  "Doctor_IP_Commission_RunLog", "DoctorIpAccessSetting", "DoctorIpAccessLog"]),
+    dict(code="C11", part="C", name="Phlebotomist App & Home Collection",
+         intro="Field work on a home collection booking. LabHomeVisit follows a LabOrder from assignment to lab receipt and "
+               "every step is kept in LabHomeVisitEvent. A duty day is one PhleboAttendance row; GPS points build the "
+               "day's travel legs on the server. A field bill change is a request, priced by the server, until an "
+               "approver decides. Bill amounts include LabOrderMiscCharge (home collection and other charges).",
+         tables=["PhleboSettings", "PhleboStartPoint", "PhleboDevice", "PhleboAttendance", "PhleboLocationPoint", "PhleboTravelLeg",
+                 "LabHomeVisit", "LabHomeVisitEvent", "PhleboDocument", "PhleboCashLedger", "PhleboHandover", "PhleboHandoverLine",
+                 "LabBillChangeRequest", "LabBillChangeLine", "LabBillRevision"]),
 ]
 
 TABLE_DESC = {

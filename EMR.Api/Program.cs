@@ -150,6 +150,8 @@ builder.Services.AddScoped<IB2BBillingService,              B2BBillingService>()
 builder.Services.AddScoped<IPrintTemplateService,           PrintTemplateService>();   // Utility > Print Templates (SQLScripts/2324)
 builder.Services.AddScoped<ICompanyCopyService,            CompanyCopyService>();     // Company > Copy master data (SQLScripts/2328)
 builder.Services.AddScoped<ICompanyPurgeService,           CompanyPurgeService>();    // Company > Remove data / Delete company (SQLScripts/2337)
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IPhleboService,                 PhleboService>();          // Phlebotomist app (SQLScripts/2373, 2374)
 
 // Lab master bulk upload (Excel)
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.LabBulkLookups>();

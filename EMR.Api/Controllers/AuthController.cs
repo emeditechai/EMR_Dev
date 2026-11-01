@@ -39,6 +39,7 @@ public sealed class AuthController(
     public sealed record RefreshRequest(string RefreshToken);
     public sealed record SwitchBranchRequest(string RefreshToken, int BranchId, string? Role = null);
     public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+    public sealed record FirstChangePasswordRequest(string Username, string CurrentPassword, string NewPassword);
 
     private sealed class UserRow
     {
@@ -249,6 +250,48 @@ public sealed class AuthController(
             commandType: CommandType.StoredProcedure);
         permissions.InvalidateUser(userId);
         return Ok(new { success = true, message = "Password changed. Sign in again on every device." });
+    }
+
+    /// <summary>First sign-in from an app: login answers PASSWORD_CHANGE_REQUIRED before any token exists, so this checks the current password itself.</summary>
+    [HttpPost("password/first-change")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> FirstChangePassword([FromBody] FirstChangePasswordRequest request)
+    {
+        var problem = PasswordProblem(request.NewPassword);
+        if (problem is not null) return BadRequest(Fail("WEAK_PASSWORD", problem));
+
+        using var con = db.CreateConnection();
+        var user = await con.QuerySingleOrDefaultAsync<UserRow>(
+            @"SELECT Id, Username, FullName, PasswordHash, IsActive, ISNULL(IsLockedOut, 0) AS IsLockedOut,
+                     ISNULL(IsSuperAdmin, 0) AS IsSuperAdmin, ISNULL(CompanyId, 1) AS CompanyId, ISNULL(MustChangePassword, 0) AS MustChangePassword
+              FROM dbo.Users WHERE Username = @u", new { u = (request.Username ?? "").Trim() });
+        if (user is null)
+        {
+            BCrypt.Net.BCrypt.Verify(request.CurrentPassword ?? "", DummyHash.Value);
+            return Unauthorized(Fail("INVALID_CREDENTIALS", InvalidCredentials));
+        }
+        if (await loginSecurity.LockedUntilAsync(user.Id) is { } until)
+            return StatusCode(423, Fail("LOCKED_OUT", $"Too many wrong passwords. Try again after {until:HH:mm}."));
+
+        bool ok;
+        try { ok = BCrypt.Net.BCrypt.Verify(request.CurrentPassword ?? "", user.PasswordHash); } catch { ok = false; }
+        if (!ok)
+        {
+            await loginSecurity.RecordFailureAsync(user.Id);
+            return Unauthorized(Fail("INVALID_CREDENTIALS", InvalidCredentials));
+        }
+        if (!user.IsActive || user.IsLockedOut)
+            return StatusCode(403, Fail("ACCOUNT_INACTIVE", "User is inactive or locked out. Contact administrator."));
+        if (!user.MustChangePassword) return BadRequest(Fail("NOT_REQUIRED", "This password does not need changing here."));
+
+        await loginSecurity.RecordSuccessAsync(user.Id);
+        await con.ExecuteAsync(
+            @"UPDATE dbo.Users SET PasswordHash = @h, PasswordLastChanged = SYSDATETIME(), MustChangePassword = 0,
+                     Permission_Version = Permission_Version + 1 WHERE Id = @id",
+            new { h = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, 12), id = user.Id });
+        permissions.InvalidateUser(user.Id);
+        return Ok(new { success = true, message = "Password changed. Sign in with the new password." });
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
