@@ -201,7 +201,7 @@
                         {
                             var badgeCls = o.PaymentStatus switch { "P" => "badge-status-P", "R" => "badge-status-R", _ => "badge-status-U" };
                             var payText  = o.PaymentStatus switch { "P" => "Paid", "R" => "Partial", _ => "Unpaid" };
-                            var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
+                            var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.BookingNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
                             <tr data-search="@searchText">
                                 <td class="text-nowrap">@((o.CreatedDate > DateTime.MinValue ? o.CreatedDate : o.OrderDate).ToString("dd MMM yyyy HH:mm"))</td>
                                 <td class="text-nowrap">@(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")</td>
@@ -220,6 +220,10 @@
                                     else
                                     {
                                         <span class="badge text-bg-light text-muted font-monospace border">Pending</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(o.BookingNo))
+                                    {
+                                        <div class="mt-1"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" title="Booking No"><i class="bi bi-journal-bookmark me-1"></i>@o.BookingNo</span></div>
                                     }
                                 </td>
                                 <td><span class="badge text-bg-info text-dark font-monospace">@o.PatientCode</span></td>

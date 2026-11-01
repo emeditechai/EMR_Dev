@@ -552,8 +552,8 @@
                 <td>@(Model.CreatedByName ?? Model.CreatedByUsername ?? "—")</td>
             </tr>
             <tr>
-                <td class="lbl">Booking Date &amp; Time</td>
-                <td style="font-weight:600;color:#c00;">@bookingDate</td>
+                <td class="lbl">Booking Date &amp; Time@(string.IsNullOrWhiteSpace(Model.BookingNo) ? "" : " / Booking No")</td>
+                <td style="font-weight:600;color:#c00;">@bookingDate@if (!string.IsNullOrWhiteSpace(Model.BookingNo)) {<span style="color:#111;"> &middot; <span class="font-monospace">@Model.BookingNo</span></span>}</td>
                 <td class="lbl">Collection Type</td>
                 <td>@(Model.CollectionType ?? "Lab")</td>
             </tr>

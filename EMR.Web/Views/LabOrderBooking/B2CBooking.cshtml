@@ -18,6 +18,10 @@
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="~/lib/leaflet/dist/leaflet.css" />
     <style>
+        /* 2384: Is Booking Req switch */
+        .bk-req-switch { min-height: calc(1.5em + .5rem + 2px); }
+        .bk-req-switch .form-check-input { width: 2.6em; height: 1.4em; cursor: pointer; float: none; }
+
         /* patient grid: title select sits inside the First Name field at a fixed width */
         .pt-row .pt-title { flex: 0 0 88px; max-width: 88px; padding-left: .55rem; padding-right: 1.6rem; background-position: right .45rem center; }
         .pt-row .form-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -729,8 +733,21 @@
                         </select>
                     </div>
 
+                    <!-- 2384: "Is Booking Req" - its own column; on: Booking Date & Time shows beside it, off: billing time, as before -->
+                    <div class="col-6 col-md-auto ms-md-auto">
+                        <label class="form-label text-dark small mb-1 fw-bold d-flex align-items-center gap-1" for="chkIsBookingRequired">
+                            <i class="bi bi-journal-bookmark text-primary"></i> Is Booking Req
+                        </label>
+                        <div class="bk-req-switch d-flex align-items-center gap-2">
+                            <div class="form-check form-switch m-0 p-0">
+                                <input asp-for="IsBookingRequired" class="form-check-input m-0" type="checkbox" role="switch" id="chkIsBookingRequired" />
+                            </div>
+                            <span class="badge rounded-pill bg-light text-secondary border" id="lblBookingReqState">@(Model.IsBookingRequired ? "Yes" : "No")</span>
+                        </div>
+                    </div>
+
                     <!-- Booking Date & Time -->
-                    <div class="col-12 col-md-4 ms-auto">
+                    <div class="col-12 col-md-4" id="divBookingDateBlock" style="@(Model.IsBookingRequired ? "" : "display:none;")">
                         <label class="form-label text-dark small mb-1 fw-bold d-flex align-items-center gap-1" for="txtBookingDateTime">
                             <i class="bi bi-calendar-event text-primary"></i> Booking Date &amp; Time <span class="text-danger">*</span>
                         </label>
@@ -2110,7 +2127,7 @@
                     // Populate Success Modal with generated details
                     $('#lblSuccessPatientName').text(`${result.patientName}`);
                     $('#lblSuccessPatientCode').text(result.patientCode);
-                    $('#lblSuccessBillNo').text(result.billNo);
+                    $('#lblSuccessBillNo').text(result.billNo + (result.bookingNo ? '  ·  Booking No ' + result.bookingNo : ''));
 
                     if (result.tokenNo) {
                         $('#boxSuccessToken').removeClass('alert-warning').addClass('alert-success');
@@ -2280,6 +2297,13 @@
 
         // ── Real-Time Booking Date & Time Min and Validation ─────────────────
         window.isBookingDateTouched = false;
+        // 2384: "Is Booking Req" - the date & time field only when on; off = the billing time (untouched field, set to now at save)
+        $('#chkIsBookingRequired').on('change', function () {
+            var on = this.checked;
+            $('#divBookingDateBlock').toggle(on);
+            $('#lblBookingReqState').text(on ? 'Yes' : 'No').toggleClass('bg-primary text-white', on).toggleClass('bg-light text-secondary', !on);
+            if (!on) { window.isBookingDateTouched = false; $('#txtBookingDateTime').removeClass('is-invalid'); }
+        }).trigger('change');
         function updateBookingDateTimeMin() {
             var dtInput = document.getElementById('txtBookingDateTime');
             if (!dtInput) return;

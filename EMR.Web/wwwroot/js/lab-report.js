@@ -26,6 +26,8 @@
  *                section header rows, each bill's first `left` columns spanning its line rows, bill totals, subtotals and a
  *                grand total (values = the numeric columns at the end, or from column `valueAt`; `right` bill cells
  *                given as b.after follow the line cells and span them too). Used instead of the plain Detail table.
+ *   serverExport: (format, query) => url   optional: Excel / PDF are built on the server - the buttons download that url
+ *                (query = the current filters, view and drill-down, as sent to dataUrl)
  *   exportLines: (row, data, h) => [[...cells]]   optional: Detail exports write these line rows right under each row
  *                (one array per line, same columns as the export); PDF shows them indented and lighter
  * }
@@ -89,12 +91,16 @@ window.LabReport = (function () {
             $('.btn-quick').removeClass('active').filter(`[data-range="${r}"]`).addClass('active');
         }
 
+        function query() {
+            const q = { report: cfg.report, fromDate: $('#lrFrom').val(), toDate: $('#lrTo').val(), search: $('#lrSearch').val() };
+            $('.lr-filter').each(function () { const v = $(this).val(); q[$(this).data('id')] = Array.isArray(v) ? v.join(',') : v; });
+            if (cfg.params) Object.assign(q, cfg.params() || {});
+            return q;
+        }
         function load() {
             const my = ++seq, from = $('#lrFrom').val(), to = $('#lrTo').val();
             if (!from || !to) return;
-            const q = { report: cfg.report, fromDate: from, toDate: to, search: $('#lrSearch').val() };
-            $('.lr-filter').each(function () { const v = $(this).val(); q[$(this).data('id')] = Array.isArray(v) ? v.join(',') : v; });
-            if (cfg.params) Object.assign(q, cfg.params() || {});
+            const q = query();
             buildChrome(); open.clear(); autoOpen = !!cfg.expandOpen;
             $('#lrError').addClass('d-none'); $('#lrEmpty').addClass('d-none');
             // shimmer placeholders in the three zones: widgets, graphs (pages that draw one), list
@@ -277,6 +283,14 @@ window.LabReport = (function () {
         }
         const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_` + (cfg.noDates ? iso(new Date()) : `${$('#lrFrom').val()}_to_${$('#lrTo').val()}`);
         // the export libraries are fetched on the first Excel / PDF click, not with the page
+        // serverExport: the file comes from the server (same filters, the open view and drill-down)
+        if (cfg.serverExport) {
+            const dl = fmt => { const q = Object.assign(query(), { view, group: $('#lrGroup').val() }, drill ? { drillField: drill.field, drillValue: drill.value } : {});
+                                Object.keys(q).forEach(k => (q[k] == null || q[k] === '') && delete q[k]);
+                                window.location.href = cfg.serverExport(fmt, q); };
+            $('#lrExcel').on('click', () => dl('excel'));
+            $('#lrPdf').on('click', () => dl('pdf'));
+        } else
         $('#lrExcel').on('click', function () { EmrExportLibs.run(this, 'excel', () => {
             const gm = groupedModel();
             const t = gm ? null : exportTable(); const ws = gm ? groupedSheet(gm) : XLSX.utils.aoa_to_sheet([t.head, ...t.rows]);
@@ -285,7 +299,7 @@ window.LabReport = (function () {
             if (extra && extra.rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([extra.head, ...extra.rows]), extra.sheet || 'Lines');
             XLSX.writeFile(wb, fileBase() + '.xlsx');
         }); });
-        $('#lrPdf').on('click', function () { EmrExportLibs.run(this, 'pdf', () => {
+        if (!cfg.serverExport) $('#lrPdf').on('click', function () { EmrExportLibs.run(this, 'pdf', () => {
             const gm = groupedModel();
             const t = gm ? { head: gm.head, rows: [] } : exportTable(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
             doc.setFontSize(13); doc.text(cfg.title, 40, 36);

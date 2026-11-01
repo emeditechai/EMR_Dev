@@ -211,7 +211,7 @@ else
         </div>
         <div class="rline">
             <span class="rlbl">against</span>
-            <span class="rval">@Model.ModuleTitle Bill No @Model.BillNo
+            <span class="rval">@Model.ModuleTitle Bill No @Model.BillNo@if (!string.IsNullOrWhiteSpace(Model.BookingNo)) {<text> &middot; Booking No @Model.BookingNo</text>}
                 <span class="rsub">@(Model.BillDate.HasValue ? "dated " + Model.BillDate.Value.ToString("dd-MMM-yyyy") : "") (balance due)</span>
             </span>
         </div>

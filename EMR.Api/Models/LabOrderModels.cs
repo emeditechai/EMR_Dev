@@ -10,6 +10,7 @@ namespace EMR.Api.Models
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public DateTime? BookingDate { get; set; }
+        public bool IsBookingRequired { get; set; }   // 2384: booking number BK<Branch><FY><seq>
         public DateTime? DueDate { get; set; }
         public bool IsB2B { get; set; }
         public int? B2BAgentId { get; set; }
@@ -65,6 +66,7 @@ namespace EMR.Api.Models
         public int LabOrderId { get; set; }
         public string BillNo { get; set; } = string.Empty;
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
     }
 
     public class AvailableInvestigationDto
@@ -120,6 +122,8 @@ namespace EMR.Api.Models
         public DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }
@@ -174,6 +178,8 @@ namespace EMR.Api.Models
         public DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }

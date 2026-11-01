@@ -226,6 +226,10 @@
                             {
                                 <span class="badge bg-secondary-subtle text-secondary ms-1 font-monospace">@item.TokenNo</span>
                             }
+                            @if (!string.IsNullOrEmpty(item.BookingNo))
+                            {
+                                <div class="mt-1"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" title="Booking No"><i class="bi bi-journal-bookmark me-1"></i>@item.BookingNo</span></div>
+                            }
                             @if (item.IsUrgent)
                             {
                                 <span class="badge bg-danger ms-1" style="font-size:0.7rem;"><i class="bi bi-lightning-charge-fill me-0.5"></i>Urgent</span>

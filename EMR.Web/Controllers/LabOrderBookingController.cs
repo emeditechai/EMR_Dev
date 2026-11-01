@@ -182,6 +182,8 @@ namespace EMR.Web.Controllers
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;
+            // 2384: "Is Booking Req" off - the booking is now, as before (the screen's date is ignored)
+            if (!model.IsBookingRequired) model.BookingDateTime = DateTime.Now;
             if (!model.DemographicsOnly)
             {
                 if (model.BookingDateTime < DateTime.Now.AddMinutes(-2))
@@ -514,6 +516,7 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "B2BCollector" : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                IsBookingRequired = model.IsBookingRequired,   // 2384
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 DueDate = dueDate,
                 IsB2B = true,
@@ -794,6 +797,7 @@ namespace EMR.Web.Controllers
             TempData["B2BAgentId"]       = model.B2BAgentId?.ToString();
             TempData["B2BTotal"]         = b2bTotal.ToString("F2");
             TempData["TokenNo"]          = labOrderRes.TokenNo;
+            TempData["BookingNo"]        = labOrderRes.BookingNo;   // 2384
             TempData["PaymentMode"]      = paymentModeUsed;
             TempData["ShowPrintBarcode"] = b2bShowPrintBarcode ? "true" : "false"; // BarcodeGenerateAtBilling (B2B parity)
             return RedirectToAction(nameof(B2BBooking), new { registered = true });
@@ -862,6 +866,8 @@ namespace EMR.Web.Controllers
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;
+            // 2384: "Is Booking Req" off - the booking is now, as before (the screen's date is ignored)
+            if (!model.IsBookingRequired) model.BookingDateTime = DateTime.Now;
             if (!model.DemographicsOnly)
             {
                 if (model.BookingDateTime < DateTime.Now.AddMinutes(-2))
@@ -1088,6 +1094,7 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "Lab" : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                IsBookingRequired = model.IsBookingRequired,   // 2384
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 CreatedBy = User.GetUserId(),
                 Items = lineItems!
@@ -1247,6 +1254,8 @@ namespace EMR.Web.Controllers
                 return Json(new { success = false, error = $"Invalid line items data: {ex.Message}" });
             }
 
+            // 2384: "Is Booking Req" off - the booking is now, as before (the screen's date is ignored)
+            if (!model.IsBookingRequired) model.BookingDateTime = DateTime.Now;
             if (model.BookingDateTime < DateTime.Now.AddHours(-1))
             {
                 return Json(new { success = false, error = "Booking Date & Time cannot be less than current Date & Time." });
@@ -1445,6 +1454,7 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? (model.IsB2B ? "B2BCollector" : "Lab") : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                IsBookingRequired = model.IsBookingRequired,   // 2384
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 IsB2B = model.IsB2B,
                 B2BAgentId = model.B2BAgentId,
@@ -1732,6 +1742,7 @@ namespace EMR.Web.Controllers
                 success = true,
                 labOrderId = labOrderRes.LabOrderId,
                 billNo = labOrderRes.BillNo,
+                bookingNo = labOrderRes.BookingNo,   // 2384
                 tokenNo = paymentResult?.TokenNo,
                 patientCode = actualPatientCode,
                 patientName = patientFullName,
@@ -2987,6 +2998,7 @@ namespace EMR.Web.Controllers
                 LabOrderId        = detail.LabOrderId,
                 BillNo            = detail.BillNo,
                 TokenNo           = detail.TokenNo,
+                BookingNo         = detail.BookingNo,   // 2384
                 OrderDate         = detail.OrderDate,
                 CreatedDate       = detail.CreatedDate,
                 BookingDate       = detail.BookingDate,
@@ -3346,6 +3358,7 @@ namespace EMR.Web.Controllers
                 LabOrderId        = detail.LabOrderId,
                 BillNo            = detail.BillNo,
                 TokenNo           = detail.TokenNo,
+                BookingNo         = detail.BookingNo,   // 2384
                 OrderDate         = detail.OrderDate,
                 CreatedDate       = detail.CreatedDate,
                 BookingDate       = detail.BookingDate,

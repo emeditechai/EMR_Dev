@@ -37,6 +37,7 @@ public class PrintBillViewModel
     public int LabOrderId { get; set; }
     public string? BillNo { get; set; }
     public string? TokenNo { get; set; }
+    public string? BookingNo { get; set; }   // 2384: with "Is Booking Req"
     public DateTime OrderDate { get; set; }
     public DateTime CreatedDate { get; set; }
     public DateTime? BookingDate { get; set; }

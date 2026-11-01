@@ -9,6 +9,7 @@ namespace EMR.Web.Models.DTOs
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public System.DateTime? BookingDate { get; set; }
+        public bool IsBookingRequired { get; set; }   // 2384
         public System.DateTime? DueDate { get; set; }
         public bool IsB2B { get; set; }
         public int? B2BAgentId { get; set; }
@@ -69,6 +70,7 @@ namespace EMR.Web.Models.DTOs
         public int LabOrderId { get; set; }
         public string BillNo { get; set; } = string.Empty;
         public string TokenNo { get; set; } = string.Empty;
+        public string? BookingNo { get; set; }          // 2384
     }
 
     public class AvailableInvestigationDto
@@ -125,6 +127,8 @@ namespace EMR.Web.Models.DTOs
         public System.DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }
@@ -180,6 +184,8 @@ namespace EMR.Web.Models.DTOs
         public System.DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }

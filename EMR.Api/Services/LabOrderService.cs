@@ -72,6 +72,18 @@ namespace EMR.Api.Services
             string billNo = p.Get<string>("@BillNo");
             string? tokenNo = p.Get<string?>("@TokenNo");
 
+            // 2384: "Is Booking Req" - the order is marked and gets its booking number (usp_CreateLabOrder is unchanged)
+            string? bookingNo = null;
+            if (request.IsBookingRequired)
+            {
+                var bp = new DynamicParameters();
+                bp.Add("@LabOrderId", labOrderId);
+                bp.Add("@IsBookingRequired", true);
+                bp.Add("@BookingNo", dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+                await connection.ExecuteAsync("dbo.usp_LabOrder_SetBooking", bp, commandType: CommandType.StoredProcedure);
+                bookingNo = bp.Get<string?>("@BookingNo");
+            }
+
             if (request.DueDate.HasValue)
             {
                 await connection.ExecuteAsync("UPDATE dbo.LabOrder SET DueDate = @DueDate WHERE LabOrderId = @LabOrderId", new { DueDate = request.DueDate.Value, LabOrderId = labOrderId });
@@ -81,7 +93,8 @@ namespace EMR.Api.Services
             {
                 LabOrderId = labOrderId,
                 BillNo = billNo,
-                TokenNo = tokenNo
+                TokenNo = tokenNo,
+                BookingNo = bookingNo
             };
         }
 

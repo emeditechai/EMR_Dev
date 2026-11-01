@@ -23,6 +23,7 @@ namespace EMR.Web.Models.ViewModels
         public string? BillNo { get; set; }
         public DateTime? BillDate { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }   // 2384
         public string? PatientCode { get; set; }
         public string? PatientName { get; set; }
         public string? PatientPhone { get; set; }

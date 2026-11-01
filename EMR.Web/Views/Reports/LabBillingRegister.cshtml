@@ -6,6 +6,13 @@
     ViewData["DateLabel"] = "bill date";
 }
 <partial name="_LabReportShell" />
+<style>
+    .br-lines { font-size:.78rem; margin:0; }
+    .br-lines th { font-size:.64rem; text-transform:uppercase; letter-spacing:.4px; color:#64748b; font-weight:700; }
+    .br-lines tr.ln-misc td { background:#fffbeb; }
+    .br-lines tr.ln-cancelled td { color:#94a3b8; text-decoration:line-through; }
+    .br-lines tr.ln-cancelled td.ln-status { text-decoration:none; }
+</style>
 
 @section Scripts {
 <script src="~/js/lab-report.js" asp-append-version="true"></script>
@@ -14,13 +21,14 @@
     const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
     const STATUS = { PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'], PARTIAL: ['Partial', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
                      UNPAID: ['Unpaid', 'bg-danger-subtle text-danger border-danger-subtle'], CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'] };
+    const linesOf = (r, data) => (data?.lines || []).filter(l => l.LabOrderId === r.LabOrderId);
     const status = (v, h) => { const s = STATUS[v] || [v, '']; return h.pill(s[0], s[1]); };
     LabReport.init({
         report: 'billing-register', title: 'Daily Billing Register', defaultRange: 'today',
         dataUrl: '@Url.Action("GetLabReportData", "Reports")',
         seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
         branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
-        searchPlaceholder: 'Bill No, Token, Patient ID, name or mobile...',
+        searchPlaceholder: 'Bill No, Token, Booking No, Patient ID, name or mobile...',
         filters: [
             { id: 'billingType', label: 'Billing', allLabel: 'B2C & B2B', options: [['B2C', 'B2C'], ['B2B', 'B2B']] },
             { id: 'paymentStatus', label: 'Payment', allLabel: 'All', options: [['PAID', 'Paid'], ['PARTIAL', 'Partial'], ['UNPAID', 'Unpaid'], ['CANCELLED', 'Cancelled']] },
@@ -47,7 +55,7 @@
         ],
         shareOf: 'NetAmount',
         cols: [
-            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>`, text: r => r.BillNo },
+            { label: 'Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')}</div>${r.BookingNo ? `<div class="fs-9 text-primary font-monospace" title="Booking No"><i class="bi bi-journal-bookmark me-1"></i>${h.esc(r.BookingNo)}</div>` : ''}`, text: r => r.BillNo + (r.BookingNo ? ' / ' + r.BookingNo : '') },
             { label: 'Bill date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
             { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
             { label: 'Billing', html: (r, h) => `${h.esc(r.BillingType)}${r.PartnerName ? `<div class="text-muted fs-9">${h.esc(r.PartnerName)}</div>` : ''}`, text: r => r.BillingType + (r.PartnerName ? ' - ' + r.PartnerName : '') },
@@ -63,7 +71,22 @@
             { label: 'Billed by', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
             { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
         ],
-        rowClass: r => r.IsCancelled ? 'row-muted' : ''
+        rowClass: r => r.IsCancelled ? 'row-muted' : '',
+        // 2385: each bill opens to its lines - tests / profiles / packages (cancelled struck through) and misc charges
+        expandOpen: true,
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => `<table class="table table-sm br-lines"><thead><tr><th>#</th><th>Code</th><th>Test / Item</th><th>Type</th><th>Department</th>
+                <th class="text-end">Rate</th><th class="text-end">Discount</th><th class="text-end">GST</th><th class="text-end">Net</th><th>Status</th></tr></thead><tbody>` +
+                linesOf(r, data).map(l => `<tr class="${l.IsCancelled ? 'ln-cancelled' : ''} ${l.LineKind === 1 ? 'ln-misc' : ''}"><td>${l.LineSeq}</td>
+                    <td class="font-monospace">${h.esc(l.TestCode || '')}</td><td>${h.esc(l.TestName)}</td><td>${h.esc(l.ItemType || '')}</td><td>${h.esc(l.Department || '')}</td>
+                    <td class="text-end">${h.money(l.Rate)}</td><td class="text-end">${l.Discount > 0 ? h.money(l.Discount) : '—'}</td>
+                    <td class="text-end">${l.Gst > 0 ? h.money(l.Gst) : '—'}</td><td class="text-end fw-semibold">${h.money(l.NetAmount)}</td>
+                    <td class="ln-status">${l.IsCancelled ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Cancelled</span>' : '<span class="text-success fs-9">Active</span>'}</td></tr>`).join('') +
+                '</tbody></table>'
+        },
+        // Excel / PDF are built on the server, with the lines (2385)
+        serverExport: (fmt, q) => '@Url.Action("ExportLabBillingRegister", "Reports")?' + new URLSearchParams(Object.assign({ format: fmt }, q)).toString()
     });
 })();
 </script>

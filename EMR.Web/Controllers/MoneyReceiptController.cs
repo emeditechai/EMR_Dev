@@ -66,6 +66,7 @@ public class MoneyReceiptController(
                 BillNo         = (string?)head.BillNo,
                 BillDate       = (DateTime?)head.BillDate,
                 TokenNo        = (string?)head.TokenNo,
+                BookingNo      = (string?)head.BookingNo,   // 2384
                 PatientCode    = (string?)head.PatientCode,
                 PatientName    = (string?)head.PatientName,
                 PatientPhone   = (string?)head.PatientPhone,

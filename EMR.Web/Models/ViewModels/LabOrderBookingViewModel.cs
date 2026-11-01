@@ -163,6 +163,8 @@ namespace EMR.Web.Models.ViewModels
 
         [Display(Name = "Booking Date & Time")]
         public DateTime BookingDateTime { get; set; } = DateTime.Now;
+        /// <summary>2384: "Is Booking Req" - on: the booking date & time from the screen and a booking number; off: as before (billing time).</summary>
+        public bool IsBookingRequired { get; set; }
 
         // ── Section 2: LAB Order Filters ─────────────────────────────────────────
         [Display(Name = "Department")]

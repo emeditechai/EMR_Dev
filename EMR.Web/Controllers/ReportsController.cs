@@ -458,6 +458,71 @@ public class ReportsController : Controller
         return Json(new { success = true, message = action == "sent" ? "Marked as sent to the outside lab." : "Outside-lab result recorded." });
     }
 
+    /// <summary>
+    /// Daily Billing Register as Excel or PDF, built on the server (SQLScripts/2385): Detail = bill by bill with its test
+    /// and misc-charge lines; Summary = the chosen grouping. Same data, scope and filters as the page (GetLabReportData);
+    /// drillField / drillValue narrow it to the Summary line opened in Detail.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> ExportLabBillingRegister(string format, string fromDate, string toDate, string? search,
+        string? billingType, string? paymentStatus, string? createdBy, string? view, string? group, string? drillField, string? drillValue)
+    {
+        var pdf = string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase);
+        if (!pdf && !string.Equals(format, "excel", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { success = false, message = "Choose Excel or PDF." });
+
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
+        if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
+        if (tDate < fDate) (fDate, tDate) = (tDate, fDate);
+        if ((tDate - fDate).TotalDays > 366)
+            return BadRequest(new { success = false, message = "Please select a date range of up to one year." });
+
+        var seeAll = CanSeeAllCollections();
+        var query = new Dictionary<string, string?>
+        {
+            ["branchId"] = branchId.ToString(), ["fromDate"] = fDate.ToString("yyyy-MM-dd"), ["toDate"] = tDate.ToString("yyyy-MM-dd"),
+            ["search"] = search, ["userId"] = User.GetUserId().ToString(),
+            ["isAdmin"] = seeAll ? "true" : "false", ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false",
+            ["billingType"] = billingType, ["paymentStatus"] = paymentStatus, ["createdBy"] = createdBy
+        };
+        var result = await _reportApi.RunLabReportRawAsync("billing-register", query);
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.Data))
+            return StatusCode(StatusCodes.Status502BadGateway, new { success = false, message = result.ErrorMessage ?? "Unable to load the billing register." });
+
+        using var json = System.Text.Json.JsonDocument.Parse(result.Data);
+        List<Dictionary<string, System.Text.Json.JsonElement>> Set(string name) =>
+            json.RootElement.TryGetProperty(name, out var a) && a.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? a.EnumerateArray().Select(x => x.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone())).ToList() : new();
+        var rows = Set("rows");
+        var lines = Set("lines");
+        var groups = Set("groups");
+        var S = EMR.Web.Services.Reports.LabBillingRegisterExport.S;
+        if (!string.IsNullOrWhiteSpace(drillField) && drillValue != null)
+            rows = rows.Where(r => S(r, drillField) == drillValue).ToList();
+        var ids = rows.Select(r => S(r, "LabOrderId")).ToHashSet();
+        lines = lines.Where(l => ids.Contains(S(l, "LabOrderId"))).ToList();
+
+        var groupKey = group is "byDate" or "byPaymentStatus" or "byBillingType" or "byCreatedBy" ? group : "byDate";
+        var groupLabel = groupKey switch { "byPaymentStatus" => "Payment status", "byBillingType" => "Billing type", "byCreatedBy" => "Billed by", _ => "Bill date" };
+        var filters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(billingType)) filters.Add("Billing: " + billingType);
+        if (!string.IsNullOrWhiteSpace(paymentStatus)) filters.Add("Payment: " + paymentStatus);
+        if (seeAll && !string.IsNullOrWhiteSpace(createdBy)) filters.Add("Billed by: " + (rows.FirstOrDefault() is { } fr ? S(fr, "CreatedBy") : "#" + createdBy));
+        if (!string.IsNullOrWhiteSpace(search)) filters.Add($"Search: \"{search.Trim()}\"");
+        if (!string.IsNullOrWhiteSpace(drillField) && drillValue != null) filters.Add($"{drillField}: {drillValue}");
+
+        var info = new EMR.Web.Services.Reports.BillingRegisterExportInfo(
+            User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? string.Empty,
+            fDate, tDate, filters, User.GetDisplayName(), DateTime.Now, seeAll);
+        var v = string.Equals(view, "summary", StringComparison.OrdinalIgnoreCase) ? "summary" : "detail";
+        var name = $"Daily_Billing_Register_{v}_{fDate:yyyy-MM-dd}_to_{tDate:yyyy-MM-dd}";
+        return pdf
+            ? File(EMR.Web.Services.Reports.LabBillingRegisterExport.BuildPdf(rows, lines, groups, v, groupKey, groupLabel, info), "application/pdf", name + ".pdf")
+            : File(EMR.Web.Services.Reports.LabBillingRegisterExport.BuildExcel(rows, lines, groups, v, groupKey, groupLabel, info),
+                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name + ".xlsx");
+    }
+
     [HttpGet]
     public Task<IActionResult> GetLabReportData(string report, string fromDate, string toDate, string? search)
         => RegisterDataAsync(LabReportFilters, _reportApi.RunLabReportRawAsync, report, fromDate, toDate, search);
