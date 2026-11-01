@@ -440,9 +440,30 @@
                         <option value="Unknown">Unknown</option>
                     </select>
                 </div>
-                <div class="col-12 col-lg-6">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="GuardianName" class="form-label fw-semibold small">Guardian / Relative Name</label>
                     <input asp-for="GuardianName" class="form-control" maxlength="200" placeholder="Optional" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3 ref-doc-hl">
+                    <style>
+                        .ref-doc-hl .form-label { background:#fff3b0; color:#7a5a00; padding:1px 8px; border-radius:4px; }
+                        .ref-doc-hl .select2-container .select2-selection,
+                        .ref-doc-hl select.form-select { background-color:#fff9db !important; border-color:#f0c419 !important; box-shadow:0 0 0 .15rem rgba(240,196,25,.25); }
+                    </style>
+                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small"><i class="bi bi-star-fill text-warning me-1"></i>Referral Doctor</label>
+                    <div class="d-flex align-items-stretch gap-1">
+                        <div class="flex-grow-1" style="min-width:0;">
+                            <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search"
+                                    asp-items="Model.ReferralDoctorOptions">
+                                <option value="">-- Select Referral Doctor --</option>
+                            </select>
+                        </div>
+                        <a asp-permission="LAB.LABORDERBOOKING.B2CBOOKING:ADD_DOCTOR" class="btn btn-outline-primary d-flex align-items-center justify-content-center flex-shrink-0 px-0"
+                           style="width:38px;" href="@Url.Action("Create", "Doctors")" target="_blank" rel="noopener"
+                           title="Add a doctor in Doctor Master (assign a LAB department to list here)">
+                            <i class="bi bi-plus-lg"></i>
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -613,7 +634,7 @@
         <div id="secOtherInfo" class="collapse">
         <div class="reg-section-body">
 
-            @* ── Row 1: Occupation | Marital Status | Referral Doctor ── *@
+            @* ── Row 1: Occupation | Marital Status | Language ── *@
             <div class="row g-3 mb-3">
                 <div class="col-12 col-sm-6 col-md-4">
                     <label asp-for="OccupationId" class="form-label fw-semibold small">Occupation</label>
@@ -635,20 +656,6 @@
                             asp-items="Model.LanguageOptions">
                         <option value="">-- Select Language --</option>
                     </select>
-                </div>
-                <div class="col-12 col-sm-6 col-md-4">
-                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referral Doctor</label>
-                    <div class="input-group">
-                        <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search"
-                                asp-items="Model.ReferralDoctorOptions">
-                            <option value="">-- Select Referral Doctor --</option>
-                        </select>
-                        <a asp-permission="LAB.LABORDERBOOKING.B2CBOOKING:ADD_DOCTOR" class="btn btn-outline-primary" href="@Url.Action("Create", "Doctors")" target="_blank" rel="noopener"
-                           title="Add a doctor in Doctor Master (assign a LAB department to list here)">
-                            <i class="bi bi-plus-lg"></i>
-                        </a>
-                    </div>
-                    <div class="form-text">Doctors of a LAB-type department (Doctor Master)</div>
                 </div>
             </div>
 
@@ -715,7 +722,7 @@
                     <!-- Phlebotomist Dropdown (Conditional on Home Collection) -->
                     <div class="col-12 col-md-4" id="divPhlebotomist" style="@(Model.CollectionType == "Home Collection" ? "" : "display:none;")">
                         <label class="form-label text-dark small mb-1 fw-bold d-flex align-items-center gap-1">
-                            <i class="bi bi-person-badge text-primary"></i> Phlebotomist <span class="text-danger">*</span>
+                            <i class="bi bi-person-badge text-primary"></i> Phlebotomist <span class="text-muted fw-normal small">(optional)</span>
                         </label>
                         <select asp-for="PhlebotomistId" class="form-select form-select-sm s2-basic" id="ddlPhlebotomist" asp-items="Model.PhlebotomistOptions">
                             <option value="">-- Select Phlebotomist --</option>
@@ -1971,12 +1978,6 @@
                         $('#HomeCollectionAddress').removeClass('is-invalid');
                     }
 
-                    var phleb = $('#ddlPhlebotomist').val();
-                    if (!phleb) {
-                        Swal.fire({ icon: 'warning', title: 'Phlebotomist Required', text: 'Please select a Phlebotomist for Home Collection.', confirmButtonColor: '#0d6efd' });
-                        $('#ddlPhlebotomist').focus();
-                        return;
-                    }
                 }
 
                 // Booking Date & Time Auto-update if untouched

@@ -59,7 +59,7 @@
                 <label asp-for="PhoneNumber" class="form-label fw-semibold">Phone Number <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-telephone"></i></span>
-                    <input asp-for="PhoneNumber" class="form-control" maxlength="20" placeholder="+91-9876543210" />
+                    <input asp-for="PhoneNumber" class="form-control" maxlength="14" inputmode="tel" placeholder="10-digit mobile, e.g. 9876543210" />
                 </div>
                 <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
             </div>
@@ -258,6 +258,18 @@
 
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script>
+        // Phone Number: green when it is a valid mobile, red when typed but invalid (same rule as the server)
+        (function () {
+            var $ph = $('#PhoneNumber'), re = /^(?:\+?91[\- ]?|0)?[6-9]\d{9}$/;
+            function mark() {
+                var v = ($ph.val() || '').trim();
+                $ph.toggleClass('is-valid', re.test(v)).toggleClass('is-invalid', v.length > 0 && !re.test(v));
+            }
+            $ph.on('input blur', mark);
+            if ($ph.val()) mark();
+        })();
+    </script>
     <link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
     <script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
     <script>

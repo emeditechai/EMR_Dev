@@ -388,7 +388,7 @@
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text">₹</span>
                                 <input type="number" id="crRefundAmount" class="form-control"
-                                       min="0.01" step="0.01" placeholder="Enter refund amount">
+                                       min="1" step="1" placeholder="Enter refund amount">
                             </div>
                         </div>
                         <div class="mb-3">
@@ -842,8 +842,10 @@
 
             const sel = document.getElementById('crCancellationSelect');
             sel.innerHTML = cancels.map(c => {
-                const netCanc = Math.max(0, (c.cancelledAmount || 0) - (c.discountAdjusted || 0));
-                return `<option value="${c.cancellationId}" data-amount="${netCanc}">${c.cancellationNo} — ₹${fmt(netCanc)} (${fmtDate(c.cancellationDate)})</option>`;
+                // 2375: refundable on this cancellation = its net, rounded to the rupee, less what was already refunded on it
+                const netCanc = Math.round(Math.max(0, (c.cancelledAmount || 0) - (c.discountAdjusted || 0)));
+                const leftCanc = Math.max(0, netCanc - refunds.filter(r => r.cancellationId === c.cancellationId).reduce((s, r) => s + (r.refundAmount || 0), 0));
+                return `<option value="${c.cancellationId}" data-amount="${leftCanc}">${c.cancellationNo} — Refundable ₹${fmt(leftCanc)} (${fmtDate(c.cancellationDate)})</option>`;
             }).join('');
 
             // Standard rule (B2C, B2B, OPD): received = paid - refunds already given (the bill's TotalPaid is already
@@ -852,15 +854,20 @@
             const received        = currentBill.totalPaid || 0;
             const totalPaid       = received + alreadyRefunded;
             const billNow         = currentBill.netAmount || 0;     // already reduced by the cancellation
-            const refundable      = Math.max(0, Math.round((received - billNow) * 100) / 100);
+            const rawRefundable   = Math.max(0, Math.round((received - billNow) * 100) / 100);
+            const refundable      = Math.round(rawRefundable);   // 2375: refunds are whole rupees (round off, like the bill)
+            const refundRoundOff  = Math.round((refundable - rawRefundable) * 100) / 100;
             const dueNow          = Math.max(0, Math.round((billNow - received) * 100) / 100);
 
             document.getElementById('crRefundAmount').max = refundable;
+            document.getElementById('crRefundAmount').step = 1;
+            document.getElementById('crRefundAmount').value = refundable > 0 ? refundable : '';
             document.getElementById('crRefundSummaryNotice').innerHTML =
                 `<strong>Refund Summary:</strong> Paid: ₹${fmt(totalPaid)} &nbsp;|&nbsp; ` +
                 `Already Refunded: ₹${fmt(alreadyRefunded)} &nbsp;|&nbsp; Bill now: ₹${fmt(billNow)} &nbsp;|&nbsp; ` +
                 (refundable > 0
-                    ? `<strong class="text-success">Refundable: ₹${fmt(refundable)}</strong>`
+                    ? `<strong class="text-success">Refundable: ₹${fmt(refundable)}</strong>` +
+                      (refundRoundOff !== 0 ? ` <span class="text-muted small">(₹${fmt(rawRefundable)}, round off ${refundRoundOff > 0 ? '+' : '−'}₹${fmt(Math.abs(refundRoundOff))})</span>` : '')
                     : `<strong class="${dueNow > 0 ? 'text-danger' : 'text-muted'}">${dueNow > 0 ? `Nothing to refund - ₹${fmt(dueNow)} still due` : 'Nothing to refund'}</strong>`);
             document.getElementById('btnSubmitRefund').disabled = refundable <= 0;
         } catch(e) { console.warn(e); }
@@ -877,13 +884,14 @@
 
         if (!cancId)              { showToast('Select a cancellation reference.', 'error'); return; }
         if (!amount || amount <= 0) { showToast('Enter a valid refund amount.', 'error'); return; }
+        if (amount !== Math.round(amount)) { showToast('Refund amount must be in whole rupees (round off applies).', 'error'); return; }
 
         const maxRefundable = parseFloat(document.getElementById('crRefundAmount').max) || 0;
         if (amount > maxRefundable) { showToast(`Refund amount cannot exceed total refundable amount (₹${fmt(maxRefundable)}).`, 'error'); return; }
 
         const selOption = document.getElementById('crCancellationSelect').selectedOptions[0];
         const cancAmount = selOption ? parseFloat(selOption.dataset.amount) : 0;
-        if (amount > cancAmount) { showToast(`Refund amount cannot exceed the selected cancellation amount (₹${fmt(cancAmount)}).`, 'error'); return; }
+        if (amount > cancAmount) { showToast(`Refund amount cannot exceed what is refundable on the selected cancellation (₹${fmt(cancAmount)}).`, 'error'); return; }
 
         if (!mode)                { showToast('Select a refund mode.', 'error'); return; }
         const confirmRefund = await Swal.fire({

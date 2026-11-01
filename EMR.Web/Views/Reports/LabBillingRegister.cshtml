@@ -42,7 +42,7 @@
         ],
         groupCols: [
             { field: 'BillCount', label: 'Bills', num: true }, { field: 'TestCount', label: 'Tests', num: true },
-            { field: 'GrossAmount', label: 'Gross', money: true }, { field: 'DiscountAmount', label: 'Discount', money: true },
+            { field: 'GrossAmount', label: 'Gross', money: true }, { field: 'DiscountAmount', label: 'Discount', money: true }, { field: 'RoundOffAmount', label: 'Round off', money: true },
             { field: 'NetAmount', label: 'Net', money: true }, { field: 'PaidAmount', label: 'Collected', money: true }, { field: 'DueAmount', label: 'Due', money: true }
         ],
         shareOf: 'NetAmount',
@@ -54,6 +54,7 @@
             { label: 'Tests', html: (r, h) => `<span class="badge bg-light text-dark border">${r.TestCount}</span> <span class="text-muted fs-9 d-inline-block text-truncate align-middle" style="max-width:220px" title="${h.esc(r.TestNames)}">${h.esc(r.TestNames)}</span>`, text: r => r.TestNames },
             { label: 'Gross', cls: 'text-end amt', html: (r, h) => h.money(r.GrossAmount), text: r => r.GrossAmount, sum: 'GrossAmount' },
             { label: 'Discount', cls: 'text-end amt', html: (r, h) => r.DiscountAmount > 0 ? `<span class="text-warning-emphasis">${h.money(r.DiscountAmount)}</span>` : '<span class="text-muted">—</span>', text: r => r.DiscountAmount, sum: 'DiscountAmount' },
+            { label: 'Round off', cls: 'text-end amt', html: (r, h) => r.RoundOffAmount ? `<span class="${r.RoundOffAmount > 0 ? 'text-primary' : 'text-danger'}">${r.RoundOffAmount > 0 ? '+' : '−'}${h.money(Math.abs(r.RoundOffAmount))}</span>` : '<span class="text-muted">—</span>', text: r => r.RoundOffAmount, sum: 'RoundOffAmount' },
             { label: 'Net', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.NetAmount), text: r => r.NetAmount, sum: 'NetAmount' },
             { label: 'Collected', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
             { label: 'Due', cls: 'text-end amt', html: (r, h) => r.DueAmount > 0 ? `<span class="text-danger fw-semibold">${h.money(r.DueAmount)}</span>` : `<span class="text-muted">${h.money(0)}</span>`, text: r => r.DueAmount, sum: 'DueAmount' },
