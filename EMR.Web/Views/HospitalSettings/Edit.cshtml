@@ -553,6 +553,20 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c9232e;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-check2-square"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Bill Change Approval Required</div>
+                            <div class="lp-desc">Yes: the office approves every change from the phlebotomist app. No: test changes apply at once; discounts still need approval. Applies to all branches.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="BillChangeApprovalRequired">
+                                <label class="form-check-label" asp-for="BillChangeApprovalRequired">Bill change approval required</label>
+                            </div>
+                            <span asp-validation-for="BillChangeApprovalRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#d97706;--lp-bg:#fef3c7;">
                         <div class="lp-icon"><i class="bi bi-eyedropper"></i></div>
                         <div class="lp-body">

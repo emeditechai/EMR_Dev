@@ -1,0 +1,171 @@
+@{
+    ViewData["Title"] = "Bill Change Approval";
+}
+
+<style>
+    .bc-tile { border: 0; border-radius: .8rem; color: #fff; padding: .8rem 1rem; width: 100%; text-align: left; }
+    .bc-tile .n { font-size: 1.55rem; font-weight: 800; line-height: 1.1; }
+    .bc-tile .l { font-size: .78rem; font-weight: 600; opacity: .92; }
+    .bc-tile.on { box-shadow: 0 0 0 3px rgba(100, 64, 152, .35); }
+    .bc-pending { background: linear-gradient(135deg, #c9232e 0%, #f13a43 100%); }
+    .bc-done { background: linear-gradient(135deg, #059c6e 0%, #1fcf96 100%); }
+    .bc-refused { background: linear-gradient(135deg, #475569 0%, #7a8aa0 100%); }
+    .bc-all { background: linear-gradient(135deg, #644098 0%, #7e52b8 50%, #a8407a 100%); }
+    .bc-note { font-size: .78rem; color: #64748b; max-width: 320px; }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">LAB</li>
+                <li class="breadcrumb-item active" aria-current="page">Bill Change Approval</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-check2-square me-2"></i>Bill Change Approval</h4>
+        <div class="text-muted small">Decide the phlebotomist's requests quickly: samples cannot be saved in the app while a request is waiting. This list refreshes by itself.</div>
+    </div>
+
+    <div class="row g-2 mb-3" id="bcTiles">
+        <div class="col-6 col-lg"><button type="button" class="bc-tile bc-pending on" data-grp="PENDING"><div class="n" id="bcPending">0</div><div class="l">Waiting</div></button></div>
+        <div class="col-6 col-lg"><button type="button" class="bc-tile bc-done" data-grp="DONE"><div class="n" id="bcDone">0</div><div class="l">Approved</div></button></div>
+        <div class="col-6 col-lg"><button type="button" class="bc-tile bc-refused" data-grp="REFUSED"><div class="n" id="bcRefused">0</div><div class="l">Refused</div></button></div>
+        <div class="col-6 col-lg"><button type="button" class="bc-tile bc-all" data-grp=""><div class="n" id="bcAll">0</div><div class="l">All requests</div></button></div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Requested</th><th>Patient</th><th>Booking</th><th>Request</th><th class="text-end">Bill</th><th class="text-end">Paid</th><th class="text-end">Due</th><th>Status</th><th class="text-end">Actions</th></tr>
+                </thead>
+                <tbody id="bcRows"><tr><td colspan="9" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="bcModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" id="bcForm" autocomplete="off">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="bcModalTitle"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-1" id="bcModalBill"></div>
+                <div class="small fw-semibold mb-2" id="bcModalChange"></div>
+                <div class="alert alert-warning small py-2 d-none" id="bcManualNote">Approving records the decision only. Make this change on its usual screen.</div>
+                <div class="mb-2 d-none" id="bcDiscountWrap">
+                    <label class="form-label small fw-semibold mb-1" for="bcDiscount">Discount amount (Rs) <span class="text-danger">*</span></label>
+                    <input type="number" min="0.01" step="0.01" class="form-control form-control-sm" id="bcDiscount" />
+                    <div class="form-text" id="bcDiscountHint"></div>
+                </div>
+                <div>
+                    <label class="form-label small fw-semibold mb-1" for="bcRemarks">Remarks <span class="text-danger d-none" id="bcRemarksReq">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="bcRemarks" maxlength="300" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Back</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="bcSave">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const TYPE = { ADD_TEST: 'Add test', REMOVE_TEST: 'Remove test', REPLACE_TEST: 'Replace test', DISCOUNT: 'Discount or waiver', PAYMENT_MODE: 'Payment mode', PATIENT_DETAILS: 'Patient details' };
+    const STATUS = { PENDING: ['Waiting', 'bg-danger'], APPLIED: ['Applied to bill', 'bg-success'], APPROVED: ['Approved', 'bg-success'], REFUSED: ['Refused', 'bg-secondary'] };
+    const AUTO = ['ADD_TEST', 'REMOVE_TEST', 'REPLACE_TEST', 'DISCOUNT'];
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const when = s => s ? new Date(s).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
+    const rs = n => n == null ? '—' : '₹' + Number(n).toLocaleString('en-IN');
+    const grp = r => r.Status === 'PENDING' ? 'PENDING' : r.Status === 'REFUSED' ? 'REFUSED' : 'DONE';
+    const rows = document.getElementById('bcRows');
+    const modalEl = document.getElementById('bcModal');
+    const modal = new bootstrap.Modal(modalEl);
+    let requests = [], group = 'PENDING', current = null, action = '';
+
+    async function load() {
+        try {
+            const res = await (await fetch('@Url.Action("Requests")')).json();
+            if (!res.success) { Swal.fire({ icon: 'error', text: res.message }); return; }
+            requests = res.requests;
+            render();
+        } catch { rows.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">Could not load the requests. Try again.</td></tr>'; }
+    }
+
+    function render() {
+        const count = g => requests.filter(r => grp(r) === g).length;
+        bcPending.textContent = count('PENDING'); bcDone.textContent = count('DONE'); bcRefused.textContent = count('REFUSED'); bcAll.textContent = requests.length;
+        const shown = group ? requests.filter(r => grp(r) === group) : requests;
+        if (!shown.length) { rows.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No requests here.</td></tr>'; return; }
+        rows.innerHTML = shown.map(r => `
+            <tr data-id="${r.BillChangeId}">
+                <td class="text-nowrap small">${when(r.RequestedDate)}<div class="text-muted">${esc(r.RequestedByName)}</div></td>
+                <td><div class="fw-semibold">${esc(r.PatientName)}</div><div class="small text-muted">${esc(r.PhoneNumber)}</div></td>
+                <td class="small fw-semibold text-nowrap">${esc(r.BillNo)}</td>
+                <td><div class="fw-semibold small">${esc(TYPE[r.RequestType] || r.RequestType)}</div>
+                    ${r.Lines ? `<div class="bc-note">${esc(r.Lines)}</div>` : ''}${r.Details ? `<div class="bc-note">${esc(r.Details)}</div>` : ''}
+                    <div class="bc-note">Reason: ${esc(r.Reason)}</div></td>
+                <td class="text-end text-nowrap">${rs(r.NetAmount)}${r.Status === 'PENDING' && r.NewTotal !== r.OldTotal ? `<div class="small text-muted">after: ${rs(r.NewTotal)}</div>` : ''}</td>
+                <td class="text-end">${rs(r.TotalPaid)}</td>
+                <td class="text-end">${rs(r.BalanceDue)}</td>
+                <td><span class="badge ${STATUS[r.Status][1]}">${STATUS[r.Status][0]}</span>${r.ActionedByName ? `<div class="bc-note">${esc(r.ActionedByName)}, ${when(r.ActionedDate)}</div>` : ''}${r.ActionRemarks ? `<div class="bc-note">${esc(r.ActionRemarks)}</div>` : ''}</td>
+                <td class="text-end text-nowrap">${r.Status === 'PENDING' ? `
+                    <button type="button" class="btn btn-success btn-sm bc-do" data-do="approve">Approve</button>
+                    <button type="button" class="btn btn-outline-danger btn-sm bc-do" data-do="refuse">Refuse</button>` : ''}</td>
+            </tr>`).join('');
+    }
+
+    rows.addEventListener('click', e => {
+        const btn = e.target.closest('.bc-do'); if (!btn) return;
+        current = requests.find(r => r.BillChangeId === Number(btn.closest('tr').dataset.id));
+        action = btn.dataset.do;
+        const approve = action === 'approve', discount = approve && current.RequestType === 'DISCOUNT';
+        bcModalTitle.textContent = approve ? 'Approve request' : 'Refuse request';
+        bcModalBill.textContent = `${current.PatientName} · ${current.BillNo}`;
+        bcModalChange.textContent = [TYPE[current.RequestType], current.Lines, current.Details].filter(Boolean).join(': ');
+        bcManualNote.classList.toggle('d-none', !approve || AUTO.includes(current.RequestType));
+        bcDiscountWrap.classList.toggle('d-none', !discount);
+        bcDiscountHint.textContent = `Balance due is ${rs(current.BalanceDue)}. The discount cannot be more than this.`;
+        bcRemarksReq.classList.toggle('d-none', approve);
+        bcDiscount.value = ''; bcRemarks.value = '';
+        bcSave.textContent = approve ? 'Approve' : 'Refuse';
+        modal.show();
+    });
+
+    bcForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (action === 'refuse' && !bcRemarks.value.trim()) { Swal.fire({ icon: 'warning', text: 'Give a reason.' }); return; }
+        if (action === 'approve' && current.RequestType === 'DISCOUNT' && !(Number(bcDiscount.value) > 0)) { Swal.fire({ icon: 'warning', text: 'Enter the discount amount.' }); return; }
+        const body = new FormData();
+        body.append('id', current.BillChangeId); body.append('remarks', bcRemarks.value.trim());
+        if (bcDiscount.value) body.append('discountAmount', bcDiscount.value);
+        body.append('__RequestVerificationToken', document.querySelector('#bcForm input[name="__RequestVerificationToken"]').value);
+        bcSave.disabled = true;
+        try {
+            const url = action === 'approve' ? '@Url.Action("Approve")' : '@Url.Action("Refuse")';
+            const res = await (await fetch(url, { method: 'POST', body })).json();
+            if (res.success) { modal.hide(); Swal.fire({ icon: 'success', text: res.message }); await load(); }
+            else Swal.fire({ icon: 'error', text: res.message });
+        } catch { Swal.fire({ icon: 'error', text: 'Could not save. Check the connection and try again.' }); }
+        finally { bcSave.disabled = false; }
+    });
+
+    document.getElementById('bcTiles').addEventListener('click', e => {
+        const t = e.target.closest('.bc-tile'); if (!t) return;
+        group = t.dataset.grp;
+        document.querySelectorAll('.bc-tile').forEach(x => x.classList.toggle('on', x === t));
+        render();
+    });
+    load();
+    setInterval(() => { if (!modalEl.classList.contains('show')) load(); }, 30000);
+})();
+</script>
+}

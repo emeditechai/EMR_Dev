@@ -133,6 +133,8 @@ public class HospitalSettings
     public bool EnableAskAiFeatures { get; set; } = false;
     /// <summary>When true a B2C Lab bill gets its Token No even while a payment is still due (default: only when fully paid).</summary>
     public bool TokenGenerateOnDuePayment { get; set; } = false;
+    /// <summary>SQLScripts/2382: Yes (default) = bill changes from the phlebotomist app wait on LAB > Bill Change Approval; No = test changes apply at once, discounts still wait. One setting for all branches of the company.</summary>
+    public bool BillChangeApprovalRequired { get; set; } = true;
     /// <summary>Email the finished LAB report to the patient (default No).</summary>
     public bool LabReportEmailNotificationRequired { get; set; } = false;
     /// <summary>A pathologist must approve LAB reports (default No).</summary>

@@ -1,0 +1,222 @@
+@{
+    ViewData["Title"] = "Home Collection Dispatch";
+}
+
+<style>
+    .hd-tile { border: 0; border-radius: .8rem; color: #fff; padding: .8rem 1rem; width: 100%; text-align: left; position: relative; overflow: hidden; }
+    .hd-tile .n { font-size: 1.55rem; font-weight: 800; line-height: 1.1; }
+    .hd-tile .l { font-size: .78rem; font-weight: 600; opacity: .92; }
+    .hd-tile.on { box-shadow: 0 0 0 3px rgba(100, 64, 152, .35); }
+    .hd-action { background: linear-gradient(135deg, #c9232e 0%, #f13a43 100%); }
+    .hd-waiting { background: linear-gradient(135deg, #6a3fbc 0%, #9164e0 100%); }
+    .hd-field { background: linear-gradient(135deg, #3a5fd9 0%, #5c82f5 100%); }
+    .hd-collected { background: linear-gradient(135deg, #059c6e 0%, #1fcf96 100%); }
+    .hd-all { background: linear-gradient(135deg, #644098 0%, #7e52b8 50%, #a8407a 100%); }
+    .hd-address { max-width: 240px; font-size: .78rem; color: #64748b; }
+    .hd-reason { font-size: .76rem; color: #b42318; }
+    .hd-phlebo { font-size: .8rem; }
+    .hd-guide { padding: .7rem 1rem; }
+    .hd-guide summary { cursor: pointer; }
+    .hd-yes { color: #05966f; font-weight: 600; }
+    .hd-no { color: #64748b; }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">LAB</li>
+                <li class="breadcrumb-item active" aria-current="page">Home Collection Dispatch</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-truck me-2"></i>Home Collection Dispatch</h4>
+        <div class="text-muted small mt-1">Manage home visits after the bill is saved. A visit can be changed until the phlebotomist reaches the patient.</div>
+    </div>
+
+    <details class="card border-0 shadow-sm mb-3 hd-guide" open>
+        <summary class="fw-semibold small"><i class="bi bi-signpost-split me-1 text-primary"></i>When to use the Bill page and this screen</summary>
+        <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle mb-0 small">
+                <thead class="table-light">
+                    <tr><th></th><th>Bill page</th><th>Dispatch screen</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>First assignment</td><td class="hd-yes">Yes</td><td class="hd-no">Not needed</td></tr>
+                    <tr><td>Change phlebotomist after saving</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
+                    <tr><td>See who is on duty and how busy they are</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
+                    <tr><td>See Patient Unavailable and reschedule requests from the phone</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
+                    <tr><td>Set a new visit slot</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
+                    <tr><td>Close a visit without cancelling the bill</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
+                    <tr><td>See all visits and their live status together</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <div class="row g-2 mb-3" id="hdTiles">
+        <div class="col-6 col-lg"><button type="button" class="hd-tile hd-all on" data-grp=""><div class="n" id="hdAll">0</div><div class="l">All visits</div></button></div>
+        <div class="col-6 col-lg"><button type="button" class="hd-tile hd-action" data-grp="ACTION"><div class="n" id="hdAction">0</div><div class="l">Needs action</div></button></div>
+        <div class="col-6 col-lg"><button type="button" class="hd-tile hd-waiting" data-grp="WAITING"><div class="n" id="hdWaiting">0</div><div class="l">Not started</div></button></div>
+        <div class="col-6 col-lg"><button type="button" class="hd-tile hd-field" data-grp="FIELD"><div class="n" id="hdField">0</div><div class="l">In the field</div></button></div>
+        <div class="col-6 col-lg"><button type="button" class="hd-tile hd-collected" data-grp="COLLECTED"><div class="n" id="hdCollected">0</div><div class="l">Collected</div></button></div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <form id="hdFilter" class="row g-2 align-items-end" autocomplete="off">
+                <div class="col-sm-4 col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Date</label>
+                    <input type="date" class="form-control form-control-sm" id="hdDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-5 col-md-4">
+                    <label class="form-label small fw-semibold mb-1">Patient, mobile or lab booking no.</label>
+                    <input type="text" class="form-control form-control-sm" id="hdSearch" maxlength="100" />
+                </div>
+                <div class="col-sm-3 col-md-2 d-grid">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Show</button>
+                </div>
+            </form>
+            <div class="form-text">Visits still open from earlier days are always listed.</div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Slot</th><th>Patient</th><th>Booking</th><th>Phlebotomist</th><th>Status</th><th class="text-end">Due</th><th class="text-end">Actions</th></tr>
+                </thead>
+                <tbody id="hdRows"><tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="hdModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" id="hdForm" autocomplete="off">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold" id="hdModalTitle"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2" id="hdModalVisit"></div>
+                <div class="alert alert-warning small py-2 d-none" id="hdCloseNote">This closes the visit only. The bill stays; cancel it in Bill Cancellation if needed.</div>
+                <div class="mb-2 d-none" id="hdSlotWrap">
+                    <label class="form-label small fw-semibold mb-1">New slot <span class="text-danger">*</span></label>
+                    <input type="datetime-local" class="form-control form-control-sm" id="hdSlot" />
+                </div>
+                <div class="mb-2 d-none" id="hdPhleboWrap">
+                    <label class="form-label small fw-semibold mb-1" id="hdPhleboLabel">Phlebotomist</label>
+                    <select class="form-select form-select-sm" id="hdPhlebo"></select>
+                </div>
+                <div>
+                    <label class="form-label small fw-semibold mb-1">Reason <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="hdReason" maxlength="300" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Back</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="hdSave">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const LABEL = { ASSIGNED: 'Assigned', ACCEPTED: 'Accepted', ON_THE_WAY: 'On the Way', REACHED: 'Reached', IN_PROGRESS: 'In Progress', COLLECTED: 'Sample Collected',
+                    HANDED_OVER: 'Handed Over', RECEIVED: 'Received at Lab', UNAVAILABLE: 'Patient Unavailable', RESCHEDULED: 'Reschedule requested', CANCELLED: 'Cancelled', CLOSED: 'Closed' };
+    const BADGE = { ACTION: 'bg-danger', WAITING: 'bg-primary', FIELD: 'bg-info text-dark', COLLECTED: 'bg-success', DONE: 'bg-secondary' };
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const when = s => s ? new Date(s).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
+    const rows = document.getElementById('hdRows');
+    const modal = new bootstrap.Modal(document.getElementById('hdModal'));
+    let visits = [], phlebotomists = [], group = '', current = null, action = '';
+
+    async function load() {
+        const qs = new URLSearchParams({ date: hdDate.value, search: hdSearch.value.trim() });
+        try {
+            const res = await (await fetch('@Url.Action("Visits")?' + qs)).json();
+            if (!res.success) { Swal.fire({ icon: 'error', text: res.message }); return; }
+            visits = res.visits; phlebotomists = res.phlebotomists;
+            render();
+        } catch { rows.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Could not load the visits. Try again.</td></tr>'; }
+    }
+
+    function render() {
+        const count = g => visits.filter(v => v.Grp === g).length;
+        hdAll.textContent = visits.length; hdAction.textContent = count('ACTION'); hdWaiting.textContent = count('WAITING');
+        hdField.textContent = count('FIELD'); hdCollected.textContent = count('COLLECTED');
+        const shown = group ? visits.filter(v => v.Grp === group) : visits;
+        if (!shown.length) { rows.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No visits here.</td></tr>'; return; }
+        rows.innerHTML = shown.map(v => `
+            <tr data-id="${v.VisitId}">
+                <td class="text-nowrap">${when(v.SlotAt)}${v.IsLate ? '<div><span class="badge bg-warning text-dark">Late</span></div>' : ''}${v.IsUrgent ? '<div><span class="badge bg-danger">Urgent</span></div>' : ''}</td>
+                <td><div class="fw-semibold">${esc(v.PatientName)}</div><div class="small text-muted">${esc(v.PhoneNumber)}</div><div class="hd-address text-truncate" title="${esc(v.AddressSnapshot)}">${esc(v.AddressSnapshot)}</div></td>
+                <td><div class="small fw-semibold">${esc(v.BillNo)}</div><div class="small text-muted">${v.Tests} test(s)${v.ParentVisitId ? ' · Re-collection' : ''}</div></td>
+                <td class="hd-phlebo">${esc(v.PhlebotomistName)}</td>
+                <td><span class="badge ${BADGE[v.Grp]}">${esc(LABEL[v.Status] || v.Status)}</span>${v.OutcomeReason ? `<div class="hd-reason">${esc(v.OutcomeReason)}</div>` : ''}${v.NeedsReview ? '<div class="small text-warning-emphasis">Needs review</div>' : ''}</td>
+                <td class="text-end">₹${Number(v.BalanceDue).toLocaleString('en-IN')}</td>
+                <td class="text-end text-nowrap">
+                    ${v.CanChange ? `<button type="button" class="btn btn-outline-primary btn-sm hd-do" data-do="assign">Reassign</button>` : ''}
+                    ${v.CanReschedule ? `<button type="button" class="btn btn-outline-secondary btn-sm hd-do" data-do="reschedule">${v.Status === 'CLOSED' ? 'Reopen' : 'Reschedule'}</button>` : ''}
+                    ${v.CanChange ? `<button type="button" class="btn btn-outline-danger btn-sm hd-do" data-do="close">Close</button>` : ''}
+                </td>
+            </tr>`).join('');
+    }
+
+    function options(keep) {
+        const list = phlebotomists.map(p => `<option value="${p.UserId}">${esc(p.Name)}${p.OnDuty ? ' · on duty' : ' · off duty'} · ${p.OpenVisits} open</option>`).join('');
+        return (keep ? '<option value="">Keep the same phlebotomist</option>' : '<option value="">-- Select --</option>') + list;
+    }
+
+    rows.addEventListener('click', e => {
+        const btn = e.target.closest('.hd-do'); if (!btn) return;
+        current = visits.find(v => v.VisitId === Number(btn.closest('tr').dataset.id));
+        action = btn.dataset.do;
+        hdModalTitle.textContent = { assign: 'Reassign visit', reschedule: current.Status === 'CLOSED' ? 'Reopen visit' : 'Reschedule visit', close: 'Close visit' }[action];
+        hdModalVisit.textContent = `${current.PatientName} · ${current.BillNo} · now with ${current.PhlebotomistName}`;
+        hdCloseNote.classList.toggle('d-none', action !== 'close');
+        hdSlotWrap.classList.toggle('d-none', action !== 'reschedule');
+        hdPhleboWrap.classList.toggle('d-none', action === 'close');
+        hdPhleboLabel.textContent = action === 'assign' ? 'New phlebotomist *' : 'Phlebotomist';
+        hdPhlebo.innerHTML = options(action === 'reschedule');
+        hdSlot.value = ''; hdReason.value = '';
+        modal.show();
+    });
+
+    hdForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        if (action === 'assign' && !hdPhlebo.value) { Swal.fire({ icon: 'warning', text: 'Choose the phlebotomist.' }); return; }
+        if (action === 'reschedule' && !hdSlot.value) { Swal.fire({ icon: 'warning', text: 'Choose the new slot.' }); return; }
+        if (!hdReason.value.trim()) { Swal.fire({ icon: 'warning', text: 'Give a reason.' }); return; }
+        const body = new FormData();
+        body.append('visitId', current.VisitId); body.append('reason', hdReason.value.trim());
+        if (action !== 'close') body.append('phlebotomistId', hdPhlebo.value || '0');
+        if (action === 'reschedule') body.append('slotAt', hdSlot.value);
+        body.append('__RequestVerificationToken', document.querySelector('#hdForm input[name="__RequestVerificationToken"]').value);
+        hdSave.disabled = true;
+        try {
+            const url = { assign: '@Url.Action("Assign")', reschedule: '@Url.Action("Reschedule")', close: '@Url.Action("Close")' }[action];
+            const res = await (await fetch(url, { method: 'POST', body })).json();
+            if (res.success) { modal.hide(); Swal.fire({ icon: 'success', text: res.message, timer: 1600, showConfirmButton: false }); await load(); }
+            else Swal.fire({ icon: 'error', text: res.message });
+        } catch { Swal.fire({ icon: 'error', text: 'Could not save. Check the connection and try again.' }); }
+        finally { hdSave.disabled = false; }
+    });
+
+    document.getElementById('hdTiles').addEventListener('click', e => {
+        const t = e.target.closest('.hd-tile'); if (!t) return;
+        group = t.dataset.grp;
+        document.querySelectorAll('.hd-tile').forEach(x => x.classList.toggle('on', x === t));
+        render();
+    });
+    hdFilter.addEventListener('submit', e => { e.preventDefault(); load(); });
+    load();
+})();
+</script>
+}

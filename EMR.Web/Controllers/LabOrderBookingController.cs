@@ -1877,7 +1877,12 @@ namespace EMR.Web.Controllers
                 SELECT StatusName AS Text, CONVERT(varchar(11), MaritalStatusId) AS Value FROM dbo.MaritalStatusMaster WHERE IsActive = 1 ORDER BY StatusName;
                 SELECT LanguageName AS Text, CONVERT(varchar(11), LanguageId) AS Value FROM dbo.LanguageMaster WHERE IsActive = 1 ORDER BY LanguageName;
                 SELECT CountryName AS Text, CONVERT(varchar(11), CountryId) AS Value FROM dbo.CountryMaster WHERE IsActive = 1 ORDER BY CountryName;
-                SELECT COALESCE(FullName, Username) AS Text, CONVERT(varchar(11), Id) AS Value FROM dbo.Users WHERE IsPathologist = 1 AND IsActive = 1 ORDER BY COALESCE(FullName, Username);
+                -- Phlebotomists of this branch: same people as the Dispatch screen (usp_Lab_HomeDispatch_Phlebotomists)
+                SELECT COALESCE(u.FullName, u.Username) AS Text, CONVERT(varchar(11), u.Id) AS Value
+                  FROM dbo.Users u
+                  JOIN dbo.UserBranches ub ON ub.UserId = u.Id AND ub.BranchID = @BranchId AND ub.IsActive = 1
+                 WHERE u.IsPhlebotomist = 1 AND u.IsActive = 1
+                 ORDER BY COALESCE(u.FullName, u.Username);
                 -- Referral doctor = Doctor Master doctors assigned to a LAB-type department (script 2127)
                 EXEC dbo.usp_Lab_GetReferralDoctors @CompanyId = @CompanyId, @BranchId = @BranchId;",
                 new { CompanyId = User.GetCompanyId(), BranchId = branchId }))

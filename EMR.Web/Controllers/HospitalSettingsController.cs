@@ -267,7 +267,8 @@ public class HospitalSettingsController(
                 BranchId = branchId.Value,
                 BranchName = branch?.BranchName ?? string.Empty,
                 EnableAbha = governmentIds.Abha,
-                EnableAyushmanBharat = governmentIds.AyushmanBharat
+                EnableAyushmanBharat = governmentIds.AyushmanBharat,
+                BillChangeApprovalRequired = await BillChangeApprovalForCompanyAsync()
             };
             return View(empty);
         }
@@ -344,6 +345,7 @@ public class HospitalSettingsController(
                 BranchName = branch?.BranchName ?? string.Empty,
                 EnableAbha = governmentIds.Abha,
                 EnableAyushmanBharat = governmentIds.AyushmanBharat,
+                BillChangeApprovalRequired = await BillChangeApprovalForCompanyAsync(),
                 IsActive = true
             });
         }
@@ -386,6 +388,7 @@ public class HospitalSettingsController(
 
             await dbContext.SaveChangesAsync();
             await SaveGovernmentIdOptionsForCompanyAsync(model);
+            await SaveBillChangeApprovalForCompanyAsync(model);
             await auditLogService.LogAsync("Create", "HospitalSettings",
                 $"Hospital settings created for branch {branchId}", userId, branchId);
             TempData["Success"] = "Hospital settings saved successfully.";
@@ -485,6 +488,7 @@ public class HospitalSettingsController(
 
             await dbContext.SaveChangesAsync();
             await SaveGovernmentIdOptionsForCompanyAsync(model);
+            await SaveBillChangeApprovalForCompanyAsync(model);
             await auditLogService.LogAsync("Update", "HospitalSettings",
                 $"Hospital settings updated for branch {branchId}", userId, branchId);
             TempData["Success"] = "Hospital settings updated successfully.";
@@ -497,6 +501,21 @@ public class HospitalSettingsController(
 
     private Task<EMR.Web.Services.GovernmentIdOptions> GovernmentIdOptionsAsync() =>
         HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IGovernmentIdFeatures>().GetAsync(HttpContext);
+
+    // Bill change approval is one setting for all branches of the company (SQLScripts/2382)
+    private async Task<bool> BillChangeApprovalForCompanyAsync()
+    {
+        var companyId = User.GetCompanyId();
+        return await dbContext.HospitalSettings.Where(s => s.CompanyId == companyId)
+            .Select(s => (bool?)s.BillChangeApprovalRequired).FirstOrDefaultAsync() ?? true;
+    }
+
+    private async Task SaveBillChangeApprovalForCompanyAsync(HospitalSettingsViewModel model)
+    {
+        var companyId = User.GetCompanyId();
+        await dbContext.HospitalSettings.Where(s => s.CompanyId == companyId).ExecuteUpdateAsync(u => u
+            .SetProperty(s => s.BillChangeApprovalRequired, model.BillChangeApprovalRequired));
+    }
 
     // ABHA / Ayushman Bharat are one setting for all branches of the company (SQLScripts/2355)
     private async Task SaveGovernmentIdOptionsForCompanyAsync(HospitalSettingsViewModel model)
@@ -539,6 +558,7 @@ public class HospitalSettingsController(
             GlobalPatientSearchRequired = s.GlobalPatientSearchRequired,
             EnableAbha = s.EnableAbha,
             EnableAyushmanBharat = s.EnableAyushmanBharat,
+            BillChangeApprovalRequired = s.BillChangeApprovalRequired,
             EmailNotificationRequired = s.EmailNotificationRequired,
             LabEmailNotificationRequired = s.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,

@@ -117,6 +117,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Token No Generate in Due Payment")]
     public bool TokenGenerateOnDuePayment { get; set; } = false;
 
+    [Display(Name = "Bill Change Approval Required")]
+    public bool BillChangeApprovalRequired { get; set; } = true;
+
     [Display(Name = "Email Notification to Patient (LAB Reports)")]
     public bool LabReportEmailNotificationRequired { get; set; } = false;
 

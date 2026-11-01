@@ -203,8 +203,12 @@ public sealed class PhleboService(
     {
         var lines = JsonSerializer.Serialize(r.Lines.Select(l => new { action = l.Action, investigationId = l.InvestigationId }));
         using var con = db.CreateConnection();
-        return Camel(await con.QueryFirstOrDefaultAsync("dbo.usp_Phlebo_BillChange_Create",
-            new { c.UserId, r.VisitId, r.ClientEventId, r.RequestType, r.Reason, r.Details, LinesJson = lines }, commandType: CommandType.StoredProcedure));
+        using var grid = await con.QueryMultipleAsync("dbo.usp_Phlebo_BillChange_Create",
+            new { c.UserId, r.VisitId, r.ClientEventId, r.RequestType, r.Reason, r.Details, LinesJson = lines }, commandType: CommandType.StoredProcedure);
+        // with approval off the bill is changed here, and those procedures return result sets first (SQLScripts/2382)
+        dynamic? result = null;
+        while (!grid.IsConsumed) result = (await grid.ReadAsync()).LastOrDefault();
+        return Camel(result);
     }
 
     public async Task<object> BillChangesAsync(PhleboCaller c, int? visitId)
