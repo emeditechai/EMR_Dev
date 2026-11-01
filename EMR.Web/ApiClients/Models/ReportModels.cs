@@ -114,6 +114,10 @@ public class B2CCollectionReceiptRow
     public decimal BillNetAmount { get; set; }
     public decimal BillGrossAmount { get; set; }      // 2271
     public decimal BillDiscountAmount { get; set; }   // 2271
+    public decimal BillCancelledAmount { get; set; }  // 2378: net of the discount taken back
+    public decimal BillRoundOff { get; set; }         // 2378
+    public decimal BillRefundedAmount { get; set; }   // 2378
+    public string? CancelState { get; set; }          // 2378: PARTIAL | FULL | null
     public decimal BillTotalPaid { get; set; }
     public decimal BillBalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
