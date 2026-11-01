@@ -22,6 +22,22 @@ public interface ILoginSecurity
     Task<(DateTime? LockedUntil, int? AttemptsLeft)> RecordFailureDetailAsync(int userId);
 
     Task RecordSuccessAsync(int userId);
+
+    /// <summary>After a counted wrong password: whether to send the user a security alert now (Hospital Settings >
+    /// Login Alert After Wrong Attempts, SQLScripts/2383), with whom to send it to.</summary>
+    Task<LoginFailureAlert?> FailureAlertAsync(int userId, bool justLocked);
+}
+
+/// <summary>A row of dbo.usp_Auth_Login_FailureAlert (SQLScripts/2383).</summary>
+public sealed class LoginFailureAlert
+{
+    public bool ShouldAlert { get; set; }
+    public int FailedAttempts { get; set; }
+    public DateTime? LockedUntil { get; set; }
+    public string? UserName { get; set; }
+    public string? Email { get; set; }
+    public string? Mobile { get; set; }
+    public int? BranchId { get; set; }
 }
 
 public sealed class SqlLoginSecurity(string connectionString, IOptionsMonitor<ApiAuthOptions> options) : ILoginSecurity
@@ -47,6 +63,13 @@ public sealed class SqlLoginSecurity(string connectionString, IOptionsMonitor<Ap
         var locked = row.Lockout_Until > DateTime.Now ? row.Lockout_Until : null;
         int? left = row.RetryCount is > 0 ? Math.Max(0, row.RetryCount.Value - (row.FailedLoginAttempts ?? 0)) : null;
         return (locked, left);
+    }
+
+    public async Task<LoginFailureAlert?> FailureAlertAsync(int userId, bool justLocked)
+    {
+        await using var con = new SqlConnection(connectionString);
+        return await con.QuerySingleOrDefaultAsync<LoginFailureAlert>("dbo.usp_Auth_Login_FailureAlert",
+            new { UserId = userId, JustLocked = justLocked }, commandType: CommandType.StoredProcedure);
     }
 
     public async Task RecordSuccessAsync(int userId)

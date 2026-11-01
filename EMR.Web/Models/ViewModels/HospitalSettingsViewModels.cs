@@ -311,6 +311,10 @@ public class HospitalSettingsViewModel
     [Range(0, 20, ErrorMessage = "Login Retry Count must be between 0 and 20 (0 = no lock).")]
     public int LoginRetryCount { get; set; }
 
+    [Display(Name = "Login Alert After Wrong Attempts")]
+    [Range(0, 20, ErrorMessage = "Login Alert After Wrong Attempts must be between 0 and 20 (0 = no alert).")]
+    public int LoginAlertCount { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

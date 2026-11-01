@@ -482,6 +482,7 @@ public class HospitalSettingsController(
             existing.PharmacyBillNotificationRequired = model.PharmacyBillNotificationRequired;
             existing.PharmacyGrnNotRequired = model.PharmacyGrnNotRequired;
             existing.LoginRetryCount = model.LoginRetryCount;
+            existing.LoginAlertCount = model.LoginAlertCount;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -622,6 +623,7 @@ public class HospitalSettingsController(
             PharmacyBillNotificationRequired = s.PharmacyBillNotificationRequired,
             PharmacyGrnNotRequired = s.PharmacyGrnNotRequired,
             LoginRetryCount = s.LoginRetryCount,
+            LoginAlertCount = s.LoginAlertCount,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -717,6 +719,7 @@ public class HospitalSettingsController(
             PharmacyBillNotificationRequired = m.PharmacyBillNotificationRequired,
             PharmacyGrnNotRequired = m.PharmacyGrnNotRequired,
             LoginRetryCount = m.LoginRetryCount,
+            LoginAlertCount = m.LoginAlertCount,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

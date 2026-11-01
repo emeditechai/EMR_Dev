@@ -368,6 +368,16 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#16a34a;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-whatsapp"></i></div>
+                        <div>
+                            <div class="lp-label">Login Alert After Wrong Attempts</div>
+                            <div class="lp-desc">WhatsApp alert to the user after this many wrong passwords. 0 means no alert.</div>
+                            <span class="lp-pill @(Model.LoginAlertCount > 0 ? "yes" : "no")"><i class="bi @(Model.LoginAlertCount > 0 ? "bi-bell-fill" : "bi-bell-slash")"></i>@(Model.LoginAlertCount > 0 ? "AFTER " + Model.LoginAlertCount : "OFF (0)")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

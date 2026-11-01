@@ -21,7 +21,8 @@ public class AccountController(
     IPasswordHasherService passwordHasherService,
     IAuditLogService auditLogService,
     ILoginSecurity loginSecurity,
-    IHomeDashboardService home) : Controller
+    IHomeDashboardService home,
+    ILoginAlertNotifier loginAlert) : Controller
 {
     /// <summary>Sign-in attempts per client address per minute (clinics share one address, so this is generous).</summary>
     public const string SignInRateLimit = "signin";
@@ -85,11 +86,29 @@ public class AccountController(
 
         if (user is null || !passwordHasherService.VerifyPassword(model.Password, user.PasswordHash))
         {
-            await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for e-mail: {model.Email}");
-            var failure = user is null ? default : await loginSecurity.RecordFailureDetailAsync(user.Id);
+            await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for e-mail: {model.Email}", user?.Id);
+            // the wrong password counts against the account - or, when older accounts share the e-mail and none matched,
+            // against each of them that is not locked already (each owner gets the lock and the alert)
+            var targets = user is not null ? new List<User> { user } : candidates;
+            (DateTime? LockedUntil, int? AttemptsLeft) failure = default;
+            foreach (var t in targets)
+            {
+                if (user is null && await loginSecurity.LockedUntilAsync(t.Id) is not null) continue;
+                var f = await loginSecurity.RecordFailureDetailAsync(t.Id);
+                // Hospital Settings > Login Alert After Wrong Attempts (SQLScripts/2383): WhatsApp alert to the account's owner
+                await loginAlert.NotifyFailureAsync(t.Id, f.LockedUntil is not null, HttpContext);
+                if (f.LockedUntil is not null) await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {t.Username}", t.Id);
+                if (failure.LockedUntil is null) failure = f.LockedUntil is not null ? f : (failure.AttemptsLeft is null || f.AttemptsLeft < failure.AttemptsLeft ? f : failure);
+            }
+            // every account of the e-mail is locked now
+            if (user is null && candidates.Count > 0 && failure.LockedUntil is null)
+            {
+                var locks = new List<DateTime>();
+                foreach (var c in candidates) if (await loginSecurity.LockedUntilAsync(c.Id) is { } l) locks.Add(l);
+                if (locks.Count == candidates.Count) failure = (locks.Max(), 0);
+            }
             if (failure.LockedUntil is { } nowLocked)
             {
-                await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {user!.Username}", user.Id);
                 ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Your account is locked for 10 minutes - try again after {nowLocked:hh:mm tt}, or ask the administrator to unlock it.");
                 return View(model);
             }

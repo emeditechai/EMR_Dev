@@ -479,6 +479,17 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#16a34a;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-whatsapp"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Login Alert After Wrong Attempts</div>
+                            <div class="lp-desc">After this many wrong passwords, the user gets a WhatsApp alert with the time, public IP and browser (and again if the account is locked). 0: no alert. Needs the user's mobile in User Master.</div>
+                            <input asp-for="LoginAlertCount" type="number" min="0" max="20" step="1" class="form-control form-control-sm mt-2" placeholder="0" />
+                            <span asp-validation-for="LoginAlertCount" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

@@ -128,7 +128,8 @@ builder.Services.AddScoped<EMR.Web.ApiClients.PharmacyApiClient>();   // EMR.Api
 builder.Services.AddScoped<IPharmacyMasterService, PharmacyMasterService>();   // Master > Pharmacy Master (SQLScripts/2343)
 builder.Services.AddScoped<IPharmacyPurchaseService, PharmacyPurchaseService>();   // Pharmacy > Purchase (SQLScripts/2344)
 builder.Services.AddScoped<IPharmacySaleService, PharmacySaleService>();   // Pharmacy > Sales (SQLScripts/2348)
-builder.Services.AddScoped<IPharmacyBillNotifier, PharmacyBillNotifier>();   // pharmacy bill PDF + WhatsApp / e-mail (SQLScripts/2348)
+builder.Services.AddScoped<IPharmacyBillNotifier, PharmacyBillNotifier>();
+builder.Services.AddScoped<ILoginAlertNotifier, LoginAlertNotifier>();   // WhatsApp alert after wrong passwords (SQLScripts/2383)   // pharmacy bill PDF + WhatsApp / e-mail (SQLScripts/2348)
 builder.Services.AddScoped<IPharmacyInventoryService, PharmacyInventoryService>();   // Pharmacy > Inventory (SQLScripts/2349)
 
 // EMR Template Service (EF Core)

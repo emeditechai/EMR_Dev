@@ -124,6 +124,9 @@ public class HospitalSettings
     /// <summary>SQLScripts/2320: wrong passwords allowed before the account is locked for 10 minutes; 0 (default) = no lock.</summary>
     public int LoginRetryCount { get; set; }
 
+    /// <summary>SQLScripts/2383: wrong passwords after which the user gets a WhatsApp security alert; 0 (default) = no alert.</summary>
+    public int LoginAlertCount { get; set; }
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;
