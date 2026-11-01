@@ -51,5 +51,30 @@
   ],
   "date": "31 Oct 2026",
   "version": "1.5"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table PhBillItemAlias (7 columns, module not yet grouped)",
+   "New table PhStore (16 columns, module not yet grouped)",
+   "New table PhStoreIssue (23 columns, module not yet grouped)",
+   "New table PhStoreIssueDtl (10 columns, module not yet grouped)",
+   "New table PhStoreStock (6 columns, module not yet grouped)",
+   "PhAdjustment: new column(s) StoreId",
+   "PhGrn: new column(s) StoreId",
+   "PhPurchaseReturn: new column(s) StoreId",
+   "PhSale: new column(s) StoreId",
+   "PhStockCount: new column(s) StoreId",
+   "PhStockLedger: new column(s) StoreId, StoreBalanceAfter",
+   "PhTransfer: new column(s) FromStoreId, ToStoreId",
+   "PhUom: new column(s) UqcCode",
+   "New foreign key PhStoreIssue.FromStoreId -> PhStore.StoreId",
+   "New foreign key PhStoreIssue.ToStoreId -> PhStore.StoreId",
+   "New foreign key PhStoreIssueDtl.IssueId -> PhStoreIssue.IssueId",
+   "New foreign key PhStoreStock.BatchId -> PhBatch.BatchId",
+   "New foreign key PhStoreStock.StoreId -> PhStore.StoreId"
+  ],
+  "date": "01 Nov 2026",
+  "version": "1.6"
  }
 ]
