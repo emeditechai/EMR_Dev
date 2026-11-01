@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ePathoPlus Banner</title>
+<link rel="stylesheet" href="../../EMR.Web/wwwroot/lib/bootstrap-icons/font/bootstrap-icons.min.css">
+<style>
+  /* 8 ft x 4 ft landscape. Designed at 2400 x 1200; zoom scales it to true size for the PDF. */
+  @page { size: 96in 48in; margin: 0; }
+  :root {
+    --plum: #2A1B3D; --deep: #1D1030; --violet: #4B2463; --wine: #8E2C64; --pink: #C2255C;
+    --hot: #F06595; --pink-lt: #F7A8C8; --purple: #6F42C1; --paper: #FAF7FB; --mist: #E9DFF0;
+    --ink2: #3A2A4A;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { width: 2400px; height: 1200px; overflow: hidden; }
+  @media print { html { zoom: 3.84; } }
+  body {
+    font-family: "Nunito Sans", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    color: var(--plum);
+    background: linear-gradient(115deg, var(--plum) 0%, var(--violet) 62%, var(--wine) 100%);
+    display: flex;
+  }
+
+  /* Hero column */
+  .hero { position: relative; flex: none; width: 620px; height: 1200px; overflow: hidden; padding: 30px 34px 26px;
+          display: flex; flex-direction: column;
+          background:
+            radial-gradient(520px 420px at 100% 0%, rgba(240,101,149,.55), transparent 70%),
+            radial-gradient(560px 460px at 0% 62%, rgba(111,66,193,.60), transparent 72%),
+            linear-gradient(170deg, var(--deep), var(--plum) 45%, var(--violet)); }
+  .hex { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hero > *:not(.hex) { position: relative; }
+  .logo { width: 400px; height: 110px; background: var(--paper); border-radius: 18px;
+          display: flex; align-items: center; justify-content: center; }
+  .logo img { width: 346px; height: auto; display: block; }
+  h1 { font-size: 97px; line-height: 1; font-weight: 800; letter-spacing: -.025em; color: #fff; margin-top: 20px; }
+  h1 em { font-style: normal; color: var(--hot); }
+  .pitch { font-size: 32px; line-height: 1.17; font-weight: 700; color: #fff; margin-top: 8px; }
+
+  .badges { display: flex; gap: 12px; margin-top: 14px; }
+  .badges span { flex: auto; padding: 0 14px; display: flex; align-items: center; justify-content: center; gap: 9px; height: 50px; border-radius: 12px; white-space: nowrap;
+                 font-size: 22px; font-weight: 800; color: var(--deep); background: #FFC93C; }
+  .badges .wa { color: #fff; background: #128C4E; }
+  .badges i { font-size: 23px; }
+
+  /* AI spotlight: the brightest thing on the banner */
+  .ai { margin-top: 20px; flex: 1; min-height: 0; padding: 18px 22px 16px; border-radius: 24px; color: #fff;
+        border: 4px solid #fff;
+        background: linear-gradient(150deg, #FF4D8D 0%, var(--pink) 42%, var(--purple) 100%);
+        outline: 9px solid rgba(247,168,200,.38);
+        display: flex; flex-direction: column; }
+  .ai-head { display: flex; align-items: center; gap: 14px; }
+  .ai-badge { flex: none; width: 96px; height: 96px; border-radius: 50%; background: #fff; color: var(--pink);
+              display: flex; align-items: center; justify-content: center; font-size: 58px; }
+  .ai-head b { display: block; white-space: nowrap; font-size: 56px; line-height: 1; font-weight: 800; letter-spacing: -.01em; }
+  .ai-head small { display: block; font-size: 23px; font-weight: 700; margin-top: 6px; }
+  .ai-list { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; margin-top: 8px; }
+  .ai-item { display: flex; gap: 14px; align-items: center; }
+  .ai-item > i { flex: none; width: 56px; height: 56px; border-radius: 14px; background: rgba(255,255,255,.22);
+                 display: flex; align-items: center; justify-content: center; font-size: 31px; }
+  .ai-item b { display: block; font-size: 33px; line-height: 1.1; font-weight: 800; }
+  .ai-item span { display: block; font-size: 23px; line-height: 1.15; font-weight: 600; margin-top: 3px; }
+
+  /* Contact */
+  .contact { margin-top: 18px; color: #fff; }
+  .contact .web { display: block; font-size: 38px; line-height: 1.05; font-weight: 800; letter-spacing: -.01em; }
+  .contact .row { display: flex; align-items: center; gap: 10px; font-size: 23.5px; font-weight: 700; margin-top: 7px; white-space: nowrap; }
+  .contact i { color: var(--hot); font-size: 24px; }
+
+  /* Workflow */
+  .work { flex: 1; min-width: 0; padding: 26px 34px 26px 26px; display: flex; flex-direction: column; gap: 14px; }
+  .flow { display: flex; height: 66px; flex: none; }
+  .step { flex: 1; margin-left: -14px; display: flex; align-items: center; justify-content: center; gap: 10px;
+          font-size: 27px; font-weight: 800; color: #fff; padding-left: 20px;
+          clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 50%, calc(100% - 30px) 100%, 0 100%, 30px 50%); }
+  .step:first-child { margin-left: 0; padding-left: 0; clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 50%, calc(100% - 30px) 100%, 0 100%); }
+  .step i { font-size: 28px; }
+
+  /* Modules */
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 14px; }
+  section { background: var(--paper); border-radius: 18px; overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
+  h2 { display: flex; align-items: center; gap: 12px; height: 50px; flex: none; padding: 0 16px; white-space: nowrap;
+       font-size: 26px; font-weight: 800; color: #fff; background: linear-gradient(90deg, var(--c1), var(--c2)); }
+  h2 i { font-size: 27px; }
+  ul { list-style: none; flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 4px 12px 5px 16px; }
+  li { font-size: 20.5px; font-weight: 600; line-height: 1.2; color: var(--ink2); white-space: nowrap; }
+  li::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c1);
+               margin-right: 10px; vertical-align: 3px; }
+  .c1 { --c1: #C2255C; --c2: #E0407F; }
+  .c2 { --c1: #6F42C1; --c2: #9A5BD8; }
+  .c3 { --c1: #8E2C64; --c2: #C2255C; }
+  .c4 { --c1: #4B2463; --c2: #6F42C1; }
+
+  /* The past-results trend is called out inside its card */
+  li.hl { font-weight: 800; color: #fff; background: linear-gradient(90deg, var(--pink), var(--purple)); border-radius: 8px;
+          margin: 0 -6px; padding: 1px 6px; }
+  li.hl::before { background: #fff; }
+
+  /* NABL is the gold band: the one colour used nowhere else */
+  .nabl { flex: none; height: 196px; flex-direction: row; align-items: stretch; gap: 0; color: var(--deep);
+          background: linear-gradient(100deg, #FFC93C 0%, #FFE08A 48%, #FFB703 100%); border: 4px solid #fff; }
+  .seal { flex: none; width: 176px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          color: #fff; background: linear-gradient(160deg, var(--plum), var(--violet)); }
+  .seal i { font-size: 44px; color: #FFC93C; }
+  .seal b { font-size: 50px; line-height: 1; font-weight: 800; margin-top: 2px; }
+  .seal span { font-size: 24px; font-weight: 700; color: #FFE08A; margin-top: 3px; }
+  .nabl > div:not(.seal) { flex: 1; min-width: 0; padding: 8px 8px 7px 18px; display: flex; flex-direction: column; }
+  .nabl h3 { display: flex; align-items: center; gap: 9px; font-size: 25px; line-height: 1.1; font-weight: 800; color: var(--deep); margin-bottom: 3px; }
+  .nabl h3 i { font-size: 24px; color: var(--pink); }
+  .nabl ul { padding: 0; }
+  .nabl li { font-size: 21.5px; font-weight: 700; color: var(--deep); }
+  .nabl li::before { background: var(--pink); }
+
+  /* Accounts is the full-colour card in the grid */
+  .accounts { grid-column: span 2; color: #fff; background: linear-gradient(115deg, #3A1F55, var(--pink) 105%); }
+  .accounts h2 { background: rgba(255,255,255,.16); }
+  .accounts h2 span { font-size: 21px; font-weight: 600; color: #fff; margin-left: 6px; }
+  .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  .accounts li, .whatsapp li { color: #fff; }
+  .accounts li::before { background: var(--hot); }
+
+  .strips { flex: none; display: flex; flex-direction: column; gap: 6px; }
+  .strip { display: flex; align-items: center; justify-content: space-between; height: 38px; padding: 0 16px 0 0; border-radius: 10px;
+           background: rgba(250,247,251,.13); font-size: 20px; font-weight: 600; color: #fff; white-space: nowrap; }
+  .strip b { display: flex; align-items: center; gap: 8px; height: 100%; width: 266px; flex: none; padding-left: 14px; border-radius: 10px;
+             font-size: 21px; font-weight: 800; background: var(--pink); }
+
+  .whatsapp { background: linear-gradient(150deg, #1E7A4C, #128C4E 60%, #25A862); color: #fff; }
+  .whatsapp h2 { background: rgba(0,0,0,.16); }
+  ol { list-style: none; counter-reset: wa; flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 4px 12px 5px 14px; }
+  .whatsapp li { counter-increment: wa; font-weight: 700; }
+  .whatsapp li::before { content: counter(wa); width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 15px; font-weight: 800;
+                         color: #128C4E; background: #fff; margin-right: 9px; vertical-align: 1px; }
+
+</style>
+</head>
+<body>
+
+<aside class="hero">
+  <svg class="hex" viewBox="0 0 620 1200" fill="none" stroke="#F7A8C8" stroke-width="2" aria-hidden="true">
+    <g opacity=".45">
+      <path d="M520 -6l44 25v51l-44 25-44-25v-51z"/><path d="M608 -6l44 25v51l-44 25-44-25v-51z"/>
+      <path d="M564 70l44 25v51l-44 25-44-25v-51z"/>
+    </g>
+    <g fill="#F06595" stroke="none" opacity=".85">
+      <circle cx="520" cy="70" r="6"/><circle cx="564" cy="95" r="5"/><circle cx="608" cy="70" r="6"/>
+    </g>
+  </svg>
+
+  <div class="logo"><img src="eMeditechPlus_logo_print.png" alt="eMeditechPlus, Tech driven HealthCare"></div>
+  <h1>e<em>Patho</em>Plus</h1>
+  <p class="pitch">One platform for your whole lab,<br>from first booking to final books.</p>
+
+  <div class="badges">
+    <span><i class="bi bi-patch-check-fill"></i>NABL Compliant</span>
+    <span class="wa"><i class="bi bi-whatsapp"></i>WhatsApp Workflow</span>
+  </div>
+
+  <div class="ai">
+    <div class="ai-head">
+      <div class="ai-badge"><i class="bi bi-stars"></i></div>
+      <div><b>AI-Powered</b><small>Faster billing, fewer errors</small></div>
+    </div>
+    <div class="ai-list">
+      <div class="ai-item"><i class="bi bi-file-earmark-medical"></i><div><b>Reads Prescriptions</b><span>Photo or PDF, even handwritten; suggests tests</span></div></div>
+      <div class="ai-item"><i class="bi bi-person-vcard"></i><div><b>Smart ID Scan</b><span>Reads the ID, fills type and number</span></div></div>
+      <div class="ai-item"><i class="bi bi-magic"></i><div><b>Smart Test Suggestions</b><span>Tests billed together, matching packages</span></div></div>
+      <div class="ai-item"><i class="bi bi-chat-dots"></i><div><b>Ask eMedi Assistant</b><span>Answers from live data, learns daily</span></div></div>
+    </div>
+  </div>
+
+  <div class="contact">
+    <span class="web">www.emeditechplus.com</span>
+    <div class="row"><i class="bi bi-envelope-fill"></i>info@emeditechplus.com</div>
+    <div class="row"><i class="bi bi-telephone-fill"></i>9163008325 · 9831205476 · 9007524092</div>
+  </div>
+</aside>
+
+<div class="work">
+  <div class="flow">
+    <div class="step" style="background:#6F42C1"><i class="bi bi-sliders"></i>Set-up</div>
+    <div class="step" style="background:#7C3DB4"><i class="bi bi-receipt"></i>Book</div>
+    <div class="step" style="background:#8A38A6"><i class="bi bi-droplet-half"></i>Collect</div>
+    <div class="step" style="background:#973398"><i class="bi bi-clipboard2-pulse"></i>Report</div>
+    <div class="step" style="background:#A52E8A"><i class="bi bi-patch-check"></i>Approve</div>
+    <div class="step" style="background:#B2297B"><i class="bi bi-send"></i>Deliver</div>
+    <div class="step" style="background:#BF256C"><i class="bi bi-graph-up-arrow"></i>Monitor</div>
+    <div class="step" style="background:#E0407F"><i class="bi bi-journal-check"></i>Account</div>
+  </div>
+
+  <section class="nabl">
+    <div class="seal"><i class="bi bi-patch-check-fill"></i><b>NABL</b><span>Compliant</span></div>
+      <div>
+        <h3><i class="bi bi-clipboard2-data"></i>Quality Control</h3>
+        <ul>
+          <li>Internal QC with Westgard rules</li>
+          <li>Levey-Jennings charts</li>
+          <li>EQAS programmes and results</li>
+          <li>Sample rejection indicators</li>
+        </ul>
+      </div>
+      <div>
+        <h3><i class="bi bi-speedometer2"></i>Monitoring &amp; CAPA</h3>
+        <ul>
+          <li>Equipment calibration tracking</li>
+          <li>Maintenance and downtime log</li>
+          <li>CAPA register</li>
+          <li>Turnaround time tracking</li>
+        </ul>
+      </div>
+      <div>
+        <h3><i class="bi bi-exclamation-octagon"></i>Critical Results</h3>
+        <ul>
+          <li>Critical value log with read-back</li>
+          <li>Critical check before sign-off</li>
+          <li>Delta-check exceptions</li>
+          <li>Abnormal results summary</li>
+        </ul>
+      </div>
+      <div>
+        <h3><i class="bi bi-file-earmark-lock"></i>Report Integrity</h3>
+        <ul>
+          <li>Amended report log</li>
+          <li>Conditions of reporting</li>
+          <li>NABL flag per test</li>
+          <li>Full audit history</li>
+        </ul>
+      </div>
+  </section>
+
+  <main>
+    <section class="c1">
+      <h2><i class="bi bi-receipt"></i>Booking &amp; Billing</h2>
+      <ul>
+        <li>Walk-in (B2C) booking, registration</li>
+        <li>Tests, profiles and packages</li>
+        <li>Split payment, money receipts</li>
+        <li>Department-wise discount approval</li>
+        <li>Home collection, misc charges</li>
+        <li>Bill and barcode printing</li>
+        <li>Cancellation, refund, due collection</li>
+      </ul>
+    </section>
+    <section class="c2">
+      <h2><i class="bi bi-diagram-3"></i>Franchise &amp; Corporate</h2>
+      <ul>
+        <li>Franchise and corporate set-up</li>
+        <li>B2C, franchise, corporate rate lists</li>
+        <li>Prepaid wallet, postpaid credit</li>
+        <li>Pre-printed barcodes per partner</li>
+        <li>B2B invoices, multi-bill settlement</li>
+        <li>Partner logins, own dashboard</li>
+        <li>Reports on partner letterhead</li>
+      </ul>
+    </section>
+    <section class="c3">
+      <h2><i class="bi bi-droplet-half"></i>Sample Management</h2>
+      <ul>
+        <li>Collection worklist, urgent on top</li>
+        <li>Barcode labels per container</li>
+        <li>Reject or re-collect with reasons</li>
+        <li>Transfer to main lab with worksheet</li>
+        <li>Outsourced test tracking</li>
+        <li>Consent and ID document capture</li>
+        <li>External documents upload to FTP</li>
+      </ul>
+    </section>
+    <section class="c4">
+      <h2><i class="bi bi-clipboard2-pulse"></i>Result Reporting</h2>
+      <ul>
+        <li class="hl">Past 5 results with trend graph</li>
+        <li>Numeric, option, text, narrative</li>
+        <li>Ranges, formulas, delta check</li>
+        <li>Reflex test rules</li>
+        <li>Microbiology, organisms, breakpoints</li>
+        <li>Radiology with report templates</li>
+        <li>LOINC terminology</li>
+      </ul>
+    </section>
+    <section class="c2">
+      <h2><i class="bi bi-patch-check"></i>Approval &amp; Delivery</h2>
+      <ul>
+        <li>Pathologist approval dashboard</li>
+        <li>1 to 3 sequential approval levels</li>
+        <li>Digital signatures on reports</li>
+        <li>Un-authorize with reason, audit</li>
+        <li>PDF report with QR code</li>
+        <li>Email delivery, dispatch tracking</li>
+        <li>Bill and report header designer</li>
+      </ul>
+    </section>
+    <section class="c1">
+      <h2><i class="bi bi-bar-chart-line"></i>Reports &amp; MIS</h2>
+      <ul>
+        <li>45+ lab reports, Excel and PDF</li>
+        <li>Live LAB dashboard</li>
+        <li>Owner MIS and test revenue</li>
+        <li>Revenue and footfall trends</li>
+        <li>Patient analytics, staff productivity</li>
+        <li>Testwise workload</li>
+        <li>B2B outstanding, wallet</li>
+      </ul>
+    </section>
+    <section class="whatsapp">
+      <h2><i class="bi bi-whatsapp"></i>WhatsApp Workflow</h2>
+      <ol>
+        <li>Bill PDF at booking</li>
+        <li>Portal login details</li>
+        <li>Critical value alert</li>
+        <li>Report on approval</li>
+        <li>Membership points earned</li>
+        <li>OPD follow-up reminders</li>
+        <li>Switched on per branch</li>
+      </ol>
+    </section>
+    <section class="c4">
+      <h2><i class="bi bi-phone"></i>Patient Portal</h2>
+      <ul>
+        <li>Login by Patient ID</li>
+        <li>Lab reports and bills</li>
+        <li>Live test progress</li>
+        <li>Prescriptions and visits</li>
+        <li>Vitals with trend chart</li>
+        <li>Membership details</li>
+        <li>Login created at booking</li>
+      </ul>
+    </section>
+    <section class="c3">
+      <h2><i class="bi bi-credit-card-2-front"></i>Membership Card</h2>
+      <ul>
+        <li>Plans and card issue</li>
+        <li>Points on B2C lab bills</li>
+        <li>Benefit rules per plan</li>
+        <li>Free home collection benefit</li>
+        <li>Points expiry checks</li>
+        <li>Membership discount ledger</li>
+        <li>Points alert on WhatsApp</li>
+      </ul>
+    </section>
+    <section class="c1">
+      <h2><i class="bi bi-robot"></i>Doctor IP Automation</h2>
+      <ul>
+        <li>Rates per test, profile, package</li>
+        <li>Manual, automatic or both</li>
+        <li>Daily scheduled run</li>
+        <li>Daily to annual cycles</li>
+        <li>No double calculation</li>
+        <li>Access-code protected</li>
+        <li>5 reports, Excel and PDF</li>
+      </ul>
+    </section>
+    <section class="accounts">
+      <h2><i class="bi bi-journal-check"></i>Accounts &amp; Finance <span>built in, no re-entry of bills</span></h2>
+      <div class="cols">
+        <ul>
+          <li>Bills, receipts, refunds post to ledger</li>
+          <li>Payment mode to ledger mapping</li>
+          <li>Ledgers, groups, expense heads</li>
+          <li>Branch-wise opening balances</li>
+          <li>Payment, receipt, contra, journal</li>
+          <li>Numbering by type, branch, FY</li>
+          <li>Petty cash: float, approval, closing</li>
+        </ul>
+        <ul>
+          <li>GST input credit on petty bills</li>
+          <li>Payees, bill attachments</li>
+          <li>Branch-wise books lock</li>
+          <li>Day closing with verification</li>
+          <li>Day Book, Voucher Register</li>
+          <li>Ledger, Trial Balance, Income-Expense</li>
+          <li>Posting Audit, Bill Reconciliation</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <div class="strips">
+    <div class="strip"><b><i class="bi bi-calculator"></i>Costing &amp; Margins</b><span>Item, supplier, store masters</span><span>Test BOM</span><span>Sample kit costing</span><span>Test cost sheet</span><span>Price impact, margin alerts</span><span>Package profitability</span><span>Analyzer cost</span></div>
+    <div class="strip"><b><i class="bi bi-shield-lock"></i>Platform</b><span>Multi-company, multi-branch</span><span>Role permissions</span><span>Maker-checker approvals</span><span>AES-256 links</span><span>Excel bulk upload</span><span>Live notifications</span><span>On-premise or cloud</span></div>
+  </div>
+</div>
+
+</body>
+</html>

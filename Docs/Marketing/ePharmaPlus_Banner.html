@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ePharmaPlus Banner</title>
+<link rel="stylesheet" href="../../EMR.Web/wwwroot/lib/bootstrap-icons/font/bootstrap-icons.min.css">
+<style>
+  /* 8 ft x 4 ft landscape, same layout as eClinicPlus_Banner.html. Designed at 2400 x 1200; zoom scales it to true size for the PDF. */
+  @page { size: 96in 48in; margin: 0; }
+  :root {
+    /* Colours taken from eClinicPlus - OPD pricing.pptx, as eClinicPlus_Banner.html */
+    --deep: #1D0940; --plum: #3A1466; --violet: #5A3178; --purple: #8C1CA2; --pink: #BA3D6D;
+    --orchid: #C9A9CE; --blush: #F1E1EC; --paper: #F5F0F7; --ink2: #1A1420;
+    --green: #1E7A4C; --gold: #C08A1E; --gold-lt: #EBCB86;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { width: 2400px; height: 1200px; overflow: hidden; }
+  @media print { html { zoom: 3.84; } }
+  body {
+    font-family: "Nunito Sans", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+    color: var(--deep);
+    background: linear-gradient(115deg, var(--deep) 0%, var(--plum) 100%);
+    display: flex;
+  }
+
+  /* Hero column */
+  .hero { position: relative; flex: none; width: 620px; height: 1200px; overflow: hidden; padding: 30px 34px 26px;
+          display: flex; flex-direction: column;
+          background: var(--deep); }
+  .hex { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hero > *:not(.hex) { position: relative; }
+  .logo { width: 400px; height: 110px; background: var(--paper); border-radius: 18px;
+          display: flex; align-items: center; justify-content: center; }
+  .logo img { width: 346px; height: auto; display: block; }
+  h1 { font-size: 86px; line-height: 1.1; font-weight: 800; letter-spacing: -.025em; color: #fff; margin-top: 20px; white-space: nowrap; }
+  h1 em { font-style: normal; color: var(--orchid); }
+  .pitch { font-size: 32px; line-height: 1.17; font-weight: 700; color: #fff; margin-top: 8px; }
+
+  .badges { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+  .badges span { flex: auto; padding: 0 14px; display: flex; align-items: center; justify-content: center; gap: 9px; height: 50px; border-radius: 12px; white-space: nowrap;
+                 font-size: 22px; font-weight: 800; color: var(--deep); background: var(--gold-lt); }
+  .badges .wa { color: #fff; background: var(--green); }
+  .badges .dev { flex-basis: 100%; color: var(--deep); background: var(--blush); }
+  .badges i { font-size: 23px; }
+
+  /* Counter spotlight: the brightest thing on the banner */
+  .ai { margin-top: 20px; flex: 1; min-height: 0; padding: 20px 22px 18px; border-radius: 24px; color: #fff;
+        border: 4px solid #fff;
+        background: linear-gradient(150deg, var(--pink) 0%, var(--purple) 100%);
+        outline: 9px solid rgba(201,169,206,.38);
+        display: flex; flex-direction: column; }
+  .ai-head { display: flex; align-items: center; gap: 14px; }
+  .ai-badge { flex: none; width: 96px; height: 96px; border-radius: 50%; background: #fff; color: var(--pink);
+              display: flex; align-items: center; justify-content: center; font-size: 58px; }
+  .ai-head b { display: block; white-space: nowrap; font-size: 46px; line-height: 1; font-weight: 800; letter-spacing: -.01em; }
+  .ai-head small { display: block; white-space: nowrap; font-size: 23px; font-weight: 700; margin-top: 6px; }
+  .ai-list { flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; margin-top: 8px; }
+  .ai-item { display: flex; gap: 14px; align-items: center; }
+  .ai-item > i { flex: none; width: 56px; height: 56px; border-radius: 14px; background: rgba(255,255,255,.22);
+                 display: flex; align-items: center; justify-content: center; font-size: 31px; }
+  .ai-item b { display: block; font-size: 33px; line-height: 1.1; font-weight: 800; }
+  .ai-item span { display: block; font-size: 23px; line-height: 1.15; font-weight: 600; margin-top: 3px; }
+
+  /* Contact */
+  .contact { margin-top: 18px; color: #fff; }
+  .contact .web { display: block; font-size: 38px; line-height: 1.05; font-weight: 800; letter-spacing: -.01em; }
+  .contact .row { display: flex; align-items: center; gap: 10px; font-size: 23.5px; font-weight: 700; margin-top: 7px; white-space: nowrap; }
+  .contact i { color: var(--orchid); font-size: 24px; }
+
+  /* Workflow */
+  .work { flex: 1; min-width: 0; padding: 26px 34px 26px 26px; display: flex; flex-direction: column; gap: 14px; }
+  .flow { display: flex; height: 66px; flex: none; }
+  .step { flex: 1; margin-left: -14px; display: flex; align-items: center; justify-content: center; gap: 10px;
+          font-size: 27px; font-weight: 800; color: #fff; padding-left: 20px;
+          clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 50%, calc(100% - 30px) 100%, 0 100%, 30px 50%); }
+  .step:first-child { margin-left: 0; padding-left: 0; clip-path: polygon(0 0, calc(100% - 30px) 0, 100% 50%, calc(100% - 30px) 100%, 0 100%); }
+  .step i { font-size: 28px; }
+
+  /* Modules */
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr); gap: 14px; }
+  section { background: var(--paper); border-radius: 18px; overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
+  h2 { display: flex; align-items: center; gap: 12px; height: 50px; flex: none; padding: 0 16px; white-space: nowrap;
+       font-size: 26px; font-weight: 800; color: #fff; background: var(--c1); }
+  h2 i { font-size: 27px; }
+  ul { list-style: none; flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 4px 12px 5px 16px; }
+  li { font-size: 20.5px; font-weight: 600; line-height: 1.2; color: var(--ink2); white-space: nowrap; }
+  li::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c1);
+               margin-right: 10px; vertical-align: 3px; }
+  .c1 { --c1: var(--pink); }
+  .c2 { --c1: var(--purple); }
+  .c3 { --c1: var(--violet); }
+  .c4 { --c1: var(--plum); }
+
+  /* Drug compliance is the gold band: the one colour used nowhere else */
+  .gold { flex: none; height: 196px; flex-direction: row; align-items: stretch; gap: 0; color: var(--deep);
+          background: linear-gradient(100deg, #DDAE4E 0%, var(--gold-lt) 48%, var(--gold) 100%); border: 4px solid #fff; }
+  .seal { flex: none; width: 176px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          color: #fff; background: var(--deep); }
+  .seal i { font-size: 46px; color: var(--gold-lt); }
+  .seal b { font-size: 46px; line-height: 1.05; font-weight: 800; color: var(--gold-lt); white-space: nowrap; margin-top: 2px; }
+  .seal span { font-size: 25px; line-height: 1.1; font-weight: 800; text-align: center; color: var(--gold-lt); margin-top: 3px; }
+  .gold > div:not(.seal) { flex: 1; min-width: 0; padding: 8px 8px 7px 18px; display: flex; flex-direction: column; }
+  .gold h3 { display: flex; align-items: center; gap: 9px; font-size: 25px; line-height: 1.1; font-weight: 800; color: var(--deep); margin-bottom: 3px; }
+  .gold h3 i { font-size: 24px; color: var(--plum); }
+  .gold ul { padding: 0; }
+  .gold li { font-size: 21.5px; font-weight: 700; color: var(--deep); }
+  .gold li::before { background: var(--plum); }
+
+  /* Counter Sale and Accounts are the full-colour cards in the grid */
+  .wide { grid-column: span 2; color: #fff; }
+  .pos { background: linear-gradient(115deg, var(--plum), var(--pink) 105%); outline: 4px solid #fff; outline-offset: -4px; }
+  .accounts { background: linear-gradient(115deg, var(--plum), var(--purple) 105%); }
+  .wide h2 { background: rgba(255,255,255,.16); }
+  .wide h2 span { font-size: 21px; font-weight: 600; color: #fff; margin-left: 6px; }
+  .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; }
+  .wide li, .whatsapp li { color: #fff; }
+  .wide li::before { background: var(--blush); }
+
+  .strips { flex: none; display: flex; flex-direction: column; gap: 6px; }
+  .strip { display: flex; align-items: center; justify-content: space-between; height: 38px; padding: 0 16px 0 0; border-radius: 10px;
+           background: rgba(245,240,247,.13); font-size: 20px; font-weight: 600; color: #fff; white-space: nowrap; }
+  .strip b { display: flex; align-items: center; gap: 8px; height: 100%; width: 266px; flex: none; padding-left: 14px; border-radius: 10px;
+             font-size: 21px; font-weight: 800; background: var(--pink); }
+
+  .whatsapp { background: var(--green); color: #fff; }
+  .whatsapp h2 { background: rgba(0,0,0,.16); }
+  ol { list-style: none; counter-reset: wa; flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 4px 12px 5px 14px; }
+  .whatsapp li { counter-increment: wa; font-weight: 700; }
+  .whatsapp li::before { content: counter(wa); width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 15px; font-weight: 800;
+                         color: var(--green); background: #fff; margin-right: 9px; vertical-align: 1px; }
+
+</style>
+</head>
+<body>
+
+<aside class="hero">
+  <svg class="hex" viewBox="0 0 620 1200" fill="none" aria-hidden="true">
+    <circle cx="640" cy="40" r="210" fill="#8C1CA2" opacity=".45"/>
+    <circle cx="640" cy="1200" r="170" fill="#BA3D6D" opacity=".30"/>
+  </svg>
+
+  <div class="logo"><img src="eMeditechPlus_logo_print.png" alt="eMeditechPlus, Tech driven HealthCare"></div>
+  <h1>e<em>Pharma</em>Plus</h1>
+  <p class="pitch">One platform for your pharmacy,<br>from purchase order to final books.</p>
+
+  <div class="badges">
+    <span><i class="bi bi-receipt-cutoff"></i>GST Tax Invoice</span>
+    <span class="wa"><i class="bi bi-whatsapp"></i>WhatsApp Bills</span>
+    <span class="dev"><i class="bi bi-phone"></i><i class="bi bi-tablet"></i><i class="bi bi-laptop"></i>Compatible with Any Device</span>
+  </div>
+
+  <div class="ai">
+    <div class="ai-head">
+      <div class="ai-badge"><i class="bi bi-upc-scan"></i></div>
+      <div><b>Smart Counter</b><small>Fewer keystrokes, safer dispensing</small></div>
+    </div>
+    <div class="ai-list">
+      <div class="ai-item"><i class="bi bi-upc-scan"></i><div><b>Scan and Bill</b><span>Barcode, brand or generic search</span></div></div>
+      <div class="ai-item"><i class="bi bi-hourglass-split"></i><div><b>First Expiry, First Out</b><span>Picks the batch, splits across batches</span></div></div>
+      <div class="ai-item"><i class="bi bi-capsule"></i><div><b>Generic Substitutes</b><span>Same generic offered, in stock first</span></div></div>
+      <div class="ai-item"><i class="bi bi-keyboard"></i><div><b>Keyboard Billing</b><span>F-key shortcuts, hold and recall bills</span></div></div>
+    </div>
+  </div>
+
+  <div class="contact">
+    <span class="web">www.emeditechplus.com</span>
+    <div class="row"><i class="bi bi-envelope-fill"></i>info@emeditechplus.com</div>
+    <div class="row"><i class="bi bi-telephone-fill"></i>9163008325 · 9831205476 · 9007524092</div>
+  </div>
+</aside>
+
+<div class="work">
+  <div class="flow">
+    <div class="step" style="background:#8C1CA2"><i class="bi bi-card-checklist"></i>Indent</div>
+    <div class="step" style="background:#93219A"><i class="bi bi-cart3"></i>Order</div>
+    <div class="step" style="background:#992593"><i class="bi bi-box-arrow-in-down"></i>Receive</div>
+    <div class="step" style="background:#A02A8B"><i class="bi bi-boxes"></i>Stock</div>
+    <div class="step" style="background:#A62F84"><i class="bi bi-capsule"></i>Dispense</div>
+    <div class="step" style="background:#AD347C"><i class="bi bi-cash-stack"></i>Collect</div>
+    <div class="step" style="background:#B33875"><i class="bi bi-calendar2-check"></i>Close</div>
+    <div class="step" style="background:#BA3D6D"><i class="bi bi-journal-check"></i>Account</div>
+  </div>
+
+  <section class="gold">
+    <div class="seal"><i class="bi bi-shield-fill-check"></i><b>H1 · X</b><span>NDPS</span></div>
+      <div>
+        <h3><i class="bi bi-capsule-pill"></i>Drug Schedules</h3>
+        <ul>
+          <li>OTC, G, H, H1, X, NDPS built in</li>
+          <li>Set on every drug in the master</li>
+          <li>Shown on each line while billing</li>
+          <li>High-alert and LASA warnings</li>
+        </ul>
+      </div>
+      <div>
+        <h3><i class="bi bi-prescription2"></i>Prescription Control</h3>
+        <ul>
+          <li>Prescription Required, per item</li>
+          <li>No doctor and Rx no., no bill</li>
+          <li>H1, X and NDPS always need it</li>
+          <li>Doctor and Rx no. on the bill</li>
+        </ul>
+      </div>
+      <div>
+        <h3><i class="bi bi-journal-text"></i>Statutory Register</h3>
+        <ul>
+          <li>Entry made on every H1 / X sale</li>
+          <li>Drug, batch, expiry and quantity</li>
+          <li>Patient, prescriber, dispensed by</li>
+          <li>Excel export for inspection</li>
+        </ul>
+      </div>
+      <div>
+        <h3><i class="bi bi-building-check"></i>Drug Licence &amp; GST</h3>
+        <ul>
+          <li>Sales stop if the licence expires</li>
+          <li>D.L. No. printed on every bill</li>
+          <li>HSN with GST rate history</li>
+          <li>CGST / SGST split on the invoice</li>
+        </ul>
+      </div>
+  </section>
+
+  <main>
+    <section class="wide pos">
+      <h2><i class="bi bi-upc-scan"></i>Counter Sale (POS) <span>walk-in, patient or credit customer</span></h2>
+      <div class="cols">
+        <ul>
+          <li>Find a patient by UHID, mobile or name</li>
+          <li>Sell by the pack or loose</li>
+          <li>Cash, card, UPI, NEFT or cheque</li>
+          <li>Split payment on one bill</li>
+          <li>Hold a bill, recall it later</li>
+          <li>Print on 80 mm thermal, A5 or A4</li>
+        </ul>
+        <ul>
+          <li>Expired stock can never be sold</li>
+          <li>Minimum shelf life at sale</li>
+          <li>Cold-chain items marked</li>
+          <li>Rack number shown on the bill line</li>
+          <li>Live stock while billing</li>
+          <li>Bill by WhatsApp and Email</li>
+        </ul>
+      </div>
+    </section>
+    <section class="c2">
+      <h2><i class="bi bi-cart-check"></i>Purchase</h2>
+      <ul>
+        <li>Indent, order, goods receipt</li>
+        <li>Purchase order by Email</li>
+        <li>Rate history while ordering</li>
+        <li>Free quantity, landed cost</li>
+        <li>Supplier bill scan attached</li>
+        <li>Minimum shelf life at receipt</li>
+        <li>Purchase return, debit note</li>
+      </ul>
+    </section>
+    <section class="c1">
+      <h2><i class="bi bi-boxes"></i>Stock &amp; Batches</h2>
+      <ul>
+        <li>Batch, expiry and MRP tracking</li>
+        <li>Stock ledger for every movement</li>
+        <li>Value at cost and at MRP</li>
+        <li>Min, max and reorder per branch</li>
+        <li>Below-reorder, out-of-stock list</li>
+        <li>Rack-wise location</li>
+        <li>Batch correction with approval</li>
+      </ul>
+    </section>
+    <section class="whatsapp">
+      <h2><i class="bi bi-whatsapp"></i>Bills on WhatsApp</h2>
+      <ol>
+        <li>Tax invoice sent as a PDF</li>
+        <li>Automatic after every bill</li>
+        <li>Or sent on demand from Sale Bills</li>
+        <li>Walk-in mobile taken at the counter</li>
+        <li>Same bill by Email</li>
+        <li>Switched on per branch</li>
+      </ol>
+    </section>
+    <section class="c3">
+      <h2><i class="bi bi-calendar-x"></i>Expiry Watch</h2>
+      <ul>
+        <li>Expired stock with its value</li>
+        <li>30, 60 and 90-day buckets</li>
+        <li>Expiring-soonest list</li>
+        <li>Expiry report with supplier, rack</li>
+        <li>Return to supplier</li>
+        <li>Expiry / damage write-off</li>
+        <li>Write-off needs approval</li>
+      </ul>
+    </section>
+    <section class="c4">
+      <h2><i class="bi bi-tags"></i>Pricing &amp; Discounts</h2>
+      <ul>
+        <li>MRP, MRP less or cost plus</li>
+        <li>Price rules by category</li>
+        <li>Staff price</li>
+        <li>Result is never above MRP</li>
+        <li>Percent or flat schemes</li>
+        <li>Validity dates, minimum bill</li>
+        <li>Discount by user permission</li>
+      </ul>
+    </section>
+    <section class="c1">
+      <h2><i class="bi bi-arrow-return-left"></i>Returns &amp; Credit</h2>
+      <ul>
+        <li>Sale return against the bill</li>
+        <li>Credit note and refund</li>
+        <li>Bill cancellation with reversal</li>
+        <li>Credit customers, with a limit</li>
+        <li>Limit checked on each bill</li>
+        <li>Credit collection and receipt</li>
+        <li>GST invoice for regular buyers</li>
+      </ul>
+    </section>
+    <section class="c2">
+      <h2><i class="bi bi-arrow-left-right"></i>Transfers &amp; Audit</h2>
+      <ul>
+        <li>Branch indent, dispatch, receive</li>
+        <li>Short receipt with its reason</li>
+        <li>Stock adjustment with approval</li>
+        <li>Physical stock verification</li>
+        <li>Blind count sheet, rack-wise</li>
+        <li>Stock frozen for the count</li>
+        <li>Variance with value</li>
+      </ul>
+    </section>
+    <section class="c4">
+      <h2><i class="bi bi-bar-chart-line"></i>Reports &amp; MIS</h2>
+      <ul>
+        <li>Live pharmacy dashboard</li>
+        <li>Sales and collection today</li>
+        <li>Sales trend, last 7 days</li>
+        <li>Top items, last 30 days</li>
+        <li>Credit due, supplier payable</li>
+        <li>Purchase Register, GST summary</li>
+        <li>Work waiting for action</li>
+      </ul>
+    </section>
+    <section class="wide accounts">
+      <h2><i class="bi bi-journal-check"></i>Accounts &amp; Finance <span>built in, no re-entry of bills</span></h2>
+      <div class="cols">
+        <ul>
+          <li>Goods receipt posts the purchase</li>
+          <li>Sale posts revenue, GST and cost</li>
+          <li>Returns, refunds, cancels reversed</li>
+          <li>Write-offs, count differences posted</li>
+          <li>Supplier ledger made on first use</li>
+          <li>Payment mode to ledger mapping</li>
+        </ul>
+        <ul>
+          <li>Supplier payments against bills</li>
+          <li>Supplier outstanding and overdue</li>
+          <li>Pharmacy day closing, verification</li>
+          <li>Branch-wise books lock</li>
+          <li>Same ledgers as OPD and LAB</li>
+          <li>Trial Balance, Day Book, Ledger</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <div class="strips">
+    <div class="strip"><b><i class="bi bi-capsule-pill"></i>Drug Master</b><span>Brand and generic</span><span>Manufacturer, category</span><span>Strength, form, pack</span><span>Pack to unit conversion</span><span>HSN and GST</span><span>Barcode</span><span>Starter data included</span></div>
+    <div class="strip"><b><i class="bi bi-shield-lock"></i>Platform</b><span>Multi-company, multi-branch</span><span>Role permissions</span><span>Maker-checker approvals</span><span>Posted documents never edited</span><span>Excel export</span><span>On-premise or cloud</span></div>
+  </div>
+</div>
+
+</body>
+</html>
