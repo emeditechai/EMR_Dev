@@ -1,9 +1,9 @@
 -- ============================================================================================================
--- Migration: 2373_bill_cancel_round_off.sql
+-- Migration: 2375_bill_cancel_round_off.sql
 -- Partial bill cancellation re-rounds the reduced bill to the rupee (as billing does). Before this, cancelling a
 -- test from a bill with a membership discount (e.g. 15% of Rs 150 = 22.50) left the bill at Rs 1,062.50 with no
 -- round off. Now: Net 1,063.00, round off +0.50, and the refund is the rounded excess (Rs 127 of Rs 1,190 paid).
--- usp_Bill_Cancel as in 2241_membership_benefits_b2c_lab.sql + the "2373" block. Existing bills are not changed.
+-- usp_Bill_Cancel as in 2241_membership_benefits_b2c_lab.sql + the "2375" block. Existing bills are not changed.
 -- ============================================================================================================
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -231,7 +231,7 @@ BEGIN
             WHERE ModuleCode = @ModuleCode AND ModuleRefId = @ModuleRefId AND IsActive = 1;
         END
 
-        -- 2373: a partly cancelled bill is rounded to the rupee again, as at billing (membership / manual discounts
+        -- 2375: a partly cancelled bill is rounded to the rupee again, as at billing (membership / manual discounts
         -- can leave paise on the reduced bill); round off, due and status follow, and the refund is the rounded excess
         IF @CancellationType = 'P'
             UPDATE ph

@@ -842,7 +842,7 @@
 
             const sel = document.getElementById('crCancellationSelect');
             sel.innerHTML = cancels.map(c => {
-                // 2375: refundable on this cancellation = its net, rounded to the rupee, less what was already refunded on it
+                // 2377: refundable on this cancellation = its net, rounded to the rupee, less what was already refunded on it
                 const netCanc = Math.round(Math.max(0, (c.cancelledAmount || 0) - (c.discountAdjusted || 0)));
                 const leftCanc = Math.max(0, netCanc - refunds.filter(r => r.cancellationId === c.cancellationId).reduce((s, r) => s + (r.refundAmount || 0), 0));
                 return `<option value="${c.cancellationId}" data-amount="${leftCanc}">${c.cancellationNo} — Refundable ₹${fmt(leftCanc)} (${fmtDate(c.cancellationDate)})</option>`;
@@ -855,7 +855,7 @@
             const totalPaid       = received + alreadyRefunded;
             const billNow         = currentBill.netAmount || 0;     // already reduced by the cancellation
             const rawRefundable   = Math.max(0, Math.round((received - billNow) * 100) / 100);
-            const refundable      = Math.round(rawRefundable);   // 2375: refunds are whole rupees (round off, like the bill)
+            const refundable      = Math.round(rawRefundable);   // 2377: refunds are whole rupees (round off, like the bill)
             const refundRoundOff  = Math.round((refundable - rawRefundable) * 100) / 100;
             const dueNow          = Math.max(0, Math.round((billNow - received) * 100) / 100);
 

@@ -1,9 +1,9 @@
 -- ============================================================================================================
--- Migration: 2375_bill_refund_round_off.sql
+-- Migration: 2377_bill_refund_round_off.sql
 -- Refunds follow the round off concept: the refundable is rounded to the rupee (Rs 127.50 -> Rs 128), refunds are
 -- whole rupees, and when the full rounded amount is refunded the paise difference is booked as the bill's round off
 -- (NetAmount / RoundOffAmount, ledger re-synced) so nothing is left due or in excess.
--- usp_Bill_Refund as in 2236_membership_points_b2c_lab.sql + the "2375" blocks.
+-- usp_Bill_Refund as in 2236_membership_points_b2c_lab.sql + the "2377" blocks.
 -- ============================================================================================================
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
@@ -55,7 +55,7 @@ BEGIN
 
         DECLARE @Refundable DECIMAL(18,2) = ISNULL(@Receipts, 0) - @AlreadyRefunded - ISNULL(@Net, 0);
         IF @Refundable < 0 SET @Refundable = 0;
-        -- 2375: refunds are paid in whole rupees; the refundable is rounded like a bill (Rs 127.50 -> Rs 128)
+        -- 2377: refunds are paid in whole rupees; the refundable is rounded like a bill (Rs 127.50 -> Rs 128)
         IF @RefundAmount <> ROUND(@RefundAmount, 0)
             THROW 50014, 'Refund amount must be in whole rupees (round off applies).', 1;
         DECLARE @RawRefundable DECIMAL(18,2) = @Refundable;
@@ -94,7 +94,7 @@ BEGIN
             IF @MemHeaderId IS NOT NULL EXEC dbo.usp_Membership_SyncBill @PaymentHeaderId = @MemHeaderId, @UserId = @UserId;
         END
 
-        -- 2375: the full rounded refund settles the paise: the difference goes to the bill's round off, so the bill
+        -- 2377: the full rounded refund settles the paise: the difference goes to the bill's round off, so the bill
         -- equals what the patient keeps (e.g. refundable 127.50, refunded 128 -> bill 935.00 - 0.50 = 934.50)
         IF @RefundAmount = @Refundable AND @Refundable <> @RawRefundable
         BEGIN

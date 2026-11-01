@@ -1,5 +1,5 @@
 -- ============================================================================================================
--- Migration: 2374_lab_billing_register_round_off.sql
+-- Migration: 2376_lab_billing_register_round_off.sql
 -- Reports > LAB > Daily Billing Register: the bill's round off (PaymentHeader.RoundOffAmount; 0 for B2B) as a column,
 -- in the totals and in each summary group. usp_Api_LabReport_BillingRegister as in 2240_lab_misc_charges_billing_part5.sql
 -- + RoundOffAmount.
@@ -42,7 +42,7 @@ BEGIN
         items.TestCount, items.TestNames,
         CAST(lo.TotalAmount + ISNULL(lo.MiscAmount, 0) + ISNULL(lo.MiscGstAmount, 0) AS DECIMAL(18, 2)) AS GrossAmount /* 2240: + misc charges with GST */,
         CAST(CASE WHEN ISNULL(ph.HeaderDiscountAmount, 0) > 0 THEN ph.HeaderDiscountAmount ELSE ISNULL(ph.LineDiscountTotal, 0) END AS DECIMAL(18, 2)) AS DiscountAmount,
-        -- 2374: round off of the bill (B2C; a B2B bill is not rounded here)
+        -- 2376: round off of the bill (B2C; a B2B bill is not rounded here)
         CAST(CASE WHEN ISNULL(lo.IsB2B, 0) = 1 THEN 0 ELSE ISNULL(ph.RoundOffAmount, 0) END AS DECIMAL(18, 2)) AS RoundOffAmount,
         CAST(CASE WHEN ISNULL(lo.IsB2B, 0) = 1 THEN ISNULL(lo.B2BTotal, lo.TotalAmount) ELSE ISNULL(ph.NetAmount, lo.TotalAmount) END AS DECIMAL(18, 2)) AS NetAmount,
         CAST(ISNULL(ph.TotalPaid, 0) AS DECIMAL(18, 2)) AS PaidAmount,
