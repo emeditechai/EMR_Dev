@@ -130,5 +130,15 @@
   ],
   "date": "01 Nov 2026",
   "version": "1.8"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table UserPasswordResetOtp (12 columns, module A2)",
+   "New foreign key UserPasswordResetOtp.UserId -> Users.Id",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "01 Nov 2026",
+  "version": "1.9"
  }
 ]

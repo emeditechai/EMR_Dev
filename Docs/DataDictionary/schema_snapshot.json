@@ -52469,6 +52469,162 @@
    "type": "int"
   },
   {
+   "col": "OtpId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "UserPasswordResetOtp",
+   "type": "int"
+  },
+  {
+   "col": "UserId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "UserPasswordResetOtp",
+   "type": "int"
+  },
+  {
+   "col": "OtpHash",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 64,
+   "nullable": false,
+   "ord": 3,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "UserPasswordResetOtp",
+   "type": "char"
+  },
+  {
+   "col": "Attempts",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 4,
+   "prec": 3,
+   "scale": 0,
+   "tbl": "UserPasswordResetOtp",
+   "type": "tinyint"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 5,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "UserPasswordResetOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "ExpiresAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 6,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "UserPasswordResetOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "VerifiedAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 7,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "UserPasswordResetOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "ResetTokenHash",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 64,
+   "nullable": true,
+   "ord": 8,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "UserPasswordResetOtp",
+   "type": "char"
+  },
+  {
+   "col": "ResetExpiresAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 9,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "UserPasswordResetOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "UsedAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 10,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "UserPasswordResetOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "CancelledAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 11,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "UserPasswordResetOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "RequestIp",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 45,
+   "nullable": true,
+   "ord": 12,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "UserPasswordResetOtp",
+   "type": "varchar"
+  },
+  {
    "col": "Id",
    "def": null,
    "descr": null,
@@ -53510,7 +53666,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-01T20:33:07",
+ "extracted_on": "2026-11-01T21:50:51",
  "fk": [
   {
    "col": "LedgerId",
@@ -56118,6 +56274,13 @@
   },
   {
    "col": "UserId",
+   "fk": "FK_UserPasswordResetOtp_Users",
+   "rcol": "Id",
+   "rtbl": "Users",
+   "tbl": "UserPasswordResetOtp"
+  },
+  {
+   "col": "UserId",
    "fk": "FK_UserPasswordResetToken_Users",
    "rcol": "Id",
    "rtbl": "Users",
@@ -58688,6 +58851,11 @@
    "tbl": "UserNotification"
   },
   {
+   "col": "OtpId",
+   "k": 1,
+   "tbl": "UserPasswordResetOtp"
+  },
+  {
    "col": "ResetTokenId",
    "k": 1,
    "tbl": "UserPasswordResetToken"
@@ -59108,6 +59276,7 @@
   "UserBranches",
   "UserMaster",
   "UserNotification",
+  "UserPasswordResetOtp",
   "UserPasswordResetToken",
   "UserPermission",
   "UserPushSubscription",
@@ -59196,6 +59365,10 @@
   {
    "d": "Server-built travel legs of a duty day: GPS km, road km and payable km.",
    "tbl": "PhleboTravelLeg"
+  },
+  {
+   "d": "Forgot password in the phlebotomist app: WhatsApp codes and the reset token a right code opens. Only hashes are stored.",
+   "tbl": "UserPasswordResetOtp"
   }
  ],
  "uq": [
@@ -59958,6 +60131,11 @@
    "cols": "UserId, EventKey",
    "idx": "UX_UserNotification_Event",
    "tbl": "UserNotification"
+  },
+  {
+   "cols": "ResetTokenHash",
+   "idx": "UX_UserPasswordResetOtp_Token",
+   "tbl": "UserPasswordResetOtp"
   },
   {
    "cols": "TokenHash",
