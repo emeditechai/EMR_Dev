@@ -121,5 +121,14 @@
   ],
   "date": "01 Nov 2026",
   "version": "1.7"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "HospitalSettings: new column(s) BillChangeApprovalRequired, LoginAlertCount",
+   "MS_Description changed on HospitalSettings"
+  ],
+  "date": "01 Nov 2026",
+  "version": "1.8"
  }
 ]

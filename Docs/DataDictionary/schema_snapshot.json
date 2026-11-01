@@ -15848,6 +15848,32 @@
    "type": "bit"
   },
   {
+   "col": "BillChangeApprovalRequired",
+   "def": "((1))",
+   "descr": "1 = bill changes from the phlebotomist app wait for office approval. 0 = test changes apply at once; discounts still wait. Saved for all branches of the company.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 101,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "LoginAlertCount",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 102,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -53484,7 +53510,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-01T12:43:25",
+ "extracted_on": "2026-11-01T20:33:07",
  "fk": [
   {
    "col": "LedgerId",
