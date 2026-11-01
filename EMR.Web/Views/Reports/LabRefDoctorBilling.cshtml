@@ -1,0 +1,132 @@
+@{
+    // Reports > LAB > Referral Doctor Billing (SQLScripts/2379): B2C and B2B LAB bills by referral doctor, each bill
+    // opening to its test lines. Excel / PDF are grouped doctor-wise with every test on its own row.
+    ViewData["Title"] = "Referral Doctor Billing";
+    ViewData["ReportSubtitle"] = "B2C & B2B LAB bills by referral doctor, with their test lines";
+    ViewData["ReportIcon"] = "bi-person-badge";
+    ViewData["ReportAccent"] = "#0e7490";
+    ViewData["DateLabel"] = "bill date";
+}
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
+<partial name="_LabReportShell" />
+<style>
+    .rdb-lines { font-size:.78rem; margin:0; }
+    .rdb-lines th { font-size:.64rem; text-transform:uppercase; letter-spacing:.4px; color:#64748b; font-weight:700; }
+    .rdb-lines tr.ln-cancelled td { color:#94a3b8; text-decoration:line-through; }
+    .rdb-lines tr.ln-cancelled td.ln-status { text-decoration:none; }
+    #lrF_doctorIds + .select2 .select2-selection { min-height: calc(1.5em + .5rem + 2px); font-size:.8rem; }
+</style>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js" asp-append-version="true"></script>
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const STATUS = { PAID: ['Paid', 'bg-success-subtle text-success border-success-subtle'], PARTIAL: ['Partial', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'],
+                     UNPAID: ['Unpaid', 'bg-danger-subtle text-danger border-danger-subtle'], CANCELLED: ['Cancelled', 'bg-secondary-subtle text-secondary border-secondary-subtle'] };
+    const statusText = r => (STATUS[r.PaymentStatus] || [r.PaymentStatus])[0] + (r.IsPartlyCancelled ? ' · partly cancelled' : '');
+    const status = (r, h) => { const s = STATUS[r.PaymentStatus] || [r.PaymentStatus, '']; return h.pill(s[0], s[1])
+        + (r.IsPartlyCancelled ? ' ' + h.pill('Partly cancelled', 'bg-warning-subtle text-warning-emphasis border-warning-subtle') : ''); };
+    const genderAge = r => [r.Gender, r.PatientAge].filter(Boolean).join(' / ') || '—';
+    const billing = r => r.BillingType + (r.PartnerName ? ' - ' + r.PartnerName : '');
+    const linesOf = (r, data) => (data?.lines || []).filter(l => l.LabOrderId === r.LabOrderId);
+    const itemName = l => `${l.TestName}${l.ItemType && l.ItemType !== 'Test' ? ' [' + l.ItemType + ']' : ''}`;
+    const neg = (v, h, cls) => v > 0 ? `<span class="${cls}">&minus; ${h.money(v)}</span>` : '<span class="text-muted">—</span>';
+    const sum = (xs, f) => xs.reduce((a, r) => a + (Number(r[f]) || 0), 0);
+
+    LabReport.init({
+        report: 'ref-doctor-billing', title: 'Referral Doctor Billing', defaultRange: 'month', startView: 'detail', expandOpen: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: @((ViewBag.CanSeeAllCollections as bool? ?? false) ? "true" : "false"),
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, Token, Patient ID, name or mobile...',
+        filters: [
+            { id: 'doctorIds', label: 'Referral doctor', allLabel: 'All referral doctors', fromOptions: 'doctor', multi: true },
+            { id: 'billingType', label: 'Billing', allLabel: 'B2C & B2B', options: [['B2C', 'B2C'], ['B2B', 'B2B']] },
+            { id: 'paymentStatus', label: 'Payment', allLabel: 'All', options: [['PAID', 'Paid'], ['PARTIAL', 'Partial'], ['UNPAID', 'Unpaid'], ['CANCELLED', 'Cancelled']] }
+        ],
+        kpis: [
+            { label: 'Bills', color: '#0e7490', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.DoctorCount)} doctor(s) · ${h.num(s.B2CBills)} B2C · ${h.num(s.B2BBills)} B2B` },
+            { label: 'Bill amount', color: '#475569', value: (s, h) => h.money(s.BillAmount), sub: (s, h) => `${h.num(s.TestCount)} tests · ${h.num(s.PatientCount)} patients` },
+            { label: 'Discount', color: '#b45309', value: (s, h) => h.money(s.DiscountAmount), sub: () => 'given on these bills' },
+            { label: 'Cancelled', color: '#b91c1c', value: (s, h) => h.money(s.CancelledAmount), sub: (s, h) => `refunded ${h.money(s.RefundAmount)}` },
+            { label: 'Paid', color: '#15803d', value: (s, h) => h.money(s.PaidAmount), sub: (s, h) => `net billed ${h.money(s.NetAmount)} · due ${h.money(s.DueAmount)}` }
+        ],
+        groups: [
+            { key: 'byDoctor', label: 'Referral doctor', rowField: 'RefDoctorName' },
+            { key: 'byBillingType', label: 'Billing type', rowField: 'BillingType' },
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'TestCount', label: 'Tests', num: true },
+            { field: 'BillAmount', label: 'Bill Amount', money: true }, { field: 'DiscountAmount', label: 'Discount', money: true },
+            { field: 'CancelledAmount', label: 'Cancelled', money: true }, { field: 'RefundAmount', label: 'Refund', money: true },
+            { field: 'NetAmount', label: 'Net', money: true }, { field: 'PaidAmount', label: 'Paid', money: true }
+        ],
+        shareOf: 'BillAmount',
+        cols: [
+            { label: 'Referral Doctor', html: (r, h) => `<div class="fw-semibold">${h.esc(r.RefDoctorName)}</div>`, text: r => r.RefDoctorName },
+            { label: 'Lab Bill No / Token', html: (r, h) => `<div class="fw-semibold font-monospace">${h.esc(r.BillNo)}</div><div class="text-muted fs-9">${h.esc(r.TokenNo || '')} · ${h.fmtDT(r.BillDate)}</div>`, text: r => r.BillNo },
+            { label: 'Patient', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PatientName)}</div><div class="text-muted fs-9">${h.esc(r.PatientCode)}${r.PhoneNumber ? ' · ' + h.esc(r.PhoneNumber) : ''}</div>`, text: r => `${r.PatientName} (${r.PatientCode})` },
+            { label: 'Gender / Age', cls: 'text-nowrap', html: (r, h) => h.esc(genderAge(r)), text: r => genderAge(r) },
+            { label: 'Billing', html: (r, h) => `${h.esc(r.BillingType)}${r.PartnerName ? `<div class="text-muted fs-9">${h.esc(r.PartnerName)}</div>` : ''}`, text: r => billing(r) },
+            { label: 'Tests', cls: 'text-center', html: (r, h) => `<span class="badge bg-light text-dark border">${r.TestCount}</span>`, text: r => r.TestCount },
+            { label: 'Bill Amount', cls: 'text-end amt', html: (r, h) => h.money(r.BillAmount), text: r => r.BillAmount, sum: 'BillAmount' },
+            { label: 'Discount', cls: 'text-end amt', html: (r, h) => neg(r.DiscountAmount, h, 'text-warning-emphasis'), text: r => r.DiscountAmount, sum: 'DiscountAmount' },
+            { label: 'Cancelled', cls: 'text-end amt', html: (r, h) => neg(r.CancelledAmount, h, 'text-danger'), text: r => r.CancelledAmount, sum: 'CancelledAmount' },
+            { label: 'Refund', cls: 'text-end amt', html: (r, h) => neg(r.RefundAmount, h, 'text-danger'), text: r => r.RefundAmount, sum: 'RefundAmount' },
+            { label: 'Net', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.NetAmount), text: r => r.NetAmount, sum: 'NetAmount' },
+            { label: 'Paid', cls: 'text-end amt text-success', html: (r, h) => h.money(r.PaidAmount), text: r => r.PaidAmount, sum: 'PaidAmount' },
+            { label: 'Status', html: (r, h) => status(r, h), text: r => statusText(r) },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
+        ],
+        rowClass: r => r.IsCancelled ? 'row-muted' : '',
+        // each bill opens to its test lines (all open after a load; cancelled tests struck through)
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => `<table class="table table-sm rdb-lines"><thead><tr><th>#</th><th>Test Code</th><th>Test / Item</th><th>Department</th>
+                <th class="text-end">Rate</th><th class="text-end">Discount</th><th class="text-end">Net</th><th>Status</th></tr></thead><tbody>` +
+                linesOf(r, data).map(l => `<tr class="${l.IsCancelled ? 'ln-cancelled' : ''}"><td>${l.LineSeq}</td><td class="font-monospace">${h.esc(l.TestCode || '')}</td>
+                    <td>${h.esc(itemName(l))}</td><td>${h.esc(l.Department || '')}</td><td class="text-end">${h.money(l.Rate)}</td>
+                    <td class="text-end">${l.Discount > 0 ? h.money(l.Discount) : '—'}</td><td class="text-end fw-semibold">${h.money(l.NetAmount)}</td>
+                    <td class="ln-status">${l.IsCancelled ? '<span class="badge bg-danger-subtle text-danger border border-danger-subtle">Cancelled</span>' : '<span class="text-success fs-9">Active</span>'}</td></tr>`).join('') +
+                '</tbody></table>'
+        },
+        // Excel / PDF (Detail): doctor-wise sections; each bill with every test on its own row, a subtotal per doctor and a grand total
+        exportGrouped: (rows, data, h) => {
+            const docs = [];
+            rows.forEach(r => {
+                let d = docs.find(x => x.key === r.DoctorKey);
+                if (!d) docs.push(d = { key: r.DoctorKey, name: r.RefDoctorName, rows: [] });
+                d.rows.push(r);
+            });
+            const lineSum = (rs, f) => rs.reduce((a, r) => a + linesOf(r, data).filter(l => !l.IsCancelled).reduce((b, l) => b + (Number(l[f]) || 0), 0), 0);
+            const vals = rs => [lineSum(rs, 'Rate'), lineSum(rs, 'Discount'), lineSum(rs, 'NetAmount'), sum(rs, 'BillAmount'), sum(rs, 'DiscountAmount'),
+                                sum(rs, 'CancelledAmount'), sum(rs, 'RefundAmount'), sum(rs, 'NetAmount'), sum(rs, 'PaidAmount')];
+            let no = 0;
+            return {
+                head: ['#', 'Bill Date', 'Lab Bill No', 'Token No', 'Patient Name', 'Gender/Age', 'Billing', 'Test / Item', 'Test Status',
+                       'Rate', 'Line Discount', 'Line Net', 'Bill Amount', 'Discount', 'Cancelled', 'Refund', 'Net', 'Paid'],
+                left: 7, valueAt: 9, right: 6,
+                sections: docs.map(d => ({
+                    title: `Referral Doctor: ${d.name}  ·  ${d.rows.length} bill(s), ${d.rows.reduce((a, r) => a + linesOf(r, data).length, 0)} line(s)`,
+                    bills: d.rows.map(r => {
+                        const ls = linesOf(r, data);
+                        return {
+                            cells: [++no, h.fmtDT(r.BillDate), r.BillNo, r.TokenNo || '', `${r.PatientName} (${r.PatientCode})`, genderAge(r), billing(r)],
+                            lines: ls.length ? ls.map(l => [itemName(l), l.IsCancelled ? 'Cancelled' : 'Active', l.Rate || 0, l.Discount || 0, l.NetAmount || 0])
+                                             : [['', '', 0, 0, 0]],
+                            after: [r.BillAmount || 0, r.DiscountAmount || 0, r.CancelledAmount || 0, r.RefundAmount || 0, r.NetAmount || 0, r.PaidAmount || 0]
+                        };
+                    }),
+                    subtotal: { label: `Subtotal for ${d.name}`, values: vals(d.rows) }
+                })),
+                grand: { label: `Grand total  ·  ${rows.length} bill(s)`, values: vals(rows) }
+            };
+        }
+    });
+})();
+</script>
+}

@@ -236,6 +236,8 @@
                         <th data-sort="paidAmount" class="text-end">Amount Collected</th>
                         <th data-sort="billGrossAmount" class="text-end">Bill Gross</th>
                         <th data-sort="billDiscountAmount" class="text-end">Discount</th>
+                        <th data-sort="billCancelledAmount" class="text-end" title="Cancelled tests, net of the discount taken back">Cancelled</th>
+                        <th data-sort="billRoundOff" class="text-end">Round off</th>
                         <th data-sort="billNetAmount" class="text-end">Bill Net</th>
                         <th data-sort="billTotalPaid" class="text-end">Bill Paid</th>
                         <th data-sort="billBalanceDue" class="text-end">Balance</th>
@@ -250,6 +252,8 @@
                     <td class="text-end amt text-success" id="ftAmount">&#8377;0.00</td>
                     <td></td>
                     <td class="text-end amt text-danger" id="ftDiscount" title="Discount of the bills in the list, each bill counted once"></td>
+                    <td class="text-end amt text-danger" id="ftCancelled" title="Cancelled on the bills in the list, each bill counted once"></td>
+                    <td class="text-end amt" id="ftRoundOff"></td>
                     <td colspan="6"></td>
                 </tr></tfoot>
             </table>
@@ -504,10 +508,12 @@
                 <td class="text-end amt fw-bold text-success">${money(r.paidAmount)}</td>
                 <td class="text-end amt">${money(r.billGrossAmount)}</td>
                 <td class="text-end amt ${r.billDiscountAmount > 0 ? 'text-danger' : 'text-muted'}">${r.billDiscountAmount > 0 ? '&minus; ' + money(r.billDiscountAmount) : money(0)}</td>
-                <td class="text-end amt">${money(r.billNetAmount)}</td>
-                <td class="text-end amt">${money(r.billTotalPaid)}</td>
+                <td class="text-end amt ${r.billCancelledAmount > 0 ? 'text-danger' : 'text-muted'}">${r.billCancelledAmount > 0 ? '&minus; ' + money(r.billCancelledAmount) : '—'}</td>
+                <td class="text-end amt ${r.billRoundOff ? (r.billRoundOff > 0 ? 'text-primary' : 'text-danger') : 'text-muted'}">${r.billRoundOff ? (r.billRoundOff > 0 ? '+' : '&minus; ') + money(Math.abs(r.billRoundOff)) : '—'}</td>
+                <td class="text-end amt fw-semibold">${money(r.billNetAmount)}</td>
+                <td class="text-end amt">${money(r.billTotalPaid)}${r.billRefundedAmount > 0 ? `<div class="fs-9 text-danger fw-normal">refunded ${money(r.billRefundedAmount)}</div>` : ''}</td>
                 <td class="text-end amt ${r.billBalanceDue > 0 ? 'text-danger fw-semibold' : 'text-muted'}">${money(r.billBalanceDue)}</td>
-                <td><span class="badge border ${stCls}">${st}</span>${r.isBillActive ? '' : ' <span class="badge bg-danger">Bill cancelled</span>'}</td>
+                <td><span class="badge border ${stCls}">${st}</span>${cancelBadge(r)}</td>
                 <td class="text-nowrap">${esc(r.collectedBy)}</td>
                 <td class="text-center no-print"><a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill"
                      href="${billUrl}?labOrderId=${r.labOrderId}"><i class="bi bi-printer"></i></a></td>
@@ -518,6 +524,9 @@
         $('#ftCount').text(view.length); $('#ftAmount').text(money(total));
         const disc = billDiscount();
         $('#ftDiscount').html(disc.amount > 0 ? `&minus; ${money(disc.amount)}<div class="fs-9 text-muted fw-normal">${disc.bills} bill(s)</div>` : '');
+        const canc = billSum('billCancelledAmount'), ro = billSum('billRoundOff');
+        $('#ftCancelled').html(canc.amount > 0 ? `&minus; ${money(canc.amount)}<div class="fs-9 text-muted fw-normal">${canc.bills} bill(s)</div>` : '');
+        $('#ftRoundOff').html(ro.amount ? (ro.amount > 0 ? '+' : '&minus; ') + money(Math.abs(ro.amount)) : '');
         $('#lblShowing').text(view.length ? `Showing ${start + 1}–${start + slice.length} of ${view.length}` : '');
 
         const $p = $('#pager').empty();
@@ -529,14 +538,21 @@
         }
     }
 
+    // 2378: a bill's cancel state - fully cancelled, or some tests cancelled
+    function cancelText(r) { return !r.isBillActive || r.cancelState === 'FULL' ? 'Bill cancelled' : r.cancelState === 'PARTIAL' ? 'Partly cancelled' : ''; }
+    function cancelBadge(r) {
+        const t = cancelText(r);
+        return !t ? '' : t === 'Bill cancelled' ? ' <span class="badge bg-danger">Bill cancelled</span>'
+                                                : ' <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Partly cancelled</span>';
+    }
     // ── export ──
     function exportRows() {
         return view.map((r, i) => ({
             '#': i + 1, 'Receipt No': r.receiptNo, 'Receipt Date': fmtDT(r.receiptDate), 'Billing': r.billingType, 'B2B Partner': r.partnerName || '', 'Bill No': r.billNo, 'Token': r.tokenNo,
             'Bill Date': fmtD(r.billDate), 'Patient': r.patientName, 'Patient ID': r.patientCode, 'Mobile': r.phoneNumber,
             'Payment Mode': r.paymentMode, 'Reference': [r.paymentReference, r.bankName].filter(Boolean).join(' / '),
-            'Amount Collected': r.paidAmount, 'Bill Gross': r.billGrossAmount, 'Discount': r.billDiscountAmount, 'Bill Net': r.billNetAmount, 'Bill Paid': r.billTotalPaid, 'Balance': r.billBalanceDue,
-            'Status': statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Bill cancelled)'), 'Collected By': r.collectedBy
+            'Amount Collected': r.paidAmount, 'Bill Gross': r.billGrossAmount, 'Discount': r.billDiscountAmount, 'Cancelled': r.billCancelledAmount, 'Round Off': r.billRoundOff, 'Bill Net': r.billNetAmount, 'Bill Paid': r.billTotalPaid, 'Refunded': r.billRefundedAmount, 'Balance': r.billBalanceDue,
+            'Status': statusText(r.paymentStatus) + (cancelText(r) ? ' (' + cancelText(r) + ')' : ''), 'Collected By': r.collectedBy
         }));
     }
     // a bill's discount once, however many receipts it has in the list
@@ -544,6 +560,12 @@
         const seen = new Set(); let amount = 0, bills = 0;
         view.forEach(r => { if (!seen.has(r.labOrderId)) { seen.add(r.labOrderId); if (r.billDiscountAmount > 0) { amount += r.billDiscountAmount; bills++; } } });
         return { amount, bills };
+    }
+    // 2378: any bill field once per bill (cancelled, round off)
+    function billSum(f) {
+        const seen = new Set(); let amount = 0, bills = 0;
+        view.forEach(r => { if (!seen.has(r.labOrderId)) { seen.add(r.labOrderId); if (r[f]) { amount += r[f]; bills++; } } });
+        return { amount: Math.round(amount * 100) / 100, bills };
     }
     function fileBase() { return `Daily_Collection_Register_${$('#txtFrom').val()}_to_${$('#txtTo').val()}`; }
 
@@ -615,11 +637,11 @@
         doc.setFontSize(13); doc.text('Daily Collection Register' + ($('#selBilling').val() ? ' (' + $('#selBilling').val() + ')' : ''), 40, 36);
         doc.setFontSize(9); doc.text(`${branchName ? 'Branch: ' + branchName + '   ' : ''}Period: ${$('#lblRange').text()}   Total: ${$('#kTotal').text().replace('₹', 'Rs. ')}   Receipts: ${view.length}`, 40, 52);
 
-        section('Money receipts', ['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Mode', 'Collected', 'Bill Gross', 'Discount', 'Bill Net', 'Balance', 'Status', 'Collected By'],
+        section('Money receipts', ['#', 'Receipt No', 'Receipt Date', 'Bill No', 'Patient', 'Mode', 'Collected', 'Bill Gross', 'Discount', 'Cancelled', 'Round Off', 'Bill Net', 'Balance', 'Status', 'Collected By'],
             view.map((r, i) => [i + 1, r.receiptNo || '', fmtDT(r.receiptDate), (r.billNo || '') + '\n' + r.billingType, r.patientName + '\n' + (r.patientCode || '') + (r.partnerName ? '\n' + r.partnerName : ''),
-                r.paymentMode + (r.paymentReference ? '\n' + r.paymentReference : ''), n2(r.paidAmount).toFixed(2), n2(r.billGrossAmount).toFixed(2), n2(r.billDiscountAmount).toFixed(2), n2(r.billNetAmount).toFixed(2),
-                n2(r.billBalanceDue).toFixed(2), statusText(r.paymentStatus) + (r.isBillActive ? '' : ' (Cancelled)'), r.collectedBy]),
-            ['', '', '', '', '', 'TOTAL', view.reduce((a, r) => a + (r.paidAmount || 0), 0).toFixed(2), '', billDiscount().amount.toFixed(2), '', '', '', ''], [6, 7, 8, 9, 10]);
+                r.paymentMode + (r.paymentReference ? '\n' + r.paymentReference : ''), n2(r.paidAmount).toFixed(2), n2(r.billGrossAmount).toFixed(2), n2(r.billDiscountAmount).toFixed(2), n2(r.billCancelledAmount).toFixed(2), n2(r.billRoundOff).toFixed(2), n2(r.billNetAmount).toFixed(2),
+                n2(r.billBalanceDue).toFixed(2), statusText(r.paymentStatus) + (cancelText(r) ? ' (' + cancelText(r) + ')' : ''), r.collectedBy]),
+            ['', '', '', '', '', 'TOTAL', view.reduce((a, r) => a + (r.paidAmount || 0), 0).toFixed(2), '', billDiscount().amount.toFixed(2), billSum('billCancelledAmount').amount.toFixed(2), billSum('billRoundOff').amount.toFixed(2), '', '', '', ''], [6, 7, 8, 9, 10, 11, 12]);
 
         const modes = lastData.byMode || [];
         section('Collection by payment mode', ['Payment Mode', 'Receipts', 'Amount'], modes.map(m => [m.paymentMode, m.receiptCount, rs(m.amount)]),

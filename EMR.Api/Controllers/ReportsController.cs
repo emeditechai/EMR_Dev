@@ -111,6 +111,8 @@ public class ReportsController : ControllerBase
             ["patient-orders"]      = ("dbo.usp_Api_LabReport_PatientOrders",      new[] { "ReportStatus" },                       new[] { "CreatedBy" }),
             ["cancellation-refund"] = ("dbo.usp_Api_LabReport_CancellationRefund", new[] { "CancellationType", "RefundStatus", "BillingType" }, new[] { "CancelledBy" }),
             // membership points earned / redeemed / given back / taken back / expired on B2C LAB bills (SQLScripts/2237)
+            // Referral Doctor Billing: bills by referral doctor with their test lines; DoctorIds is a list (SQLScripts/2379)
+            ["ref-doctor-billing"]  = ("dbo.usp_Api_LabReport_RefDoctorBilling",   new[] { "DoctorIds", "BillingType", "PaymentStatus" }, Array.Empty<string>()),
             ["membership-points"]   = ("dbo.usp_Api_LabReport_MembershipPoints",   new[] { "TxnType" },                            new[] { "PlanId", "CreatedBy" }),
             // B2B partner-account reports: branch-wide, not limited to the user's own records (SQLScripts/2125)
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
@@ -303,7 +305,11 @@ public class ReportsController : ControllerBase
         foreach (var f in def.TextFilters)
         {
             var v = Request.Query[char.ToLowerInvariant(f[0]) + f[1..]].ToString();
-            parameters[f] = string.IsNullOrWhiteSpace(v) ? null : v.Trim()[..Math.Min(v.Trim().Length, 20)];
+            // a "...Ids" filter is a comma-separated list of keys (letters, digits); every other text filter is a short code
+            if (f.EndsWith("Ids", StringComparison.Ordinal))
+                parameters[f] = string.IsNullOrWhiteSpace(v) || v.Length > 1000 || !System.Text.RegularExpressions.Regex.IsMatch(v, "^[A-Za-z0-9,]+$") ? null : v;
+            else
+                parameters[f] = string.IsNullOrWhiteSpace(v) ? null : v.Trim()[..Math.Min(v.Trim().Length, 20)];
         }
         foreach (var f in def.IdFilters)
         {

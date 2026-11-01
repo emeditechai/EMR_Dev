@@ -5,7 +5,8 @@
  *
  * config = {
  *   report, dataUrl, title, defaultRange ('today' | 'month' ...), seeAll, branchName, searchPlaceholder,
- *   filters:   [{ id, label, options: [[value, text]], fromOptions: 'createdBy', allLabel, adminOnly }],
+ *   filters:   [{ id, label, options: [[value, text]], fromOptions: 'createdBy', allLabel, adminOnly, multi }],
+ *              multi: true - a multi-select (select2 when loaded); sent as comma-separated values, empty = all
  *   kpis:      [{ label, color, value: (s, h) => html, sub: (s, h) => html }],
  *   groups:    [{ key, label, rowField, byId, name: (group, h) => html, adminOnly, noDrill }],   noDrill: its lines don't open the Detail
  *   groupCols: [{ field, label, money, total: 'sum' | 'max' | 'none', fmt: (v, h) => html }],
@@ -55,6 +56,13 @@ window.LabReport = (function () {
         // report-specific filters, before the search box
         filters.forEach(f => {
             const opts = (f.options || []).map(o => `<option value="${h.esc(o[0])}">${h.esc(o[1])}</option>`).join('');
+            if (f.multi) {
+                $(`<div class="col-12 col-md-4"><label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0" for="lrF_${f.id}">${h.esc(f.label)}</label>
+                     <select id="lrF_${f.id}" class="form-select form-select-sm lr-filter" data-id="${f.id}" data-multi="1" multiple autocomplete="off">${opts}</select></div>`)
+                    .insertBefore('#lrSearchCol');
+                if ($.fn.select2) $('#lrF_' + f.id).select2({ theme: 'bootstrap-5', width: '100%', placeholder: f.allLabel || 'All', closeOnSelect: false, allowClear: true });
+                return;
+            }
             $(`<div class="col-6 col-md-2"><label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0" for="lrF_${f.id}">${h.esc(f.label)}</label>
                  <select id="lrF_${f.id}" class="form-select form-select-sm lr-filter" data-id="${f.id}" autocomplete="off"><option value="">${h.esc(f.allLabel || 'All')}</option>${opts}</select></div>`)
                 .insertBefore('#lrSearchCol');
@@ -85,7 +93,7 @@ window.LabReport = (function () {
             const my = ++seq, from = $('#lrFrom').val(), to = $('#lrTo').val();
             if (!from || !to) return;
             const q = { report: cfg.report, fromDate: from, toDate: to, search: $('#lrSearch').val() };
-            $('.lr-filter').each(function () { q[$(this).data('id')] = $(this).val(); });
+            $('.lr-filter').each(function () { const v = $(this).val(); q[$(this).data('id')] = Array.isArray(v) ? v.join(',') : v; });
             if (cfg.params) Object.assign(q, cfg.params() || {});
             buildChrome(); open.clear(); autoOpen = !!cfg.expandOpen;
             $('#lrError').addClass('d-none'); $('#lrEmpty').addClass('d-none');
@@ -309,7 +317,7 @@ window.LabReport = (function () {
         $(document).on('change', '.lr-filter', load);
         $('#lrApply').on('click', load);
         $('#lrSearch').on('keydown', e => { if (e.key === 'Enter') load(); });
-        $('#lrReset').on('click', () => { $('.lr-filter').val(''); $('#lrSearch').val(''); setRange(cfg.defaultRange || 'today'); load(); });
+        $('#lrReset').on('click', () => { $('.lr-filter').val('').filter('[data-multi]').val(null).trigger('change.select2'); $('#lrSearch').val(''); setRange(cfg.defaultRange || 'today'); load(); });
         $('.btn-view').on('click', function () { view = $(this).data('view'); $('.btn-view').removeClass('active'); $(this).addClass('active'); if (view === 'summary') drill = null; render(); });
         $('#lrGroup').on('change', render);
         $('#lrSummary tbody').on('click', 'tr.grp-row', function () {

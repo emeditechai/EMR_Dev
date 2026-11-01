@@ -40,7 +40,7 @@ public class DoctorFormViewModel
     public string EmailId { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Phone Number is required.")]
-    [RegularExpression(@"^[0-9+\-() ]{8,20}$", ErrorMessage = "Enter a valid phone number.")]
+    [RegularExpression(@"^(?:\+?91[\- ]?|0)?[6-9]\d{9}$", ErrorMessage = "Enter a valid 10-digit mobile number (starts with 6-9; +91 optional).")]
     [Display(Name = "Phone Number")]
     public string PhoneNumber { get; set; } = string.Empty;
 
