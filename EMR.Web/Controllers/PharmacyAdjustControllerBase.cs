@@ -26,13 +26,14 @@ public abstract class PharmacyAdjustControllerBase(IPharmacyInventoryService inv
         var d = id > 0 ? await Inventory.GetAdjustmentAsync(CompanyId, BranchId, id) : new PhInvDoc { Kind = Kind, DisposalDate = DateTime.Today };
         if (d == null || d.Kind != Kind) return NotFound();
         ViewBag.Reasons = await purchase.ReasonsAsync(CompanyId, "ADJUSTMENT");
+        ViewBag.Stores = await Inventory.StoresAsync(CompanyId, BranchId, "ANY");
         ViewBag.Page = Module; ViewBag.Title = Title; ViewBag.UserId = UserId;
         ViewBag.Approvers = await Inventory.MatrixApproversAsync(CompanyId, Module, BranchId);
         return View("~/Views/PharmacyInventory/AdjustForm.cshtml", d);
     }
 
-    [HttpGet] public async Task<IActionResult> BatchSearch(string? q) =>
-        Json(string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2 ? [] : await Inventory.BatchSearchAsync(CompanyId, BranchId, q.Trim()));
+    [HttpGet] public async Task<IActionResult> BatchSearch(string? q, int? storeId) =>
+        Json(string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2 ? [] : await Inventory.BatchSearchAsync(CompanyId, BranchId, q.Trim(), false, storeId));
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(string? json)

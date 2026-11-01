@@ -19,30 +19,40 @@
         let kind = 'WALKIN', patient = null, customer = null, doctorId = null, holdId = null, seq = 0;
         let lines = [], pays = [];
 
+        // ── counter (selling store): remembered per branch on this computer; changing it empties the bill ──
+        const storeSel = $('posStore');
+        const storeKey = 'phPosStore:' + (cfg.branchId || '');
+        try { const saved = localStorage.getItem(storeKey); if (saved && storeSel && storeSel.tagName === 'SELECT' && [...storeSel.options].some(o => o.value === saved)) storeSel.value = saved; } catch { }
+        const storeQ = () => storeSel && storeSel.value ? '&storeId=' + encodeURIComponent(storeSel.value) : '';
+        if (storeSel && storeSel.tagName === 'SELECT') storeSel.addEventListener('change', () => {
+            try { localStorage.setItem(storeKey, storeSel.value); } catch { }
+            if (lines.length) { reset(); toast('info', 'Counter changed: the bill was cleared.'); }
+        });
+
         // ── customer ─────────────────────────────────────────────────────────────────────────────────
         function renderCustomer() {
             const box = $('custBox');
             if (kind === 'WALKIN') {
-                box.innerHTML = `<div class="row g-2"><div class="col-md-4"><input id="wName" class="form-control form-control-sm" placeholder="Name" maxlength="150"></div>
-                    <div class="col-md-3"><input id="wMobile" class="form-control form-control-sm" placeholder="Mobile (bill on WhatsApp)" maxlength="10" inputmode="numeric"></div>
-                    <div class="col-md-5"><input id="wAddress" class="form-control form-control-sm" placeholder="Address (needed for Schedule H1 / X)" maxlength="300"></div></div>`;
+                box.innerHTML = `<div class="row g-2"><div class="col-md-4"><label class="form-label">Name</label><input id="wName" class="form-control" placeholder="Customer name" maxlength="150"></div>
+                    <div class="col-md-3"><label class="form-label">Mobile</label><input id="wMobile" class="form-control num" placeholder="Bill on WhatsApp" maxlength="10" inputmode="numeric"></div>
+                    <div class="col-md-5"><label class="form-label">Address</label><input id="wAddress" class="form-control" placeholder="Needed for Schedule H1 / X" maxlength="300"></div></div>`;
                 $('wName').addEventListener('input', rxCheck); $('wAddress').addEventListener('input', rxCheck);
             } else {
                 const sel = kind === 'PATIENT' ? patient : customer;
                 if (sel) {
-                    box.innerHTML = `<div class="chip d-flex justify-content-between align-items-center"><div><b>${esc(sel.name)}</b>
+                    box.innerHTML = `<label class="form-label">${kind === 'PATIENT' ? 'Patient' : 'Credit customer'}</label><div class="pos-chip"><div class="text-truncate"><i class="bi ${kind === 'PATIENT' ? 'bi-person-vcard' : 'bi-wallet2'} me-1" style="color:var(--pos-accent)"></i><b>${esc(sel.name)}</b>
                         <span class="small text-muted ms-1">${kind === 'PATIENT' ? 'UHID ' + esc(sel.uhid) + ' · ' : ''}${esc(sel.mobile || '')}</span>
                         ${kind === 'CUSTOMER' ? `<span class="small ms-2 ${sel.credit ? 'text-success' : 'text-muted'}">${sel.credit ? `credit limit ₹${money(sel.creditLimit)} · due ₹${money(sel.outstanding)}` : 'no credit'}</span>` : ''}
                         ${kind === 'CUSTOMER' && sel.type === 'STAFF' ? '<span class="badge bg-info-subtle text-info-emphasis ms-1">staff price</span>' : ''}</div>
-                        <button type="button" class="btn btn-sm btn-link" id="custChange">change</button></div>`;
+                        <button type="button" class="btn btn-sm btn-link p-0" id="custChange">Change</button></div>`;
                     $('custChange').onclick = () => { if (kind === 'PATIENT') patient = null; else customer = null; renderCustomer(); refreshPrices(); };
                 } else {
-                    box.innerHTML = `<div class="position-relative"><input id="custSearch" class="form-control form-control-sm" autocomplete="off"
-                        placeholder="${kind === 'PATIENT' ? 'UHID, mobile or name of the patient (F4)' : 'Credit customer: name or mobile (F4)'}">
-                        <div id="custList" class="list-group position-absolute w-100 shadow pos-list d-none"></div></div>`;
+                    box.innerHTML = `<label class="form-label">${kind === 'PATIENT' ? 'Find patient' : 'Find credit customer'}</label><div class="position-relative"><input id="custSearch" class="form-control" autocomplete="off"
+                        placeholder="${kind === 'PATIENT' ? 'UHID, mobile or name (F4)' : 'Name or mobile (F4)'}">
+                        <div id="custList" class="pos-drop simple d-none"></div></div>`;
                     picker($('custSearch'), $('custList'), q => getJson((kind === 'PATIENT' ? cfg.urls.patients : cfg.urls.customers) + '?q=' + encodeURIComponent(q)),
-                        r => `<div class="d-flex justify-content-between"><b>${esc(r.name)}</b><span class="small">${esc(r.mobile || '')}</span></div>
-                              <div class="small">${kind === 'PATIENT' ? 'UHID ' + esc(r.uhid) + (r.lastDoctor ? ' · last seen by ' + esc(r.lastDoctor) : '') : (r.credit ? 'credit ₹' + money(r.creditLimit) + ' · due ₹' + money(r.outstanding) : 'no credit')}</div>`,
+                        r => `<div><div class="nm">${esc(r.name)}</div><div class="sub">${kind === 'PATIENT' ? 'UHID ' + esc(r.uhid) + (r.lastDoctor ? ' · last seen by ' + esc(r.lastDoctor) : '') : (r.credit ? 'credit ₹' + money(r.creditLimit) + ' · due ₹' + money(r.outstanding) : 'no credit')}</div></div>
+                              <span class="sub num">${esc(r.mobile || '')}</span>`,
                         r => {
                             if (kind === 'PATIENT') { patient = r; if (r.lastDoctor && !$('docName').value) { $('docName').value = r.lastDoctor; doctorId = r.lastDoctorId; } }
                             else customer = r;
@@ -56,12 +66,13 @@
         const priceType = () => kind === 'CUSTOMER' && customer?.type === 'STAFF' ? 'STAFF' : 'WALKIN';
 
         // generic dropdown picker (keyboard)
-        function picker(input, list, fetcher, row, pick, min = 2) {
+        function picker(input, list, fetcher, row, pick, min = 2, head = '', rowClass = () => '') {
             let res = [], act = -1, t;
             const draw = () => {
-                list.innerHTML = res.length ? res.map((r, k) => `<a href="#" class="list-group-item list-group-item-action py-1 ${k === act ? 'active' : ''}" data-k="${k}">${row(r)}</a>`).join('')
-                    : '<div class="list-group-item small text-muted">Nothing found.</div>';
+                list.innerHTML = res.length ? head + res.map((r, k) => `<a href="#" class="dr ${k === act ? 'active' : ''} ${rowClass(r)}" data-k="${k}">${row(r)}</a>`).join('')
+                    : '<div class="empty"><i class="bi bi-search me-1"></i>Nothing found.</div>';
                 list.classList.remove('d-none');
+                list.querySelector('.dr.active')?.scrollIntoView({ block: 'nearest' });
             };
             input.addEventListener('input', () => { clearTimeout(t); const q = input.value.trim(); if (q.length < min) { list.classList.add('d-none'); return; }
                 t = setTimeout(async () => { res = await fetcher(q); act = res.length ? 0 : -1; draw(); }, 220); });
@@ -77,7 +88,7 @@
         }
 
         // doctor
-        picker($('docName'), $('docList'), q => getJson(cfg.urls.doctors + '?q=' + encodeURIComponent(q)), r => `<b>${esc(r.name)}</b> <span class="small">${esc(r.regNo || '')}</span>`,
+        picker($('docName'), $('docList'), q => getJson(cfg.urls.doctors + '?q=' + encodeURIComponent(q)), r => `<span class="nm">${esc(r.name)}</span><span class="sub">${esc(r.regNo || '')}</span>`,
             r => { $('docName').value = r.name; $('docReg').value = r.regNo || ''; doctorId = r.id; $('rxNo').focus(); });
         $('docName').addEventListener('input', () => { doctorId = null; rxCheck(); });
         $('rxNo').addEventListener('input', rxCheck);
@@ -90,30 +101,35 @@
             if (kind === 'WALKIN' && $('wName')) { $('wName').classList.toggle('rx-need', reg && !$('wName').value.trim()); $('wAddress').classList.toggle('rx-need', reg && !$('wAddress').value.trim()); }
             const w = lines.filter(l => l.item.labelWarning || l.item.isHighAlert || l.item.isLasa);
             $('rxWarn').classList.toggle('d-none', !rx && !w.length);
-            $('rxWarn').innerHTML = (rx ? `<div class="alert alert-danger py-1 px-2 small mb-1"><i class="bi bi-prescription2 me-1"></i>An item needing a prescription is on the bill: doctor and prescription no. are required${reg ? '; Schedule H1 / X: patient name and address go to the register' : ''}.</div>` : '')
-                + w.filter(l => l.item.isHighAlert || l.item.isLasa).map(l => `<div class="alert alert-warning py-1 px-2 small mb-1"><i class="bi bi-exclamation-octagon me-1"></i>${esc(l.item.itemName)}: ${l.item.isHighAlert ? 'HIGH-ALERT medicine - double check dose. ' : ''}${l.item.isLasa ? 'Look-alike / sound-alike - confirm the pack.' : ''}</div>`).join('');
+            $('rxWarn').innerHTML = (rx ? `<div class="alert alert-danger py-1 px-2 small"><i class="bi bi-prescription2 me-1"></i>An item needing a prescription is on the bill: doctor and prescription no. are required${reg ? '; Schedule H1 / X: patient name and address go to the register' : ''}.</div>` : '')
+                + w.filter(l => l.item.isHighAlert || l.item.isLasa).map(l => `<div class="alert alert-warning py-1 px-2 small"><i class="bi bi-exclamation-octagon me-1"></i>${esc(l.item.itemName)}: ${l.item.isHighAlert ? 'HIGH-ALERT medicine - double check dose. ' : ''}${l.item.isLasa ? 'Look-alike / sound-alike - confirm the pack.' : ''}</div>`).join('');
         }
 
         // ── items ────────────────────────────────────────────────────────────────────────────────────
         const sch = c => `<span class="badge sch sch-${esc(c)}">${esc(c)}</span>`;
+        const ITEM_HEAD = '<div class="dh"><span>Item</span><span>Generic · maker</span><span>Pack</span><span class="text-end">Stock</span><span class="text-end">MRP</span><span>Exp</span><span>Rack</span></div>';
         function itemRow(r) {
-            const packs = r.conversionQty > 1 ? ` <span class="small">(${q3(r.stock / r.conversionQty)} ${esc(r.purchaseUom)})</span>` : '';
-            return `<div class="d-flex justify-content-between"><span class="fw-semibold">${r.formShort ? esc(r.formShort) + ' ' : ''}${esc(r.itemName)} ${sch(r.scheduleCode)}
-                    ${r.isColdChain ? '<i class="bi bi-snow"></i>' : ''}${r.isHighAlert ? ' <i class="bi bi-exclamation-octagon-fill"></i>' : ''}</span>
-                    <span class="${r.stock > 0 ? 'stock-ok' : 'stock-no'} fw-semibold">${r.stock > 0 ? q3(r.stock) + ' ' + esc(r.saleUom) + packs : 'Out of stock'}</span></div>
-                <div class="small d-flex justify-content-between"><span>${esc(r.genericName || '')} · ${esc(r.manufacturerName || '')}</span>
-                    <span>${r.packMrp ? 'MRP ₹' + money(r.packMrp) + '/' + esc(r.purchaseUom) : ''}${r.nearestExpiry ? ' · exp ' + mon(r.nearestExpiry) : ''}${r.rackNo ? ' · rack ' + esc(r.rackNo) : ''}
-                    ${r.stock <= 0 && r.genericId ? ` · <u data-subs="${r.genericId}">substitutes</u>` : ''}</span></div>`;
+            const packs = r.conversionQty > 1 ? `<div class="sub">${q3(r.stock / r.conversionQty)} ${esc(r.purchaseUom)}</div>` : '';
+            return `<span><div class="nm">${r.formShort ? `<span class="ph-form-tag">${esc(r.formShort)}</span>` : ''}${esc(r.itemName)} ${sch(r.scheduleCode)}
+                        ${r.isColdChain ? '<i class="bi bi-snow text-info" title="cold chain"></i>' : ''}${r.isHighAlert ? ' <i class="bi bi-exclamation-octagon-fill text-danger" title="high alert"></i>' : ''}${r.isLasa ? ' <i class="bi bi-eye-fill text-warning" title="look-alike / sound-alike"></i>' : ''}</div>
+                    ${r.strength ? `<div class="sub">${esc(r.strength)}</div>` : ''}</span>
+                <span class="sub">${esc(r.genericName || '')}<div>${esc(r.manufacturerName || '')}</div></span>
+                <span class="sub">${esc(r.packSize || (r.conversionQty > 1 ? r.conversionQty + ' ' + r.saleUom : r.saleUom))}</span>
+                <span class="text-end num"><b class="${r.stock > 0 ? 'text-success' : 'text-danger'}">${r.stock > 0 ? q3(r.stock) + ' ' + esc(r.saleUom) : 'Nil'}</b>${r.stock > 0 ? packs : (r.genericId ? '<div class="sub"><u data-subs="' + r.genericId + '">substitutes</u></div>' : '')}</span>
+                <span class="text-end num">${r.packMrp ? '₹' + money(r.packMrp) : '—'}</span>
+                <span class="sub">${r.nearestExpiry ? mon(r.nearestExpiry) : ''}</span>
+                <span class="sub">${esc(r.rackNo || '')}</span>`;
         }
         const search = $('itemSearch'), list = $('itemList');
         let lastResults = [];
-        picker(search, list, async q => (lastResults = await getJson(cfg.urls.items + '?q=' + encodeURIComponent(q))), itemRow, addItem);
+        picker(search, list, async q => (lastResults = await getJson(cfg.urls.items + '?q=' + encodeURIComponent(q) + storeQ())), itemRow, addItem, 2, ITEM_HEAD, r => r.stock > 0 ? '' : 'oos');
         list.addEventListener('mousedown', async e => {
             const s = e.target.closest('[data-subs]');
             if (!s) return;
             e.preventDefault(); e.stopPropagation();
-            const subs = await getJson(cfg.urls.items + '?genericId=' + s.dataset.subs);
-            list.innerHTML = '<div class="list-group-item small fw-bold">Same generic (in stock first):</div>' + subs.map((r, k) => `<a href="#" class="list-group-item list-group-item-action py-1" data-sub="${k}">${itemRow(r)}</a>`).join('');
+            const subs = await getJson(cfg.urls.items + '?genericId=' + s.dataset.subs + storeQ());
+            list.innerHTML = '<div class="sec"><i class="bi bi-arrow-left-right me-1"></i>Substitutes - same generic, in stock first</div>' + ITEM_HEAD
+                + subs.map((r, k) => `<a href="#" class="dr ${r.stock > 0 ? '' : 'oos'}" data-sub="${k}">${itemRow(r)}</a>`).join('');
             list.onmousedown = ev => { const a = ev.target.closest('[data-sub]'); if (a) { ev.preventDefault(); list.classList.add('d-none'); addItem(subs[a.dataset.sub]); list.onmousedown = null; } };
         }, true);
         const focusSearch = () => { search.value = ''; search.focus(); };
@@ -122,7 +138,7 @@
             if (it.stock <= 0) { toast('warning', it.itemName + ' is out of stock. Try a substitute.'); return; }
             const existing = lines.find(l => l.item.itemId === it.itemId && !l.batchId);
             if (existing) { render(); const q = document.querySelector(`[data-key="${existing.key}"] [data-f=qty]`); q && (q.focus(), q.select()); return; }
-            const batches = await getJson(cfg.urls.batches + '?itemId=' + it.itemId);
+            const batches = await getJson(cfg.urls.batches + '?itemId=' + it.itemId + storeQ());
             if (!batches.length) { toast('warning', 'No sellable batch (expired or within ' + cfg.settings.MinShelfLifeSaleDays + ' days of expiry).'); return; }
             const l = { key: ++seq, item: it, batches, batchId: null, mode: it.conversionQty > 1 && !it.allowLooseSale ? 'P' : (it.conversionQty > 1 ? 'P' : 'U'), qtyIn: 1, disc: 0, rate: 0, unitMrp: batches[0].unitMrp };
             lines.push(l);
@@ -152,23 +168,23 @@
                 const it = l.item, conv = it.conversionQty;
                 const stockUnits = l.batchId ? (l.batches.find(b => b.batchId === l.batchId)?.stock || 0) : l.batches.reduce((s, b) => s + b.stock, 0);
                 const short = units(l) > stockUnits;
-                return `<tr data-key="${l.key}" class="${short ? 'table-danger' : ''}" title="${short ? 'More than the sellable stock (' + q3(stockUnits) + ')' : ''}">
-                    <td class="text-muted small">${i + 1}</td>
-                    <td><div class="fw-semibold">${it.formShort ? `<span class="ph-form-tag">${esc(it.formShort)}</span>` : ''}${esc(it.itemName)} ${sch(it.scheduleCode)}
+                return `<tr data-key="${l.key}" class="${short ? 'short' : ''}" title="${short ? 'More than the sellable stock (' + q3(stockUnits) + ')' : ''}">
+                    <td class="sn">${i + 1}</td>
+                    <td class="it"><div class="it-nm">${it.formShort ? `<span class="ph-form-tag">${esc(it.formShort)}</span>` : ''}${esc(it.itemName)} ${sch(it.scheduleCode)}
                         ${it.isColdChain ? '<i class="bi bi-snow text-info" title="cold chain"></i>' : ''}${it.isHighAlert ? ' <i class="bi bi-exclamation-octagon-fill text-danger" title="high alert"></i>' : ''}${it.isLasa ? ' <i class="bi bi-eye-fill text-warning" title="LASA"></i>' : ''}</div>
-                        <div class="small text-muted">${esc(it.genericName || '')}${it.rackNo ? ' · rack ' + esc(it.rackNo) : ''} · stock ${q3(stockUnits)}</div></td>
-                    <td><select class="form-select form-select-sm" data-f="batch" style="min-width:150px"><option value="">Auto: first expiry</option>
+                        <div class="it-sub">${esc(it.genericName || '')}${it.rackNo ? ' · rack ' + esc(it.rackNo) : ''} · stock <span class="${short ? 'text-danger fw-bold' : ''}">${q3(stockUnits)}</span></div></td>
+                    <td><select class="form-select" data-f="batch" style="min-width:160px"><option value="">Auto (first expiry)</option>
                         ${l.batches.map(b => `<option value="${b.batchId}" ${l.batchId === b.batchId ? 'selected' : ''}>${esc(b.batchNo)} · ${mon(b.expiryDate)} · ₹${money(b.packMrp)} · ${q3(b.stock)}</option>`).join('')}</select></td>
-                    <td class="text-end"><div class="input-group input-group-sm justify-content-end flex-nowrap">
-                        <input class="form-control text-end" data-f="qty" type="number" min="0" step="${l.mode === 'P' || !it.allowLooseSale ? 1 : 1}" value="${l.qtyIn}" style="max-width:70px">
-                        ${conv > 1 ? `<select class="form-select" data-f="mode" style="max-width:86px" ${it.allowLooseSale ? '' : 'disabled'}><option value="P" ${l.mode === 'P' ? 'selected' : ''}>${esc(it.purchaseUom)}</option><option value="U" ${l.mode === 'U' ? 'selected' : ''}>${esc(it.saleUom)}</option></select>`
-                                     : `<span class="input-group-text">${esc(it.saleUom)}</span>`}</div>
-                        ${conv > 1 ? `<div class="small text-muted">${q3(units(l))} ${esc(it.saleUom)}</div>` : ''}</td>
-                    <td class="text-end small">${money(l.unitMrp * (l.mode === 'P' ? conv : 1))}</td>
-                    <td class="text-end small">${money(l.rate * (l.mode === 'P' ? conv : 1))}${l.rate < l.unitMrp ? '<div class="text-success">rule</div>' : ''}</td>
-                    <td class="text-end"><input class="form-control form-control-sm text-end ms-auto" data-f="disc" type="number" min="0" max="100" step="0.5" value="${l.disc}" style="width:64px" ${it.isDiscountAllowed ? '' : 'disabled title="No discount on this item"'}></td>
-                    <td class="text-end fw-bold">${money(l.amount)}</td>
-                    <td><button type="button" class="btn btn-sm btn-link text-danger p-0" data-del title="Remove"><i class="bi bi-x-circle"></i></button></td></tr>`;
+                    <td><div class="qty"><input class="form-control num" data-f="qty" type="number" min="0" step="1" value="${l.qtyIn}">
+                        ${conv > 1 ? `<select class="form-select" data-f="mode" ${it.allowLooseSale ? '' : 'disabled'}><option value="P" ${l.mode === 'P' ? 'selected' : ''}>${esc(it.purchaseUom)}</option><option value="U" ${l.mode === 'U' ? 'selected' : ''}>${esc(it.saleUom)}</option></select>`
+                                   : `<span class="unit">${esc(it.saleUom)}</span>`}</div>
+                        ${conv > 1 ? `<div class="it-sub text-end">${q3(units(l))} ${esc(it.saleUom)}</div>` : ''}</td>
+                    <td class="text-end num">${money(l.unitMrp * (l.mode === 'P' ? conv : 1))}</td>
+                    <td class="text-end num">${money(l.rate * (l.mode === 'P' ? conv : 1))}${l.rate < l.unitMrp ? '<span class="tag rule" title="price rule">rule</span>' : ''}</td>
+                    <td class="text-end"><input class="form-control text-end num ms-auto" data-f="disc" type="number" min="0" max="100" step="0.5" value="${l.disc}" style="width:66px" ${it.isDiscountAllowed ? '' : 'disabled title="No discount on this item"'}></td>
+                    <td class="text-end num text-muted">${num(it.gstPercent).toFixed(0)}</td>
+                    <td class="text-end num amt" data-c="amt">${money(l.amount)}</td>
+                    <td><button type="button" class="del" data-del title="Remove (Ctrl+Del)"><i class="bi bi-x-circle-fill"></i></button></td></tr>`;
             }).join('');
             totals();
         }
@@ -176,7 +192,7 @@
             const tr = e.target.closest('tr'); if (!tr) return;
             const l = lines.find(x => x.key == tr.dataset.key), f = e.target.dataset.f;
             if (f === 'qty') l.qtyIn = e.target.value; else if (f === 'disc') l.disc = e.target.value; else return;
-            calc(l); tr.children[7].innerHTML = money(l.amount); totals();
+            calc(l); tr.querySelector('[data-c=amt]').innerHTML = money(l.amount); totals();
         });
         $('lines').addEventListener('change', async e => {
             const tr = e.target.closest('tr'); if (!tr) return;
@@ -200,14 +216,17 @@
             net = cfg.settings.RoundOffBill ? Math.round(amt) : r2(amt);
             $('tNet').textContent = '₹ ' + money(net); $('tMrp').textContent = money(mrp); $('tDisc').textContent = money(mrp - amt);
             $('tTax').textContent = money(tax); $('tGst').textContent = money(gst); $('tRound').textContent = money(net - amt);
-            $('tItems').textContent = `${lines.length} item(s)`; $('tSave').textContent = mrp - net > 0.5 ? `Saved ₹${money(mrp - net)} on MRP` : '';
+            $('tItems').textContent = `${lines.length} item${lines.length === 1 ? '' : 's'}`; $('tSave').textContent = mrp - net > 0.5 ? `You save ₹${money(mrp - net)}` : '';
+            $('fItems').textContent = lines.length; $('fUnits').textContent = q3(lines.reduce((s, l) => s + units(l), 0));
+            $('fMrp').textContent = money(mrp); $('fSave').textContent = money(Math.max(0, mrp - net));
             payTotals();
         }
         function renderPays() {
-            $('pays').innerHTML = pays.map((p, i) => `<div class="input-group input-group-sm mb-1" data-i="${i}"><span class="input-group-text" style="width:70px">${esc(p.method === 'CASH' ? 'Cash' : p.method)}</span>
-                <input class="form-control text-end fw-semibold" data-p="amount" type="number" min="0" step="0.01" value="${p.amount}" placeholder="${p.method === 'CASH' ? 'received' : 'amount'}">
-                ${p.method === 'CASH' ? '' : `<input class="form-control" data-p="ref" value="${esc(p.ref || '')}" placeholder="${p.method === 'CARD' ? 'last 4 / approval' : p.method === 'UPI' ? 'UPI ref' : 'ref no.'}" maxlength="50">`}
-                <button class="btn btn-outline-danger" type="button" data-pdel><i class="bi bi-x"></i></button></div>`).join('');
+            $('pays').innerHTML = pays.map((p, i) => `<div class="pos-pay ${p.method === 'CASH' ? '' : 'ref'}" data-i="${i}"><span class="m">${esc(p.method === 'CASH' ? 'Cash' : p.method === 'CHEQUE' ? 'Cheque' : p.method)}</span>
+                <input class="form-control num" data-p="amount" type="number" min="0" step="0.01" value="${p.amount}" placeholder="${p.method === 'CASH' ? 'Received' : 'Amount'}">
+                ${p.method === 'CASH' ? '' : `<input class="form-control" data-p="ref" value="${esc(p.ref || '')}" placeholder="${p.method === 'CARD' ? 'Last 4 / approval' : p.method === 'UPI' ? 'UPI ref' : 'Ref no.'}" maxlength="50">`}
+                <button class="x" type="button" data-pdel title="Remove"><i class="bi bi-x-circle-fill"></i></button></div>`).join('');
+            document.querySelectorAll('#payBtns [data-m]').forEach(b => b.classList.toggle('on', pays.some(p => p.method === b.dataset.m)));
             payTotals();
         }
         function payTotals() {
@@ -227,12 +246,21 @@
         $('pays').addEventListener('input', e => { const g = e.target.closest('[data-i]'); if (!g) return; pays[g.dataset.i][e.target.dataset.p] = e.target.value; payTotals(); });
         $('pays').addEventListener('click', e => { if (e.target.closest('[data-pdel]')) { pays.splice(+e.target.closest('[data-i]').dataset.i, 1); renderPays(); } });
         $('pays').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+        // quick cash: Exact = what is left after card / UPI; a note adds to the cash received
+        $('quickCash').addEventListener('click', e => {
+            const q = e.target.closest('[data-q]')?.dataset.q; if (!q) return;
+            let cash = pays.find(p => p.method === 'CASH');
+            if (!cash) { cash = { method: 'CASH', amount: 0, ref: '' }; pays.push(cash); }
+            const other = pays.filter(p => p.method !== 'CASH').reduce((s, p) => s + num(p.amount), 0);
+            cash.amount = q === 'exact' ? Math.max(0, r2(net - other)) : r2(num(cash.amount) + num(q));
+            renderPays();
+        });
 
         // ── save / hold / recall ─────────────────────────────────────────────────────────────────────
         function request() {
             const w = id => $(id) ? $(id).value.trim() || null : null;
             return {
-                HoldId: holdId, CustomerKind: kind, PatientId: kind === 'PATIENT' ? patient?.id : null, CustomerId: kind === 'CUSTOMER' ? customer?.id : null,
+                StoreId: storeSel && storeSel.value ? +storeSel.value : null, HoldId: holdId, CustomerKind: kind, PatientId: kind === 'PATIENT' ? patient?.id : null, CustomerId: kind === 'CUSTOMER' ? customer?.id : null,
                 CustomerName: kind === 'WALKIN' ? w('wName') : null, Mobile: kind === 'WALKIN' ? w('wMobile') : null, Address: kind === 'WALKIN' ? w('wAddress') : null,
                 DoctorId: doctorId, DoctorName: w('docName'), DoctorRegNo: w('docReg'), RxNo: w('rxNo'), RxDate: w('rxDate'), BillDiscPercent: num($('billDisc').value),
                 Lines: lines.map(l => ({ ItemId: l.item.itemId, BatchId: l.batchId, Qty: units(l), DiscPercent: num(l.disc) })),
@@ -251,10 +279,23 @@
             if (!res.success) { Swal.fire({ icon: 'error', title: 'Not saved', text: res.error || 'Please check the bill.' }); return; }
             const fmt = $('printFmt').value;
             if (fmt) window.open(`${cfg.urls.print}?id=${res.saleId}&format=${fmt}`, '_blank', 'width=900,height=900');
+            showLast(res, fmt);
             Swal.fire({ icon: 'success', title: `Bill ${res.saleNo}`, html: `Net ₹${money(res.netAmount)}${res.change > 0 ? `<div class="fs-4 fw-bold text-success mt-2">Return change ₹${money(res.change)}</div>` : ''}${res.balanceDue > 0 ? `<div class="text-danger mt-1">On credit ₹${money(res.balanceDue)}</div>` : ''}`,
                 confirmButtonText: 'New bill', showDenyButton: true, denyButtonText: 'Open bill' })
                 .then(r => { if (r.isDenied) location.href = `${cfg.urls.bill}?id=${res.saleId}`; });
             reset();
+        }
+        function showLast(res, fmt) {
+            const box = $('lastBill'); if (!box) return;
+            box.innerHTML = `<i class="bi bi-clock-history me-1"></i>Last bill <b>${esc(res.saleNo)}</b> · ₹${money(res.netAmount)}${res.change > 0 ? ` · change ₹${money(res.change)}` : ''}
+                <span class="float-end"><a href="${cfg.urls.print}?id=${res.saleId}&format=${encodeURIComponent(fmt || '80MM')}" target="_blank"><i class="bi bi-printer me-1"></i>Reprint</a>
+                · <a href="${cfg.urls.bill}?id=${res.saleId}">Open</a></span>`;
+            box.classList.remove('d-none');
+        }
+        function setMode() {
+            const m = $('billMode'); if (!m) return;
+            m.className = 'pos-pill ' + (holdId ? 'held' : 'mode');
+            m.innerHTML = holdId ? '<i class="bi bi-pause-circle"></i>Recalled held bill' : '<i class="bi bi-plus-circle"></i>New bill';
         }
         async function hold() {
             if (!lines.length) { toast('info', 'Nothing to hold.'); return; }
@@ -298,18 +339,18 @@
             b.lines.forEach(l => qty[l.itemId] = (qty[l.itemId] || 0) + l.qty);
             for (const [itemId, q] of Object.entries(qty)) {
                 const it = d.items.find(x => x.itemId == itemId); if (!it) continue;
-                const batches = await getJson(cfg.urls.batches + '?itemId=' + itemId);
+                const batches = await getJson(cfg.urls.batches + '?itemId=' + itemId + storeQ());
                 if (!batches.length) { toast('warning', it.itemName + ': no sellable stock now.'); continue; }
                 const l = { key: ++seq, item: it, batches, batchId: null, mode: 'U', qtyIn: q, disc: b.lines.find(x => x.itemId == itemId).discPercent - (b.billDiscPercent || 0), rate: 0 };
                 if (it.conversionQty > 1 && q % it.conversionQty === 0) { l.mode = 'P'; l.qtyIn = q / it.conversionQty; }
                 l.disc = Math.max(0, l.disc); await price(l); lines.push(l);
             }
-            render(); rxCheck(); toast('success', 'Held bill recalled.'); focusSearch();
+            render(); rxCheck(); setMode(); toast('success', 'Held bill recalled.'); focusSearch();
         }
         function reset() {
             lines = []; pays = []; patient = null; customer = null; doctorId = null; holdId = null;
             ['docName', 'docReg', 'rxNo', 'rxDate'].forEach(id => $(id).value = ''); $('billDisc').value = 0;
-            renderCustomer(); render(); renderPays(); focusSearch();
+            renderCustomer(); render(); renderPays(); setMode(); focusSearch();
         }
         $('btnSave') && $('btnSave').addEventListener('click', save);
         $('btnHold') && $('btnHold').addEventListener('click', hold);
@@ -324,10 +365,18 @@
             else if (k === 'F7') { e.preventDefault(); $('btnHeld') && showHeld(); }
             else if (k === 'F8') { e.preventDefault(); $('btnHold') && hold(); }
             else if (k === 'F10') { e.preventDefault(); save(); }
+            else if (k === 'Delete' && e.ctrlKey) {
+                const tr = document.activeElement?.closest('#lines tr'); if (!tr) return;
+                e.preventDefault(); lines = lines.filter(x => x.key != tr.dataset.key); render(); rxCheck(); focusSearch();
+            }
             else if (k === 'Escape' && !document.querySelector('.modal.show, .swal2-container')) { if (Date.now() - lastEsc < 600 && lines.length) $('btnClear').click(); lastEsc = Date.now(); }
         });
 
-        renderCustomer(); render(); renderPays(); heldCount();
+        $('btnFull')?.addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}));
+        const tick = () => { const c = $('posClock'); if (c) c.textContent = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }); };
+        tick(); setInterval(tick, 30000);
+
+        renderCustomer(); render(); renderPays(); setMode(); heldCount();
         if (cfg.recall) recall(cfg.recall); else setTimeout(focusSearch, 100);
     };
 })();

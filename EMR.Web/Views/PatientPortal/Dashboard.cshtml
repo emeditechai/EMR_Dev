@@ -296,6 +296,7 @@
             <button data-sec="visits"><i class="bi bi-hospital"></i>Visits<span class="count">@Model.VisitHistory.Count</span></button>
             <button data-sec="labs"><i class="bi bi-droplet-half"></i>Lab Reports<span class="count">@labs.Count</span></button>
             <button data-sec="rx"><i class="bi bi-capsule"></i>Prescriptions</button>
+            <button data-sec="pharmacy"><i class="bi bi-bag-heart"></i>Pharmacy</button>
             <button data-sec="vitals"><i class="bi bi-activity"></i>Vitals<span class="count">@Model.VitalHistory.Count</span></button>
             <button data-sec="membership"><i class="bi bi-credit-card-2-front"></i>Membership</button>
             <button data-sec="profile"><i class="bi bi-person-vcard"></i>My Profile</button>
@@ -551,6 +552,12 @@
                 <div id="rxList" class="box"><div class="empty"><div class="spinner-border spinner-border-sm me-2"></div>Loading your prescriptions...</div></div>
             </section>
 
+            <!-- ═══ Pharmacy ═══ -->
+            <section class="pp-sec" id="sec-pharmacy">
+                <div class="sec-head"><div><h2>Pharmacy</h2><p>Medicines bought at our pharmacy, with the bills.</p></div></div>
+                <div id="phList" class="box"><div class="empty"><div class="spinner-border spinner-border-sm me-2"></div>Loading your pharmacy bills...</div></div>
+            </section>
+
             <!-- ═══ Vitals ═══ -->
             <section class="pp-sec" id="sec-vitals">
                 <div class="sec-head"><div><h2>My Vitals</h2><p>Recorded at your visits.</p></div></div>
@@ -788,6 +795,7 @@
                 if (sec === 'vitals') loadVitals();
                 if (sec === 'visits') loadVisits();
                 if (sec === 'rx') loadRx();
+                if (sec === 'pharmacy') loadPharmacy();
             }
             document.querySelectorAll('[data-sec]').forEach(b => b.addEventListener('click', () => show(b.dataset.sec, true)));
             document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go, true)));
@@ -980,6 +988,55 @@
                 refreshLabs(true);
                 setInterval(() => { if (!document.hidden) refreshLabs(false); }, 30000);
                 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshLabs(true); });
+            }
+
+            // ── pharmacy bills (SQLScripts/2368) ──
+            async function loadPharmacy() {
+                if (loaded.pharmacy) return; loaded.pharmacy = true;
+                const box = document.getElementById('phList');
+                const inr = v => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const qty = v => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+                try {
+                    const list = (await getJson('@Url.Content("~/PatientPortal/Data/pharmacy")')).data || [];
+                    if (!list.length) { box.innerHTML = '<div class="empty"><i class="bi bi-bag-heart"></i>No pharmacy bills yet.<div class="small mt-1">Medicines you buy at our pharmacy with your patient ID appear here with their bills.</div></div>'; return; }
+                    const posted = list.filter(b => b.Status === 'POSTED');
+                    const spent = posted.reduce((n, b) => n + Number(b.NetAmount || 0) - Number(b.ReturnedAmount || 0), 0);
+                    const meds = new Set(posted.flatMap(b => (b.Lines || []).map(l => l.ItemName))).size;
+                    box.classList.remove('box');
+                    box.innerHTML = `<div class="grid g3 mb-3" style="gap:12px">
+                            <div class="box" style="margin:0"><div class="small muted">Bills</div><div class="fs-4 fw-bold">${posted.length}</div></div>
+                            <div class="box" style="margin:0"><div class="small muted">Paid for medicines</div><div class="fs-4 fw-bold">${inr(spent)}</div></div>
+                            <div class="box" style="margin:0"><div class="small muted">Different medicines</div><div class="fs-4 fw-bold">${meds}</div></div>
+                        </div><div class="d-grid gap-3">` + list.map(b => {
+                        const d = new Date(b.SaleDate), cancelled = b.Status === 'CANCELLED';
+                        const tags = [cancelled ? '<span class="badge rounded-pill text-bg-danger">Cancelled</span>' : '',
+                            Number(b.ReturnedAmount) > 0 ? `<span class="badge rounded-pill text-bg-warning">Returned ${inr(b.ReturnedAmount)}</span>` : '',
+                            !cancelled && Number(b.BalanceDue) > 0 ? `<span class="badge rounded-pill text-bg-danger">Due ${inr(b.BalanceDue)}</span>` : '',
+                            !cancelled && Number(b.BalanceDue) <= 0 ? '<span class="badge rounded-pill text-bg-success">Paid</span>' : ''].join(' ');
+                        const lines = (b.Lines || []).map(l => {
+                            const net = Number(l.Qty || 0) - Number(l.ReturnedQty || 0);
+                            const exp = l.ExpiryDate ? new Date(l.ExpiryDate).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '';
+                            return `<div class="d-flex align-items-center gap-3 p-2 px-3" style="background:var(--brand-soft);border-radius:12px">
+                                <i class="bi bi-capsule-pill" style="color:var(--brand)"></i>
+                                <div class="flex-grow-1"><div class="fw-semibold">${esc([l.FormShort, l.ItemName].filter(Boolean).join(' '))}${l.Strength && !String(l.ItemName).includes(l.Strength) ? ' <span class="muted fw-normal">' + esc(l.Strength) + '</span>' : ''}</div>
+                                    <div class="small muted">${[l.GenericName, l.BatchNo && 'Batch ' + l.BatchNo, exp && 'Exp ' + exp].filter(Boolean).map(esc).join(' · ')}</div></div>
+                                <div class="text-end"><div class="fw-semibold">${qty(l.Qty)} ${esc(l.SaleUom || '')}</div>
+                                    ${Number(l.ReturnedQty) > 0 ? `<div class="small text-warning">returned ${qty(l.ReturnedQty)}</div>` : `<div class="small muted">${inr(l.Amount)}</div>`}</div></div>`;
+                        }).join('');
+                        return `<div class="box" ${cancelled ? 'style="opacity:.7"' : ''}>
+                            <div class="item" style="padding:0;border:0">
+                                <div class="datebox"><div class="d">${d.getDate()}</div><div class="m">${esc(d.toLocaleString('en-GB', { month: 'short' }))}</div></div>
+                                <div class="main"><div class="ttl">${esc(b.SaleNo || 'Bill')} ${tags}</div>
+                                    <div class="sub">${esc(d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }))} · ${esc(b.BranchName || '')}${b.DoctorName ? ' · Dr ' + esc(String(b.DoctorName).replace(/^Dr\.?\s*/i, '')) : ''} · ${b.Items} item${b.Items === 1 ? '' : 's'}</div></div>
+                                <div class="text-end me-2"><div class="fw-bold">${inr(b.NetAmount)}</div>${Number(b.DiscountAmount) > 0 ? `<div class="small muted">saved ${inr(b.DiscountAmount)}</div>` : ''}</div>
+                                <a class="btn-soft primary" href="@Url.Action("PharmacyBill")/${encodeURIComponent(b.SaleId)}" target="_blank"><i class="bi bi-file-earmark-pdf"></i>Bill</a>
+                            </div>
+                            ${lines ? `<div class="mt-3"><div class="small muted fw-semibold mb-2"><i class="bi bi-bag me-1"></i>Medicines bought</div><div class="d-grid gap-2">${lines}</div></div>` : ''}
+                        </div>`;
+                    }).join('') + '</div>';
+                } catch {
+                    box.innerHTML = '<div class="empty"><i class="bi bi-wifi-off"></i>Pharmacy bills could not be loaded. Please try again.</div>';
+                }
             }
 
             // ── prescriptions ──

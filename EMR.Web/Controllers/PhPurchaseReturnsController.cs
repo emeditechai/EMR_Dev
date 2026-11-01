@@ -20,8 +20,8 @@ public class PhPurchaseReturnsController(IPharmacyPurchaseService purchase, IAud
     }
 
     [HttpGet]
-    public async Task<IActionResult> BatchSearch(string? q, int? supplierId) =>
-        Json(string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2 ? [] : await Purchase.BatchSearchAsync(CompanyId, BranchId, q.Trim(), supplierId));
+    public async Task<IActionResult> BatchSearch(string? q, int? supplierId, int? storeId) =>
+        Json(string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2 ? [] : await Purchase.BatchSearchAsync(CompanyId, BranchId, q.Trim(), supplierId, storeId));
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(string? json)

@@ -10,6 +10,8 @@
 <form method="post" asp-action="Create" asp-permission="PHARMACY.STOCKCOUNT:CREATE" class="card shadow-sm border-0 mb-3">
     @Html.AntiForgeryToken()
     <div class="card-body row g-2 align-items-end">
+        @{ var cStores = ViewBag.Stores as List<EMR.Web.Services.PhStoreOption> ?? new(); }
+        <div class="col-md-2"><label class="form-label small fw-semibold">Store</label><select name="storeId" class="form-select form-select-sm">@foreach (var s in cStores) { <option value="@s.StoreId" selected="@s.IsDefault">@s.StoreName</option> }</select></div>
         <div class="col-md-2"><label class="form-label small fw-semibold">Racks starting with</label><input name="rack" class="form-control form-control-sm text-uppercase" placeholder="all racks" maxlength="30" /></div>
         <div class="col-md-3"><label class="form-label small fw-semibold">Category</label><select name="categoryId" class="form-select form-select-sm"><option value="">All</option>@foreach (var c in cats) { <option value="@c.Value">@c.Text</option> }</select></div>
         <div class="col-md-2"><div class="form-check mb-1"><input type="checkbox" class="form-check-input" name="includeZero" value="true" id="z"><label class="form-check-label small" for="z">Include zero-stock batches</label></div></div>

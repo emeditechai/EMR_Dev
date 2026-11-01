@@ -1,0 +1,363 @@
+@using System.Text.Json
+@model EMR.Web.Services.Reports.PhRptDef
+@{
+    ViewData["Title"] = Model.Title;
+    var lists = ViewBag.Lists as Dictionary<string, List<(string Value, string Text)>> ?? new();
+    bool superAdmin = ViewBag.IsSuperAdmin as bool? ?? false;
+    int currentBranch = ViewBag.CurrentBranchId as int? ?? 0;
+    var branchName = User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? "";
+    List<(string Value, string Text)> L(string n) => lists.TryGetValue(n, out var l) ? l : new();
+    bool Has(string f) => Model.Filters.Contains(f);
+    var def = new
+    {
+        action = Model.Action, code = Model.Code, dateMode = Model.DateMode,
+        tiles = Model.Tiles.Select(t => new { field = t.Field, label = t.Label, fmt = t.Fmt }),
+        cols = Model.Cols.Select(c => new { field = c.Field, label = c.Label, fmt = c.Fmt, total = c.Total, link = c.Link })
+    };
+}
+@section HeadStyles {
+<style>
+    .phr { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#0f766e; }
+    .phr .card-x { background:#fff;border:1px solid var(--line);border-radius:.6rem; }
+    .phr .tile { padding:.7rem .9rem;border-left:4px solid var(--accent); }
+    .phr .tile .t-label { font-size:.64rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted); }
+    .phr .tile .t-val { font-size:1.25rem;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.25; }
+    .phr .flt label { font-size:.68rem;font-weight:600;color:var(--muted);margin-bottom:.15rem; }
+    .phr .btn-pre.active { background:var(--accent);border-color:var(--accent);color:#fff; }
+    .phr .tbl-scroll { max-height:62vh;overflow:auto; }
+    .phr table thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--muted);font-size:.65rem;font-weight:700;letter-spacing:.4px;
+                          text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--line); }
+    .phr table tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6;white-space:nowrap; }
+    .phr table tbody td.wrap { white-space:normal;min-width:16rem; }
+    .phr table tfoot td { font-size:.78rem;font-weight:800;background:#f8fafc;position:sticky;bottom:0; }
+    .phr .num { text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .phr .nowrap { white-space:nowrap; }
+    .phr .neg { color:#b91c1c; }
+    .phr .flag { color:#b91c1c;font-weight:700; }
+    .phr td.heat { text-align:right;font-variant-numeric:tabular-nums; }
+</style>
+}
+@Html.AntiForgeryToken()
+<div class="container-fluid py-3 phr">
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <div class="me-auto">
+            <h5 class="mb-0"><span class="badge bg-success-subtle text-success-emphasis me-1">@Model.Code</span>@Model.Title</h5>
+            <div class="text-muted small">@Model.Subtitle · @(superAdmin ? "choose a branch or all branches" : "Branch: " + branchName)</div>
+        </div>
+        @if (Model.Tool == "GSTR1")
+        {
+            <button class="btn btn-sm btn-success" id="btnGstr1" title="b2b, b2cs, cdnr, cdnur, hsn, docs - as the GST offline tool's import template"><i class="bi bi-filetype-xlsx me-1"></i>GSTR-1 Excel (offline tool)</button>
+        }
+        @if (Model.Tool == "GSTR2B")
+        {
+            <label class="btn btn-sm btn-primary mb-0" title="Upload the GSTR-2B Excel downloaded from the GST portal for this period">
+                <i class="bi bi-arrow-left-right me-1"></i>Reconcile with GSTR-2B<input type="file" id="gstr2bFile" accept=".xlsx" hidden /></label>
+        }
+        <button class="btn btn-sm btn-outline-success" id="btnXls"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+        <button class="btn btn-sm btn-outline-danger" id="btnPdf"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+    </div>
+
+    <div class="card-x p-2 mb-2">
+        <form id="flt" class="row g-2 align-items-end flt" autocomplete="off">
+            @if (Model.DateMode == "range")
+            {
+                <div class="col-auto">
+                    <label class="d-block">Period</label>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-pre" data-pre="today">Today</button>
+                        <button type="button" class="btn btn-outline-secondary btn-pre" data-pre="yday">Yesterday</button>
+                        <button type="button" class="btn btn-outline-secondary btn-pre" data-pre="7d">7 days</button>
+                        <button type="button" class="btn btn-outline-secondary btn-pre" data-pre="month">This month</button>
+                        <button type="button" class="btn btn-outline-secondary btn-pre" data-pre="lmonth">Last month</button>
+                    </div>
+                </div>
+                <div class="col-auto"><label class="d-block">From</label><input type="date" class="form-control form-control-sm" name="from" /></div>
+                <div class="col-auto"><label class="d-block">To</label><input type="date" class="form-control form-control-sm" name="to" /></div>
+            }
+            else
+            {
+                <div class="col-auto"><label class="d-block">As on</label><div class="form-control form-control-sm bg-light">@DateTime.Today.ToString("dd MMM yyyy")</div></div>
+            }
+            @if (superAdmin)
+            {
+                <div class="col-auto"><label class="d-block">Branch</label>
+                    <select class="form-select form-select-sm" name="branch">
+                        <option value="0">All branches</option>
+                        @foreach (var o in L("branch")) { <option value="@o.Value" selected="@(o.Value == currentBranch.ToString())">@o.Text</option> }
+                    </select></div>
+            }
+            @if (Has("store") && L("store").Count > 1)
+            {
+                <div class="col-auto"><label class="d-block">Store</label>
+                    <select class="form-select form-select-sm" name="store" style="max-width:14rem"><option value="">All stores</option>
+                        @foreach (var o in L("store")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("party"))
+            {
+                <div class="col-auto"><label class="d-block">Supplier / customer</label>
+                    <select class="form-select form-select-sm" name="party" style="max-width:18rem"><option value="">All parties (summary)</option>
+                        @foreach (var o in L("party")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("supplier"))
+            {
+                <div class="col-auto"><label class="d-block">Supplier</label>
+                    <select class="form-select form-select-sm" name="supplier" style="max-width:16rem"><option value="">All suppliers</option>
+                        @foreach (var o in L("supplier")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("user"))
+            {
+                <div class="col-auto"><label class="d-block">User</label>
+                    <select class="form-select form-select-sm" name="user"><option value="">All users</option>
+                        @foreach (var o in L("user")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("mode"))
+            {
+                <div class="col-auto"><label class="d-block">Payment mode</label>
+                    <select class="form-select form-select-sm" name="mode"><option value="">All modes</option>
+                        @foreach (var o in L("mode")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("kind"))
+            {
+                <div class="col-auto"><label class="d-block">Customer type</label>
+                    <select class="form-select form-select-sm" name="kind"><option value="">All</option><option value="WALKIN">Walk-in</option>
+                        <option value="PATIENT">Patient</option><option value="CUSTOMER">Credit customer</option></select></div>
+            }
+            @if (Has("category"))
+            {
+                <div class="col-auto"><label class="d-block">Category</label>
+                    <select class="form-select form-select-sm" name="category" style="max-width:14rem"><option value="">All categories</option>
+                        @foreach (var o in L("category")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("manufacturer"))
+            {
+                <div class="col-auto"><label class="d-block">Manufacturer</label>
+                    <select class="form-select form-select-sm" name="manufacturer" style="max-width:14rem"><option value="">All manufacturers</option>
+                        @foreach (var o in L("manufacturer")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("schedule"))
+            {
+                <div class="col-auto"><label class="d-block">Schedule</label>
+                    <select class="form-select form-select-sm" name="schedule"><option value="">All</option>
+                        @foreach (var o in L("schedule")) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("option"))
+            {
+                <div class="col-auto"><label class="d-block">Show</label>
+                    <select class="form-select form-select-sm" name="option">
+                        @foreach (var o in Model.Options) { <option value="@o.Value">@o.Text</option> }</select></div>
+            }
+            @if (Has("search"))
+            {
+                <div class="col-auto"><label class="d-block">Search</label>
+                    <input type="search" class="form-control form-control-sm" name="search" placeholder="@Model.SearchHint" style="min-width:14rem" /></div>
+            }
+            <div class="col-auto"><button type="submit" class="btn btn-sm btn-success"><i class="bi bi-search me-1"></i>Show</button></div>
+        </form>
+    </div>
+
+    <div class="row g-2 mb-2" id="tiles"></div>
+
+    <div class="card-x">
+        <div class="tbl-scroll">
+            <table class="table table-sm table-hover mb-0" id="grid">
+                <thead></thead><tbody></tbody><tfoot></tfoot>
+            </table>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 p-2 border-top small">
+            <span id="pgInfo" class="text-muted me-auto"></span>
+            <label class="text-muted">Rows</label>
+            <select id="pgSize" class="form-select form-select-sm" style="width:auto"><option>25</option><option selected>50</option><option>100</option><option>200</option></select>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" id="pgFirst" title="First"><i class="bi bi-chevron-double-left"></i></button>
+                <button class="btn btn-outline-secondary" id="pgPrev" title="Previous"><i class="bi bi-chevron-left"></i></button>
+                <span class="btn btn-outline-secondary disabled" id="pgNo">1</span>
+                <button class="btn btn-outline-secondary" id="pgNext" title="Next"><i class="bi bi-chevron-right"></i></button>
+                <button class="btn btn-outline-secondary" id="pgLast" title="Last"><i class="bi bi-chevron-double-right"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.Tool == "GSTR2B")
+{
+    <div class="modal fade" id="g2bModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-arrow-left-right me-2"></i>Purchases vs GSTR-2B</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body" id="g2bBody"></div>
+        <div class="modal-footer"><span class="small text-muted me-auto">Matched by supplier GSTIN and invoice number; amounts within ₹1 are a match.</span>
+            <button class="btn btn-outline-success btn-sm" id="g2bXls"><i class="bi bi-file-earmark-excel me-1"></i>Download</button></div>
+    </div></div></div>
+}
+@section Scripts {
+@if (Model.Tool == "GSTR2B") { <script src="~/lib/xlsx/xlsx.full.min.js"></script> }
+<script>
+(function () {
+    const def = @Html.Raw(JsonSerializer.Serialize(def));
+    const base = '@Url.Action(Model.Action, "PhReports")';
+    const appBase = '@Url.Content("~/")';
+    const form = document.getElementById('flt');
+    const grid = document.getElementById('grid');
+    let page = 1, totalRows = 0;
+    const pageSize = () => +document.getElementById('pgSize').value;
+
+    const inr = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const int = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+    const qty = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 });
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const isNum = f => ['money', 'int', 'qty', 'num', 'pct'].includes(f);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function fmt(v, f) {
+        if (v === null || v === undefined || v === '') return '';
+        switch (f) {
+            case 'money': return '₹' + inr.format(v);
+            case 'int': return int.format(v);
+            case 'qty': case 'num': return qty.format(v);
+            case 'pct': return qty.format(v) + '%';
+            case 'date': case 'datetime': {
+                const d = new Date(v); if (isNaN(d)) return esc(v);
+                let s = String(d.getDate()).padStart(2, '0') + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+                if (f === 'datetime') { let h = d.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+                    s += ', ' + String(h).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap; }
+                return s;
+            }
+            default: return esc(v);
+        }
+    }
+    const pick = (o, k) => o ? (o[k] ?? o[k.charAt(0).toLowerCase() + k.slice(1)]) : undefined;
+
+    // ── period presets ──
+    const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    function preset(p) {
+        const t = new Date(); let f = new Date(t), e = new Date(t);
+        if (p === 'yday') { f.setDate(t.getDate() - 1); e = new Date(f); }
+        if (p === '7d') f.setDate(t.getDate() - 6);
+        if (p === 'month') f = new Date(t.getFullYear(), t.getMonth(), 1);
+        if (p === 'lmonth') { f = new Date(t.getFullYear(), t.getMonth() - 1, 1); e = new Date(t.getFullYear(), t.getMonth(), 0); }
+        form.from.value = iso(f); form.to.value = iso(e);
+        form.querySelectorAll('.btn-pre').forEach(b => b.classList.toggle('active', b.dataset.pre === p));
+    }
+    if (def.dateMode === 'range') {
+        form.querySelectorAll('.btn-pre').forEach(b => b.addEventListener('click', () => { preset(b.dataset.pre); page = 1; load(); }));
+        ['from', 'to'].forEach(n => form[n].addEventListener('change', () => form.querySelectorAll('.btn-pre').forEach(b => b.classList.remove('active'))));
+        preset(['SalesSummary', 'ItemSales', 'UserSales', 'DoctorSales', 'CustomerHistory', 'HourlyPattern', 'PurchaseRegister', 'ItemPurchases', 'SupplierPurchases',
+            'PurchaseReturns', 'SupplierPayments', 'RateVariation', 'IndentTurnaround', 'ItemLedger', 'StockStatement', 'AbcAnalysis', 'FsnAnalysis',
+            'Transfers', 'Adjustments', 'CountVariance', 'BatchCorrections', 'StockTurnover', 'StoreIssues', 'ExpiryLoss', 'ShortExpiryReceipts', 'Gstr1Summary', 'HsnSummary', 'CreditNotes', 'PurchaseItc', 'Gstr3b', 'GstRateSummary', 'CashierClosing', 'GrossProfit', 'TradingAccount', 'StockVsBooks', 'PartyLedger'].includes(def.action) ? 'month' : 'today');
+    }
+
+    function query(extra) {
+        const p = new URLSearchParams();
+        new FormData(form).forEach((v, k) => { if (v !== '') p.append(k, v); });
+        Object.entries(extra || {}).forEach(([k, v]) => p.set(k, v));
+        return p.toString();
+    }
+
+    // ── table head ──
+    grid.tHead.innerHTML = '<tr><th class="num">#</th>' + def.cols.map(c => `<th class="${isNum(c.fmt) ? 'num' : ''}">${esc(c.label)}</th>`).join('') + '</tr>';
+
+    function cell(c, r) {
+        const v = pick(r, c.field);
+        let s = fmt(v, c.fmt);
+        if (c.link) { const [page, idField] = c.link.split(':'); const id = pick(r, idField);
+            if (id && s) s = `<a href="${appBase}${page}?id=${id}" target="_blank">${s}</a>`; }
+        let cls = isNum(c.fmt) ? 'num' : (c.field === 'TopItems' ? 'wrap' : '');
+        if (isNum(c.fmt) && v < 0) cls += ' neg';
+        const warn = ['Amounts differ', 'Not posted to the books', 'In the books only', 'Submitted', 'Rejected', 'Awaiting return / destruction', '0-30 days', 'Cancelled', 'Out of stock', 'Below reorder', 'Below minimum', 'Has expired stock', 'Expired', 'Near expiry', 'Blocked', 'Never sold'];
+        if (((c.field === 'AboveLimit' || c.field === 'OverLimit') && v) || ((c.field === 'Status' || c.field === 'Flag' || c.field === 'Band' || c.field === 'Action' || c.field === 'Remark') && warn.includes(v))) cls += ' flag';
+        return `<td class="${cls}">${s}</td>`;
+    }
+
+    async function load() {
+        grid.tBodies[0].innerHTML = `<tr><td colspan="${def.cols.length + 1}" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>`;
+        let res;
+        try { res = await (await fetch(base + 'Data?' + query({ page, pageSize: pageSize() }))).json(); }
+        catch { res = { success: false, message: 'The report could not be loaded.' }; }
+        if (!res.success) {
+            grid.tBodies[0].innerHTML = `<tr><td colspan="${def.cols.length + 1}" class="text-center text-danger py-4">${esc(res.message)}</td></tr>`;
+            grid.tFoot.innerHTML = ''; document.getElementById('tiles').innerHTML = ''; return;
+        }
+        totalRows = res.totalRows || 0;
+
+        document.getElementById('tiles').innerHTML = def.tiles.map(t =>
+            `<div class="col-6 col-md-4 col-xl-2"><div class="card-x tile h-100"><div class="t-label">${esc(t.label)}</div>
+             <div class="t-val">${fmt(pick(res.tiles, t.field), t.fmt) || (t.fmt === 'text' ? '—' : fmt(0, t.fmt))}</div></div></div>`).join('');
+
+        const start = (page - 1) * pageSize();
+        let max = 0;
+        if (def.action === 'HourlyPattern') res.rows.forEach(r => ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].forEach(d => max = Math.max(max, pick(r, d) || 0)));
+        grid.tBodies[0].innerHTML = res.rows.length === 0
+            ? `<tr><td colspan="${def.cols.length + 1}" class="text-center text-muted py-4">No records for the selected filters.</td></tr>`
+            : res.rows.map((r, i) => '<tr><td class="num text-muted">' + (start + i + 1) + '</td>' + def.cols.map(c => {
+                if (max > 0 && ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].includes(c.field)) {
+                    const v = pick(r, c.field) || 0, a = (v / max * 0.75).toFixed(2);
+                    return `<td class="heat" style="background:rgba(15,118,110,${a});color:${v / max > 0.55 ? '#fff' : 'inherit'}">${v ? fmt(v, c.fmt) : ''}</td>`;
+                }
+                return cell(c, r);
+            }).join('') + '</tr>').join('');
+
+        grid.tFoot.innerHTML = res.rows.length === 0 ? '' : '<tr><td></td>' + def.cols.map((c, i) =>
+            i === 0 ? `<td>Total (${int.format(totalRows)})</td>` : `<td class="${isNum(c.fmt) ? 'num' : ''}">${c.total ? fmt(pick(res.totals, c.field), c.fmt) : ''}</td>`).join('') + '</tr>';
+
+        const pages = Math.max(1, Math.ceil(totalRows / pageSize()));
+        document.getElementById('pgInfo').textContent = totalRows === 0 ? 'No rows' :
+            `Showing ${int.format(start + 1)}–${int.format(Math.min(start + pageSize(), totalRows))} of ${int.format(totalRows)} · totals and tiles cover every row`;
+        document.getElementById('pgNo').textContent = `${page} / ${pages}`;
+        document.getElementById('pgFirst').disabled = document.getElementById('pgPrev').disabled = page <= 1;
+        document.getElementById('pgNext').disabled = document.getElementById('pgLast').disabled = page >= pages;
+    }
+
+    const pages = () => Math.max(1, Math.ceil(totalRows / pageSize()));
+    document.getElementById('pgFirst').onclick = () => { page = 1; load(); };
+    document.getElementById('pgPrev').onclick = () => { if (page > 1) { page--; load(); } };
+    document.getElementById('pgNext').onclick = () => { if (page < pages()) { page++; load(); } };
+    document.getElementById('pgLast').onclick = () => { page = pages(); load(); };
+    document.getElementById('pgSize').onchange = () => { page = 1; load(); };
+    form.addEventListener('submit', e => { e.preventDefault(); page = 1; load(); });
+    form.querySelectorAll('select').forEach(s => s.addEventListener('change', () => { page = 1; load(); }));
+    const gstr1 = document.getElementById('btnGstr1');
+    if (gstr1) gstr1.onclick = () => { window.location = '@Url.Action("Gstr1Excel", "PhReports")?' + query({}); };
+    const g2b = document.getElementById('gstr2bFile');
+    if (g2b) {
+        let last = null;
+        const ST = { MATCHED: ['Matched', 'success'], MISMATCH: ['Amount differs', 'danger'], BOOKS_ONLY: ['Only in books', 'warning'], GSTR2B_ONLY: ['Only in GSTR-2B', 'info'], NO_GSTIN: ['No supplier GSTIN', 'secondary'] };
+        const draw = (filter) => {
+            const r = last, rows = r.rows.filter(x => !filter || x.status === filter);
+            const chip = (k, n) => `<button class="btn btn-sm btn-outline-${ST[k][1]} me-1 mb-1 ${filter === k ? 'active' : ''}" data-f="${k}">${ST[k][0]} <b>${n}</b></button>`;
+            document.getElementById('g2bBody').innerHTML = `<div class="mb-2">
+                    <button class="btn btn-sm btn-outline-dark me-1 mb-1 ${!filter ? 'active' : ''}" data-f="">All <b>${r.rows.length}</b></button>
+                    ${chip('MATCHED', r.matched)}${chip('MISMATCH', r.mismatch)}${chip('BOOKS_ONLY', r.booksOnly)}${chip('GSTR2B_ONLY', r.twoBOnly)}${chip('NO_GSTIN', r.noGstin)}
+                    <span class="small text-muted ms-2">Tax in books ${fmt(r.booksTax, 'money')} · in GSTR-2B ${fmt(r.twoBTax, 'money')} · ${r.twoBRowsRead} invoice(s) read from the file</span></div>
+                <div class="table-responsive"><table class="table table-sm table-hover align-middle" style="font-size:.8rem"><thead><tr><th>Status</th><th>GSTIN</th><th>Supplier</th><th>Invoice</th><th>Date</th>
+                    <th class="text-end">Books taxable</th><th class="text-end">Books tax</th><th class="text-end">2B taxable</th><th class="text-end">2B tax</th><th class="text-end">Tax diff</th><th>GRN</th><th>Note</th></tr></thead><tbody>
+                ${rows.map(x => `<tr><td><span class="badge text-bg-${ST[x.status][1]}">${ST[x.status][0]}</span></td><td class="font-monospace">${esc(x.gstin || '')}</td><td>${esc(x.supplier || '')}</td>
+                    <td>${esc(x.invoiceNo)}</td><td class="nowrap">${fmt(x.invoiceDate, 'date')}</td><td class="num">${fmt(x.booksTaxable, 'money')}</td><td class="num">${fmt(x.booksTax, 'money')}</td>
+                    <td class="num">${fmt(x.twoBTaxable, 'money')}</td><td class="num">${fmt(x.twoBTax, 'money')}</td><td class="num ${x.diffTax ? 'text-danger fw-bold' : ''}">${x.diffTax ? fmt(x.diffTax, 'money') : ''}</td>
+                    <td>${esc(x.grnNo || '')}</td><td class="small text-muted" style="white-space:normal;min-width:14rem">${esc(x.note || '')}</td></tr>`).join('') || '<tr><td colspan="12" class="text-center text-muted py-3">Nothing here.</td></tr>'}
+                </tbody></table></div>`;
+            document.querySelectorAll('#g2bBody [data-f]').forEach(b => b.onclick = () => draw(b.dataset.f || null));
+        };
+        g2b.addEventListener('change', async () => {
+            const f = g2b.files[0]; if (!f) return; g2b.value = '';
+            const fd = new FormData(); fd.append('file', f); fd.append('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('g2bModal'));
+            document.getElementById('g2bBody').innerHTML = '<div class="text-center text-muted py-5"><span class="spinner-border spinner-border-sm me-2"></span>Reading GSTR-2B and matching your purchases…</div>';
+            modal.show();
+            let res;
+            try { res = await (await fetch('@Url.Action("Gstr2bReconcile", "PhReports")?' + query({}), { method: 'POST', body: fd })).json(); }
+            catch { res = { error: 'The file could not be sent.' }; }
+            if (!res || res.error) { document.getElementById('g2bBody').innerHTML = `<div class="alert alert-danger mb-0">${esc((res && res.error) || 'Not reconciled.')}</div>`; return; }
+            last = res.data; draw(null);
+        });
+        document.getElementById('g2bXls').onclick = () => {
+            if (!last || !window.XLSX) return;
+            const rows = last.rows.map(x => ({ Status: ST[x.status][0], 'GSTIN of supplier': x.gstin || '', Supplier: x.supplier || '', 'Invoice number': x.invoiceNo,
+                'Invoice date': x.invoiceDate ? String(x.invoiceDate).substring(0, 10) : '', 'Books taxable': x.booksTaxable, 'Books tax': x.booksTax,
+                'GSTR-2B taxable': x.twoBTaxable, 'GSTR-2B tax': x.twoBTax, 'Tax difference': x.diffTax, GRN: x.grnNo || '', Note: x.note || '' }));
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'GSTR-2B reconciliation');
+            XLSX.writeFile(wb, 'GSTR2B_reconciliation.xlsx');
+        };
+    }
+    document.getElementById('btnXls').onclick = () => { window.location = base + 'Export?' + query({ format: 'excel' }); };
+    document.getElementById('btnPdf').onclick = () => { window.location = base + 'Export?' + query({ format: 'pdf' }); };
+    load();
+})();
+</script>
+}

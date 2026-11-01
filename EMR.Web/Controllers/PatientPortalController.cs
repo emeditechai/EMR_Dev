@@ -19,10 +19,13 @@ public class PatientPortalController(
     IPatientProfileService profileService,
     ILabReportPdfService reportPdfService,
     ILabReportingApiClient labReportingApiClient,
+    IPharmacySaleService pharmacySales,
+    IPharmacyPurchaseService pharmacyPurchase,
+    IPharmacyBillNotifier pharmacyBills,
     ILogger<PatientPortalController> logger) : Controller
 {
     private static readonly HashSet<string> PortalParts = new(StringComparer.OrdinalIgnoreCase)
-        { "dashboard", "dependents", "vitals", "bookings", "prescriptions" };
+        { "dashboard", "dependents", "vitals", "bookings", "prescriptions", "pharmacy" };
 
     // EMR.Api serves portal data only for the patient named in the call's token: tell the token handler who that is.
     public override void OnActionExecuting(ActionExecutingContext context)
@@ -240,6 +243,34 @@ public class PatientPortalController(
             "visits" => Json(await profileService.VisitsChartAsync(patientId.Value)),
             _ => NotFound()
         };
+    }
+
+    // GET: /PatientPortal/PharmacyBill/5 - a pharmacy bill of the patient as PDF (SQLScripts/2368). The bill must be in the patient's own
+    // list, which EMR.Api gives only for the signed-in patient; its branch tells which bill and letterhead to use.
+    [HttpGet]
+    public async Task<IActionResult> PharmacyBill(int id)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId");
+        if (patientId is not > 0) return RedirectToAction(nameof(Login));
+        try
+        {
+            using var res = await httpClientFactory.CreateClient("EmrApi").GetAsync($"api/patientportal/{patientId}/pharmacy");
+            if (!res.IsSuccessStatusCode) return NotFound();
+            using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+            var bill = doc.RootElement.GetProperty("data").EnumerateArray().FirstOrDefault(b => b.GetProperty("SaleId").GetInt32() == id);
+            if (bill.ValueKind != System.Text.Json.JsonValueKind.Object) return NotFound();
+            int companyId = bill.GetProperty("CompanyId").GetInt32(), branchId = bill.GetProperty("BranchId").GetInt32();
+            var b = await pharmacySales.GetAsync(companyId, branchId, id);
+            if (b == null || b.Status == "HOLD") return NotFound();
+            var pdf = pharmacyBills.Pdf(b, await pharmacyPurchase.BranchHeaderAsync(branchId));
+            Response.Headers["Content-Disposition"] = $"inline; filename=\"Pharmacy_Bill_{b.SaleNo?.Replace('/', '-')}.pdf\"";
+            return File(pdf, "application/pdf");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Portal pharmacy bill {Id} for patient {Patient} failed", id, patientId);
+            return NotFound();
+        }
     }
 
     // GET: /PatientPortal/OpdBill/5 - an OPD bill of the patient

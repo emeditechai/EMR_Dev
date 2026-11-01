@@ -8,11 +8,13 @@ namespace EMR.Web.Controllers;
 public class PhStockController(IPharmacyInventoryService inventory, IPharmacyMasterService masters, INotificationService n, IAuditLogService a) : PharmacyInventoryControllerBase(inventory, n, a)
 {
     [HttpGet]
-    public async Task<IActionResult> Index(string? search, int? categoryId, string filter = "instock")
+    public async Task<IActionResult> Index(string? search, int? categoryId, int? storeId, string filter = "instock")
     {
         ViewBag.Filter = (search, categoryId, filter);
         ViewBag.Categories = (await masters.ItemLookupsAsync(CompanyId)).Categories;
-        return View("~/Views/PharmacyInventory/Stock.cshtml", await Inventory.StockAsync(CompanyId, BranchId, search, categoryId, filter));
+        ViewBag.Stores = await Inventory.StoresAsync(CompanyId, BranchId, "ANY");
+        ViewBag.StoreId = storeId;
+        return View("~/Views/PharmacyInventory/Stock.cshtml", await Inventory.StockAsync(CompanyId, BranchId, search, categoryId, filter, storeId));
     }
 
     [HttpGet] public async Task<IActionResult> Ledger(int itemId, int? batchId) => Json(await Inventory.LedgerAsync(CompanyId, BranchId, itemId, batchId));

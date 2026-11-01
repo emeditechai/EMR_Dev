@@ -1,9 +1,7 @@
-using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using System.Text.RegularExpressions;
-using Dapper;
-using EMR.Web.Data;
-using Microsoft.Data.SqlClient;
+using EMR.Web.ApiClients;
 
 namespace EMR.Web.Services;
 
@@ -56,6 +54,13 @@ public static class PharmacyMasterDefs
         new("WALKIN", "Walk-in (counter sale)"), new("IPD_CASH", "IPD - Cash"), new("IPD_INSURANCE", "IPD - Insurance / TPA"),
         new("IPD_CORPORATE", "IPD - Corporate"), new("IPD_SCHEME", "IPD - Govt. scheme"), new("STAFF", "Staff")
     ];
+    public static readonly PhOption[] UqcCodes =
+    [
+        new("TBS", "TBS - Tablets"), new("NOS", "NOS - Numbers"), new("PAC", "PAC - Packs"), new("BOX", "BOX - Box"), new("BTL", "BTL - Bottles"), new("TUB", "TUB - Tubes"),
+        new("MLT", "MLT - Millilitre"), new("LTR", "LTR - Litres"), new("GMS", "GMS - Grammes"), new("KGS", "KGS - Kilograms"), new("PCS", "PCS - Pieces"), new("PRS", "PRS - Pairs"),
+        new("ROL", "ROL - Rolls"), new("SET", "SET - Sets"), new("UNT", "UNT - Units"), new("BAG", "BAG - Bags"), new("CTN", "CTN - Cartons"), new("DOZ", "DOZ - Dozens"), new("OTH", "OTH - Others")
+    ];
+    public static readonly PhOption[] StoreTypes = [new("MAIN", "Main store (receives and sells)"), new("GODOWN", "Godown"), new("COUNTER", "Counter")];
     public static readonly PhOption[] CustomerTypes = [new("REGULAR", "Regular"), new("STAFF", "Staff"), new("CORPORATE", "Corporate"), new("DOCTOR", "Doctor")];
     public static readonly PhOption[] ReasonTypes =
     [
@@ -150,6 +155,7 @@ public static class PharmacyMasterDefs
             [
                 new() { Name = "UomCode", Label = "Code", Required = true, Max = 10, Col = 3, Upper = true },
                 new() { Name = "UomName", Label = "Unit name", Required = true, Max = 50, Col = 6 },
+                new() { Name = "UqcCode", Label = "GST UQC", Kind = "select", Required = true, Options = UqcCodes, Col = 4, Default = "NOS", Help = "Unique Quantity Code used in the GSTR-1 HSN summary" },
                 new() { Name = "SortOrder", Label = "Order", Kind = "number", Col = 3, Default = 100 }
             ]
         },
@@ -245,6 +251,24 @@ public static class PharmacyMasterDefs
                 new() { Name = "ReasonType", Label = "Used on", Kind = "select", Required = true, Options = ReasonTypes, Col = 4 },
                 new() { Name = "ReasonName", Label = "Reason", Required = true, Col = 6 },
                 new() { Name = "SortOrder", Label = "Order", Kind = "number", Col = 2, Default = 100 }
+            ]
+        },
+        new()
+        {
+            Key = "stores", PageCode = "MASTER.PH_STORES", Title = "Store / Godown", Singular = "store", Icon = "bi-shop-window", SaveAction = "SaveStore",
+            Description = "Where this branch keeps pharmacy stock: godowns receive goods (GRN, transfers in), counters sell. Stock moves from a godown to a counter by a Store Issue.",
+            Table = "PhStore", IdCol = "StoreId", OrderBy = "StoreName", BranchScoped = true,
+            Fields =
+            [
+                new() { Name = "StoreCode", Label = "Code", Required = true, Max = 20, Col = 3, Upper = true, Pattern = "^[A-Z0-9_-]{1,20}$", PatternMessage = "Code: letters, digits, - and _ only." },
+                new() { Name = "StoreName", Label = "Store name", Required = true, Max = 100, Col = 5 },
+                new() { Name = "StoreType", Label = "Type", Kind = "select", Required = true, Options = StoreTypes, Col = 4, Default = "GODOWN" },
+                new() { Name = "CanReceive", Label = "Receives goods (GRN / transfer in)", Kind = "bool", Col = 6, Default = true },
+                new() { Name = "CanSell", Label = "Sells at the counter", Kind = "bool", Col = 6 },
+                new() { Name = "IsDefaultReceive", Label = "Default receiving store", Kind = "bool", Col = 6 },
+                new() { Name = "IsDefaultSell", Label = "Default selling store", Kind = "bool", Col = 6 },
+                new() { Name = "StockValue", Label = "Stock at cost", Kind = "readonly", Col = 6 },
+                new() { Name = "Remarks", Label = "Remarks", Max = 300, Col = 12, InList = false }
             ]
         },
         new()
@@ -362,55 +386,32 @@ public interface IPharmacyMasterService
     Task<(int Id, string? Error)> SaveItemAsync(int companyId, int branchId, PhItemForm f, int userId);
 }
 
-public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterService
+/// <summary>
+/// Pharmacy masters through EMR.Api (api/pharmacy/masters, SQLScripts/2357). Form values are checked here exactly as
+/// before (field types, lengths, patterns, the rules of each master); reading and saving are API calls only.
+/// </summary>
+public class PharmacyMasterService(PharmacyApiClient api) : IPharmacyMasterService
 {
-    public async Task EnsureMastersAsync(int companyId, int branchId)
-    {
-        using var con = db.CreateConnection();
-        await con.ExecuteAsync("dbo.usp_Pharmacy_EnsureMasters", new { CompanyId = companyId, BranchId = branchId }, commandType: CommandType.StoredProcedure);
-    }
+    private const string Base = "api/pharmacy/masters";
 
-    public async Task<string> BranchCodeAsync(int branchId)
-    {
-        using var con = db.CreateConnection();
-        return await con.ExecuteScalarAsync<string?>("SELECT BranchCode FROM dbo.BranchMaster WHERE BranchID = @branchId", new { branchId }) ?? branchId.ToString();
-    }
+    public Task EnsureMastersAsync(int companyId, int branchId) =>
+        api.PostAsync($"{Base}/ensure", new { companyId, branchId });
+
+    public Task<string> BranchCodeAsync(int branchId) => api.GetAsync<string>($"{Base}/branch-code/{branchId}");
 
     public async Task<List<IDictionary<string, object?>>> ListAsync(PhMasterDef def, int companyId, int branchId)
     {
-        // Table and column names come only from PharmacyMasterDefs, never from the request.
-        var cols = string.Join(", ", def.Fields.Select(f => f.Name).Where(n => n != def.IdCol));
-        var sql = def.ReadOnly
-            ? $"SELECT {def.IdCol}, {cols}, CAST(1 AS BIT) AS IsActive FROM dbo.{def.Table} ORDER BY {def.OrderBy}"
-            : $"SELECT {def.IdCol}, {cols}, IsActive FROM dbo.{def.Table} WHERE CompanyId = @companyId{(def.BranchScoped ? " AND BranchId = @branchId" : "")} ORDER BY {def.OrderBy}";
-        using var con = db.CreateConnection();
-        var rows = await con.QueryAsync(sql, new { companyId, branchId });
-        return rows.Select(r => (IDictionary<string, object?>)(IDictionary<string, object>)r).ToList();
+        var rows = await api.GetAsync<List<Dictionary<string, JsonElement>>>($"{Base}/list/{def.Key}" + PharmacyApiClient.Q(("companyId", companyId), ("branchId", branchId)));
+        return rows.Select(r => (IDictionary<string, object?>)r.ToDictionary(kv => kv.Key, kv => PharmacyApiClient.Plain(kv.Value))).ToList();
     }
 
     public async Task<Dictionary<string, List<PhOption>>> LookupsAsync(PhMasterDef def, int companyId)
     {
-        var result = new Dictionary<string, List<PhOption>>();
-        using var con = db.CreateConnection();
-        foreach (var key in def.Fields.Where(f => f.Lookup != null).Select(f => f.Lookup!).Distinct())
-        {
-            var sql = key switch
-            {
-                "states" => "SELECT CAST(StateId AS VARCHAR(10)) AS Value, StateName AS Text FROM dbo.StateMaster WHERE IsActive = 1 ORDER BY StateName",
-                "mainCategories" => "SELECT CAST(CategoryId AS VARCHAR(10)) AS Value, CategoryName AS Text FROM dbo.PhCategory WHERE CompanyId = @companyId AND ParentCategoryId IS NULL ORDER BY SortOrder, CategoryName",
-                "categories" => CategorySql,
-                "schemes" => "SELECT CAST(SchemeId AS VARCHAR(10)) AS Value, SchemeName AS Text FROM dbo.PhDiscountScheme WHERE CompanyId = @companyId AND IsActive = 1 ORDER BY SchemeName",
-                _ => throw new InvalidOperationException("Unknown lookup " + key)
-            };
-            result[key] = (await con.QueryAsync<PhOption>(sql, new { companyId })).ToList();
-        }
-        return result;
+        var needed = def.Fields.Where(f => f.Lookup != null).Select(f => f.Lookup!).Distinct().ToList();
+        if (needed.Count == 0) return new();
+        var all = await api.GetAsync<Dictionary<string, List<PhOption>>>($"{Base}/lookups" + PharmacyApiClient.Q(("companyId", companyId)));
+        return needed.ToDictionary(k => k, k => all.TryGetValue(k, out var l) ? l : throw new InvalidOperationException("Unknown lookup " + k));
     }
-
-    private const string CategorySql =
-        @"SELECT CAST(c.CategoryId AS VARCHAR(10)) AS Value, CASE WHEN p.CategoryId IS NULL THEN c.CategoryName ELSE p.CategoryName + N' › ' + c.CategoryName END AS Text
-          FROM dbo.PhCategory c LEFT JOIN dbo.PhCategory p ON p.CategoryId = c.ParentCategoryId
-          WHERE c.CompanyId = @companyId AND c.IsActive = 1 ORDER BY ISNULL(p.SortOrder, c.SortOrder), ISNULL(p.CategoryName, c.CategoryName), c.ParentCategoryId, c.SortOrder";
 
     public async Task<string?> SaveAsync(PhMasterDef def, int companyId, int branchId, IFormCollection form, int userId)
     {
@@ -418,103 +419,60 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
         int.TryParse(form[def.IdCol], out var id);
         if (id == 0 && def.NoAdd) return "New entries cannot be added here.";
 
-        var p = new DynamicParameters();
-        p.Add("id", id); p.Add("companyId", companyId); p.Add("branchId", branchId); p.Add("userId", userId);
-        p.Add("IsActive", IsChecked(form["IsActive"]));
-        var editable = def.Fields.Where(f => f.Kind != "readonly").ToList();
-        foreach (var f in editable)
+        var p = new Dictionary<string, object?>();
+        foreach (var f in def.Fields.Where(f => f.Kind != "readonly"))
         {
             var (value, error) = Parse(f, form[f.Name].FirstOrDefault(v => v != "false") ?? form[f.Name].FirstOrDefault());
             if (error != null) return error;
-            p.Add(f.Name, value);
+            p[f.Name] = value;
         }
 
         var extra = ValidateSpecial(def.Key, p, id);
         if (extra != null) return extra;
 
-        using var con = db.CreateConnection();
-        if (con.State != ConnectionState.Open) con.Open();
-        using var tx = con.BeginTransaction();
-        try
+        var r = await api.PostAsync<PhSaveResult>($"{Base}/save/{def.Key}", new
         {
-            if (def.Key == "suppliers" && string.IsNullOrWhiteSpace(p.Get<object?>("SupplierCode") as string))
-                p.Add("SupplierCode", await con.ExecuteScalarAsync<string>(
-                    "SELECT 'SUP' + RIGHT('0000' + CAST(ISNULL(MAX(SupplierId), 0) + 1 AS VARCHAR(10)), 4) FROM dbo.PhSupplier WITH (UPDLOCK, HOLDLOCK)", transaction: tx));
-
-            decimal? oldGst = null, oldCess = null; DateTime? oldFrom = null;
-            if (def.Key == "hsn" && id > 0)
-            {
-                var old = await con.QuerySingleOrDefaultAsync<(decimal Gst, decimal Cess, DateTime From)>(
-                    "SELECT GstPercent, CessPercent, EffectiveFrom FROM dbo.PhHsn WHERE HsnId = @id AND CompanyId = @companyId", p, tx);
-                oldGst = old.Gst; oldCess = old.Cess; oldFrom = old.From;
-            }
-
-            var names = editable.Select(f => f.Name).ToList();
-            if (id == 0)
-            {
-                var scope = def.BranchScoped ? "CompanyId, BranchId" : "CompanyId";
-                var scopeVals = def.BranchScoped ? "@companyId, @branchId" : "@companyId";
-                id = await con.ExecuteScalarAsync<int>(
-                    $"INSERT dbo.{def.Table} ({scope}, {string.Join(", ", names)}, IsActive, CreatedBy) VALUES ({scopeVals}, {string.Join(", ", names.Select(n => "@" + n))}, @IsActive, @userId); SELECT CAST(SCOPE_IDENTITY() AS INT);", p, tx);
-                p.Add("id", id);
-            }
-            else
-            {
-                var n = await con.ExecuteAsync(
-                    $"UPDATE dbo.{def.Table} SET {string.Join(", ", names.Select(c => $"{c} = @{c}"))}, IsActive = @IsActive, ModifiedBy = @userId, ModifiedDate = GETDATE() WHERE {def.IdCol} = @id AND CompanyId = @companyId{(def.BranchScoped ? " AND BranchId = @branchId" : "")}", p, tx);
-                if (n == 0) { tx.Rollback(); return "Record not found."; }
-            }
-
-            if (def.Key == "hsn")
-            {
-                var gst = p.Get<object?>("GstPercent") as decimal? ?? 0; var cess = p.Get<object?>("CessPercent") as decimal? ?? 0; var from = (DateTime)p.Get<object?>("EffectiveFrom")!;
-                if (oldGst == null || oldGst != gst || oldCess != cess || oldFrom != from)
-                    await con.ExecuteAsync("INSERT dbo.PhHsnRateHistory (HsnId, GstPercent, CessPercent, EffectiveFrom, CreatedBy) VALUES (@id, @gst, @cess, @from, @userId)",
-                        new { id, gst, cess, from, userId }, tx);
-            }
-            tx.Commit();
-            return null;
-        }
-        catch (SqlException ex) when (ex.Number is 2627 or 2601)
-        {
-            tx.Rollback();
-            return $"This {def.Singular} already exists.";
-        }
+            id, companyId, branchId, userId, isActive = IsChecked(form["IsActive"]),
+            values = p.ToDictionary(kv => kv.Key, kv => kv.Value is DateTime d ? d.ToString("yyyy-MM-dd") : kv.Value)
+        });
+        return r.Error;
     }
 
-    private static string? ValidateSpecial(string key, DynamicParameters p, int id)
+    private static object? V(Dictionary<string, object?> p, string k) => p.TryGetValue(k, out var v) ? v : null;
+
+    private static string? ValidateSpecial(string key, Dictionary<string, object?> p, int id)
     {
         switch (key)
         {
             case "categories":
-                if (id > 0 && p.Get<object?>("ParentCategoryId") is int parent && parent == id) return "A category cannot be under itself.";
+                if (id > 0 && V(p, "ParentCategoryId") is int parent && parent == id) return "A category cannot be under itself.";
                 break;
             case "pricerules":
-                var basis = p.Get<object?>("PriceBasis") as string; var pct = p.Get<object?>("RatePercent") as decimal? ?? 0;
+                var basis = V(p, "PriceBasis") as string; var pct = V(p, "RatePercent") as decimal? ?? 0;
                 if (pct < 0 || pct > 100) return "Percent must be between 0 and 100.";
                 if (basis == "MRP" && pct != 0) return "Price basis MRP takes no percent; use 'MRP less %'.";
                 break;
             case "discounts":
-                var type = p.Get<object?>("DiscountType") as string; var val = p.Get<object?>("DiscountValue") as decimal? ?? 0;
+                var type = V(p, "DiscountType") as string; var val = V(p, "DiscountValue") as decimal? ?? 0;
                 if (val <= 0) return "Discount value must be more than zero.";
                 if (type == "PERCENT" && val > 100) return "Discount percent cannot be above 100.";
-                var applies = p.Get<object?>("AppliesTo") as string;
-                if (applies == "CATEGORY" && p.Get<object?>("CategoryId") == null) return "Pick the category the scheme applies to.";
-                if (applies == "CUSTOMER_TYPE" && p.Get<object?>("CustomerType") == null) return "Pick the customer type the scheme applies to.";
-                if (applies != "CATEGORY") p.Add("CategoryId", null);
-                if (applies != "CUSTOMER_TYPE") p.Add("CustomerType", null);
-                if (p.Get<object?>("ValidFrom") is DateTime vf && p.Get<object?>("ValidTo") is DateTime vt && vt < vf) return "Valid to is before valid from.";
+                var applies = V(p, "AppliesTo") as string;
+                if (applies == "CATEGORY" && V(p, "CategoryId") == null) return "Pick the category the scheme applies to.";
+                if (applies == "CUSTOMER_TYPE" && V(p, "CustomerType") == null) return "Pick the customer type the scheme applies to.";
+                if (applies != "CATEGORY") p["CategoryId"] = null;
+                if (applies != "CUSTOMER_TYPE") p["CustomerType"] = null;
+                if (V(p, "ValidFrom") is DateTime vf && V(p, "ValidTo") is DateTime vt && vt < vf) return "Valid to is before valid from.";
                 break;
             case "customers":
-                if (p.Get<object?>("CreditAllowed") is false) p.Add("CreditLimit", 0m);
-                else if ((p.Get<object?>("CreditLimit") as decimal? ?? 0) <= 0) return "Give a credit limit, or untick credit sale.";
+                if (V(p, "CreditAllowed") is false) p["CreditLimit"] = 0m;
+                else if ((V(p, "CreditLimit") as decimal? ?? 0) <= 0) return "Give a credit limit, or untick credit sale.";
                 break;
             case "numberseries":
-                var pad = p.Get<object?>("Padding") as int? ?? 0;
+                var pad = V(p, "Padding") as int? ?? 0;
                 if (pad is < 3 or > 10) return "Digits must be between 3 and 10.";
                 break;
             case "suppliers":
-                if (p.Get<object?>("CreditDays") is int cd && (cd < 0 || cd > 365)) return "Credit days must be between 0 and 365.";
+                if (V(p, "CreditDays") is int cd && (cd < 0 || cd > 365)) return "Credit days must be between 0 and 365.";
                 break;
         }
         return null;
@@ -555,88 +513,51 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
     }
 
     // ── Item Master ──────────────────────────────────────────────────────────────────────────────────────
-    private const string ItemSelect = @"
-        SELECT i.ItemId, i.ItemCode, i.ItemName, df.ShortName AS FormShort, i.Strength, i.PackSize, g.GenericName, m.ManufacturerName,
-               CASE WHEN pc.CategoryId IS NULL THEN c.CategoryName ELSE pc.CategoryName + N' › ' + c.CategoryName END AS CategoryName,
-               i.ScheduleCode, h.HsnCode, h.GstPercent, pu.UomCode AS PurchaseUom, su.UomCode AS SaleUom, i.ConversionQty,
-               i.IsColdChain, i.IsHighAlert, i.IsLasa, i.PrescriptionRequired, ib.RackNo, i.IsActive";
-    private const string ItemFrom = @"
-        FROM dbo.PhItem i
-        JOIN dbo.PhCategory c ON c.CategoryId = i.CategoryId LEFT JOIN dbo.PhCategory pc ON pc.CategoryId = c.ParentCategoryId
-        JOIN dbo.PhHsn h ON h.HsnId = i.HsnId
-        JOIN dbo.PhUom pu ON pu.UomId = i.PurchaseUomId JOIN dbo.PhUom su ON su.UomId = i.SaleUomId
-        LEFT JOIN dbo.PhGeneric g ON g.GenericId = i.GenericId
-        LEFT JOIN dbo.PhManufacturer m ON m.ManufacturerId = i.ManufacturerId
-        LEFT JOIN dbo.PhDosageForm df ON df.DosageFormId = i.DosageFormId";
+    public Task<List<PhItemListRow>> ItemsAsync(int companyId, int branchId, string? search, int? categoryId, string? schedule, int? manufacturerId, bool? active, int page, int pageSize) =>
+        api.GetAsync<List<PhItemListRow>>($"{Base}/items" + PharmacyApiClient.Q(("companyId", companyId), ("branchId", branchId),
+            ("search", string.IsNullOrWhiteSpace(search) ? null : search.Trim()), ("categoryId", categoryId), ("schedule", schedule),
+            ("manufacturerId", manufacturerId), ("active", active), ("page", page), ("pageSize", pageSize)));
 
-    public async Task<List<PhItemListRow>> ItemsAsync(int companyId, int branchId, string? search, int? categoryId, string? schedule, int? manufacturerId, bool? active, int page, int pageSize)
-    {
-        using var con = db.CreateConnection();
-        var sql = ItemSelect + ", COUNT(*) OVER () AS TotalCount" + ItemFrom + @"
-            LEFT JOIN dbo.PhItemBranch ib ON ib.ItemId = i.ItemId AND ib.BranchId = @branchId
-            WHERE i.CompanyId = @companyId
-              AND (@search IS NULL OR i.ItemName LIKE @like OR i.ItemCode LIKE @like OR g.GenericName LIKE @like OR i.Barcode = @search)
-              AND (@categoryId IS NULL OR i.CategoryId = @categoryId OR c.ParentCategoryId = @categoryId)
-              AND (@schedule IS NULL OR i.ScheduleCode = @schedule)
-              AND (@manufacturerId IS NULL OR i.ManufacturerId = @manufacturerId)
-              AND (@active IS NULL OR i.IsActive = @active)
-            ORDER BY i.ItemName OFFSET @skip ROWS FETCH NEXT @pageSize ROWS ONLY";
-        search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
-        return (await con.QueryAsync<PhItemListRow>(sql, new
-        {
-            companyId, branchId, search, like = search == null ? null : "%" + search + "%", categoryId, schedule, manufacturerId, active,
-            skip = (Math.Max(page, 1) - 1) * pageSize, pageSize
-        })).ToList();
-    }
+    public Task<List<PhItemListRow>> SearchItemsAsync(int companyId, string q, int take = 15) =>
+        api.GetAsync<List<PhItemListRow>>($"{Base}/items/search" + PharmacyApiClient.Q(("companyId", companyId), ("q", q), ("take", take)));
 
-    public async Task<List<PhItemListRow>> SearchItemsAsync(int companyId, string q, int take = 15)
-    {
-        using var con = db.CreateConnection();
-        return (await con.QueryAsync<PhItemListRow>($"SELECT TOP (@take) {ItemSelect[ItemSelect.IndexOf("i.ItemId", StringComparison.Ordinal)..]}" + ItemFrom +
-            @" LEFT JOIN dbo.PhItemBranch ib ON 1 = 0
-               WHERE i.CompanyId = @companyId AND (i.ItemName LIKE @like OR g.GenericName LIKE @like OR i.ItemCode = @q OR i.Barcode = @q)
-               ORDER BY CASE WHEN i.ItemName LIKE @starts THEN 0 ELSE 1 END, i.ItemName",
-            new { companyId, q, take, like = "%" + q + "%", starts = q + "%" })).ToList();
-    }
-
-    public async Task<List<PhItemListRow>> SubstitutesAsync(int companyId, int itemId)
-    {
-        using var con = db.CreateConnection();
-        return (await con.QueryAsync<PhItemListRow>(ItemSelect + ItemFrom +
-            @" LEFT JOIN dbo.PhItemBranch ib ON 1 = 0
-               WHERE i.CompanyId = @companyId AND i.ItemId <> @itemId AND i.GenericId IS NOT NULL
-                 AND i.GenericId = (SELECT GenericId FROM dbo.PhItem WHERE ItemId = @itemId) ORDER BY i.ItemName", new { companyId, itemId })).ToList();
-    }
+    public Task<List<PhItemListRow>> SubstitutesAsync(int companyId, int itemId) =>
+        api.GetAsync<List<PhItemListRow>>($"{Base}/items/{itemId}/substitutes" + PharmacyApiClient.Q(("companyId", companyId)));
 
     public async Task<PhItemForm?> ItemAsync(int companyId, int branchId, int itemId)
     {
-        using var con = db.CreateConnection();
-        return await con.QuerySingleOrDefaultAsync<PhItemForm>(@"
-            SELECT i.*, ib.RackNo, ib.ReorderLevel AS BranchReorderLevel, ib.MinQty AS BranchMinQty, ib.MaxQty AS BranchMaxQty, ISNULL(ib.IsStocked, 1) AS IsStocked
-            FROM dbo.PhItem i LEFT JOIN dbo.PhItemBranch ib ON ib.ItemId = i.ItemId AND ib.BranchId = @branchId
-            WHERE i.ItemId = @itemId AND i.CompanyId = @companyId", new { companyId, branchId, itemId });
+        try { return await api.GetAsync<PhItemForm>($"{Base}/items/{itemId}" + PharmacyApiClient.Q(("companyId", companyId), ("branchId", branchId))); }
+        catch (InvalidOperationException) { return null; }   // not found
     }
 
     public async Task<(int Total, int Active)> ItemCountsAsync(int companyId)
     {
-        using var con = db.CreateConnection();
-        return await con.QuerySingleAsync<(int, int)>("SELECT COUNT(*), ISNULL(SUM(CASE WHEN IsActive = 1 THEN 1 ELSE 0 END), 0) FROM dbo.PhItem WHERE CompanyId = @companyId", new { companyId });
+        var c = await api.GetAsync<PhCounts>($"{Base}/items/counts" + PharmacyApiClient.Q(("companyId", companyId)));
+        return (c.Total, c.Active);
+    }
+
+    private sealed record PhCounts(int Total, int Active);
+    private sealed record PhHsnOption(int Id, string Code, string Description, decimal Gst);
+    private sealed record PhScheduleOption(string Code, string Name, string? Warning, bool Rx);
+    private sealed class PhItemLookupsWire
+    {
+        public List<PhOption> Generics { get; set; } = [];
+        public List<PhOption> Manufacturers { get; set; } = [];
+        public List<PhOption> Categories { get; set; } = [];
+        public List<PhOption> DosageForms { get; set; } = [];
+        public List<PhOption> Uoms { get; set; } = [];
+        public List<PhHsnOption> Hsn { get; set; } = [];
+        public List<PhScheduleOption> Schedules { get; set; } = [];
     }
 
     public async Task<PhItemLookups> ItemLookupsAsync(int companyId)
     {
-        using var con = db.CreateConnection();
-        var p = new { companyId };
-        // Inactive entries stay in the lists (marked) so an item that already uses one still shows it.
+        var w = await api.GetAsync<PhItemLookupsWire>($"{Base}/items/lookups" + PharmacyApiClient.Q(("companyId", companyId)));
         return new PhItemLookups
         {
-            Generics = (await con.QueryAsync<PhOption>("SELECT CAST(GenericId AS VARCHAR(10)) Value, GenericName + CASE WHEN IsActive = 0 THEN N' (inactive)' ELSE N'' END Text FROM dbo.PhGeneric WHERE CompanyId = @companyId ORDER BY GenericName", p)).ToList(),
-            Manufacturers = (await con.QueryAsync<PhOption>("SELECT CAST(ManufacturerId AS VARCHAR(10)) Value, ManufacturerName + CASE WHEN IsActive = 0 THEN N' (inactive)' ELSE N'' END Text FROM dbo.PhManufacturer WHERE CompanyId = @companyId ORDER BY ManufacturerName", p)).ToList(),
-            Categories = (await con.QueryAsync<PhOption>(CategorySql, p)).ToList(),
-            DosageForms = (await con.QueryAsync<PhOption>("SELECT CAST(DosageFormId AS VARCHAR(10)) Value, DosageFormName + ISNULL(N' (' + ShortName + N')', N'') Text FROM dbo.PhDosageForm WHERE CompanyId = @companyId AND IsActive = 1 ORDER BY SortOrder, DosageFormName", p)).ToList(),
-            Uoms = (await con.QueryAsync<PhOption>("SELECT CAST(UomId AS VARCHAR(10)) Value, UomName + N' (' + UomCode + N')' Text FROM dbo.PhUom WHERE CompanyId = @companyId AND IsActive = 1 ORDER BY SortOrder, UomCode", p)).ToList(),
-            Hsn = (await con.QueryAsync<(int, string, string, decimal)>("SELECT HsnId, HsnCode, Description, GstPercent FROM dbo.PhHsn WHERE CompanyId = @companyId AND IsActive = 1 ORDER BY HsnCode", p)).ToList(),
-            Schedules = (await con.QueryAsync<(string, string, string?, bool)>("SELECT ScheduleCode, ScheduleName, LabelWarning, RxRequired FROM dbo.PhDrugSchedule ORDER BY SortOrder")).ToList()
+            Generics = w.Generics, Manufacturers = w.Manufacturers, Categories = w.Categories, DosageForms = w.DosageForms, Uoms = w.Uoms,
+            Hsn = w.Hsn.Select(h => (h.Id, h.Code, h.Description, h.Gst)).ToList(),
+            Schedules = w.Schedules.Select(x => (x.Code, x.Name, x.Warning, x.Rx)).ToList()
         };
     }
 
@@ -654,39 +575,14 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
         if (f.ScheduleCode is "X" or "NDPS") f.IsReturnable = false;   // controlled drugs are never taken back over the counter
         if (f.ScheduleCode is "H1" or "X" or "NDPS") f.PrescriptionRequired = true;   // register drugs: prescriber and Rx no. are statutory
 
-        using var con = db.CreateConnection();
-        if (con.State != ConnectionState.Open) con.Open();
-        using var tx = con.BeginTransaction();
-        try
-        {
-            var dup = await con.ExecuteScalarAsync<string?>(@"SELECT TOP 1 ItemCode FROM dbo.PhItem WHERE CompanyId = @companyId AND ItemId <> @ItemId
-                AND ItemName = @ItemName AND ISNULL(ManufacturerId, 0) = ISNULL(@ManufacturerId, 0) AND ISNULL(DosageFormId, 0) = ISNULL(@DosageFormId, 0)",
-                new { companyId, f.ItemId, f.ItemName, f.ManufacturerId, f.DosageFormId }, tx);
-            if (dup != null) { tx.Rollback(); return (0, $"The same item of this manufacturer and form already exists ({dup})."); }
-
-            f.ItemCode ??= await con.ExecuteScalarAsync<string>(
-                "SELECT 'PH' + RIGHT('00000' + CAST(ISNULL(MAX(ItemId), 0) + 1 AS VARCHAR(10)), 5) FROM dbo.PhItem WITH (UPDLOCK, HOLDLOCK)", transaction: tx);
-            var p = new DynamicParameters(f);
-            p.Add("companyId", companyId); p.Add("branchId", branchId); p.Add("userId", userId);
-            const string cols = "ItemCode, ItemName, GenericId, ManufacturerId, CategoryId, DosageFormId, Strength, PackSize, ScheduleCode, HsnId, PurchaseUomId, SaleUomId, ConversionQty, AllowLooseSale, IsColdChain, IsHighAlert, IsLasa, IsReturnable, IsDiscountAllowed, PrescriptionRequired, Barcode, ReorderLevel, MinQty, MaxQty, LeadDays, Remarks, IsActive";
-            if (f.ItemId == 0)
-                f.ItemId = await con.ExecuteScalarAsync<int>($"INSERT dbo.PhItem (CompanyId, {cols}, CreatedBy) VALUES (@companyId, {string.Join(", ", cols.Split(", ").Select(c => "@" + c))}, @userId); SELECT CAST(SCOPE_IDENTITY() AS INT);", p, tx);
-            else if (await con.ExecuteAsync($"UPDATE dbo.PhItem SET {string.Join(", ", cols.Split(", ").Select(c => $"{c} = @{c}"))}, ModifiedBy = @userId, ModifiedDate = GETDATE() WHERE ItemId = @ItemId AND CompanyId = @companyId", p, tx) == 0)
-            { tx.Rollback(); return (0, "Item not found."); }
-
-            p.Add("ItemId", f.ItemId);
-            await con.ExecuteAsync(@"
-                MERGE dbo.PhItemBranch AS t USING (SELECT @ItemId AS ItemId, @branchId AS BranchId) AS s ON t.ItemId = s.ItemId AND t.BranchId = s.BranchId
-                WHEN MATCHED THEN UPDATE SET RackNo = @RackNo, ReorderLevel = @BranchReorderLevel, MinQty = @BranchMinQty, MaxQty = @BranchMaxQty, IsStocked = @IsStocked, ModifiedBy = @userId, ModifiedDate = GETDATE()
-                WHEN NOT MATCHED THEN INSERT (ItemId, BranchId, RackNo, ReorderLevel, MinQty, MaxQty, IsStocked, ModifiedBy, ModifiedDate)
-                     VALUES (@ItemId, @branchId, @RackNo, @BranchReorderLevel, @BranchMinQty, @BranchMaxQty, @IsStocked, @userId, GETDATE());", p, tx);
-            tx.Commit();
-            return (f.ItemId, null);
-        }
-        catch (SqlException ex) when (ex.Number is 2627 or 2601)
-        {
-            tx.Rollback();
-            return (0, ex.Message.Contains("Barcode") ? "Another item already has this barcode." : "Another item already has this item code.");
-        }
+        var r = await api.PostAsync<PhSaveResult>($"{Base}/items/save", new { companyId, branchId, userId, item = f });
+        return (r.Id, r.Error);
     }
+}
+
+/// <summary>Result of an API save: the record id, or the message to show.</summary>
+public class PhSaveResult
+{
+    public int Id { get; set; }
+    public string? Error { get; set; }
 }

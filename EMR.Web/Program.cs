@@ -124,6 +124,7 @@ builder.Services.AddScoped<IDiscountTypeService, DiscountTypeService>();
 builder.Services.AddScoped<IPatientService, PatientService>();
 builder.Services.AddScoped<ICertificateService, CertificateService>();   // OPD > Certificates (SQLScripts/2341)
 builder.Services.AddScoped<ICertificateNotificationService, CertificateNotificationService>();   // certificate WhatsApp / e-mail (SQLScripts/2342)
+builder.Services.AddScoped<EMR.Web.ApiClients.PharmacyApiClient>();   // EMR.Api pharmacy endpoints (SQLScripts/2357+)
 builder.Services.AddScoped<IPharmacyMasterService, PharmacyMasterService>();   // Master > Pharmacy Master (SQLScripts/2343)
 builder.Services.AddScoped<IPharmacyPurchaseService, PharmacyPurchaseService>();   // Pharmacy > Purchase (SQLScripts/2344)
 builder.Services.AddScoped<IPharmacySaleService, PharmacySaleService>();   // Pharmacy > Sales (SQLScripts/2348)

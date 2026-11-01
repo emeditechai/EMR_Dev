@@ -1,0 +1,140 @@
+@using System.Text.Json
+@using EMR.Web.Services
+@model PhIssueDoc
+@{
+    var d = Model; var stores = ViewBag.Stores as List<PhStoreOption> ?? new(); bool print = ViewBag.Print as bool? ?? false;
+    var isNew = d.Id == 0; var editable = !print && (isNew || d.Status == "DRAFT");
+    var canIssue = !print && d.Status == "REQUESTED"; var canReceive = !print && d.Status == "ISSUED";
+    ViewData["Title"] = isNew ? "New store request" : (d.DocNo ?? "Draft store request");
+    string J(object? o) => JsonSerializer.Serialize(o, new JsonSerializerOptions { PropertyNamingPolicy = null });
+    var requested = d.Lines.Where(l => l.RequestQty > 0).ToList(); var issued = d.Lines.Where(l => l.RequestQty == 0 && l.IssueQty > 0).ToList();
+    string S(int id) => stores.FirstOrDefault(s => s.StoreId == id)?.StoreName ?? "";
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+@if (print) { <style>@@media print { .no-print, header, nav, footer { display: none !important; } }</style> }
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Store Issue (Godown to Counter)", "bi-box-arrow-in-right", isNew ? "Ask a store of this branch for stock." : $"{d.ToStore} asks {d.FromStore}", null, null, ViewData["Title"]!.ToString(), isNew ? "New" : "Request", Url.Action("Index"), Section: "Pharmacy", Group: "Inventory"))" />
+<div class="card shadow-sm border-0 mb-3"><div class="card-body d-flex flex-wrap gap-4 small align-items-center">
+    <div><div class="text-muted">Status</div><partial name="~/Views/PharmacyInventory/_InvStatus.cshtml" model="d.Status" /></div>
+    @if (!isNew)
+    {
+        <div><div class="text-muted">Request</div><b>@(d.DocNo ?? "draft")</b> · @d.CreatedByName</div>
+        <div><div class="text-muted">From (gives)</div><b>@d.FromStore</b></div><div><div class="text-muted">To (asks)</div><b>@d.ToStore</b></div>
+        <div><div class="text-muted">Issued</div>@(d.IssueDate?.ToString("dd-MMM HH:mm") ?? "—") @d.IssuedByName</div>
+        <div><div class="text-muted">Received</div>@(d.ReceiveDate?.ToString("dd-MMM HH:mm") ?? "—") @d.ReceivedByName@if (d.VarianceValue != 0) { <span class="text-danger"> · short ₹ @d.VarianceValue.ToString("N2")</span> }</div>
+    }
+    @if (print) { <button type="button" class="btn btn-sm btn-outline-secondary ms-auto no-print" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button> }
+</div></div>
+
+@if (editable)
+{
+    <form method="post" asp-action="Save" id="reqForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="json" id="json" /><input type="hidden" name="submit" id="submit" value="false" />
+    <div class="card shadow-sm border-0 mb-3"><div class="card-body row g-3">
+        <div class="col-md-3"><label class="form-label small fw-semibold req">Ask from (gives)</label><select id="from" class="form-select">@foreach (var s in stores) { <option value="@s.StoreId" selected="@(s.StoreId == d.FromStoreId)">@s.StoreName</option> }</select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold req">For (receives)</label><select id="to" class="form-select">@foreach (var s in stores) { <option value="@s.StoreId" selected="@(s.StoreId == d.ToStoreId)">@s.StoreName</option> }</select></div>
+        <div class="col-md-6"><label class="form-label small fw-semibold">Remarks</label><input id="remarks" class="form-control" maxlength="300" value="@d.Remarks" /></div>
+        <div class="col-md-6 position-relative"><label class="form-label small fw-semibold">Add item</label><input id="pick" class="form-control" placeholder="Brand or generic" autocomplete="off" /><div id="pickList" class="list-group position-absolute w-100 shadow d-none" style="z-index:30"></div></div>
+        @if (stores.Count < 2) { <div class="col-12"><div class="alert alert-warning py-2 small mb-0">This branch has one store only. Add a godown or counter in Master &gt; Pharmacy Master &gt; Store / Godown first.</div></div> }
+    </div>
+    <table class="table table-sm mb-0 ph-table"><thead><tr><th>Item</th><th class="text-end" style="width:200px">Quantity asked (units)</th><th>Remarks</th><th></th></tr></thead><tbody id="reqLines"></tbody></table>
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+        @if (!isNew) { <button asp-permission="PHARMACY.STOREISSUE:CANCEL" form="cnDraft" class="btn btn-outline-danger">Cancel request</button> }
+        <button asp-permission="PHARMACY.STOREISSUE:REQUEST" form="reqForm" class="btn btn-outline-primary" data-sub="false">Save draft</button>
+        <button asp-permission="PHARMACY.STOREISSUE:REQUEST" form="reqForm" class="btn btn-primary" data-sub="true"><i class="bi bi-send me-1"></i>Send to store</button>
+    </div>
+    </form>
+    @if (!isNew) { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnDraft">@Html.AntiForgeryToken()</form> }
+}
+else if (canIssue)
+{
+    <form method="post" asp-action="Issue" asp-route-id="@d.Id" id="issForm">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="json" id="json" />
+    <div class="card shadow-sm border-0 mb-3"><div class="card-body py-2 small fw-semibold">Issue from @d.FromStore: batches are filled first expiry first; change them if needed.</div>
+    <table class="table table-sm mb-0 ph-table"><thead><tr><th>Item</th><th class="text-end">Asked</th><th>Batch</th><th class="text-end" style="width:140px">Issue (units)</th></tr></thead><tbody id="issLines"></tbody></table></div>
+    <div class="d-flex gap-2 align-items-center"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+        <input name="remarks" class="form-control" style="max-width:320px" placeholder="Issue remarks" />
+        <button asp-permission="PHARMACY.STOREISSUE:CANCEL" form="cnForm" class="btn btn-outline-danger">Decline</button>
+        <button asp-permission="PHARMACY.STOREISSUE:ISSUE" class="btn btn-success"><i class="bi bi-box-arrow-right me-1"></i>Issue</button></div>
+    </form>
+    <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnForm">@Html.AntiForgeryToken()</form>
+}
+else
+{
+    <form method="post" asp-action="Receive" asp-route-id="@d.Id">
+    @Html.AntiForgeryToken()
+    <div class="card shadow-sm border-0 mb-3"><table class="table table-sm mb-0 ph-table">
+        <thead><tr><th>Item</th><th>Batch · exp.</th><th class="text-end">Asked</th><th class="text-end">Issued</th><th class="text-end">Received</th><th>Short reason</th><th class="text-end">Cost</th></tr></thead>
+        <tbody>
+        @foreach (var g in requested)
+        {
+            var lines = issued.Where(l => l.ItemId == g.ItemId).ToList();
+            if (lines.Count == 0) { <tr><td class="fw-semibold">@g.FormShort @g.ItemName</td><td class="small text-muted">—</td><td class="text-end">@g.RequestQty.ToString("0.##")</td><td class="text-end">—</td><td></td><td>@g.Remarks</td><td></td></tr> }
+            foreach (var l in lines)
+            {
+                <tr><td class="fw-semibold">@l.FormShort @l.ItemName</td><td class="small">@l.BatchNo @l.ExpiryDate?.ToString("MMM-yy")</td><td class="text-end">@g.RequestQty.ToString("0.##")</td><td class="text-end">@l.IssueQty?.ToString("0.##")</td>
+                    <td class="text-end">@if (canReceive) { <input type="number" name="received[@l.LineId]" value="@l.IssueQty?.ToString("0.###")" min="0" max="@l.IssueQty" step="1" class="form-control form-control-sm text-end ms-auto" style="width:90px" /> } else { @l.ReceivedQty?.ToString("0.##") }</td>
+                    <td>@if (canReceive) { <input name="reasons[@l.LineId]" class="form-control form-control-sm" maxlength="150" placeholder="if short" /> } else { @l.VarianceReason }</td>
+                    <td class="text-end">@(((l.IssueQty ?? 0) * (l.UnitCost ?? 0)).ToString("N2"))</td></tr>
+            }
+        }
+        </tbody></table></div>
+    <div class="d-flex gap-2 align-items-center no-print"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
+        @if (!print && d.Status is not ("DRAFT" or "CANCELLED")) { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
+        @if (canReceive) { <input name="remarks" class="form-control" style="max-width:320px" placeholder="Receipt remarks" /><button asp-permission="PHARMACY.STOREISSUE:RECEIVE" class="btn btn-success"><i class="bi bi-box-arrow-in-down me-1"></i>Receive into @d.ToStore</button> }
+    </div>
+    </form>
+}
+
+@section Scripts {
+<script>
+(function () {
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const doc = @Html.Raw(J(new { d.Id, Lines = requested.Select(l => new { l.ItemId, l.ItemName, l.FormShort, l.SaleUom, Qty = l.RequestQty, l.Remarks, l.FromStock }) }));
+    const body = document.getElementById('reqLines');
+    if (body) {
+        const lines = doc.Lines.slice();
+        const render = () => body.innerHTML = lines.map((l, i) => `<tr><td class="fw-semibold">${esc(l.FormShort || '')} ${esc(l.ItemName)}</td>
+            <td><input type="number" min="1" class="form-control form-control-sm text-end" data-i="${i}" data-f="Qty" value="${l.Qty}"></td>
+            <td><input class="form-control form-control-sm" data-i="${i}" data-f="Remarks" value="${esc(l.Remarks || '')}" maxlength="150"></td>
+            <td class="text-end"><button type="button" class="btn btn-sm btn-link text-danger" data-del="${i}"><i class="bi bi-x-lg"></i></button></td></tr>`).join('')
+            || '<tr><td colspan="4" class="text-muted small">Add the items needed.</td></tr>';
+        body.addEventListener('change', e => { const t = e.target; if (t.dataset.i) lines[t.dataset.i][t.dataset.f] = t.dataset.f === 'Qty' ? parseFloat(t.value) || 0 : t.value; });
+        body.addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (b) { lines.splice(+b.dataset.del, 1); render(); } });
+        const pick = document.getElementById('pick'), list = document.getElementById('pickList'); let t, res = [];
+        pick.addEventListener('input', () => { clearTimeout(t); if (pick.value.trim().length < 2) { list.classList.add('d-none'); return; }
+            t = setTimeout(async () => { res = await fetch('@Url.Action("ItemSearch")?q=' + encodeURIComponent(pick.value.trim())).then(r => r.json());
+                list.innerHTML = res.map((r, k) => `<a href="#" class="list-group-item list-group-item-action py-1" data-k="${k}">${esc(r.formShort || '')} ${esc(r.itemName)} <span class="small text-muted">branch stock ${r.stock} ${esc(r.saleUom)}</span></a>`).join('') || '<div class="list-group-item small text-muted">Nothing found.</div>';
+                list.classList.remove('d-none'); }, 250); });
+        list.addEventListener('mousedown', e => { const a = e.target.closest('[data-k]'); if (!a) return; e.preventDefault(); const r = res[a.dataset.k];
+            if (!lines.some(l => l.ItemId === r.itemId)) lines.push({ ItemId: r.itemId, ItemName: r.itemName, FormShort: r.formShort, SaleUom: r.saleUom, Qty: r.conversionQty, Remarks: '' });
+            list.classList.add('d-none'); pick.value = ''; render(); });
+        document.querySelectorAll('[data-sub]').forEach(b => b.addEventListener('click', () => document.getElementById('submit').value = b.dataset.sub));
+        document.getElementById('reqForm').addEventListener('submit', () => document.getElementById('json').value = JSON.stringify({ Id: doc.Id,
+            FromStoreId: +document.getElementById('from').value || 0, ToStoreId: +document.getElementById('to').value || 0, Remarks: document.getElementById('remarks').value,
+            Lines: lines.map(l => ({ ItemId: l.ItemId, RequestQty: l.Qty, Remarks: l.Remarks })) }));
+        render();
+    }
+    const iss = document.getElementById('issLines');
+    if (iss) {
+        const rows = [];
+        (async () => {
+            for (const l of doc.Lines) {
+                const bs = await fetch('@Url.Action("Batches")?itemId=' + l.ItemId + '&storeId=@d.FromStoreId').then(r => r.json());
+                let left = l.Qty;
+                if (!bs.length) rows.push({ l, b: null, q: 0 });
+                bs.forEach(b => { const q = Math.min(left, b.stock); if (q > 0 || !rows.some(r => r.l === l)) rows.push({ l, b, q }); left -= q; });
+            }
+            iss.innerHTML = rows.map((r, i) => `<tr><td class="fw-semibold">${esc(r.l.FormShort || '')} ${esc(r.l.ItemName)}</td><td class="text-end">${r.l.Qty}</td>
+                <td>${r.b ? `${esc(r.b.batchNo)} · ${new Date(r.b.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })} · stock ${r.b.stock}` : '<span class="text-danger">no stock in this store</span>'}</td>
+                <td>${r.b ? `<input type="number" min="0" max="${r.b.stock}" class="form-control form-control-sm text-end" data-i="${i}" value="${r.q}">` : ''}</td></tr>`).join('');
+        })();
+        iss.addEventListener('input', e => { if (e.target.dataset.i) rows[e.target.dataset.i].q = parseFloat(e.target.value) || 0; });
+        document.getElementById('issForm').addEventListener('submit', () => document.getElementById('json').value = JSON.stringify(rows.filter(r => r.b && r.q > 0).map(r => ({ BatchId: r.b.batchId, IssueQty: r.q }))));
+    }
+})();
+</script>
+}

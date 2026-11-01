@@ -109,6 +109,11 @@ builder.Services.AddScoped<ILabTestSubCategoryService, LabTestSubCategoryService
 builder.Services.AddScoped<ILabSampleTypeService,      LabSampleTypeService>();
 builder.Services.AddScoped<ILabTestMethodService,      LabTestMethodService>();
 builder.Services.AddScoped<ILabUnitService,            LabUnitService>();
+builder.Services.AddScoped<IPharmacyMasterService,     PharmacyMasterService>();   // Pharmacy masters + Item Master (SQLScripts/2357)
+builder.Services.AddScoped<IPharmacyPurchaseService,   PharmacyPurchaseService>(); // Pharmacy > Purchase (SQLScripts/2358)
+builder.Services.AddScoped<IPharmacyProcService,       PharmacyProcService>();     // pharmacy stored procedures for Sales / Inventory (SQLScripts/2359+)
+builder.Services.AddSingleton<EMR.Api.Services.BillReader.BillTextSource>();   // pharmacy "Read bill": PdfPig / Tesseract (SQLScripts/2367)
+builder.Services.AddScoped<EMR.Api.Services.BillReader.IBillReaderService, EMR.Api.Services.BillReader.BillReaderService>();
 builder.Services.AddScoped<IAnalyzerService,           AnalyzerService>();
 builder.Services.AddScoped<ILabInvestigationService,        LabInvestigationService>();
 builder.Services.AddScoped<ILabInvestigationProfileService, LabInvestigationProfileService>();

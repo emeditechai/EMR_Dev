@@ -43,7 +43,11 @@ else if (canDispatch)
     <form method="post" asp-action="Dispatch" asp-route-id="@d.Id" id="dspForm">
     @Html.AntiForgeryToken()
     <input type="hidden" name="json" id="json" />
-    <div class="card shadow-sm border-0 mb-3"><div class="card-body py-2 small fw-semibold">Send from this branch: batches are filled first expiry first; change them if needed.</div>
+    @{ var outStores = ViewBag.Stores as List<EMR.Web.Services.PhStoreOption> ?? new(); }
+    <div class="card shadow-sm border-0 mb-3"><div class="card-body py-2 small fw-semibold d-flex flex-wrap align-items-center gap-2">
+        <span class="me-auto">Send from this branch: batches are filled first expiry first; change them if needed.</span>
+        <label class="mb-0" for="fromStore">Send from</label>
+        <select name="storeId" id="fromStore" class="form-select form-select-sm w-auto">@foreach (var s in outStores) { <option value="@s.StoreId" selected="@s.IsDefault">@s.StoreName</option> }</select></div>
     <table class="table table-sm mb-0 ph-table"><thead><tr><th>Item</th><th class="text-end">Asked</th><th>Batch</th><th class="text-end" style="width:140px">Send (units)</th></tr></thead><tbody id="dspLines"></tbody></table></div>
     <div class="d-flex gap-2 align-items-center"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
         <input name="remarks" class="form-control" style="max-width:320px" placeholder="Dispatch remarks (vehicle, carrier...)" />
@@ -73,7 +77,12 @@ else
         </tbody></table></div>
     <div class="d-flex gap-2 align-items-center"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
         @if (d.Status != "DRAFT" && d.Status != "CANCELLED") { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
-        @if (canReceive) { <input name="remarks" class="form-control" style="max-width:320px" placeholder="Receipt remarks" /><button asp-permission="PHARMACY.TRANSFER:RECEIVE" class="btn btn-success"><i class="bi bi-box-arrow-in-down me-1"></i>Receive</button> }
+        @if (canReceive)
+        {
+            var inStores = ViewBag.ReceiveStores as List<EMR.Web.Services.PhStoreOption> ?? new();
+            <label class="small mb-0" for="toStore">Receive into</label>
+            <select name="storeId" id="toStore" class="form-select w-auto">@foreach (var s in inStores) { <option value="@s.StoreId" selected="@s.IsDefault">@s.StoreName</option> }</select>
+            <input name="remarks" class="form-control" style="max-width:320px" placeholder="Receipt remarks" /><button asp-permission="PHARMACY.TRANSFER:RECEIVE" class="btn btn-success"><i class="bi bi-box-arrow-in-down me-1"></i>Receive</button> }
     </div>
     </form>
     @if (asker && d.Status == "REQUESTED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="PHARMACY.TRANSFER:CANCEL" class="mt-2 text-end">@Html.AntiForgeryToken()<button class="btn btn-sm btn-outline-danger">Cancel indent</button></form> }
@@ -107,18 +116,22 @@ else
     }
     const dsp = document.getElementById('dspLines');
     if (dsp) {
-        const rows = [];
-        (async () => {
+        let rows = [];
+        const fromStore = document.getElementById('fromStore');
+        const load = async () => {
+            rows = []; dsp.innerHTML = '<tr><td colspan="4" class="text-muted small">Loading batches…</td></tr>';
             for (const l of doc.Lines) {
-                const bs = await fetch('@Url.Action("Batches")?itemId=' + l.ItemId).then(r => r.json());
+                const bs = await fetch('@Url.Action("Batches")?itemId=' + l.ItemId + (fromStore && fromStore.value ? '&storeId=' + fromStore.value : '')).then(r => r.json());
                 let left = l.Qty;
                 if (!bs.length) rows.push({ l, b: null, q: 0 });
                 bs.forEach(b => { const q = Math.min(left, b.stock); if (q > 0 || !rows.some(r => r.l === l)) rows.push({ l, b, q, bs }); left -= q; });
             }
             dsp.innerHTML = rows.map((r, i) => `<tr><td class="fw-semibold">${esc(r.l.ItemName)}</td><td class="text-end">${r.l.Qty}</td>
-                <td>${r.b ? `${esc(r.b.batchNo)} · ${new Date(r.b.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })} · stock ${r.b.stock}` : '<span class="text-danger">no sellable stock</span>'}</td>
+                <td>${r.b ? `${esc(r.b.batchNo)} · ${new Date(r.b.expiryDate).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })} · stock ${r.b.stock}` : '<span class="text-danger">no sellable stock in this store</span>'}</td>
                 <td>${r.b ? `<input type="number" min="0" max="${r.b.stock}" class="form-control form-control-sm text-end" data-i="${i}" value="${r.q}">` : ''}</td></tr>`).join('');
-        })();
+        };
+        load();
+        fromStore && fromStore.addEventListener('change', load);
         dsp.addEventListener('input', e => { if (e.target.dataset.i) rows[e.target.dataset.i].q = parseFloat(e.target.value) || 0; });
         document.getElementById('dspForm').addEventListener('submit', () => document.getElementById('json').value = JSON.stringify(rows.filter(r => r.b && r.q > 0).map(r => ({ BatchId: r.b.batchId, DispatchQty: r.q }))));
     }

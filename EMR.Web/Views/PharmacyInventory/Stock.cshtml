@@ -15,6 +15,11 @@
         <select name="filter" class="form-select form-select-sm" style="width:auto" data-auto>
             @foreach (var (v, t) in new[] { ("instock", "In stock"), ("near", "Expiring in 90 days"), ("expired", "Expired (in stock)"), ("zero", "Zero stock batches"), ("all", "All batches") }) { <option value="@v" selected="@(v == filter)">@t</option> }
         </select>
+        @{ var sStores = ViewBag.Stores as List<EMR.Web.Services.PhStoreOption> ?? new(); int? sStore = ViewBag.StoreId; }
+        @if (sStores.Count > 1)
+        {
+            <select name="storeId" class="form-select form-select-sm" style="width:auto" data-auto title="Store / godown"><option value="">All stores (branch)</option>@foreach (var s in sStores) { <option value="@s.StoreId" selected="@(sStore == s.StoreId)">@s.StoreName</option> }</select>
+        }
         <select name="categoryId" class="form-select form-select-sm" style="width:220px" data-auto><option value="">All categories</option>@foreach (var c in cats) { <option value="@c.Value" selected="@(c.Value == categoryId?.ToString())">@c.Text</option> }</select>
         <span class="small text-muted">Value at cost <b>₹ @Model.Sum(m => m.CostValue).ToString("N2")</b> · at MRP ₹ @Model.Sum(m => m.MrpValue).ToString("N2")</span>
         <button type="button" class="btn btn-sm btn-outline-success ms-auto" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>

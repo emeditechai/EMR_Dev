@@ -15,13 +15,14 @@ public class PhStockCountsController(IPharmacyInventoryService inventory, IPharm
     public async Task<IActionResult> Index()
     {
         ViewBag.Categories = (await masters.ItemLookupsAsync(CompanyId)).Categories;
+        ViewBag.Stores = await Inventory.StoresAsync(CompanyId, BranchId, "ANY");
         return View("~/Views/PharmacyInventory/Counts.cshtml", await Inventory.CountsAsync(CompanyId, BranchId));
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(string? rack, int? categoryId, bool includeZero, string? remarks)
+    public async Task<IActionResult> Create(string? rack, int? categoryId, bool includeZero, string? remarks, int? storeId)
     {
-        var (id, err) = await Inventory.CreateCountAsync(CompanyId, BranchId, rack, categoryId, includeZero, remarks, UserId);
+        var (id, err) = await Inventory.CreateCountAsync(CompanyId, BranchId, rack, categoryId, includeZero, remarks, UserId, storeId);
         if (err != null) { TempData["Error"] = err; return RedirectToAction(nameof(Index)); }
         await LogAsync("CountCreate", $"Physical stock verification #{id} started (stock frozen)");
         return Back(null, "Stock frozen. Print the count sheet, count and enter the quantities.", new { id });

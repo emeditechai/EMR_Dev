@@ -8,7 +8,7 @@ namespace EMR.Api.Controllers;
 [Route("api/patientportal")]
 [EMR.Api.Security.PatientOwnData]
 [Produces("application/json")]
-public class PatientPortalApiController(IPatientPortalService portalService) : ControllerBase
+public class PatientPortalApiController(IPatientPortalService portalService, IPharmacyProcService pharmacy) : ControllerBase
 {
     [HttpGet("{patientId:int}/dashboard")]
     public async Task<IActionResult> GetDashboardSummary(int patientId)
@@ -50,5 +50,15 @@ public class PatientPortalApiController(IPatientPortalService portalService) : C
     {
         var result = await portalService.GetPrescriptionsAsync(patientId);
         return Ok(ApiResponse<IEnumerable<PortalPrescription>>.Ok(result));
+    }
+
+    /// <summary>The patient's pharmacy bills, each with what was bought (SQLScripts/2368).</summary>
+    [HttpGet("{patientId:int}/pharmacy")]
+    public async Task<IActionResult> GetPharmacy(int patientId)
+    {
+        var sets = await pharmacy.SetsAsync("dbo.usp_Api_Portal_PharmacyBills", new { PatientId = patientId }, 2);
+        var lines = sets[1].GroupBy(l => Convert.ToInt32(l["SaleId"])).ToDictionary(g => g.Key, g => g.ToList());
+        foreach (var b in sets[0]) b["Lines"] = lines.TryGetValue(Convert.ToInt32(b["SaleId"]), out var ls) ? ls : [];
+        return Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(sets[0]));
     }
 }

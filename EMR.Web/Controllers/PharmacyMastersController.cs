@@ -30,6 +30,7 @@ public class PharmacyMastersController(
     [HttpGet] public Task<IActionResult> Customers() => List("customers");
     [HttpGet] public Task<IActionResult> Reasons() => List("reasons");
     [HttpGet] public Task<IActionResult> NumberSeries() => List("numberseries");
+    [HttpGet] public Task<IActionResult> Stores() => List("stores");
 
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveGeneric() => Save("generics", nameof(Generics));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveManufacturer() => Save("manufacturers", nameof(Manufacturers));
@@ -43,6 +44,7 @@ public class PharmacyMastersController(
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveCustomer() => Save("customers", nameof(Customers));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveReason() => Save("reasons", nameof(Reasons));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveNumberSeries() => Save("numberseries", nameof(NumberSeries));
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveStore() => Save("stores", nameof(Stores));
 
     private async Task<IActionResult> List(string key)
     {

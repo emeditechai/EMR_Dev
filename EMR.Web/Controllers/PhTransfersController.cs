@@ -24,11 +24,14 @@ public class PhTransfersController(IPharmacyInventoryService inventory, IPharmac
         if (d == null) return NotFound();
         ViewBag.Branches = await Inventory.OtherBranchesAsync(CompanyId, BranchId);
         ViewBag.BranchId = BranchId;
+        ViewBag.Stores = await Inventory.StoresAsync(CompanyId, BranchId, "ANY");            // dispatch: store sent from
+        ViewBag.ReceiveStores = await Inventory.StoresAsync(CompanyId, BranchId, "RECEIVE"); // receipt: store received into
         return View("~/Views/PharmacyInventory/TransferForm.cshtml", d);
     }
 
     [HttpGet] public async Task<IActionResult> ItemSearch(string? q) => Json(string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2 ? [] : await purchase.ItemSearchAsync(CompanyId, BranchId, q.Trim()));
-    [HttpGet] public async Task<IActionResult> Batches(int itemId) => Json(await sales.BatchesAsync(CompanyId, BranchId, itemId));
+    [HttpGet] public async Task<IActionResult> Batches(int itemId, int? storeId) =>
+        Json(storeId is > 0 ? await Inventory.StoreBatchesAsync(CompanyId, BranchId, storeId.Value, itemId) : await sales.BatchesAsync(CompanyId, BranchId, itemId));
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(string? json, bool submit = false)
@@ -42,18 +45,18 @@ public class PhTransfersController(IPharmacyInventoryService inventory, IPharmac
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Dispatch(int id, string? json, string? remarks)
+    public async Task<IActionResult> Dispatch(int id, string? json, string? remarks, int? storeId)
     {
         var lines = string.IsNullOrWhiteSpace(json) ? [] : JsonSerializer.Deserialize<List<PhInvLine>>(json, Json) ?? [];
-        var err = await Inventory.DispatchAsync(CompanyId, BranchId, id, lines, remarks, UserId);
+        var err = await Inventory.DispatchAsync(CompanyId, BranchId, id, lines, remarks, UserId, storeId);
         if (err == null) await LogAsync("TransferDispatch", $"Transfer #{id} dispatched");
         return Back(err, "Stock sent: it is in transit until the branch receives it.", new { id });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Receive(int id, Dictionary<int, decimal>? received, Dictionary<int, string>? reasons, string? remarks)
+    public async Task<IActionResult> Receive(int id, Dictionary<int, decimal>? received, Dictionary<int, string>? reasons, string? remarks, int? storeId)
     {
-        var err = await Inventory.ReceiveAsync(CompanyId, BranchId, id, received ?? [], reasons ?? [], remarks, UserId);
+        var err = await Inventory.ReceiveAsync(CompanyId, BranchId, id, received ?? [], reasons ?? [], remarks, UserId, storeId);
         if (err == null) await LogAsync("TransferReceive", $"Transfer #{id} received");
         return Back(err, "Transfer received: stock added.", new { id });
     }

@@ -1,84 +1,308 @@
+@using EMR.Web.Extensions
+@using System.Text.Json
 @using EMR.Web.Services
 @model PhDashboard
 @{
-    // Pharmacy > Inventory > Pharmacy Dashboard (SQLScripts/2349)
+    // Pharmacy > Inventory > Pharmacy Dashboard (SQLScripts/2349, 2366)
     ViewData["Title"] = "Pharmacy Dashboard";
     var d = Model;
-    string N(decimal v) => "₹ " + v.ToString("N0");
-    var max7 = d.Last7.Count == 0 ? 1 : Math.Max(1, d.Last7.Max(x => x.Value));
+    string N(decimal v) => "₹ " + v.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("en-IN"));
+    string J(object o) => JsonSerializer.Serialize(o);
+    var now = DateTime.Now;
+    var greet = now.Hour < 12 ? "Good morning" : now.Hour < 17 ? "Good afternoon" : "Good evening";
+    var salesDelta = d.SalesYesterday == 0 ? (decimal?)null : (d.SalesToday - d.SalesYesterday) * 100 / d.SalesYesterday;
+    var gp = d.SalesMonth - d.CostMonth; var gpPct = d.SalesMonth == 0 ? 0 : gp * 100 / d.SalesMonth;
+    var avgBill = d.BillsMonth == 0 ? 0 : d.SalesMonth / d.BillsMonth;
+    var collected = d.CashToday + d.NonCashToday;
+    var expTotal = Math.Max(1m, d.ExpiredValue + d.Exp30Value + d.Exp60Value + d.Exp90Value);
+    var topMax = d.TopItems.Count == 0 ? 1 : Math.Max(1, d.TopItems.Max(t => t.Value));
+    var urgent = d.Pending.Count(p => p.Priority == "URGENT");
+    string Age(DateTime since) { var t = now - since; return t.TotalMinutes < 60 ? $"{Math.Max(1, (int)t.TotalMinutes)} min" : t.TotalHours < 24 ? $"{(int)t.TotalHours} h" : $"{(int)t.TotalDays} d"; }
+    string Link(PhPendingRequest p) => p.Kind switch
+    {
+        "PURCHASE" => Url.Action("Form", "PhPurchaseIndents", new { id = p.Id })!,
+        "BRANCH_OUT" or "BRANCH_IN" => Url.Action("Form", "PhTransfers", new { id = p.Id })!,
+        _ => Url.Action("Form", "PhStoreIssues", new { id = p.Id })!
+    };
+    string Icon(string kind) => kind switch { "PURCHASE" => "bi-clipboard-check", "BRANCH_OUT" => "bi-truck", "BRANCH_IN" => "bi-box-arrow-in-down", "STORE_ISSUE" => "bi-box-arrow-right", _ => "bi-box-arrow-in-right" };
+    var todo = new (string Title, int Count, string Ctl, string Act, object? Route, string Icon, string Tone)[]
+    {
+        ("Purchase indents to approve", d.PendIndents, "PhPurchaseIndents", "Index", new { status = "SUBMITTED" }, "bi-clipboard-check", "amber"),
+        ("Draft purchase indents", d.DraftIndents, "PhPurchaseIndents", "Index", new { status = "DRAFT" }, "bi-clipboard", "slate"),
+        ("Purchase orders open", d.PendPos, "PhPurchaseOrders", "Index", null, "bi-cart3", "blue"),
+        ("Draft GRNs", d.DraftGrns, "PhGrns", "Index", new { status = "DRAFT" }, "bi-box-arrow-in-down", "blue"),
+        ("Branch indents to send", d.ToDispatch, "PhTransfers", "Index", new { dir = "OUT", status = "REQUESTED" }, "bi-truck", "amber"),
+        ("Transfers to receive", d.ToReceive, "PhTransfers", "Index", new { dir = "IN", status = "DISPATCHED" }, "bi-box-seam", "amber"),
+        ("Store requests to issue", d.IssuesToIssue, "PhStoreIssues", "Index", new { status = "REQUESTED" }, "bi-box-arrow-right", "amber"),
+        ("Store issues to receive", d.IssuesToReceive, "PhStoreIssues", "Index", new { status = "ISSUED" }, "bi-box-arrow-in-right", "amber"),
+        ("Held bills", d.HeldBills, "PhSales", "Index", new { status = "HOLD" }, "bi-pause-circle", "slate"),
+        ("Adjustments to approve", d.PendAdjust, "PhAdjustments", "Index", new { status = "SUBMITTED" }, "bi-plus-slash-minus", "rose"),
+        ("Write-offs to approve", d.PendWriteOff, "PhWriteOffs", "Index", new { status = "SUBMITTED" }, "bi-trash3", "rose"),
+        ("Stock verifications open", d.PendCounts, "PhStockCounts", "Index", null, "bi-clipboard-data", "slate"),
+        ("Batch corrections to approve", d.PendCorrections, "PhBatchCorrections", "Index", new { status = "SUBMITTED" }, "bi-pencil-square", "rose"),
+    };
+    var waiting = todo.Sum(t => t.Count);
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
 <style>
-    .kpi { background: var(--bs-body-bg, #fff); border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 14px 16px; height: 100%; }
-    .kpi .l { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; font-weight: 700; }
-    .kpi .v { font-size: 1.5rem; font-weight: 800; color: #1e293b; line-height: 1.2; }
-    .kpi .s { font-size: .78rem; color: #64748b; }
-    .todo a { display: flex; justify-content: space-between; padding: .45rem .75rem; border-bottom: 1px solid #f1f5f9; text-decoration: none; color: inherit; }
-    .todo a:hover { background: #f5f0ff; } .todo .b { min-width: 30px; text-align: center; }
-    .bar { background: var(--emr-primary, #644098); border-radius: 4px 4px 0 0; width: 100%; }
+    .phd { --ink:#1e293b; --muted:#64748b; --line:#eef0f4; --brand: var(--emr-primary, #644098); --brand-soft:#f3eefb;
+           --green:#059669; --amber:#d97706; --rose:#e11d48; --blue:#2563eb; --slate:#64748b; }
+    .phd .card-x { background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 1px 2px rgba(15,23,42,.04); height:100%; }
+    .phd .card-x > .hd { display:flex; align-items:center; gap:.5rem; padding:.85rem 1rem .4rem; font-size:.74rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); }
+    .phd .card-x > .hd .ms-auto { text-transform:none; letter-spacing:0; font-weight:600; }
+    .phd .card-x > .bd { padding:.25rem 1rem 1rem; }
+    /* hero */
+    .phd .hero { background:linear-gradient(120deg, var(--brand) 0%, #8b5cf6 55%, #c2416b 100%); color:#fff; border-radius:16px; padding:1.25rem 1.5rem; position:relative; overflow:hidden; }
+    .phd .hero::after { content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px; border-radius:50%; background:rgba(255,255,255,.08); }
+    .phd .hero h1 { font-size:1.45rem; font-weight:800; margin:0; }
+    .phd .hero .sub { opacity:.85; font-size:.9rem; }
+    .phd .qa { display:flex; flex-wrap:wrap; gap:.5rem; position:relative; z-index:1; }
+    .phd .qa a { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:10px; padding:.45rem .8rem; font-size:.85rem; font-weight:600; text-decoration:none; backdrop-filter:blur(4px); }
+    .phd .qa a:hover { background:#fff; color:var(--brand); }
+    /* reminder */
+    @@keyframes phdPulse { 0%,100% { box-shadow:0 0 0 0 rgba(225,29,72,.45); } 50% { box-shadow:0 0 0 10px rgba(225,29,72,0); } }
+    @@keyframes phdRing { 0%,60%,100% { transform:rotate(0); } 10%,30%,50% { transform:rotate(14deg); } 20%,40% { transform:rotate(-14deg); } }
+    @@keyframes phdBlink { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+    .phd .remind { border:1px solid #fecdd3; background:linear-gradient(90deg,#fff1f2,#fff7ed); border-radius:14px; padding:.8rem 1rem; animation:phdPulse 2s infinite; }
+    .phd .remind.calm { animation:none; border-color:#fde68a; background:#fffbeb; }
+    .phd .remind .bell { width:42px; height:42px; border-radius:12px; background:var(--rose); color:#fff; display:grid; place-items:center; font-size:1.25rem; animation:phdRing 2.4s infinite; flex:0 0 auto; }
+    .phd .remind.calm .bell { background:var(--amber); }
+    .phd .remind .live { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--rose); animation:phdBlink 1s infinite; margin-right:.35rem; }
+    .phd .chips { display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.25rem; }
+    .phd .chip { flex:0 0 auto; display:flex; gap:.55rem; align-items:center; background:#fff; border:1px solid #fde2e4; border-radius:10px; padding:.4rem .65rem; text-decoration:none; color:var(--ink); font-size:.8rem; }
+    .phd .chip:hover { border-color:var(--rose); }
+    .phd .chip i { color:var(--rose); }
+    .phd .chip .age { color:var(--muted); font-size:.72rem; }
+    .phd .chip .urg { background:var(--rose); color:#fff; border-radius:6px; padding:0 .35rem; font-size:.65rem; font-weight:700; }
+    /* kpis */
+    .phd .kpi { padding:1rem; display:flex; gap:.85rem; align-items:flex-start; }
+    .phd .kpi .ic { width:42px; height:42px; border-radius:12px; display:grid; place-items:center; font-size:1.2rem; flex:0 0 auto; }
+    .phd .kpi .l { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:700; }
+    .phd .kpi .v { font-size:1.4rem; font-weight:800; color:var(--ink); line-height:1.15; font-variant-numeric:tabular-nums; }
+    .phd .kpi .s { font-size:.76rem; color:var(--muted); }
+    .phd .t-brand { background:var(--brand-soft); color:var(--brand); } .phd .t-green { background:#ecfdf5; color:var(--green); } .phd .t-blue { background:#eff6ff; color:var(--blue); }
+    .phd .t-amber { background:#fffbeb; color:var(--amber); } .phd .t-rose { background:#fff1f2; color:var(--rose); } .phd .t-slate { background:#f1f5f9; color:var(--slate); }
+    .phd .up { color:var(--green); font-weight:700; } .phd .down { color:var(--rose); font-weight:700; }
+    /* action centre */
+    .phd .todo { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:.5rem; }
+    .phd .todo a { display:flex; align-items:center; gap:.6rem; padding:.55rem .65rem; border:1px solid var(--line); border-radius:10px; text-decoration:none; color:var(--ink); font-size:.8rem; }
+    .phd .todo a:hover { border-color:var(--brand); background:var(--brand-soft); }
+    .phd .todo a.zero { opacity:.55; }
+    .phd .todo .n { margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums; }
+    .phd .todo .dot { width:28px; height:28px; border-radius:8px; display:grid; place-items:center; flex:0 0 auto; }
+    /* lists */
+    .phd .rowline { display:flex; align-items:center; gap:.5rem; padding:.42rem 0; border-bottom:1px dashed var(--line); font-size:.82rem; }
+    .phd .rowline:last-child { border-bottom:0; }
+    .phd .meter { height:6px; border-radius:6px; background:#f1f5f9; overflow:hidden; }
+    .phd .meter > span { display:block; height:100%; border-radius:6px; }
+    .phd .num { font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .phd .empty { color:var(--muted); font-size:.82rem; padding:.75rem 0; text-align:center; }
+    .phd .tag { font-size:.66rem; font-weight:700; border-radius:6px; padding:.05rem .4rem; }
 </style>
-<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Pharmacy Dashboard", "bi-speedometer2", $"Today at this branch · {DateTime.Now:dddd, dd MMM yyyy HH:mm}", null, null, Section: "Pharmacy", Group: "Inventory"))" />
 
-<div class="row g-3 mb-3">
-    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Sales today</div><div class="v">@N(d.SalesToday)</div><div class="s">@d.BillsToday bills · returns @N(d.ReturnsToday)</div></div></div>
-    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Collected today</div><div class="v">@N(d.CashToday + d.NonCashToday)</div><div class="s">cash @N(d.CashToday) · other @N(d.NonCashToday)</div></div></div>
-    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Sales this month</div><div class="v">@N(d.SalesMonth)</div><div class="s">purchases @N(d.PurchasesMonth)</div></div></div>
-    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Stock value (cost)</div><div class="v">@N(d.StockValue)</div><div class="s">@d.ItemsInStock items · MRP value @N(d.StockMrpValue)</div></div></div>
-    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Credit due</div><div class="v text-danger">@N(d.CreditDue)</div><div class="s">credit today @N(d.CreditToday)</div></div></div>
-    <div class="col-6 col-xl-2"><div class="kpi"><div class="l">Payable to suppliers</div><div class="v">@N(d.SupplierDue)</div><div class="s">purchases today @N(d.PurchasesToday)</div></div></div>
-</div>
-
-<div class="row g-3 mb-3">
-    <div class="col-xl-4">
-        <div class="kpi"><div class="l mb-2">Expiry watch</div>
-            <table class="table table-sm mb-0 small">
-                <tr class="table-danger"><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="0">Expired, still in stock</a></td><td class="text-end">@d.Expired batches</td><td class="text-end fw-bold">@N(d.ExpiredValue)</td></tr>
-                <tr><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="30">Expiring in 30 days</a></td><td class="text-end">@d.Exp30</td><td class="text-end">@N(d.Exp30Value)</td></tr>
-                <tr><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="60">31 - 60 days</a></td><td class="text-end">@d.Exp60</td><td class="text-end">@N(d.Exp60Value)</td></tr>
-                <tr><td><a asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="90">61 - 90 days</a></td><td class="text-end">@d.Exp90</td><td class="text-end">@N(d.Exp90Value)</td></tr>
-            </table>
-            <div class="s mt-2">Expired stock is never sold. Return it to the supplier (Purchase Return) or write it off.</div>
-        </div>
-    </div>
-    <div class="col-xl-4">
-        <div class="kpi"><div class="l mb-2">Waiting for action</div>
-            <div class="todo small">
-                @foreach (var (t, n, c, a2, r) in new (string, int, string, string, object?)[] {
-                    ("Held bills", d.HeldBills, "PhSales", "Index", new { status = "HOLD" }), ("Purchase indents to approve", d.PendIndents, "PhPurchaseIndents", "Index", new { status = "SUBMITTED" }),
-                    ("Purchase orders open", d.PendPos, "PhPurchaseOrders", "Index", null), ("Draft GRNs", d.DraftGrns, "PhGrns", "Index", new { status = "DRAFT" }),
-                    ("Indents to send to branches", d.ToDispatch, "PhTransfers", "Index", new { dir = "OUT", status = "REQUESTED" }), ("Transfers to receive", d.ToReceive, "PhTransfers", "Index", new { dir = "IN", status = "DISPATCHED" }),
-                    ("Adjustments to approve", d.PendAdjust, "PhAdjustments", "Index", new { status = "SUBMITTED" }), ("Write-offs to approve", d.PendWriteOff, "PhWriteOffs", "Index", new { status = "SUBMITTED" }),
-                    ("Stock verifications open", d.PendCounts, "PhStockCounts", "Index", null), ("Batch corrections to approve", d.PendCorrections, "PhBatchCorrections", "Index", new { status = "SUBMITTED" }) })
-                {
-                    <a href="@Url.Action(a2, c, r)"><span>@t</span><span class="badge b @(n > 0 ? "bg-warning text-dark" : "bg-light text-muted border")">@n</span></a>
-                }
+<div class="phd">
+    @* ── hero ── *@
+    <div class="hero mb-3">
+        <div class="d-flex flex-wrap align-items-center gap-3 position-relative" style="z-index:1">
+            <div class="me-auto">
+                <div class="sub">Pharmacy · Inventory</div>
+                <h1><i class="bi bi-capsule-pill me-2"></i>@greet, @User.GetDisplayName()</h1>
+                <div class="sub">@now.ToString("dddd, dd MMMM yyyy · hh:mm tt") @if (d.Stores > 1) { <span>· @d.Stores stores</span> }</div>
             </div>
-            <div class="s mt-2"><i class="bi bi-hospital me-1"></i>IPD issues will appear here when the IPD module is ready.</div>
-        </div>
-    </div>
-    <div class="col-xl-4">
-        <div class="kpi"><div class="l mb-2">Sales, last 7 days</div>
-            <div class="d-flex align-items-end gap-2" style="height:150px">
-                @for (var i = 6; i >= 0; i--)
-                {
-                    var day = DateTime.Today.AddDays(-i); var v = d.Last7.FirstOrDefault(x => x.Day.Date == day).Value;
-                    <div class="flex-fill text-center small" title="@day.ToString("ddd dd MMM"): ₹ @v.ToString("N0")">
-                        <div class="text-muted" style="font-size:.7rem">@(v > 0 ? (v >= 1000 ? (v / 1000).ToString("0.#") + "k" : v.ToString("0")) : "")</div>
-                        <div class="bar" style="height:@((int)(110 * v / max7))px;min-height:2px"></div><div>@day.ToString("ddd")</div>
-                    </div>
-                }
+            <div class="qa">
+                <a asp-controller="PhSales" asp-action="Pos" asp-permission="PHARMACY.POS:VIEW"><i class="bi bi-cart-plus me-1"></i>New sale</a>
+                <a asp-controller="PhGrns" asp-action="Form" asp-permission="PHARMACY.GRN:VIEW"><i class="bi bi-box-arrow-in-down me-1"></i>GRN</a>
+                <a asp-controller="PhPurchaseIndents" asp-action="Form" asp-permission="PHARMACY.PURCHASEINDENT:VIEW"><i class="bi bi-clipboard-plus me-1"></i>Indent</a>
+                <a asp-controller="PhStoreIssues" asp-action="Form" asp-permission="PHARMACY.STOREISSUE:VIEW"><i class="bi bi-box-arrow-right me-1"></i>Store issue</a>
+                <a asp-controller="PhStock" asp-action="Index" asp-permission="PHARMACY.STOCK:VIEW"><i class="bi bi-search me-1"></i>Stock</a>
             </div>
         </div>
     </div>
+
+    @* ── reminder: requests waiting at this branch ── *@
+    @if (d.Pending.Count > 0)
+    {
+        <div class="remind mb-3 @(urgent == 0 ? "calm" : "")" id="phdRemind">
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <div class="bell"><i class="bi bi-bell-fill"></i></div>
+                <div class="me-auto">
+                    <div class="fw-bold"><span class="live"></span>@d.Pending.Count request@(d.Pending.Count == 1 ? "" : "s") waiting for you@(urgent > 0 ? $" · {urgent} urgent" : "")</div>
+                    <div class="small text-muted">Indents and stock requests that someone is waiting on. Oldest first; urgent on top.</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="phdSnooze" title="Hide for 30 minutes"><i class="bi bi-alarm me-1"></i>Remind me later</button>
+            </div>
+            <div class="chips">
+                @foreach (var p in d.Pending)
+                {
+                    <a class="chip" href="@Link(p)">
+                        <i class="bi @Icon(p.Kind) fs-5"></i>
+                        <span><span class="fw-semibold">@p.Title</span> @if (p.Priority == "URGENT") { <span class="urg">URGENT</span> }<br />
+                            <span class="font-monospace">@(p.DocNo ?? "#" + p.Id)</span> · @p.Items item@(p.Items == 1 ? "" : "s")@(string.IsNullOrEmpty(p.Party) ? "" : " · " + p.Party) · <span class="age">waiting @Age(p.Since)</span></span>
+                    </a>
+                }
+            </div>
+        </div>
+    }
+
+    @* ── KPIs ── *@
+    <div class="row g-3 mb-3">
+        <div class="col-sm-6 col-xl-2"><div class="card-x kpi"><div class="ic t-brand"><i class="bi bi-receipt"></i></div><div>
+            <div class="l">Sales today</div><div class="v">@N(d.SalesToday)</div>
+            <div class="s">@d.BillsToday bill@(d.BillsToday == 1 ? "" : "s") @if (salesDelta is decimal sd) { <span class="@(sd >= 0 ? "up" : "down")"><i class="bi @(sd >= 0 ? "bi-arrow-up-right" : "bi-arrow-down-right")"></i> @Math.Abs(sd).ToString("0")%</span> <span>vs yesterday</span> }</div></div></div></div>
+        <div class="col-sm-6 col-xl-2"><div class="card-x kpi"><div class="ic t-green"><i class="bi bi-cash-coin"></i></div><div>
+            <div class="l">Collected today</div><div class="v">@N(collected)</div><div class="s">cash @N(d.CashToday) · other @N(d.NonCashToday)</div></div></div></div>
+        <div class="col-sm-6 col-xl-2"><div class="card-x kpi"><div class="ic t-blue"><i class="bi bi-graph-up-arrow"></i></div><div>
+            <div class="l">Sales this month</div><div class="v">@N(d.SalesMonth)</div><div class="s">@d.BillsMonth bills · avg @N(avgBill)</div></div></div></div>
+        <div class="col-sm-6 col-xl-2"><div class="card-x kpi"><div class="ic t-green"><i class="bi bi-percent"></i></div><div>
+            <div class="l">Gross margin (month)</div><div class="v">@gpPct.ToString("0.0")%</div><div class="s">@N(gp) · returns @N(d.ReturnsMonth)</div></div></div></div>
+        <div class="col-sm-6 col-xl-2"><div class="card-x kpi"><div class="ic t-amber"><i class="bi bi-boxes"></i></div><div>
+            <div class="l">Stock value (cost)</div><div class="v">@N(d.StockValue)</div><div class="s">@d.ItemsInStock items · MRP @N(d.StockMrpValue)</div></div></div></div>
+        <div class="col-sm-6 col-xl-2"><div class="card-x kpi"><div class="ic t-rose"><i class="bi bi-wallet2"></i></div><div>
+            <div class="l">Receivable / payable</div><div class="v @(d.CreditDue > 0 ? "text-danger" : "")">@N(d.CreditDue)</div><div class="s">customers owe · we owe suppliers @N(d.SupplierDue)</div></div></div></div>
+    </div>
+
+    @* ── trend and today's collection ── *@
+    <div class="row g-3 mb-3">
+        <div class="col-xl-8"><div class="card-x">
+            <div class="hd"><i class="bi bi-bar-chart-line"></i>Sales and purchases, last 14 days<span class="ms-auto small">this month: purchases @N(d.PurchasesMonth)</span></div>
+            <div class="bd"><div style="height:250px"><canvas id="phdTrend"></canvas></div></div>
+        </div></div>
+        <div class="col-xl-4"><div class="card-x">
+            <div class="hd"><i class="bi bi-pie-chart"></i>Collected today by mode</div>
+            <div class="bd">
+                @if (d.ModesToday.Count == 0) { <div class="empty"><i class="bi bi-inbox d-block fs-3 mb-1"></i>Nothing collected yet today.</div> }
+                else
+                {
+                    <div style="height:170px"><canvas id="phdModes"></canvas></div>
+                    @foreach (var m in d.ModesToday) { <div class="rowline"><span>@m.Mode</span><span class="ms-auto num fw-semibold">@N(m.Amount)</span></div> }
+                }
+                <div class="rowline"><span class="text-muted">Returns today</span><span class="ms-auto num">@N(d.ReturnsToday)</span></div>
+                <div class="rowline"><span class="text-muted">Given on credit today</span><span class="ms-auto num">@N(d.CreditToday)</span></div>
+            </div>
+        </div></div>
+    </div>
+
+    @* ── action centre, expiry, stores ── *@
+    <div class="row g-3 mb-3">
+        <div class="col-xl-6"><div class="card-x">
+            <div class="hd"><i class="bi bi-list-check"></i>Action centre<span class="ms-auto small">@waiting waiting</span></div>
+            <div class="bd"><div class="todo">
+                @foreach (var t in todo)
+                {
+                    <a href="@Url.Action(t.Act, t.Ctl, t.Route)" class="@(t.Count == 0 ? "zero" : "")"><span class="dot t-@(t.Count == 0 ? "slate" : t.Tone)"><i class="bi @t.Icon"></i></span><span>@t.Title</span><span class="n">@t.Count</span></a>
+                }
+            </div></div>
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="card-x">
+            <div class="hd"><i class="bi bi-hourglass-split"></i>Expiry watch (cost)</div>
+            <div class="bd">
+                @foreach (var (label, n, v, color, days) in new (string, int, decimal, string, int)[] { ("Expired, in stock", d.Expired, d.ExpiredValue, "var(--rose)", 0), ("In 30 days", d.Exp30, d.Exp30Value, "#f97316", 30), ("31 - 60 days", d.Exp60, d.Exp60Value, "var(--amber)", 60), ("61 - 90 days", d.Exp90, d.Exp90Value, "#eab308", 90) })
+                {
+                    <a class="d-block text-decoration-none text-reset mb-2" asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="@days">
+                        <div class="d-flex small"><span>@label <span class="text-muted">· @n batch@(n == 1 ? "" : "es")</span></span><span class="ms-auto num fw-semibold">@N(v)</span></div>
+                        <div class="meter"><span style="width:@((int)Math.Round(v * 100 / expTotal))%;background:@color"></span></div>
+                    </a>
+                }
+                <div class="small text-muted mt-2">Expired stock is never sold: return it (Purchase Return) or write it off.</div>
+            </div>
+        </div></div>
+        <div class="col-md-6 col-xl-3"><div class="card-x">
+            <div class="hd"><i class="bi bi-shop-window"></i>Stock by store</div>
+            <div class="bd">
+                @{ var storeMax = d.StoreStock.Count == 0 ? 1 : Math.Max(1, d.StoreStock.Max(s => s.Value)); }
+                @foreach (var s in d.StoreStock)
+                {
+                    <div class="mb-2"><div class="d-flex small"><span class="fw-semibold">@s.StoreName</span>
+                        <span class="tag ms-1 @(s.StoreType == "COUNTER" ? "t-blue" : s.StoreType == "GODOWN" ? "t-amber" : "t-brand")">@(s.StoreType == "COUNTER" ? "Counter" : s.StoreType == "GODOWN" ? "Godown" : "Main")</span>
+                        <span class="ms-auto num">@N(s.Value)</span></div>
+                        <div class="meter"><span style="width:@((int)Math.Round(s.Value * 100 / storeMax))%;background:var(--brand)"></span></div>
+                        <div class="small text-muted">@s.Items item@(s.Items == 1 ? "" : "s") in stock</div></div>
+                }
+                @if (d.StoreStock.Count <= 1) { <div class="small text-muted">One store only. Add a godown and a counter in Master &gt; Pharmacy Master &gt; Store / Godown to separate them.</div> }
+            </div>
+        </div></div>
+    </div>
+
+    @* ── items ── *@
+    <div class="row g-3">
+        <div class="col-xl-4"><div class="card-x">
+            <div class="hd"><i class="bi bi-trophy"></i>Top items, last 30 days</div>
+            <div class="bd">
+                @foreach (var t in d.TopItems)
+                {
+                    <div class="mb-2"><div class="d-flex small"><span class="text-truncate">@t.ItemName</span><span class="ms-auto num text-muted me-2">@t.Qty.ToString("0.##")</span><span class="num fw-semibold">@N(t.Value)</span></div>
+                        <div class="meter"><span style="width:@((int)Math.Round(t.Value * 100 / topMax))%;background:linear-gradient(90deg,var(--brand),#a78bfa)"></span></div></div>
+                }
+                @if (d.TopItems.Count == 0) { <div class="empty">No sales yet.</div> }
+            </div>
+        </div></div>
+        <div class="col-xl-4"><div class="card-x">
+            <div class="hd"><i class="bi bi-cart-x"></i>Below reorder level<span class="ms-auto small"><span class="tag t-amber">@d.BelowReorder below</span> <span class="tag t-rose">@d.OutOfStock out</span></span></div>
+            <div class="bd">
+                @foreach (var r in d.Reorder)
+                {
+                    var pct = r.Reorder == 0 ? 0 : Math.Min(100, (int)Math.Round(r.Stock * 100 / r.Reorder));
+                    <div class="mb-2"><div class="d-flex small"><span class="text-truncate">@r.ItemName</span><span class="ms-auto num @(r.Stock <= 0 ? "text-danger fw-bold" : "")">@r.Stock.ToString("0.##") / @r.Reorder.ToString("0.##") @r.Uom</span></div>
+                        <div class="meter"><span style="width:@pct%;background:@(r.Stock <= 0 ? "var(--rose)" : "var(--amber)")"></span></div></div>
+                }
+                @if (d.Reorder.Count == 0) { <div class="empty"><i class="bi bi-check2-circle d-block fs-3 mb-1 text-success"></i>Everything is above its reorder level.</div> }
+                <div class="d-flex gap-2 mt-2">
+                    <a asp-controller="PhPurchaseIndents" asp-action="Form" class="btn btn-sm btn-primary"><i class="bi bi-clipboard-plus me-1"></i>Raise indent</a>
+                    <a asp-controller="PhReports" asp-action="Reorder" class="btn btn-sm btn-outline-secondary">Reorder report</a>
+                </div>
+            </div>
+        </div></div>
+        <div class="col-xl-4"><div class="card-x">
+            <div class="hd"><i class="bi bi-calendar-x"></i>Expiring soonest</div>
+            <div class="bd">
+                @foreach (var r in d.NearExpiry)
+                {
+                    var days = (r.ExpiryDate - DateTime.Today).Days;
+                    <div class="rowline"><span class="tag @(days <= 30 ? "t-rose" : days <= 60 ? "t-amber" : "t-slate")">@days d</span>
+                        <span class="text-truncate">@r.ItemName <span class="text-muted">@r.BatchNo</span></span>
+                        <span class="ms-auto num">@r.Stock.ToString("0.##") @r.SaleUom</span></div>
+                }
+                @if (d.NearExpiry.Count == 0) { <div class="empty"><i class="bi bi-check2-circle d-block fs-3 mb-1 text-success"></i>Nothing expires in the next 90 days.</div> }
+            </div>
+        </div></div>
+    </div>
 </div>
 
-<div class="row g-3">
-    <div class="col-xl-4"><div class="kpi"><div class="l mb-2">Top items, last 30 days</div>
-        <table class="table table-sm mb-0 small"><tbody>@foreach (var t in d.TopItems) { <tr><td>@t.ItemName</td><td class="text-end">@t.Qty.ToString("0.##")</td><td class="text-end fw-semibold">@N(t.Value)</td></tr> }
-        @if (d.TopItems.Count == 0) { <tr><td class="text-muted">No sales yet.</td></tr> }</tbody></table></div></div>
-    <div class="col-xl-4"><div class="kpi"><div class="l mb-2">Below reorder level (@d.BelowReorder) · out of stock @d.OutOfStock</div>
-        <table class="table table-sm mb-0 small"><tbody>@foreach (var r in d.Reorder) { <tr><td>@r.ItemName</td><td class="text-end @(r.Stock <= 0 ? "text-danger fw-bold" : "")">@r.Stock.ToString("0.##") @r.Uom</td><td class="text-end text-muted">reorder @r.Reorder.ToString("0.##")</td></tr> }</tbody></table>
-        <a asp-controller="PhPurchaseIndents" asp-action="Form" class="btn btn-sm btn-outline-primary mt-2"><i class="bi bi-clipboard-plus me-1"></i>Raise purchase indent</a></div></div>
-    <div class="col-xl-4"><div class="kpi"><div class="l mb-2">Expiring soonest</div>
-        <table class="table table-sm mb-0 small"><tbody>@foreach (var r in d.NearExpiry) { <tr><td>@r.ItemName <span class="text-muted">@r.BatchNo</span></td><td class="text-end @(r.DaysToExpiry <= 30 ? "text-danger" : "")">@r.ExpiryDate.ToString("MMM-yy")</td><td class="text-end">@r.Stock.ToString("0.##") @r.SaleUom</td></tr> }</tbody></table></div></div>
-</div>
+@section Scripts {
+<script src="~/lib/chartjs/chart.umd.min.js"></script>
+<script>
+(function () {
+    const inr = v => '₹ ' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    const css = getComputedStyle(document.querySelector('.phd'));
+    const brand = (css.getPropertyValue('--brand') || '#644098').trim();
+    const trend = @Html.Raw(J(d.Last14.Select(x => new { d = x.Day.ToString("dd MMM"), s = x.Sales, p = x.Purchases })));
+    const t = document.getElementById('phdTrend');
+    if (t && window.Chart) new Chart(t, {
+        data: { labels: trend.map(x => x.d), datasets: [
+            { type: 'bar', label: 'Sales', data: trend.map(x => x.s), backgroundColor: brand, borderRadius: 6, maxBarThickness: 28, order: 2 },
+            { type: 'line', label: 'Purchases', data: trend.map(x => x.p), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.12)', fill: true, tension: .35, pointRadius: 3, order: 1 }] },
+        options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: c => c.dataset.label + ': ' + inr(c.parsed.y) } } },
+            scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { callback: v => v >= 1000 ? (v / 1000) + 'k' : v }, grid: { color: '#f1f5f9' } } } }
+    });
+    const modes = @Html.Raw(J(d.ModesToday.Select(x => new { m = x.Mode, a = x.Amount })));
+    const m = document.getElementById('phdModes');
+    if (m && window.Chart) new Chart(m, {
+        type: 'doughnut',
+        data: { labels: modes.map(x => x.m), datasets: [{ data: modes.map(x => x.a), backgroundColor: [brand, '#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#64748b'], borderWidth: 0 }] },
+        options: { maintainAspectRatio: false, cutout: '68%', plugins: { legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8 } }, tooltip: { callbacks: { label: c => c.label + ': ' + inr(c.parsed) } } } }
+    });
+
+    // reminder: shown on every visit; "remind me later" hides it for 30 minutes (this browser); a toast flashes it on arrival
+    const box = document.getElementById('phdRemind');
+    if (box) {
+        const key = 'phdSnoozeUntil';
+        let until = 0; try { until = +(localStorage.getItem(key) || 0); } catch { }
+        if (Date.now() < until) box.classList.add('d-none');
+        else if (window.Swal) Swal.fire({ toast: true, position: 'top-end', icon: '@(urgent > 0 ? "warning" : "info")', timer: 6000, timerProgressBar: true, showConfirmButton: false,
+            title: '@d.Pending.Count request@(d.Pending.Count == 1 ? "" : "s") waiting@(urgent > 0 ? $" · {urgent} urgent" : "")', text: 'Indents and stock requests are waiting for action.' });
+        document.getElementById('phdSnooze')?.addEventListener('click', () => { try { localStorage.setItem(key, Date.now() + 30 * 60 * 1000); } catch { } box.classList.add('d-none'); });
+    }
+})();
+</script>
+}

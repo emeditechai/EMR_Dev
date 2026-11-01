@@ -1,6 +1,4 @@
-using Dapper;
 using EMR.Shared.Security;
-using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -15,7 +13,7 @@ namespace EMR.Web.Controllers;
 /// </summary>
 [Authorize]
 public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseService purchase, IPharmacyBillNotifier notifier,
-    IDbConnectionFactory db, IActionPermissionGuard guard, IAuditLogService audit, IServiceScopeFactory scopes, ILogger<PhSalesController> logger) : Controller
+    IActionPermissionGuard guard, IAuditLogService audit, IServiceScopeFactory scopes, ILogger<PhSalesController> logger) : Controller
 {
     private int BranchId => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
     private int CompanyId => User.GetCompanyId();
@@ -32,47 +30,27 @@ public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseServ
         ViewBag.CanDiscount = await guard.AllowsAsync(HttpContext, "PHARMACY.POS", "DISCOUNT");
         ViewBag.CanCredit = await guard.AllowsAsync(HttpContext, "PHARMACY.POS", "CREDIT");
         ViewBag.Recall = recall;
+        ViewBag.Stores = await purchase.StoresAsync(CompanyId, BranchId, "SELL");   // selling stores (counters), default first
         return View("~/Views/PharmacySales/Pos.cshtml");
     }
 
-    [HttpGet] public async Task<IActionResult> ItemSearch(string? q, int? genericId) =>
-        Json((string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2) && genericId == null ? [] : await sales.ItemSearchAsync(CompanyId, BranchId, q ?? "", genericId));
+    [HttpGet] public async Task<IActionResult> ItemSearch(string? q, int? genericId, int? storeId) =>
+        Json((string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2) && genericId == null ? [] : await sales.ItemSearchAsync(CompanyId, BranchId, q ?? "", genericId, null, storeId));
 
-    [HttpGet] public async Task<IActionResult> Batches(int itemId) => Json(await sales.BatchesAsync(CompanyId, BranchId, itemId));
+    [HttpGet] public async Task<IActionResult> Batches(int itemId, int? storeId) => Json(await sales.BatchesAsync(CompanyId, BranchId, itemId, storeId));
 
     [HttpGet] public async Task<IActionResult> PriceFor(int itemId, int batchId, string? priceType) => Json(await sales.UnitPriceAsync(CompanyId, itemId, batchId, priceType == "STAFF" ? "STAFF" : "WALKIN"));
 
-    [HttpGet]
-    public async Task<IActionResult> Customers(string? q)
-    {
-        using var con = db.CreateConnection();
-        return Json(await con.QueryAsync(@"SELECT TOP 15 c.CustomerId id, c.CustomerName name, c.Mobile mobile, c.Email email, c.Address address, c.CustomerType type, c.CreditAllowed credit, c.CreditLimit creditLimit,
-                ISNULL((SELECT SUM(s.BalanceDue) FROM dbo.PhSale s WHERE s.CustomerId = c.CustomerId AND s.Status = 'POSTED'), 0) outstanding
-            FROM dbo.PhCustomer c WHERE c.CompanyId = @co AND c.IsActive = 1 AND (c.CustomerName LIKE @like OR c.Mobile LIKE @like) ORDER BY c.CustomerName",
-            new { co = CompanyId, like = "%" + (q ?? "").Trim() + "%" }));
-    }
+    [HttpGet] public async Task<IActionResult> Customers(string? q) => Json(await sales.CustomersAsync(CompanyId, q));
 
     [HttpGet]
     public async Task<IActionResult> Patients(string? q)
     {
         if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2) return Json(Array.Empty<object>());
-        using var con = db.CreateConnection();
-        return Json(await con.QueryAsync(@"SELECT TOP 15 pm.PatientId id, pm.PatientCode uhid, LTRIM(RTRIM(ISNULL(pm.FirstName, '') + ' ' + ISNULL(pm.LastName, ''))) name, pm.PhoneNumber mobile,
-                pm.EmailId email, pm.Address address, pm.Gender gender,
-                (SELECT TOP 1 ISNULL(d.NamePrefix + ' ', '') + d.FullName FROM dbo.PatientOPDService v JOIN dbo.DoctorMaster d ON d.DoctorId = v.ConsultingDoctorId WHERE v.PatientId = pm.PatientId ORDER BY v.OPDServiceId DESC) lastDoctor,
-                (SELECT TOP 1 v.ConsultingDoctorId FROM dbo.PatientOPDService v WHERE v.PatientId = pm.PatientId ORDER BY v.OPDServiceId DESC) lastDoctorId
-            FROM dbo.PatientMaster pm WHERE pm.CompanyId = @co AND pm.IsActive = 1
-              AND (pm.PatientCode LIKE @like OR pm.PhoneNumber LIKE @like OR pm.FirstName LIKE @like OR pm.LastName LIKE @like OR (pm.FirstName + ' ' + pm.LastName) LIKE @like)
-            ORDER BY CASE WHEN pm.PatientCode = @q OR pm.PhoneNumber = @q THEN 0 ELSE 1 END, pm.FirstName", new { co = CompanyId, q = q.Trim(), like = "%" + q.Trim() + "%" }));
+        return Json(await sales.PatientsAsync(CompanyId, q.Trim()));
     }
 
-    [HttpGet]
-    public async Task<IActionResult> Doctors(string? q)
-    {
-        using var con = db.CreateConnection();
-        return Json(await con.QueryAsync(@"SELECT TOP 15 DoctorId id, ISNULL(NamePrefix + ' ', '') + FullName name, MedicalLicenseNo regNo FROM dbo.DoctorMaster
-            WHERE CompanyId = @co AND IsActive = 1 AND FullName LIKE @like ORDER BY FullName", new { co = CompanyId, like = "%" + (q ?? "").Trim() + "%" }));
-    }
+    [HttpGet] public async Task<IActionResult> Doctors(string? q) => Json(await sales.DoctorsAsync(CompanyId, q));
 
     [HttpGet] public async Task<IActionResult> Held() => Json(await sales.ListAsync(CompanyId, BranchId, "HOLD", null, null, null));
 

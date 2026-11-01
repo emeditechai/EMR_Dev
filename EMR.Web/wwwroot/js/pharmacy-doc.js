@@ -10,6 +10,20 @@
     const qtyFmt = v => (Math.round(v * 1000) / 1000).toLocaleString('en-IN');
     const monthVal = d => d ? String(d).substring(0, 7) : '';
     const fmtMonth = d => d ? new Date(d).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : '';
+    // expiry is typed as MM/YY (pharmacy bills print it so): "627" or "0627" -> 06/27; stored as yyyy-mm-01 (the server sets month end)
+    const mmYY = d => d ? String(d).substring(5, 7) + '/' + String(d).substring(2, 4) : '';
+    function expTyped(raw) {
+        let dg = String(raw || '').replace(/\D/g, '');
+        if (dg.length && +dg[0] > 1) dg = '0' + dg;            // 6 -> 06
+        dg = dg.slice(0, 4);
+        const text = dg.length > 2 ? dg.slice(0, 2) + '/' + dg.slice(2) : dg;
+        const mm = +dg.slice(0, 2), ok = dg.length === 4 && mm >= 1 && mm <= 12;
+        return { text, value: ok ? `20${dg.slice(2)}-${dg.slice(0, 2)}-01` : null, bad: (dg.length >= 2 && (mm < 1 || mm > 12)) || (dg.length === 4 && !ok) };
+    }
+    function expStep(d, by) {
+        const t = new Date(d || new Date().toISOString().substring(0, 8) + '01'); t.setDate(1); t.setMonth(t.getMonth() + by);
+        return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`;
+    }
     const pascal = o => { const r = {}; for (const k in o) r[k.charAt(0).toUpperCase() + k.slice(1)] = o[k]; return r; };
 
     const COLS = {
@@ -57,17 +71,17 @@
             if (kind === 'return' && num(l.Qty) > num(l.Stock)) w.push('More than stock');
             return w;
         }
-        const inp = (i, f, v, attrs = '', cls = 'text-end') => `<input class="form-control form-control-sm ${cls}" data-i="${i}" data-f="${f}" value="${esc(v)}" ${attrs}>`;
+        const inp = (i, f, v, attrs = '', cls = 'text-end') => `<input class="form-control num ${cls}" data-i="${i}" data-f="${f}" value="${esc(v)}" ${attrs}>`;
         const n = (i, f, v, step = '0.01', w = 80) => editable ? inp(i, f, v === 0 || v ? v : '', `type="number" min="0" step="${step}" style="width:${w}px;margin-left:auto"`) : qtyFmt(num(v));
 
         function cell(c, l, i) {
             switch (c) {
                 case 'item':
-                    return `<div class="fw-semibold">${l.FormShort ? `<span class="ph-form-tag">${esc(l.FormShort)}</span>` : ''}${esc(l.ItemName)}</div>
-                            <div class="small text-muted">${esc(l.ItemCode || '')} · 1 ${esc(l.PurchaseUom)} = ${l.ConversionQty} ${esc(l.SaleUom)}${l.PoDtlId ? ` · <span class="text-primary">pending on PO ${qtyFmt(num(l.PendingQty))}</span>` : ''}
+                    return `<div class="it-nm">${l.FormShort ? `<span class="ph-form-tag">${esc(l.FormShort)}</span>` : ''}${esc(l.ItemName)}</div>
+                            <div class="it-sub">${esc(l.ItemCode || '')} · 1 ${esc(l.PurchaseUom)} = ${l.ConversionQty} ${esc(l.SaleUom)}${l.PoDtlId ? ` · <span class="text-primary">pending on PO ${qtyFmt(num(l.PendingQty))}</span>` : ''}
                             ${cfg.urls.rateHistory && (kind === 'po' || kind === 'grn') ? `<button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-hist="${l.ItemId}" data-name="${esc(l.ItemName)}" title="Purchase rate history"><i class="bi bi-clock-history"></i> rates</button>` : ''}</div>`;
                 case 'batchitem':
-                    return `<div class="fw-semibold">${l.FormShort ? `<span class="ph-form-tag">${esc(l.FormShort)}</span>` : ''}${esc(l.ItemName)}</div><div class="small text-muted">Batch <b>${esc(l.BatchNo)}</b></div>`;
+                    return `<div class="it-nm">${l.FormShort ? `<span class="ph-form-tag">${esc(l.FormShort)}</span>` : ''}${esc(l.ItemName)}</div><div class="it-sub">Batch <b>${esc(l.BatchNo)}</b></div>`;
                 case 'stock': return `<span class="text-nowrap">${qtyFmt(num(l.Stock))} ${esc(l.SaleUom || '')}${kind === 'return' ? '' : packs(l)}</span>`;
                 case 'reorder': return `<span class="text-muted">${qtyFmt(num(l.ReorderLevel))}</span>`;
                 case 'qty': return n(i, 'Qty', l.Qty);
@@ -78,7 +92,7 @@
                 case 'disc': return n(i, 'DiscPercent', l.DiscPercent, '0.01', 64);
                 case 'gst':
                     if (!editable || kind === 'return') return `${num(l.GstPercent)}%`;
-                    return `<select class="form-select form-select-sm" data-i="${i}" data-f="GstPercent" style="width:72px;margin-left:auto">${[0, 5, 12, 18, 28].map(g => `<option value="${g}" ${num(l.GstPercent) === g ? 'selected' : ''}>${g}%</option>`).join('')}</select>`;
+                    return `<select class="form-select" data-i="${i}" data-f="GstPercent" style="width:68px;margin-left:auto">${[0, 5, 12, 18, 28].map(g => `<option value="${g}" ${num(l.GstPercent) === g ? 'selected' : ''}>${g}%</option>`).join('')}</select>`;
                 case 'taxable': return money(num(l.TaxableAmount));
                 case 'total': {
                     let m = '';
@@ -89,9 +103,9 @@
                     }
                     return `<b>${money(num(l.TaxableAmount) + num(l.GstAmount))}</b>${m}`;
                 }
-                case 'batch': return editable ? inp(i, 'BatchNo', l.BatchNo || '', 'maxlength="30" style="width:110px" placeholder="Batch"', 'text-uppercase') : `<span class="font-monospace">${esc(l.BatchNo)}</span>`;
+                case 'batch': return editable ? inp(i, 'BatchNo', l.BatchNo || '', 'maxlength="30" style="width:104px" placeholder="Batch"', 'text-uppercase') : `<span class="font-monospace">${esc(l.BatchNo)}</span>`;
                 case 'expiry':
-                    if (grnLike && editable) return inp(i, 'ExpiryDate', monthVal(l.ExpiryDate), 'type="month" style="width:130px"', '');
+                    if (grnLike && editable) return inp(i, 'ExpiryDate', mmYY(l.ExpiryDate), 'maxlength="5" inputmode="numeric" placeholder="MM/YY" autocomplete="off" title="Expiry month: type 0627 or 627 for 06/27; ↑ ↓ change the month" style="width:70px"', 'text-center exp');
                     return fmtMonth(l.ExpiryDate);
                 case 'mrp': return grnLike ? n(i, 'Mrp', l.Mrp, '0.01', 86) : money(num(l.Mrp));
                 case 'remarks': return editable ? inp(i, 'Remarks', l.Remarks || '', 'maxlength="200"', '') : esc(l.Remarks || '');
@@ -103,15 +117,16 @@
             tbody.innerHTML = lines.map((l, i) => {
                 price(l);
                 const w = rowWarn(l);
-                return `<tr class="${w.length ? 'table-warning' : ''}" title="${esc(w.join('; '))}"><td class="text-muted small">${i + 1}${w.length ? ' <i class="bi bi-exclamation-triangle-fill text-warning"></i>' : ''}</td>`
+                return `<tr class="${w.length ? 'warn' : ''}" title="${esc(w.join('; '))}"><td class="text-muted small">${i + 1}${w.length ? ' <i class="bi bi-exclamation-triangle-fill text-warning"></i>' : ''}</td>`
                     + cols.map(c => `<td class="${HEAD[c][1]}">${cell(c, l, i)}</td>`).join('')
-                    + (editable ? `<td><button type="button" class="btn btn-sm btn-link text-danger p-0" data-del="${i}" title="Remove line"><i class="bi bi-x-circle"></i></button></td>` : '') + '</tr>';
-            }).join('') + (editable ? `<tr class="ph-newrow"><td class="text-muted small">${lines.length + 1}</td><td colspan="${cols.length + 1}"><div class="position-relative" style="max-width:560px">
-                <div class="input-group input-group-sm"><span class="input-group-text"><i class="bi ${kind === 'return' ? 'bi-upc-scan' : 'bi-plus-lg'}"></i></span>
-                <input id="phPick" class="form-control" placeholder="${kind === 'return' ? 'Add batch: type item, batch or scan barcode (F2)' : 'Add item: type brand, generic or scan barcode (F2)'}" autocomplete="off"></div>
-                <div id="phPickList" class="list-group position-absolute w-100 shadow d-none" style="z-index:30;max-height:340px;overflow:auto"></div></div></td></tr>` : '');
+                    + (editable ? `<td><button type="button" class="del" data-del="${i}" title="Remove line"><i class="bi bi-x-circle-fill"></i></button></td>` : '') + '</tr>';
+            }).join('') + (editable ? `<tr class="newrow"><td class="text-muted small">${lines.length + 1}</td><td colspan="${cols.length + 1}"><div class="phd-pick">
+                <i class="bi ${kind === 'return' ? 'bi-upc-scan' : 'bi-plus-lg'}"></i>
+                <input id="phPick" class="form-control" placeholder="${kind === 'return' ? 'Add batch: type item, batch or scan barcode (F2)' : 'Add item: type brand, generic or scan barcode (F2)'}" autocomplete="off">
+                <div id="phPickList" class="list-group position-absolute w-100 shadow d-none"></div></div></td></tr>` : '');
             totals();
             if (editable) bindPicker();
+            aiMark();
         }
 
         // Bill amount follows the net total until the user types their own (clearing it goes back to automatic)
@@ -144,10 +159,15 @@
         tbody.addEventListener('input', e => {
             const t = e.target; if (!t.dataset.f) return;
             const l = lines[t.dataset.i];
-            l[t.dataset.f] = t.dataset.f === 'ExpiryDate' ? (t.value ? t.value + '-01' : null) : t.dataset.f === 'BatchNo' ? t.value.toUpperCase() : t.dataset.f === 'Remarks' ? t.value : num(t.value);
+            if (l._ai) { l._ai.conf[t.dataset.f] = 1; t.classList.remove('ai-low'); }   // checked by the user
+            if (t.dataset.f === 'ExpiryDate') {
+                const x = expTyped(t.value);
+                t.value = x.text; l.ExpiryDate = x.value; t.classList.toggle('bad', x.bad);
+            }
+            else l[t.dataset.f] = t.dataset.f === 'BatchNo' ? t.value.toUpperCase() : t.dataset.f === 'Remarks' ? t.value : num(t.value);
             price(l);
             const tr = t.closest('tr'), w = rowWarn(l);
-            tr.classList.toggle('table-warning', w.length > 0); tr.title = w.join('; ');
+            tr.classList.toggle('warn', w.length > 0); tr.title = w.join('; ');
             const ti = cols.indexOf('taxable'), to = cols.indexOf('total');
             if (ti >= 0) tr.children[ti + 1].innerHTML = cell('taxable', l, t.dataset.i);
             if (to >= 0) tr.children[to + 1].innerHTML = cell('total', l, t.dataset.i);
@@ -165,8 +185,20 @@
                   + '</tbody></table><div class="small text-muted text-start mt-1">Net rate = rate after discount, spread over free goods.</div>'
                 : 'No earlier purchase of this item.' });
         });
+        tbody.addEventListener('keydown', e => {   // expiry: ↑ / ↓ next / previous month
+            const t = e.target;
+            if (t.dataset.f !== 'ExpiryDate' || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+            e.preventDefault();
+            const l = lines[t.dataset.i];
+            l.ExpiryDate = expStep(l.ExpiryDate, e.key === 'ArrowUp' ? 1 : -1);
+            t.value = mmYY(l.ExpiryDate); t.classList.remove('bad');
+            t.dispatchEvent(new Event('input', { bubbles: true }));
+        });
         tbody.addEventListener('keydown', e => {   // Enter moves along the row, then to the picker
             if (e.key !== 'Enter' || !e.target.dataset.f) return;
+            if (e.target.dataset.f === 'ExpiryDate' && e.target.value && !lines[e.target.dataset.i].ExpiryDate) {
+                e.preventDefault(); e.target.classList.add('bad'); e.target.select(); flash('Expiry as MM/YY, for example 06/27.'); return;
+            }
             e.preventDefault();
             const ins = [...e.target.closest('tr').querySelectorAll('input,select')];
             const k = ins.indexOf(e.target);
@@ -210,7 +242,7 @@
                 if (q.length < 2) { list.classList.add('d-none'); return; }
                 timer = setTimeout(async () => {
                     const sup = $('SupplierId') ? $('SupplierId').value : '';
-                    const url = (kind === 'return' ? cfg.urls.batchSearch + '?supplierId=' + encodeURIComponent(sup) + '&q=' : cfg.urls.itemSearch + '?q=') + encodeURIComponent(q);
+                    const url = (kind === 'return' ? cfg.urls.batchSearch + '?supplierId=' + encodeURIComponent(sup) + '&storeId=' + encodeURIComponent($('StoreId') ? $('StoreId').value : '') + '&q=' : cfg.urls.itemSearch + '?q=') + encodeURIComponent(q);
                     results = await fetch(url).then(r => r.ok ? r.json() : []).catch(() => []);
                     active = results.length ? 0 : -1;
                     draw();
@@ -309,14 +341,149 @@
                 html: missed.length ? `Not found in the Item Master (add them by hand):<br><b>${missed.map(esc).join(', ')}</b>` : 'Check batch, expiry and rates before saving.' });
         });
 
+        // ── "Read bill": the supplier's bill (PDF / photo) read on the server; every value lands in the form for the user to check ──
+        const AI_LOW = 0.75;
+        const FIELD = { BatchNo: 'batchNo', ExpiryDate: 'expiryDate', Mrp: 'mrp', Qty: 'qty', FreeQty: 'freeQty', Rate: 'rate', DiscPercent: 'discPercent', GstPercent: 'gstPercent' };
+        const aiPanel = $('aiPanel');
+        let aiRead = null, aiUnmatched = [];
+        const fv = f => f && f.value !== null && f.value !== undefined ? f.value : null;
+        const token = () => (document.querySelector('input[name="__RequestVerificationToken"]') || {}).value || '';
+
+        function aiMark() {
+            lines.forEach((l, i) => {
+                if (!l._ai) return;
+                const tr = tbody.querySelectorAll('tr')[i]; if (!tr) return;
+                Object.keys(FIELD).forEach(f => { const el = tr.querySelector(`[data-f="${f}"]`); if (el && (l._ai.conf[f] ?? 1) < AI_LOW) { el.classList.add('ai-low'); el.title = 'Read from the bill: please check'; } });
+                const first = tr.children[0];
+                if (first && !first.querySelector('.ai-tag')) {
+                    const weak = l._ai.match < AI_LOW;
+                    first.insertAdjacentHTML('beforeend', `<span class="ai-tag ${weak ? 'weak' : ''}" title="Bill: ${esc(l._ai.text)}\nMatched ${Math.round(l._ai.match * 100)}% (${esc(l._ai.by)})${l._ai.alts ? '\nOr: ' + esc(l._ai.alts) : ''}"><i class="bi bi-magic"></i>${weak ? ' check item' : ''}</span>`);
+                }
+            });
+        }
+
+        function fillHeader(r) {
+            const setVal = (id, v, conf) => {
+                const el = $(id); if (!el || v === null || v === undefined || v === '') return;
+                el.value = v; el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.classList.toggle('ai-low', conf < AI_LOW); if (conf < AI_LOW) el.title = 'Read from the bill: please check';
+            };
+            const sup = fv(r.supplierId), sel = $('SupplierId');
+            if (sup && sel) {
+                if (sel.tomselect) sel.tomselect.setValue(String(sup)); else { sel.value = String(sup); sel.dispatchEvent(new Event('change')); }
+                (sel.tomselect ? sel.tomselect.wrapper : sel).classList.toggle('ai-low', r.supplierId.confidence < AI_LOW);
+            }
+            setVal('InvoiceNo', fv(r.invoiceNo), r.invoiceNo.confidence);
+            if (fv(r.invoiceDate)) setVal('InvoiceDate', String(fv(r.invoiceDate)).substring(0, 10), r.invoiceDate.confidence);
+            if (fv(r.otherCharges) !== null) setVal('OtherCharges', num(fv(r.otherCharges)).toFixed(2), r.otherCharges.confidence);
+            if (fv(r.invoiceAmount) !== null && billBox) { billAuto = false; setVal('InvoiceAmount', num(fv(r.invoiceAmount)).toFixed(2), r.invoiceAmount.confidence); }
+            if (fv(r.isInterState) !== null && $('IsInterState') && $('IsInterState').type === 'checkbox') { $('IsInterState').checked = !!fv(r.isInterState); $('IsInterState').dispatchEvent(new Event('change')); }
+        }
+
+        function lineFrom(bl, it) {
+            const p = pascal(it), conf = {};
+            Object.entries(FIELD).forEach(([f, k]) => conf[f] = bl[k] ? bl[k].confidence : 0);
+            const l = { ItemId: p.ItemId, ItemName: p.ItemName, ItemCode: p.ItemCode, FormShort: p.FormShort, PurchaseUom: p.PurchaseUom, SaleUom: p.SaleUom,
+                ConversionQty: p.ConversionQty, Stock: p.Stock, ReorderLevel: p.ReorderLevel, LastMrp: p.LastMrp || 0,
+                Qty: num(fv(bl.qty)), FreeQty: num(fv(bl.freeQty)), Rate: num(fv(bl.rate)) || num(p.LastRate), DiscPercent: num(fv(bl.discPercent)),
+                GstPercent: fv(bl.gstPercent) !== null ? num(fv(bl.gstPercent)) : num(p.GstPercent),
+                _ai: { text: bl.billText, match: bl.matchScore, by: bl.matchedBy, alts: (bl.alternatives || []).map(a => a.itemName).join(', '), conf } };
+            if (grnLike) {
+                l.BatchNo = fv(bl.batchNo) || ''; l.ExpiryDate = fv(bl.expiryDate) ? String(fv(bl.expiryDate)).substring(0, 7) + '-01' : null;
+                l.Mrp = num(fv(bl.mrp)) || num(p.LastMrp);
+            }
+            if (!fv(bl.rate)) conf.Rate = 0;          // last purchase rate used: check it
+            return l;
+        }
+
+        function aiRenderPanel() {
+            if (!aiPanel || !aiRead) return;
+            const r = aiRead, read = r.lines.length, matched = read - aiUnmatched.length;
+            const notes = (r.notes || []).filter(n => !/^Supplier GSTIN/.test(n));
+            aiPanel.classList.remove('d-none');
+            aiPanel.innerHTML = `<div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="fw-semibold"><i class="bi bi-magic me-1"></i>Read from the bill</span>
+                    <span class="ai-chip">${r.source === 'PDF_TEXT' ? 'PDF text' : 'OCR'} · ${r.pages} page${r.pages === 1 ? '' : 's'}</span>
+                    <span class="ai-chip ok">${matched} of ${read} line${read === 1 ? '' : 's'} matched</span>
+                    ${aiUnmatched.length ? `<span class="ai-chip bad">${aiUnmatched.length} need an item</span>` : ''}
+                    ${r.supplierGstin ? `<span class="ai-chip">GSTIN ${esc(r.supplierGstin)}</span>` : ''}
+                    <span class="small text-muted ms-auto"><span class="ai-low-sample"></span> = please check · values you change are taken as checked</span>
+                    <button type="button" class="btn-close btn-sm" id="aiClose" title="Hide"></button></div>
+                ${notes.length ? `<div class="small text-muted mt-1">${notes.map(esc).join(' · ')}</div>` : ''}
+                ${aiUnmatched.map((u, k) => `<div class="ai-miss" data-k="${k}"><div class="flex-grow-1"><b>${esc(u.billText || '(no name read)')}</b>
+                        <span class="text-muted small"> · qty ${num(fv(u.qty))}${fv(u.batchNo) ? ' · batch ' + esc(fv(u.batchNo)) : ''} · rate ${money(num(fv(u.rate)))}</span></div>
+                        <div class="position-relative" style="width:300px"><input class="form-control form-control-sm ai-find" data-k="${k}" placeholder="Find the item in the Item Master" value="${esc(u.billText.split(' ').slice(0, 2).join(' '))}">
+                        <div class="list-group position-absolute w-100 shadow d-none ai-list" style="z-index:40"></div></div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-skip="${k}" title="Not needed">Skip</button></div>`).join('')}`;
+            $('aiClose').onclick = () => aiPanel.classList.add('d-none');
+        }
+
+        aiPanel && aiPanel.addEventListener('click', e => { const s = e.target.closest('[data-skip]'); if (s) { aiUnmatched.splice(+s.dataset.skip, 1); aiRenderPanel(); } });
+        let aiTimer;
+        aiPanel && aiPanel.addEventListener('input', e => {
+            const inp = e.target.closest('.ai-find'); if (!inp) return;
+            clearTimeout(aiTimer);
+            aiTimer = setTimeout(async () => {
+                const list = inp.parentElement.querySelector('.ai-list');
+                if (inp.value.trim().length < 2) { list.classList.add('d-none'); return; }
+                const found = await fetch(cfg.urls.itemSearch + '?q=' + encodeURIComponent(inp.value.trim())).then(x => x.json()).catch(() => []);
+                list.innerHTML = found.slice(0, 8).map((f, j) => `<a href="#" class="list-group-item list-group-item-action py-1 small" data-j="${j}">${esc(f.itemName)} <span class="text-muted">${esc(f.itemCode)}</span></a>`).join('') || '<div class="list-group-item small text-muted">Nothing found.</div>';
+                list._found = found; list.classList.remove('d-none');
+            }, 250);
+        });
+        aiPanel && aiPanel.addEventListener('mousedown', e => {
+            const a = e.target.closest('[data-j]'); if (!a) return; e.preventDefault();
+            const box = a.closest('.ai-miss'), k = +box.dataset.k, it = a.closest('.ai-list')._found[+a.dataset.j];
+            const l = lineFrom(aiUnmatched[k], it); l._ai.match = 1; l._ai.by = 'USER';
+            lines.push(l); aiUnmatched.splice(k, 1); render(); aiRenderPanel();
+        });
+        aiPanel && aiPanel.addEventListener('focusin', e => { const inp = e.target.closest('.ai-find'); if (inp && inp.value) inp.dispatchEvent(new Event('input', { bubbles: true })); });
+
+        const rb = $('readBillFile');
+        rb && rb.addEventListener('change', async () => {
+            const file = rb.files[0]; if (!file) return;
+            rb.value = '';
+            let replace = true;
+            if (lines.length) {
+                const q = await Swal.fire({ icon: 'question', title: 'The form already has lines', text: 'Replace them with the lines read from the bill, or add the bill\'s lines to them?',
+                    showDenyButton: true, showCancelButton: true, confirmButtonText: 'Replace', denyButtonText: 'Add' });
+                if (q.isDismissed) return; replace = q.isConfirmed;
+            }
+            Swal.fire({ title: 'Reading the bill…', html: 'Text, columns and items are being recognised. A photo takes a few seconds.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+            const fd = new FormData(); fd.append('file', file); fd.append('__RequestVerificationToken', token());
+            let res;
+            try { res = await fetch(cfg.urls.readBill, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(x => x.json()); }
+            catch { res = { error: 'The bill could not be sent to the server.' }; }
+            if (!res || res.error || !res.data) { Swal.fire({ icon: 'error', title: 'Bill not read', text: (res && res.error) || 'Try a clearer photo or the supplier\'s PDF.' }); return; }
+            const r = res.data, items = {};
+            (r.items || []).forEach(it => { const p = pascal(it); items[p.ItemId] = it; });
+            if (replace) lines.length = 0;
+            aiUnmatched = [];
+            r.lines.forEach(bl => { if (bl.itemId && items[bl.itemId]) lines.push(lineFrom(bl, items[bl.itemId])); else aiUnmatched.push(bl); });
+            aiRead = r;
+            fillHeader(r);
+            render(); aiRenderPanel();
+            const low = lines.reduce((n, l) => n + Object.values(l._ai ? l._ai.conf : {}).filter(c => c < AI_LOW).length, 0);
+            Swal.fire({ icon: aiUnmatched.length || low ? 'warning' : 'success', title: `${r.lines.length - aiUnmatched.length} line(s) filled from the bill`,
+                html: (aiUnmatched.length ? `<b>${aiUnmatched.length}</b> line(s) need an item - pick them above the list.<br>` : '')
+                    + (low ? `<b>${low}</b> value(s) are highlighted for you to check.<br>` : '') + 'Check the form against the bill, then save.', timer: aiUnmatched.length || low ? undefined : 3500 });
+        });
+
         // ── save ──
         const form = $('phDocForm');
+        // what each printed name turned out to be is remembered for this supplier's next bill
+        form && cfg.urls.learnBill && form.addEventListener('submit', () => {
+            const pairs = lines.filter(l => l._ai && l._ai.text && l.ItemId).map(l => ({ BillText: l._ai.text, ItemId: l.ItemId }));
+            if (!pairs.length) return;
+            const sid = $('SupplierId') && $('SupplierId').value ? +$('SupplierId').value : null;
+            try { fetch(cfg.urls.learnBill, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token() }, body: JSON.stringify({ SupplierId: sid, Pairs: pairs }) }); } catch { }
+        });
         form && form.addEventListener('submit', e => {
             const val = id => $(id) ? $(id).value || null : undefined;
             const d = {
                 Id: doc.Id, DocDate: val('DocDate'), SupplierId: val('SupplierId') ? +val('SupplierId') : null, RefId: val('RefId') ? +val('RefId') : (doc.RefId || null),
                 ExpectedDate: val('ExpectedDate'), Priority: val('Priority'), IsInterState: inter(), InvoiceNo: val('InvoiceNo'), InvoiceDate: val('InvoiceDate'),
-                InvoiceAmount: num(val('InvoiceAmount')), OtherCharges: num(val('OtherCharges')), ReasonId: val('ReasonId') ? +val('ReasonId') : null,
+                InvoiceAmount: num(val('InvoiceAmount')), OtherCharges: num(val('OtherCharges')), ReasonId: val('ReasonId') ? +val('ReasonId') : null, StoreId: val('StoreId') ? +val('StoreId') : null,
                 Terms: val('Terms'), Remarks: val('Remarks'), Lines: lines
             };
             if (!lines.length) { e.preventDefault(); flash('Add at least one line.'); focusPicker(); return; }

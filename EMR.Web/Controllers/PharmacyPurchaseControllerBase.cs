@@ -47,6 +47,34 @@ public abstract class PharmacyPurchaseControllerBase(IPharmacyPurchaseService pu
     public async Task<IActionResult> ItemSearch(string? q) =>
         Json(string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2 ? [] : await purchase.ItemSearchAsync(CompanyId, BranchId, q.Trim()));
 
+    /// <summary>"Read bill": the supplier's bill (PDF / photo) read on the server; the form fills itself from the result (PO and GRN only).</summary>
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(15 * 1024 * 1024)]
+    public async Task<IActionResult> ReadBill(IFormFile? file)
+    {
+        if (Kind is not ("po" or "grn")) return NotFound();
+        if (file == null || file.Length == 0) return Json(new { error = "Choose the bill (PDF or photo)." });
+        try
+        {
+            var res = await purchase.ReadBillAsync(CompanyId, BranchId, file);
+            await audit.LogAsync("PharmacyPurchase", "ReadBill", $"Supplier bill read for {Title}: {file.FileName}", UserId, BranchId);
+            return Json(new { ok = true, data = res });
+        }
+        catch (Exception ex) { return Json(new { error = ex.Message }); }
+    }
+
+    public sealed class LearnBillRequest { public int? SupplierId { get; set; } public List<LearnPair> Pairs { get; set; } = []; }
+    public sealed class LearnPair { public string BillText { get; set; } = ""; public int ItemId { get; set; } }
+
+    /// <summary>The user saved a form filled from a bill: remember what each printed name turned out to be.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> LearnBill([FromBody] LearnBillRequest r)
+    {
+        if (Kind is not ("po" or "grn") || r.Pairs.Count == 0) return Json(new { ok = false });
+        var pairs = r.Pairs.Where(p => p.ItemId > 0 && !string.IsNullOrWhiteSpace(p.BillText)).Take(200).ToList();
+        try { await purchase.LearnBillAsync(CompanyId, r.SupplierId, JsonSerializer.Serialize(pairs)); } catch { return Json(new { ok = false }); }
+        return Json(new { ok = true, learnt = pairs.Count });
+    }
+
     [HttpGet]
     public async Task<IActionResult> SupplierInfo(int id) => Json(await purchase.SupplierInfoAsync(CompanyId, BranchId, id));
 
@@ -66,6 +94,7 @@ public abstract class PharmacyPurchaseControllerBase(IPharmacyPurchaseService pu
             if (Kind == "grn") page.OpenPos = await purchase.OpenPosAsync(CompanyId, BranchId, sid);
         }
         if (Kind == "return") page.Reasons = await purchase.ReasonsAsync(CompanyId, "PURCHASE_RETURN");
+        if (Kind is "grn" or "return") page.Stores = await purchase.StoresAsync(CompanyId, BranchId, Kind == "grn" ? "RECEIVE" : "ANY");
         return View("~/Views/PharmacyPurchase/Form.cshtml", page);
     }
 
