@@ -35,7 +35,7 @@ MODULES = [
          intro="Application logins and what they may do. A user works in one or more branches (UserBranches) and "
                "holds roles per branch (Userroles). Franchise and corporate logins are Users rows with User_Type F / C "
                "and ReferenceUserID pointing at the franchise or corporate.",
-         tables=["Users", "roles", "Userroles", "UserBranches"]),
+         tables=["Users", "roles", "Userroles", "UserBranches", "UserPasswordResetOtp"]),
     dict(code="A3", part="A", name="Geography & Patient Lookups",
          intro="Reference lists used on the patient and address forms: country > state > district > city > area, and "
                "the demographic lookups (identity document type, marital status, occupation, religion, relation, "
@@ -195,6 +195,7 @@ TABLE_DESC = {
     "Users": "Application logins. User_Type: U = system user, D = doctor, F = franchise, C = corporate; ReferenceUserID links an external login to its franchise / corporate. Also holds staff attributes (phlebotomist, pathologist, technician).",
     "roles": "Roles (Administrator, Manager, Doctor, Receptionist, Franchise ...). Permissions are granted to roles.",
     "Userroles": "Roles held by a user, optionally per branch.",
+    "UserPasswordResetOtp": "Forgot password in the phlebotomist app: WhatsApp codes and the reset token a right code opens. Only hashes are stored.",
     "UserBranches": "Branches a user may sign in to, with the employee code used in that branch.",
     # A3
     "CountryMaster": "Countries with their currency.",

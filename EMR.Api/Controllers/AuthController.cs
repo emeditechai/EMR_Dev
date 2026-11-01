@@ -2,6 +2,7 @@ using System.Data;
 using System.Security.Claims;
 using Dapper;
 using EMR.Api.Data;
+using EMR.Api.Services;
 using EMR.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +28,7 @@ public sealed class AuthController(
     ILoginSecurity loginSecurity,
     IPermissionService permissions,
     IOptionsMonitor<ApiAuthOptions> options,
+    IServiceScopeFactory scopes,
     ILogger<AuthController> logger) : ControllerBase
 {
     /// <summary>Credential endpoints only (login, context, refresh, password change): 20 a minute per client address.</summary>
@@ -40,6 +42,9 @@ public sealed class AuthController(
     public sealed record SwitchBranchRequest(string RefreshToken, int BranchId, string? Role = null);
     public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
     public sealed record FirstChangePasswordRequest(string Username, string CurrentPassword, string NewPassword);
+    public sealed record ForgotPasswordRequest(string Username);
+    public sealed record ForgotVerifyRequest(string Username, string Code);
+    public sealed record ForgotResetRequest(string ResetToken, string NewPassword, string ConfirmPassword);
 
     private sealed class UserRow
     {
@@ -291,6 +296,57 @@ public sealed class AuthController(
                      Permission_Version = Permission_Version + 1 WHERE Id = @id",
             new { h = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, 12), id = user.Id });
         permissions.InvalidateUser(user.Id);
+        return Ok(new { success = true, message = "Password changed. Sign in with the new password." });
+    }
+
+    /// <summary>Forgot password (SQLScripts/2384). The answer is the same for every username, and the send runs behind it, so neither says which logins exist.</summary>
+    [HttpPost("password/forgot")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public IActionResult ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        var username = (request.Username ?? "").Trim();
+        if (username.Length == 0) return BadRequest(Fail("USERNAME_REQUIRED", "Enter your username."));
+
+        var ip = ClientIp();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = scopes.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<IPasswordOtpService>().RequestAsync(username, ip);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[PASSWORD-OTP] Code request failed");
+            }
+        });
+        return Ok(new { success = true, message = "If this login has a mobile number, a code is on its way on WhatsApp. If none arrives, ask your office." });
+    }
+
+    [HttpPost("password/forgot/verify")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotVerify([FromBody] ForgotVerifyRequest request, [FromServices] IPasswordOtpService otp)
+    {
+        var token = await otp.VerifyAsync(request.Username ?? "", request.Code ?? "");
+        return token is null
+            ? BadRequest(Fail("INVALID_CODE", "This code is wrong or has expired."))
+            : Ok(new { success = true, resetToken = token });
+    }
+
+    [HttpPost("password/forgot/reset")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotReset([FromBody] ForgotResetRequest request, [FromServices] IPasswordOtpService otp)
+    {
+        var problem = PasswordProblem(request.NewPassword);
+        if (problem is not null) return BadRequest(Fail("WEAK_PASSWORD", problem));
+        if (request.NewPassword != request.ConfirmPassword) return BadRequest(Fail("PASSWORD_MISMATCH", "The two passwords do not match."));
+
+        var userId = await otp.ResetAsync(request.ResetToken ?? "", request.NewPassword);
+        if (userId is null) return BadRequest(Fail("RESET_EXPIRED", "This reset has expired. Ask for a new code."));
+        permissions.InvalidateUser(userId.Value);
         return Ok(new { success = true, message = "Password changed. Sign in with the new password." });
     }
 

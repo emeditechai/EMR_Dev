@@ -14,7 +14,7 @@ public sealed class PhleboService(
     IDbConnectionFactory db,
     IConfiguration configuration,
     IWebHostEnvironment environment,
-    IHttpClientFactory httpClientFactory,
+    IWhatsAppTextSender whatsApp,
     ILogger<PhleboService> logger) : IPhleboService
 {
     private static readonly HashSet<string> VisitDocTypes = new(StringComparer.OrdinalIgnoreCase) { "PRESCRIPTION", "CONSENT", "ID_PROOF", "SIGNATURE" };
@@ -126,42 +126,13 @@ public sealed class PhleboService(
             new { c.UserId, VisitId = visitId, OtpHash = HashOtp(visitId, code), Expires = DateTime.Now.Add(OtpLife) }, commandType: CommandType.StoredProcedure);
         if (to is null) throw new PhleboRuleException("The patient has no mobile number.");
 
-        var config = await con.QueryFirstOrDefaultAsync<WhatsAppConfig>(
-            @"SELECT TOP 1 w.ApiUrl, w.AuthHeaderKey, w.ApiKey, w.DefaultCountryCode
-                FROM dbo.WhatsAppConfiguration w JOIN dbo.Branchmaster b ON b.BranchID = @BranchId
-               WHERE w.IsActive = 1 AND w.IsEnabled = 1 AND (w.BranchId = @BranchId OR (w.IsDefault = 1 AND w.CompanyId = b.CompanyId))
-               ORDER BY CASE WHEN w.BranchId = @BranchId THEN 0 ELSE 1 END, w.BranchId", new { to.BranchId });
-        if (config is null || string.IsNullOrWhiteSpace(config.ApiKey))
+        var result = await whatsApp.SendAsync(to.BranchId, to.PhoneNumber,
+            $"Dear {to.FirstName}, your home sample collection code is {code}. Share it with the phlebotomist at your door. It is valid for {OtpLife.TotalMinutes:0} minutes.");
+        if (result == WhatsAppSendResult.NotConfigured)
             throw new PhleboRuleException("WhatsApp is not set up for this branch. Use the patient's ID proof instead.");
-
-        var digits = new string((to.PhoneNumber ?? "").Where(char.IsDigit).ToArray());
-        var country = new string((config.DefaultCountryCode ?? "91").Where(char.IsDigit).ToArray());
-        if (digits.Length == 10) digits = country + digits;
-
-        var token = config.ApiKey.Trim();
-        if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) token = token[7..].Trim();
-        var headerKey = string.IsNullOrWhiteSpace(config.AuthHeaderKey) ? "Authorization" : config.AuthHeaderKey.Trim();
-        var message = new HttpRequestMessage(HttpMethod.Post, config.ApiUrl)
+        if (result == WhatsAppSendResult.Failed)
         {
-            Content = new StringContent(JsonSerializer.Serialize(new
-            {
-                to = digits,
-                text = $"Dear {to.FirstName}, your home sample collection code is {code}. Share it with the phlebotomist at your door. It is valid for {OtpLife.TotalMinutes:0} minutes."
-            }), Encoding.UTF8, "application/json")
-        };
-        if (headerKey.Equals("Authorization", StringComparison.OrdinalIgnoreCase)) message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        else message.Headers.TryAddWithoutValidation(headerKey, "Bearer " + token);
-
-        try
-        {
-            var client = httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(25);
-            var response = await client.SendAsync(message);
-            if (!response.IsSuccessStatusCode) throw new HttpRequestException($"WhatsApp answered {(int)response.StatusCode}");
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            logger.LogWarning(ex, "[PHLEBO] OTP not sent for visit {VisitId}", visitId);
+            logger.LogWarning("[PHLEBO] OTP not sent for visit {VisitId}", visitId);
             throw new PhleboRuleException("The code could not be sent. Try again, or use the patient's ID proof.");
         }
     }
@@ -243,13 +214,6 @@ public sealed class PhleboService(
     private static List<Dictionary<string, object?>?> Camel(IEnumerable<dynamic> rows) => rows.Select(r => (Dictionary<string, object?>?)Camel(r)).ToList();
 
     private sealed record OtpTarget(int BranchId, string? PhoneNumber, string? FirstName);
-    private sealed class WhatsAppConfig
-    {
-        public string ApiUrl { get; set; } = "";
-        public string? AuthHeaderKey { get; set; }
-        public string ApiKey { get; set; } = "";
-        public string? DefaultCountryCode { get; set; }
-    }
 }
 
 /// <summary>A rule refused in the API itself; shown to the phlebotomist like a message from the procedures.</summary>

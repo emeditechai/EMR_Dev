@@ -151,6 +151,8 @@ builder.Services.AddScoped<IPrintTemplateService,           PrintTemplateService
 builder.Services.AddScoped<ICompanyCopyService,            CompanyCopyService>();     // Company > Copy master data (SQLScripts/2328)
 builder.Services.AddScoped<ICompanyPurgeService,           CompanyPurgeService>();    // Company > Remove data / Delete company (SQLScripts/2337)
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<IWhatsAppTextSender,            WhatsAppTextSender>();
+builder.Services.AddScoped<IPasswordOtpService,            PasswordOtpService>();     // Forgot password by WhatsApp code (SQLScripts/2384)
 builder.Services.AddScoped<IPhleboService,                 PhleboService>();          // Phlebotomist app (SQLScripts/2373, 2374)
 
 // Lab master bulk upload (Excel)
