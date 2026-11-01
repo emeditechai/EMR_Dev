@@ -445,6 +445,25 @@ public static class PharmacyReportDefs
             [new("Party", "Party"), new("PartyType", "Type"), new("TransactionDate", "Date", "date"), new("VoucherNo", "Voucher"), new("Narration", "Particulars"),
              new("Opening", "Opening", "money", true), new("Debit", "Debit", "money", true), new("Credit", "Credit", "money", true), new("Closing", "Balance", "money"),
              new("DrCr", "Dr/Cr")]),
+
+        // ── statutory & compliance (SQLScripts/2372) ──
+        new("NdpsRegister", "ndps-register", "C2", "Schedule X / NDPS Register", "NDPS Act register: per drug the opening balance, every receipt and issue with patient and prescriber, and the running balance", "Compliance",
+            ["schedule", "search", "option"], [("", "Register (entry by entry)"), ("DAILY", "Daily balance")],
+            [new("Drugs", "Drugs", "int"), new("Received", "Received", "qty"), new("Issued", "Issued (sold)", "qty"), new("OtherOut", "Other out", "qty"),
+             new("ClosingStock", "Closing balance", "qty"), new("MissingRx", "Issues without Rx details", "int")],
+            [new("ItemName", "Drug"), new("ScheduleCode", "Sch."), new("EntryDate", "Date", "datetime"), new("DocNo", "Document"), new("Particulars", "Received from / issued to"),
+             new("BatchNo", "Batch"), new("PatientName", "Patient"), new("PatientAddress", "Address"), new("Prescriber", "Prescriber"), new("PrescriberRegNo", "Reg. no."),
+             new("RxNo", "Rx no."), new("Opening", "Opening", "qty"), new("Received", "Received", "qty", true), new("Issued", "Issued", "qty", true),
+             new("OtherOut", "Other out", "qty", true), new("Balance", "Balance", "qty"), new("SaleUom", "Unit")], SearchHint: "Drug or code"),
+
+        new("RxSalesRegister", "rx-sales-register", "C3", "Prescription (Rx) Sales Register", "Bills with prescription-only drugs (H, H1, X, NDPS): doctor, reg. no., Rx no. and the drugs - shows prescriptions were recorded", "Compliance",
+            ["schedule", "user", "search", "option"], [("", "All Rx bills"), ("MISSING", "Only bills with missing Rx details")],
+            [new("Bills", "Rx bills", "int"), new("RxLines", "Rx drug lines", "int"), new("RxValue", "Rx value"), new("Recorded", "Fully recorded", "int"),
+             new("MissingRx", "Missing details", "int"), new("CompliancePct", "Compliance", "pct")],
+            [new("BranchCode", "Branch"), new("SaleNo", "Bill no", Link: Bill), new("SaleDate", "Date & time", "datetime"), new("Patient", "Patient"), new("PatientCode", "Patient code"),
+             new("Mobile", "Mobile"), new("Address", "Address"), new("Doctor", "Doctor"), new("DoctorRegNo", "Reg. no."), new("RxNo", "Rx no."), new("RxDate", "Rx date", "date"),
+             new("RxItems", "Rx drugs"), new("RxLines", "Lines", "int", true), new("RxValue", "Rx value", "money", true), new("RxStatus", "Rx record"), new("DispensedBy", "Dispensed by")],
+            SearchHint: "Bill, patient, doctor, Rx / reg. no."),
     ];
 
     public static PhRptDef? ByAction(string action) => All.FirstOrDefault(d => d.Action.Equals(action, StringComparison.OrdinalIgnoreCase));

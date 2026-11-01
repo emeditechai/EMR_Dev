@@ -71,6 +71,9 @@ public class PharmacyReportsController(IPharmacyProcService ph) : ControllerBase
         ["trading-account"] = "dbo.usp_PhRpt_TradingAccount",
         ["stock-vs-books"] = "dbo.usp_PhRpt_StockVsBooks",
         ["party-ledger"] = "dbo.usp_PhRpt_PartyLedger",
+        // statutory & compliance (SQLScripts/2372)
+        ["ndps-register"] = "dbo.usp_PhRpt_NdpsRegister",
+        ["rx-sales-register"] = "dbo.usp_PhRpt_RxSalesRegister",
     };
 
     [HttpGet("lookups")]

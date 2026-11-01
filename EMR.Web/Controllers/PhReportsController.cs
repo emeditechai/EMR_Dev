@@ -236,6 +236,14 @@ public class PhReportsController(PharmacyApiClient api, IAuditLogService audit, 
     [HttpGet] public Task<IActionResult> PartyLedgerData([FromQuery] PhRptQuery q) => DataOf(q);
     [HttpGet] public Task<IActionResult> PartyLedgerExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
 
+    // C2-C3 statutory & compliance (SQLScripts/2372)
+    [HttpGet] public Task<IActionResult> NdpsRegister() => PageOf();
+    [HttpGet] public Task<IActionResult> NdpsRegisterData([FromQuery] PhRptQuery q) => DataOf(q);
+    [HttpGet] public Task<IActionResult> NdpsRegisterExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
+    [HttpGet] public Task<IActionResult> RxSalesRegister() => PageOf();
+    [HttpGet] public Task<IActionResult> RxSalesRegisterData([FromQuery] PhRptQuery q) => DataOf(q);
+    [HttpGet] public Task<IActionResult> RxSalesRegisterExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
+
     /// <summary>GSTR-1 Excel in the GSTN offline tool's layout (b2b, b2cs, cdnr, cdnur, hsn, docs) for the chosen period and branch.</summary>
     [HttpGet]
     public async Task<IActionResult> Gstr1Excel([FromQuery] PhRptQuery q)

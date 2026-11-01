@@ -240,7 +240,7 @@
         ['from', 'to'].forEach(n => form[n].addEventListener('change', () => form.querySelectorAll('.btn-pre').forEach(b => b.classList.remove('active'))));
         preset(['SalesSummary', 'ItemSales', 'UserSales', 'DoctorSales', 'CustomerHistory', 'HourlyPattern', 'PurchaseRegister', 'ItemPurchases', 'SupplierPurchases',
             'PurchaseReturns', 'SupplierPayments', 'RateVariation', 'IndentTurnaround', 'ItemLedger', 'StockStatement', 'AbcAnalysis', 'FsnAnalysis',
-            'Transfers', 'Adjustments', 'CountVariance', 'BatchCorrections', 'StockTurnover', 'StoreIssues', 'ExpiryLoss', 'ShortExpiryReceipts', 'Gstr1Summary', 'HsnSummary', 'CreditNotes', 'PurchaseItc', 'Gstr3b', 'GstRateSummary', 'CashierClosing', 'GrossProfit', 'TradingAccount', 'StockVsBooks', 'PartyLedger'].includes(def.action) ? 'month' : 'today');
+            'Transfers', 'Adjustments', 'CountVariance', 'BatchCorrections', 'StockTurnover', 'StoreIssues', 'ExpiryLoss', 'ShortExpiryReceipts', 'Gstr1Summary', 'HsnSummary', 'CreditNotes', 'PurchaseItc', 'Gstr3b', 'GstRateSummary', 'CashierClosing', 'GrossProfit', 'TradingAccount', 'StockVsBooks', 'PartyLedger', 'NdpsRegister', 'RxSalesRegister'].includes(def.action) ? 'month' : 'today');
     }
 
     function query(extra) {
@@ -258,10 +258,10 @@
         let s = fmt(v, c.fmt);
         if (c.link) { const [page, idField] = c.link.split(':'); const id = pick(r, idField);
             if (id && s) s = `<a href="${appBase}${page}?id=${id}" target="_blank">${s}</a>`; }
-        let cls = isNum(c.fmt) ? 'num' : (c.field === 'TopItems' ? 'wrap' : '');
+        let cls = isNum(c.fmt) ? 'num' : (c.field === 'TopItems' || c.field === 'RxItems' ? 'wrap' : '');
         if (isNum(c.fmt) && v < 0) cls += ' neg';
         const warn = ['Amounts differ', 'Not posted to the books', 'In the books only', 'Submitted', 'Rejected', 'Awaiting return / destruction', '0-30 days', 'Cancelled', 'Out of stock', 'Below reorder', 'Below minimum', 'Has expired stock', 'Expired', 'Near expiry', 'Blocked', 'Never sold'];
-        if (((c.field === 'AboveLimit' || c.field === 'OverLimit') && v) || ((c.field === 'Status' || c.field === 'Flag' || c.field === 'Band' || c.field === 'Action' || c.field === 'Remark') && warn.includes(v))) cls += ' flag';
+        if (((c.field === 'AboveLimit' || c.field === 'OverLimit') && v) || ((c.field === 'Status' || c.field === 'Flag' || c.field === 'Band' || c.field === 'Action' || c.field === 'Remark' || (c.field === 'RxStatus' && String(v).startsWith('Missing'))) && warn.includes(v))) cls += ' flag';
         return `<td class="${cls}">${s}</td>`;
     }
 
