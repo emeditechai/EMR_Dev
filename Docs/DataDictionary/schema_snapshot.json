@@ -25338,6 +25338,32 @@
    "type": "decimal"
   },
   {
+   "col": "IsBookingRequired",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 32,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "bit"
+  },
+  {
+   "col": "BookingNo",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 60,
+   "nullable": true,
+   "ord": 33,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "nvarchar"
+  },
+  {
    "col": "LabOrderItemId",
    "def": null,
    "descr": null,
@@ -52625,6 +52651,45 @@
    "type": "varchar"
   },
   {
+   "col": "UserId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "UserPhleboArea",
+   "type": "int"
+  },
+  {
+   "col": "AreaId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "UserPhleboArea",
+   "type": "int"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 3,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "UserPhleboArea",
+   "type": "datetime"
+  },
+  {
    "col": "Id",
    "def": null,
    "descr": null,
@@ -53666,7 +53731,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-01T21:50:51",
+ "extracted_on": "2026-11-03T00:38:21",
  "fk": [
   {
    "col": "LedgerId",
@@ -56315,6 +56380,20 @@
    "tbl": "UserPermission"
   },
   {
+   "col": "AreaId",
+   "fk": "FK_UserPhleboArea_Area",
+   "rcol": "AreaId",
+   "rtbl": "AreaMaster",
+   "tbl": "UserPhleboArea"
+  },
+  {
+   "col": "UserId",
+   "fk": "FK_UserPhleboArea_Users",
+   "rcol": "Id",
+   "rtbl": "Users",
+   "tbl": "UserPhleboArea"
+  },
+  {
    "col": "UserId",
    "fk": "FK_UserPushSubscription_UserMaster",
    "rcol": "Id",
@@ -58866,6 +58945,16 @@
    "tbl": "UserPermission"
   },
   {
+   "col": "UserId",
+   "k": 1,
+   "tbl": "UserPhleboArea"
+  },
+  {
+   "col": "AreaId",
+   "k": 2,
+   "tbl": "UserPhleboArea"
+  },
+  {
    "col": "Id",
    "k": 1,
    "tbl": "UserPushSubscription"
@@ -59279,6 +59368,7 @@
   "UserPasswordResetOtp",
   "UserPasswordResetToken",
   "UserPermission",
+  "UserPhleboArea",
   "UserPushSubscription",
   "UserRoleMap",
   "Userroles",
@@ -59369,6 +59459,10 @@
   {
    "d": "Forgot password in the phlebotomist app: WhatsApp codes and the reset token a right code opens. Only hashes are stored.",
    "tbl": "UserPasswordResetOtp"
+  },
+  {
+   "d": "Areas a phlebotomist covers, across branches. Users.AssignedZoneId is the main one of these.",
+   "tbl": "UserPhleboArea"
   }
  ],
  "uq": [
@@ -59756,6 +59850,11 @@
    "cols": "CompanyId, Profile_Name",
    "idx": "UX_LabInvestigationProfileHeader_ProfileName",
    "tbl": "LabInvestigationProfileHeader"
+  },
+  {
+   "cols": "BookingNo",
+   "idx": "UX_LabOrder_BookingNo",
+   "tbl": "LabOrder"
   },
   {
    "cols": "Organism_Code",

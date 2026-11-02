@@ -140,5 +140,17 @@
   ],
   "date": "01 Nov 2026",
   "version": "1.9"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table UserPhleboArea (3 columns, module A2)",
+   "LabOrder: new column(s) IsBookingRequired, BookingNo",
+   "New foreign key UserPhleboArea.AreaId -> AreaMaster.AreaId",
+   "New foreign key UserPhleboArea.UserId -> Users.Id",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "03 Nov 2026",
+  "version": "1.10"
  }
 ]
