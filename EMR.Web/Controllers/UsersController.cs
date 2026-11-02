@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
@@ -238,7 +240,7 @@ public class UsersController(
             ShiftSlotId = user.ShiftSlotId,
             ShiftSlotName = shiftSlotName,
             AssignedZoneId = user.AssignedZoneId,
-            AssignedZoneName = user.AssignedZone?.AreaName,
+            AssignedZoneName = await ZoneNamesAsync(user.Id) ?? user.AssignedZone?.AreaName,
             DailyCollectionTarget = user.DailyCollectionTarget,
             LabTechnicianShiftSlotId = user.LabTechnicianShiftSlotId,
             LabTechnicianShiftSlotName = labShiftSlotName,
@@ -275,6 +277,7 @@ public class UsersController(
     public async Task<IActionResult> Create(UserFormViewModel model)
     {
         NormalizeBranchRoles(model);
+        ApplyZones(model);
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
@@ -391,6 +394,7 @@ public class UsersController(
         await dbContext.SaveChangesAsync();
 
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
+        await SaveZonesAsync(user.Id, model);
         await auditLogService.LogAsync("MasterData", "Users.Create", $"Created user: {user.Username}", user.Id);
         TempData["Success"] = "User created successfully.";
         return RedirectToAction(nameof(Index));
@@ -459,6 +463,7 @@ public class UsersController(
             RegistrationNo = user.RegistrationNo,
             ShiftSlotId = user.ShiftSlotId,
             AssignedZoneId = user.AssignedZoneId,
+            AssignedZoneIds = await ZoneIdsAsync(user.Id, user.AssignedZoneId),
             DailyCollectionTarget = user.DailyCollectionTarget,
             LabTechnicianShiftSlotId = user.LabTechnicianShiftSlotId,
             AnalyzerTrainedOn = user.AnalyzerTrainedOn,
@@ -482,6 +487,7 @@ public class UsersController(
     public async Task<IActionResult> Edit(UserFormViewModel model)
     {
         NormalizeBranchRoles(model);
+        ApplyZones(model);
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
@@ -638,6 +644,7 @@ public class UsersController(
 
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
         await dbContext.SaveChangesAsync();
+        await SaveZonesAsync(user.Id, model);
         await auditLogService.LogAsync("MasterData", "Users.Edit", $"Updated user: {user.Username}", user.Id);
         TempData["Success"] = "User updated successfully.";
 
@@ -710,6 +717,75 @@ public class UsersController(
             TempData["Error"] = "The API is not reachable. Try again.";
         }
         return Back();
+    }
+
+    // ── Phlebotomist areas and phones (SQLScripts/2389) ─────────────────
+
+    /// <summary>The ticked areas; the main area (Users.AssignedZoneId) stays when still ticked, else the first one.</summary>
+    private static void ApplyZones(UserFormViewModel model)
+    {
+        var ids = model.IsPhlebotomist ? model.AssignedZoneIds.Where(x => x > 0).Distinct().ToList() : new List<int>();
+        model.AssignedZoneIds = ids;
+        model.AssignedZoneId = ids.Count == 0 ? null : ids.Contains(model.AssignedZoneId ?? 0) ? model.AssignedZoneId : ids[0];
+    }
+
+    private async Task SaveZonesAsync(int userId, UserFormViewModel model)
+    {
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.UserPhleboArea WHERE UserId = {userId}");
+        foreach (var areaId in model.AssignedZoneIds)
+            await dbContext.Database.ExecuteSqlInterpolatedAsync($"INSERT dbo.UserPhleboArea (UserId, AreaId) VALUES ({userId}, {areaId})");
+    }
+
+    private async Task<List<int>> ZoneIdsAsync(int userId, int? mainZoneId)
+    {
+        var ids = await dbContext.Database.SqlQuery<int>($"SELECT AreaId AS Value FROM dbo.UserPhleboArea WHERE UserId = {userId}").ToListAsync();
+        if (ids.Count == 0 && mainZoneId > 0) ids.Add(mainZoneId.Value);
+        return ids;
+    }
+
+    private async Task<string?> ZoneNamesAsync(int userId)
+    {
+        var names = await dbContext.Database.SqlQuery<string>(
+            $"SELECT a.AreaName AS Value FROM dbo.UserPhleboArea p JOIN dbo.AreaMaster a ON a.AreaId = p.AreaId WHERE p.UserId = {userId} ORDER BY a.AreaName").ToListAsync();
+        return names.Count == 0 ? null : string.Join(", ", names);
+    }
+
+    /// <summary>The phones the user signs in from in the phlebotomist app, for Clinical & Status.</summary>
+    [HttpGet]
+    public async Task<IActionResult> PhleboDevices(int id)
+    {
+        if (!await MaySeeUserAsync(id)) return NotFound();
+        var devices = await dbContext.Database.GetDbConnection().QueryAsync("dbo.usp_User_PhleboDevice_List",
+            new { OwnerUserId = id, CompanyId = await UserCompanyIdAsync(id) }, commandType: CommandType.StoredProcedure);
+        return Json(new { success = true, devices });
+    }
+
+    /// <summary>Approve (optionally blocking the user's other phones) or block a phone.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PhleboDeviceDecide(int id, int deviceId, string? decision, bool blockOthers = true)
+    {
+        if (!CanManage() || !await MaySeeUserAsync(id)) return NotFound();
+        var action = decision == "BLOCK" ? "BLOCK" : "APPROVE";
+        try
+        {
+            await dbContext.Database.GetDbConnection().ExecuteAsync("dbo.usp_User_PhleboDevice_Decide",
+                new { PhleboDeviceId = deviceId, OwnerUserId = id, CompanyId = await UserCompanyIdAsync(id), UserId = User.GetUserId(),
+                      Action = action, BlockOthers = action == "APPROVE" && blockOthers },
+                commandType: CommandType.StoredProcedure);
+        }
+        catch (SqlException ex) when (ex.Number >= 50000)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+
+        await auditLogService.LogAsync("MasterData", "Users.PhleboDevice",
+            $"Phone #{deviceId}: {action}{(action == "APPROVE" && blockOthers ? " (other phones blocked)" : "")}", id);
+        return Json(new
+        {
+            success = true,
+            message = action == "BLOCK" ? "Phone blocked." : blockOthers ? "Phone approved. The user's other phones are blocked." : "Phone approved."
+        });
     }
 
     /// <summary>Names of the records logins belong to: doctor (Doctor Master), franchise, company.</summary>
@@ -986,33 +1062,22 @@ public class UsersController(
             .Select(a => new SelectListItem(a, a, !string.IsNullOrWhiteSpace(model.AnalyzerTrainedOn) && string.Equals(model.AnalyzerTrainedOn, a, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        // Area options for Phlebotomist Assigned Zone
-        if (model.CityId.HasValue && model.CityId.Value > 0)
-        {
-            var areas = await areaService.GetByCityAsync(model.CityId.Value);
-            model.AssignedZoneOptions = areas
-                .Where(a => a.IsActive)
-                .OrderBy(a => a.AreaName)
-                .Select(a => new SelectListItem(
-                    string.IsNullOrWhiteSpace(a.AreaCode) ? a.AreaName : $"{a.AreaName} ({a.AreaCode})",
-                    a.AreaId.ToString(),
-                    model.AssignedZoneId.HasValue && a.AreaId == model.AssignedZoneId.Value))
-                .ToList();
-        }
-        else if (model.AssignedZoneId.HasValue && model.AssignedZoneId.Value > 0)
-        {
-            var area = await areaService.GetByIdAsync(model.AssignedZoneId.Value);
-            if (area != null)
-            {
-                model.AssignedZoneOptions = new List<SelectListItem>
-                {
-                    new SelectListItem(
-                        string.IsNullOrWhiteSpace(area.AreaCode) ? area.AreaName : $"{area.AreaName} ({area.AreaCode})",
-                        area.AreaId.ToString(),
-                        true)
-                };
-            }
-        }
+        // Areas for a phlebotomist's Assigned Zones (SQLScripts/2389): the areas of the city on the Profile step, several
+        // can be ticked. Areas already assigned in another city stay listed under their city until they are unticked.
+        var zoneCityId = model.CityId ?? 0;
+        var zoneAreas = await dbContext.AreaMasters.AsNoTracking()
+            .Where(a => (a.IsActive && a.CityId == zoneCityId) || model.AssignedZoneIds.Contains(a.AreaId))
+            .Select(a => new { a.AreaId, a.AreaName, a.AreaCode, a.CityId, CityName = a.City != null ? a.City.CityName : "" })
+            .ToListAsync();
+        zoneAreas = zoneAreas.OrderBy(a => a.CityId == zoneCityId ? 0 : 1).ThenBy(a => a.CityName).ThenBy(a => a.AreaName).ToList();
+        var zoneGroups = zoneAreas.Select(a => a.CityName).Distinct()
+            .ToDictionary(c => c, c => new SelectListGroup { Name = string.IsNullOrWhiteSpace(c) ? "Other" : c });
+        model.AssignedZoneOptions = zoneAreas
+            .Select(a => new SelectListItem(
+                string.IsNullOrWhiteSpace(a.AreaCode) ? a.AreaName : $"{a.AreaName} ({a.AreaCode})",
+                a.AreaId.ToString(),
+                model.AssignedZoneIds.Contains(a.AreaId)) { Group = zoneGroups[a.CityName] })
+            .ToList();
     }
 
     /// <summary>The ticked (branch, role) pairs, limited to branches the user is actually mapped to.</summary>

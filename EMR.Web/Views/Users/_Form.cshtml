@@ -591,6 +591,38 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Phlebotomist phones (SQLScripts/2389) -->
+                <div class="col-12" id="phleboPhonesCard" style="@(Model.IsPhlebotomist ? "" : "display:none;")">
+                    <div class="emr-role-card">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center gap-3">
+                                <div class="emr-role-icon bg-danger bg-opacity-10 text-danger"><i class="bi bi-phone"></i></div>
+                                <div>
+                                    <div class="fw-semibold text-danger">Phlebotomist Phones</div>
+                                    <div class="text-muted small" style="font-size:0.78rem;">The phones this user signs in from in the phlebotomist app. A new or reinstalled phone waits for approval.</div>
+                                </div>
+                            </div>
+                            @if (Model.Id > 0)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="phonesReload"><i class="bi bi-arrow-clockwise"></i></button>
+                            }
+                        </div>
+                        @if (Model.Id > 0)
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0 small">
+                                    <thead class="table-light"><tr><th>Phone</th><th>Status</th><th>First seen</th><th>Last seen</th><th>Approved</th><th class="text-end">Actions</th></tr></thead>
+                                    <tbody id="phonesRows"><tr><td colspan="6" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small">Phones appear here after the user signs in from the app.</div>
+                        }
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -731,7 +763,7 @@
             <div class="modal-body p-4">
                 <div class="alert d-flex align-items-center gap-2 mb-3 py-2 px-3 small border" style="background:#fef2f2;color:#991b1b;border-color:#fee2e2 !important;">
                     <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
-                    <div>Capture mandatory certification number, shift slot, assigned zone area, and daily collection target.</div>
+                    <div>Capture mandatory certification number, shift slot, assigned zone areas, and daily collection target.</div>
                 </div>
 
                 <div class="mb-3">
@@ -757,15 +789,32 @@
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label fw-semibold">Assigned Zone</label>
-                    <div class="input-icon-wrap">
-                        <i class="bi bi-geo-alt input-icon text-danger"></i>
-                        <select asp-for="AssignedZoneId" id="ddlAssignedZone" class="form-select ps-icon" asp-items="Model.AssignedZoneOptions">
-                            <option value="">-- Select Assigned Zone (Area Master) --</option>
-                        </select>
+                    <div class="d-flex justify-content-between align-items-end mb-1">
+                        <label class="form-label fw-semibold mb-0">Assigned Zones</label>
+                        <span class="badge rounded-pill" style="background:#fee2e2;color:#991b1b;" id="zoneCount">0 chosen</span>
                     </div>
-                    <small class="text-muted" id="zoneCityHint"><i class="bi bi-info-circle me-1"></i>Populated from Area Master based on selected City in Address section</small>
-                    <span asp-validation-for="AssignedZoneId" class="text-danger small"></span>
+                    <input type="hidden" asp-for="AssignedZoneId" />
+                    <input type="search" class="form-control form-control-sm mb-1" id="zoneSearch" placeholder="Search area or city" autocomplete="off" />
+                    <div class="border rounded-3 p-2" id="zoneList" style="max-height:220px;overflow-y:auto;">
+                        @if (!Model.AssignedZoneOptions.Any())
+                        {
+                            <div class="text-muted small" id="zoneEmpty">Choose the City on step 2, Profile, to see its areas.</div>
+                        }
+                        @foreach (var g in Model.AssignedZoneOptions.GroupBy(o => o.Group?.Name ?? "Other"))
+                        {
+                            <div class="zone-group">
+                                <div class="small fw-bold text-muted text-uppercase mt-1 mb-1" style="font-size:.7rem;letter-spacing:.04em;">@g.Key</div>
+                                @foreach (var o in g)
+                                {
+                                    <div class="form-check zone-item" data-text="@($"{o.Text} {g.Key}".ToLowerInvariant())">
+                                        <input class="form-check-input zone-check" type="checkbox" name="AssignedZoneIds" value="@o.Value" id="zone_@o.Value" checked="@o.Selected" />
+                                        <label class="form-check-label small" for="zone_@o.Value">@o.Text</label>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <small class="text-muted"><i class="bi bi-info-circle me-1"></i>Areas of the City on step 2, Profile. Tick every area this phlebotomist covers.</small>
                 </div>
 
                 <div class="mb-2">
@@ -1082,15 +1131,13 @@ function previewProfilePicture(input) {
 const ddlCountry = document.getElementById('ddlCountry');
 const ddlState = document.getElementById('ddlState');
 const ddlCity = document.getElementById('ddlCity');
-const ddlAssignedZone = document.getElementById('ddlAssignedZone');
 
 if (ddlCountry) {
     ddlCountry.addEventListener('change', async function () {
         const countryId = this.value;
         if (ddlState) ddlState.innerHTML = '<option value="">-- Select State --</option>';
         if (ddlCity) ddlCity.innerHTML = '<option value="">-- Select City --</option>';
-        if (ddlAssignedZone) ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
-        
+        loadZonesForCity('');
         if (!countryId) return;
 
         if (ddlState) {
@@ -1127,8 +1174,7 @@ if (ddlState) {
     ddlState.addEventListener('change', async function () {
         const stateId = this.value;
         if (ddlCity) ddlCity.innerHTML = '<option value="">-- Select City --</option>';
-        if (ddlAssignedZone) ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
-        
+        loadZonesForCity('');
         if (!stateId) return;
 
         if (ddlCity) {
@@ -1161,43 +1207,59 @@ if (ddlState) {
     });
 }
 
-if (ddlCity) {
-    ddlCity.addEventListener('change', async function () {
-        const cityId = this.value;
-        loadAreasForCity(cityId);
+// ── Phlebotomist Assigned Zones (SQLScripts/2389): the areas of the Profile city, several can be ticked ──
+const zoneSearch = document.getElementById('zoneSearch');
+function zoneChecks() { return [...document.querySelectorAll('.zone-check')]; }
+function updateZoneCount() {
+    const n = zoneChecks().filter(c => c.checked).length;
+    const el = document.getElementById('zoneCount');
+    if (el) el.textContent = `${n} chosen`;
+}
+if (zoneSearch) {
+    zoneSearch.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        document.querySelectorAll('.zone-item').forEach(i => { i.style.display = !q || i.dataset.text.includes(q) ? '' : 'none'; });
+        document.querySelectorAll('.zone-group').forEach(g => {
+            g.style.display = [...g.querySelectorAll('.zone-item')].some(i => i.style.display !== 'none') ? '' : 'none';
+        });
     });
 }
-
-async function loadAreasForCity(cityId, preserveSelectedId) {
-    if (!ddlAssignedZone) return;
-    const currentSelected = preserveSelectedId || ddlAssignedZone.value;
-    ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
-
-    if (!cityId) return;
-
-    ddlAssignedZone.disabled = true;
-    try {
-        const resp = await fetch(`/Users/GetAreasByCity?cityId=${encodeURIComponent(cityId)}`);
-        if (resp.ok) {
-            const areas = await resp.json();
-            ddlAssignedZone.innerHTML = '<option value="">-- Select Assigned Zone (Area Master) --</option>';
-            areas.forEach(a => {
-                const opt = document.createElement('option');
-                opt.value = a.areaId;
-                opt.textContent = a.areaCode ? `${a.areaName} (${a.areaCode})` : a.areaName;
-                if (currentSelected && a.areaId.toString() === currentSelected.toString()) {
-                    opt.selected = true;
-                }
-                ddlAssignedZone.appendChild(opt);
-            });
-        }
-    } catch (e) {
-        console.error('Error fetching areas:', e);
-    } finally {
-        ddlAssignedZone.disabled = false;
-        updatePhlebotomistSummary();
-    }
+function bindZoneChecks() {
+    zoneChecks().forEach(c => c.addEventListener('change', () => { updateZoneCount(); updatePhlebotomistSummary(); }));
 }
+
+// a new City on the Profile step lists that city's areas; ticked areas still in the list stay ticked
+async function loadZonesForCity(cityId) {
+    const list = document.getElementById('zoneList');
+    if (!list) return;
+    const kept = new Set(zoneChecks().filter(c => c.checked).map(c => c.value));
+    const cityName = ddlCity && ddlCity.selectedIndex > 0 ? ddlCity.options[ddlCity.selectedIndex].text : '';
+    let areas = [];
+    if (cityId) {
+        try {
+            const resp = await fetch(`/Users/GetAreasByCity?cityId=${encodeURIComponent(cityId)}`);
+            if (resp.ok) areas = await resp.json();
+        } catch (e) { console.error('Error fetching areas:', e); }
+    }
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    list.innerHTML = areas.length
+        ? `<div class="zone-group"><div class="small fw-bold text-muted text-uppercase mt-1 mb-1" style="font-size:.7rem;letter-spacing:.04em;">${esc(cityName)}</div>${
+            areas.map(a => {
+                const text = a.areaCode ? `${a.areaName} (${a.areaCode})` : a.areaName;
+                return `<div class="form-check zone-item" data-text="${esc(`${text} ${cityName}`.toLowerCase())}">
+                    <input class="form-check-input zone-check" type="checkbox" name="AssignedZoneIds" value="${a.areaId}" id="zone_${a.areaId}" ${kept.has(String(a.areaId)) ? 'checked' : ''} />
+                    <label class="form-check-label small" for="zone_${a.areaId}">${esc(text)}</label></div>`;
+            }).join('')}</div>`
+        : `<div class="text-muted small" id="zoneEmpty">${cityId ? 'This city has no areas in Area Master.' : 'Choose the City on step 2, Profile, to see its areas.'}</div>`;
+    if (zoneSearch) zoneSearch.value = '';
+    bindZoneChecks();
+    updateZoneCount();
+    updatePhlebotomistSummary();
+}
+
+if (ddlCity) ddlCity.addEventListener('change', function () { loadZonesForCity(this.value); });
+bindZoneChecks();
+updateZoneCount();
 
 // ── Phlebotomist Modal & Logic ───────────────────────────────
 let phlebotomistModalInstance = null;
@@ -1273,8 +1335,8 @@ function updatePhlebotomistSummary() {
     const shiftSelect = document.getElementById('ddlShiftSlot');
     const shiftText = shiftSelect && shiftSelect.selectedIndex > 0 ? shiftSelect.options[shiftSelect.selectedIndex].text : '';
 
-    const zoneSelect = document.getElementById('ddlAssignedZone');
-    const zoneText = zoneSelect && zoneSelect.selectedIndex > 0 ? zoneSelect.options[zoneSelect.selectedIndex].text : '';
+    const zoneNames = zoneChecks().filter(c => c.checked).map(c => document.querySelector(`label[for="${c.id}"]`)?.textContent.trim());
+    const zoneText = zoneNames.length > 2 ? `${zoneNames.slice(0, 2).join(', ')} +${zoneNames.length - 2}` : zoneNames.join(', ');
 
     const targetVal = document.getElementById('txtDailyTarget')?.value;
 
@@ -1299,8 +1361,67 @@ if (isPhlebotomistToggle) {
         } else {
             updatePhlebotomistSummary();
         }
+        const phones = document.getElementById('phleboPhonesCard');
+        if (phones) phones.style.display = this.checked ? '' : 'none';
     });
 }
+
+// ── Phlebotomist phones (SQLScripts/2389): approve or block the phones the user signs in from ──
+(() => {
+    const userId = @Model.Id;
+    const rows = document.getElementById('phonesRows');
+    if (!rows || !userId) return;
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const when = v => v ? new Date(v).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
+    const BADGE = { PENDING: ['Waiting', 'bg-warning text-dark'], APPROVED: ['Approved', 'bg-success'], REVOKED: ['Blocked', 'bg-secondary'] };
+    const say = (ok, text) => window.Swal ? Swal.fire({ icon: ok ? 'success' : 'error', text }) : alert(text);
+    const ask = async (title, text, okText) => window.Swal
+        ? (await Swal.fire({ icon: 'question', title, text, showCancelButton: true, confirmButtonText: okText })).isConfirmed
+        : confirm(`${title}\n${text}`);
+
+    async function load() {
+        try {
+            const res = await (await fetch(`/Users/PhleboDevices?id=${userId}`)).json();
+            const list = res.devices || [];
+            rows.innerHTML = list.length ? list.map(d => {
+                const b = BADGE[d.Status] || [d.Status, 'bg-light text-dark'];
+                return `<tr data-id="${d.PhleboDeviceId}">
+                    <td>${esc(d.DeviceName || 'Phone')}<div class="text-muted" style="font-size:.72rem;">${esc(d.Platform)} · …${esc(d.DeviceTail)} · v${esc(d.AppVersion)}</div></td>
+                    <td><span class="badge ${b[1]}">${b[0]}</span></td>
+                    <td>${when(d.CreatedDate)}</td><td>${when(d.LastSeen)}</td>
+                    <td>${d.ApprovedDate ? when(d.ApprovedDate) + (d.ApprovedByName ? `<div class="text-muted" style="font-size:.72rem;">${esc(d.ApprovedByName)}</div>` : '') : '—'}</td>
+                    <td class="text-end text-nowrap">
+                        ${d.Status !== 'APPROVED' ? '<button type="button" class="btn btn-success btn-sm py-0 ph-do" data-do="APPROVE">Approve</button>' : ''}
+                        ${d.Status !== 'REVOKED' ? '<button type="button" class="btn btn-outline-danger btn-sm py-0 ph-do" data-do="BLOCK">Block</button>' : ''}
+                    </td></tr>`;
+            }).join('') : '<tr><td colspan="6" class="text-center text-muted py-3">No phone has signed in yet.</td></tr>';
+        } catch {
+            rows.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-3">Could not load the phones. Try again.</td></tr>';
+        }
+    }
+
+    rows.addEventListener('click', async e => {
+        const btn = e.target.closest('.ph-do'); if (!btn) return;
+        const deviceId = btn.closest('tr').dataset.id, decision = btn.dataset.do;
+        let blockOthers = false;
+        if (decision === 'APPROVE') {
+            blockOthers = await ask('Approve this phone?', 'OK also blocks the user\'s other phones, so only this one can be used.', 'Approve');
+            if (!blockOthers) return;
+        } else if (!await ask('Block this phone?', 'The user cannot use the app on it until it is approved again.', 'Block')) return;
+        const body = new FormData();
+        body.append('id', userId); body.append('deviceId', deviceId); body.append('decision', decision); body.append('blockOthers', blockOthers);
+        body.append('__RequestVerificationToken', document.querySelector('input[name="__RequestVerificationToken"]').value);
+        btn.disabled = true;
+        try {
+            const res = await (await fetch('/Users/PhleboDeviceDecide', { method: 'POST', body })).json();
+            say(res.success, res.message);
+            await load();
+        } catch { say(false, 'Could not save. Check the connection and try again.'); }
+        finally { btn.disabled = false; }
+    });
+    document.getElementById('phonesReload')?.addEventListener('click', load);
+    load();
+})();
 
 // ── Lab Technician Modal & Logic ─────────────────────────────
 let labTechnicianModalInstance = null;

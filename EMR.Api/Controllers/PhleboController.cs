@@ -8,10 +8,14 @@ using Microsoft.Data.SqlClient;
 namespace EMR.Api.Controllers;
 
 /// <summary>
-/// The phlebotomist app. Sign-in is api/auth; each route here is mapped to LAB.PHLEBOAPP (SQLScripts/2373).
+/// The phlebotomist app. Sign-in is api/auth. Access follows the user's Is Phlebotomist switch, not a role permission,
+/// so a phlebotomist works in every branch they are mapped to whatever their role there: the routes skip the page
+/// check ([PublicEndpoint]) and usp_Phlebo_Guard refuses anyone who is not an active phlebotomist. The routes stay
+/// mapped to LAB.PHLEBOAPP (SQLScripts/2373) for Settings > Security listings.
 /// The user comes from the token and the phone from the X-Device-Id header, never from the body.
 /// </summary>
 [ApiController]
+[PublicEndpoint]
 [Route("api/phlebo")]
 [Produces("application/json")]
 public sealed class PhleboController(IPhleboService phlebo, ILogger<PhleboController> logger) : ControllerBase
@@ -124,11 +128,10 @@ public sealed class PhleboController(IPhleboService phlebo, ILogger<PhleboContro
 
         try
         {
-            if (requireDevice)
-            {
-                var code = await phlebo.GuardAsync(caller);
-                if (code != "OK") return StatusCode(403, new { success = false, code, message = GuardMessage(code) });
-            }
+            // every route needs an active phlebotomist; most also need an approved phone and a shift and zone
+            var code = await phlebo.GuardAsync(caller);
+            if (code == "NOT_PHLEBOTOMIST" || (requireDevice && code != "OK"))
+                return StatusCode(403, new { success = false, code, message = GuardMessage(code) });
             return await action(caller);
         }
         catch (PhleboRuleException ex)

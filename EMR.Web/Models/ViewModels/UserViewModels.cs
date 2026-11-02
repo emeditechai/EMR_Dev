@@ -188,6 +188,10 @@ public class UserFormViewModel
     [Display(Name = "Assigned Zone")]
     public int? AssignedZoneId { get; set; }
 
+    /// <summary>Every area the phlebotomist covers (SQLScripts/2389); AssignedZoneId is the main one of these.</summary>
+    [Display(Name = "Assigned Zones")]
+    public List<int> AssignedZoneIds { get; set; } = new();
+
     [Display(Name = "Daily Collection Target")]
     [Range(0, 999999999.99, ErrorMessage = "Daily collection target must be a positive value.")]
     public decimal? DailyCollectionTarget { get; set; }
