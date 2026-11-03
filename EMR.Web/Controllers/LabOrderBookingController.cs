@@ -329,6 +329,7 @@ namespace EMR.Web.Controllers
                 model.PhotoPath = $"/uploads/patients/{fileName}";
             }
 
+            await KeepStoredPhoneAsync(model);   // an existing patient's phone is changed only in Patient Master
             var patient = new PatientMaster
             {
                 PatientId = model.PatientId,
@@ -1013,6 +1014,7 @@ namespace EMR.Web.Controllers
                 model.PhotoPath = $"/uploads/patients/{fileName}";
             }
 
+            await KeepStoredPhoneAsync(model);   // an existing patient's phone is changed only in Patient Master
             var patient = new PatientMaster
             {
                 PatientId = model.PatientId,
@@ -1161,6 +1163,15 @@ namespace EMR.Web.Controllers
         /// alike): when Yes, the booked patient gets a Patient Portal login with the credentials sent, once per patient.
         /// B2B bookings never call this. Never stops or delays the booking.
         /// </summary>
+        /// <summary>An existing patient's phone number is changed only in Patient Master > Edit: a booking keeps the stored one,
+        /// whatever the form sends (the field is also locked on the page once a patient is loaded).</summary>
+        private async Task KeepStoredPhoneAsync(LabOrderBookingViewModel model)
+        {
+            if (model.PatientId <= 0) return;
+            var stored = await patientService.GetByIdAsync(model.PatientId);
+            if (stored is not null && !string.IsNullOrWhiteSpace(stored.PhoneNumber)) model.PhoneNumber = stored.PhoneNumber;
+        }
+
         private async Task TryCreatePortalLoginForB2CAsync(int branchId, int patientId, string? patientCode, PatientMaster patient)
         {
             try
@@ -1360,6 +1371,7 @@ namespace EMR.Web.Controllers
                 }
             }
 
+            await KeepStoredPhoneAsync(model);   // an existing patient's phone is changed only in Patient Master
             var patient = new PatientMaster
             {
                 PatientId = reuse?.PatientId ?? model.PatientId,

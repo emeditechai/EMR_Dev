@@ -603,6 +603,7 @@ public class HospitalSettingsController(
             existing.MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(model.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : model.MembershipCardMessageTemplate.Trim();
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.LabPatientPortalRequired = model.LabPatientPortalRequired;
+            existing.IsPhlebotomistAppRequired = model.IsPhlebotomistAppRequired;
             existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
             existing.OpdCertificateNotificationRequired = model.OpdCertificateNotificationRequired;
             existing.DayClosingBlockBilling = model.DayClosingBlockBilling;
@@ -744,6 +745,7 @@ public class HospitalSettingsController(
             MembershipCardMessageTemplate = s.MembershipCardMessageTemplate,
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             LabPatientPortalRequired = s.LabPatientPortalRequired,
+            IsPhlebotomistAppRequired = s.IsPhlebotomistAppRequired,
             OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = s.OpdCertificateNotificationRequired,
             DayClosingBlockBilling = s.DayClosingBlockBilling,
@@ -840,6 +842,7 @@ public class HospitalSettingsController(
             MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(m.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : m.MembershipCardMessageTemplate.Trim(),
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             LabPatientPortalRequired = m.LabPatientPortalRequired,
+            IsPhlebotomistAppRequired = m.IsPhlebotomistAppRequired,
             OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = m.OpdCertificateNotificationRequired,
             DayClosingBlockBilling = m.DayClosingBlockBilling,

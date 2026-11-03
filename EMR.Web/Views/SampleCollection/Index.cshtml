@@ -972,6 +972,9 @@
 
             // ── 2. Render Workspace Details (Containers Based on Investigation) ─
             function renderWorkspaceDetails(detail, statuses) {
+                // 2396: a Home Collection order of a branch using the Phlebotomist App - nothing can be collected here
+                // until the phlebotomist has handed it over (the server refuses it too)
+                window._scHoldReason = detail.collectionHoldReason || null;
                 $('#workspaceDetails').removeClass('d-none');
                 $('#workspaceActionButtons').removeClass('d-none');
 
@@ -1201,7 +1204,7 @@
                     const msClass = parentPkgGrpId ? 'ms-4' : '';
 
                     const grpReason = profGrp.items.find(x => x.rejectionReason)?.rejectionReason;
-                    const canEditProfile = true;
+                    const canEditProfile = !window._scHoldReason;
 
                     return {
                         grpId: grpId,
@@ -1424,7 +1427,7 @@
                         let statusCellHtml = '';
                         let actionCellHtml = '';
 
-                        const canEditTest = true;
+                        const canEditTest = !window._scHoldReason;
 
                         if (isCollected) {
                             statusCellHtml = `

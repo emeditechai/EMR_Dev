@@ -123,6 +123,13 @@
         .reg-section-header .sec-icon.blue  { background: #e8f0fe; color: #1967d2; }
         .reg-section-header .sec-icon.green { background: #e6f4ea; color: #137333; }
         .reg-section-body { padding: 1.25rem; }
+        /* Search Existing Patient card: the select and the search box share one height */
+        .search-card .form-select, .search-card .input-group > .form-control,
+        .search-card .input-group-text, .search-card #btnSearch { min-height: 42px; }
+        .search-card .reg-section-header { padding: .7rem 1.25rem; }
+        /* the suggestions list drops below the card: not clipped, and above the next section */
+        .search-card { overflow: visible; position: relative; z-index: 20; }
+        .search-card .reg-section-header { border-radius: 12px 12px 0 0; }
 
         .action-bar {
             background: #fff;
@@ -199,38 +206,41 @@
 ══════════════════════════════════════════════════════════════ *@
 @if (!isEdit)
 {
-    <div class="search-panel" id="searchPanel">
-        <div class="search-label-strip">
-            <i class="bi bi-search text-primary fs-6"></i>
-            Search Existing Patient
-            <span class="badge text-bg-warning text-dark ms-1">Optional</span>
-        </div>
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-3">
-                <label class="form-label fw-semibold small mb-1">Search By</label>
-                <select id="searchType" class="form-select form-select-sm">
-                    <option value="phone">Mobile No</option>
-                    <option value="code">Patient ID</option>
-                    <option value="name">Patient Name</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-6 position-relative">
-                <label class="form-label fw-semibold small mb-1" id="searchLabel">Enter Mobile Number</label>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text" id="searchIcon"><i class="bi bi-telephone"></i></span>
-                    <input type="text" id="searchInput" class="form-control"
-                           placeholder="Enter 10-digit mobile number…" maxlength="50" autocomplete="off" />
-                    <button class="btn btn-primary px-3" type="button" id="btnSearch">
-                        <i class="bi bi-search me-1"></i>Search
-                    </button>
+    @* Search Existing Patient - same card look as the sections below *@
+    <div class="reg-section search-card" id="searchPanel">
+        <div class="reg-section-header">
+            <div class="sec-icon blue"><i class="bi bi-search"></i></div>
+            <div class="flex-grow-1">
+                <div class="fw-bold text-dark d-flex align-items-center gap-2">
+                    Search Existing Patient
+                    <span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-semibold" style="font-size:.68rem;">Optional</span>
                 </div>
-                <div id="topSearchDropdown"
-                     class="list-group position-absolute shadow"
-                     style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:260px;overflow-y:auto;"></div>
+                <div class="text-muted small"><i class="bi bi-magic me-1"></i>Pick a patient to fill the form automatically</div>
             </div>
-            <div class="col-12 col-md-3">
-                <div class="alert alert-info py-2 mb-0 small" role="alert">
-                    <i class="bi bi-info-circle me-1"></i>Auto-populates form on selection
+        </div>
+        <div class="reg-section-body py-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-3">
+                    <label class="form-label fw-semibold small mb-1" for="searchType">Search By</label>
+                    <select id="searchType" class="form-select">
+                        <option value="phone">Mobile No</option>
+                        <option value="code">Patient ID</option>
+                        <option value="name">Patient Name</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-9 position-relative">
+                    <label class="form-label fw-semibold small mb-1" id="searchLabel" for="searchInput">Enter Mobile Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white text-primary" id="searchIcon"><i class="bi bi-telephone"></i></span>
+                        <input type="text" id="searchInput" class="form-control"
+                               placeholder="Enter 10-digit mobile number…" maxlength="50" autocomplete="off" />
+                        <button class="btn btn-primary px-4 fw-semibold" type="button" id="btnSearch">
+                            <i class="bi bi-search me-1"></i>Search
+                        </button>
+                    </div>
+                    <div id="topSearchDropdown"
+                         class="list-group position-absolute shadow"
+                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:260px;overflow-y:auto;"></div>
                 </div>
             </div>
         </div>
@@ -3129,6 +3139,19 @@
         }
         loadMemberBadge(parseInt(document.getElementById('PatientId')?.value) || 0);
 
+        // existing patient loaded: the Phone Number is read-only here (Patient Master > Edit changes it)
+        window.lockPatientPhone = function (on) {
+            const ph = document.getElementById('phoneNumber');
+            if (!ph) return;
+            ph.readOnly = !!on;
+            ph.classList.toggle('bg-light', !!on);
+            ph.title = on ? 'Phone number of an existing patient can be changed only in Patient Master > Edit' : '';
+        };
+        // a page opened for an existing patient (?patientId=) starts locked
+        document.addEventListener('DOMContentLoaded', () => {
+            if ((parseInt(document.getElementById('PatientId')?.value) || 0) > 0) window.lockPatientPhone(true);
+        });
+
         async function populatePatient(patientId) {
             if (phoneDrop) phoneDrop.style.display = 'none';
             if (topSearchDropdown) topSearchDropdown.style.display = 'none';
@@ -3161,6 +3184,9 @@
             setVal('AbhaAddress', p.abhaAddress || '');
             // the ID document already on record: Preview under "Upload ID Document"
             window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');
+
+            // an existing patient's phone number is changed only in Patient Master > Edit (the server keeps the stored one too)
+            window.lockPatientPhone?.(true);
 
             // Clear phone error state
             const ph = document.getElementById('phoneNumber');
@@ -3294,6 +3320,7 @@
 
         // ── Reset button – re-init Select2 after reset ────────────────────────
         document.getElementById('btnReset')?.addEventListener('click', () => {
+            window.lockPatientPhone?.(false);
             // Restore submit button to default label
             const btn = document.getElementById('btnSave');
             const defaultLabel = btn?.dataset.defaultLabel ?? 'Register Patient';

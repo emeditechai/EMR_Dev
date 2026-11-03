@@ -887,6 +887,10 @@ public class OPDController(
                 }
             }
 
+            // an existing patient's phone number is changed only in Patient Master > Edit: the booking keeps the stored one
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) is { PhoneNumber: { Length: > 0 } storedPhone })
+                model.PhoneNumber = storedPhone;
+
             var patient = MapViewModelToPatient(model);
             patient.BranchId = branchId;
 

@@ -136,8 +136,8 @@
             background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
             border: 1px solid #bfdbfe;
             border-radius: 12px;
-            padding: 1.1rem 1.4rem;
-            margin-bottom: 1.25rem;
+            padding: .75rem 1rem;
+            margin-bottom: 1rem;
         }
         .btn-check:checked + .btn-b2b-toggle {
             background: #2563eb;
@@ -150,7 +150,7 @@
             border-color: #cbd5e1;
             color: #475569;
             font-weight: 600;
-            padding: .45rem 1.5rem;
+            padding: .25rem .9rem;
             transition: all .15s ease;
         }
 
@@ -286,13 +286,12 @@
        SECTION 0: B2B PARTNER TOGGLE & SELECTION (AT TOP)
        ══════════════════════════════════════════════════════════════ *@
     <div class="b2b-toggle-card shadow-sm">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary px-2.5 py-1.5"><i class="bi bi-briefcase-fill me-1"></i>B2B Entity</span>
-                <span class="fw-bold text-dark fs-6">Select Partner Type:</span>
-            </div>
-            @* Toggle switch for Franchise and Company *@
-            <div class="btn-group" role="group" aria-label="B2B Partner Toggle">
+        <div class="row g-3 align-items-start">
+            @* compact: partner type and the partner on the left, its credit status on the right *@
+            <div class="col-12 col-lg-5">
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <span class="fw-semibold small text-dark"><i class="bi bi-briefcase-fill text-primary me-1"></i>B2B Partner</span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="B2B Partner Toggle">
                 <input type="radio" class="btn-check" name="AgentType" id="toggleFranchise" value="F" @(Model.AgentType != "C" ? "checked" : "") onchange="onPartnerTypeChanged('F')">
                 <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleFranchise">
                     <i class="bi bi-shop me-1"></i>Franchise
@@ -306,12 +305,10 @@
                     </label>
                 }
             </div>
-        </div>
-
-        <div class="row g-3 align-items-center">
+                </div>
             @* Franchise Dropdown *@
-            <div class="col-12 col-md-6" id="divFranchiseSelect" style="@(Model.AgentType == "C" ? "display:none;" : "")">
-                <label class="form-label fw-semibold small text-primary">
+            <div id="divFranchiseSelect" style="@(Model.AgentType == "C" ? "display:none;" : "")">
+                <label class="form-label fw-semibold small text-primary mb-1">
                     <i class="bi bi-shop me-1"></i>Choose Franchise <span class="text-danger">*</span>
                 </label>
                 <select id="ddlFranchise" class="form-select s2-basic" data-placeholder="-- Select Franchise --" disabled="@(User.IsFranchiseUser() ? "disabled" : null)">
@@ -335,12 +332,12 @@
                         }
                     }
                 </select>
-                <small class="text-muted d-block mt-1">Rates will load from Franchise Rate List based on Branch</small>
+                <small class="text-muted d-block mt-1" style="font-size:.72rem;">Rates will load from Franchise Rate List based on Branch</small>
             </div>
 
             @* Company / Corporate Dropdown *@
-            <div class="col-12 col-md-6" id="divCompanySelect" style="@(Model.AgentType == "C" ? "" : "display:none;")">
-                <label class="form-label fw-semibold small text-primary">
+            <div id="divCompanySelect" style="@(Model.AgentType == "C" ? "" : "display:none;")">
+                <label class="form-label fw-semibold small text-primary mb-1">
                     <i class="bi bi-building me-1"></i>Choose Company (Corporate) <span class="text-danger">*</span>
                 </label>
                 <select id="ddlCompany" class="form-select s2-basic" data-placeholder="-- Select Corporate Company --">
@@ -364,11 +361,12 @@
                         }
                     }
                 </select>
-                <small class="text-muted d-block mt-1">Rates will load from Corporate Rate List for selected Company</small>
+                <small class="text-muted d-block mt-1" style="font-size:.72rem;">Rates will load from Corporate Rate List for selected Company</small>
+            </div>
             </div>
 
             @* Dynamic Partner Credit & Facility Status Card *@
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-lg-7">
                 <div id="partnerCreditCard" class="card border shadow-xs" style="background:#f8fafc; border-radius:10px;">
                     <div class="card-body p-2.5">
                         <!-- Top Row: Partner Name & Facility Badge -->
@@ -2138,6 +2136,7 @@
             // Reset Button
             $('#btnResetForm').on('click', function() {
                 document.getElementById('frmB2BBooking').reset();
+                window.lockPatientPhone?.(false);
                 $('#PatientId').val('');
                 $('#PatientCode').val('');
                 $('#loadedPatientBadge').addClass('d-none').text('');
@@ -2157,6 +2156,19 @@
         });
 
         // ── Auto-populate patient data (Same as B2C) ──
+        // existing patient loaded: the Phone Number is read-only here (Patient Master > Edit changes it)
+        window.lockPatientPhone = function (on) {
+            const ph = document.getElementById('phoneNumber');
+            if (!ph) return;
+            ph.readOnly = !!on;
+            ph.classList.toggle('bg-light', !!on);
+            ph.title = on ? 'Phone number of an existing patient can be changed only in Patient Master > Edit' : '';
+        };
+        // a page opened for an existing patient (?patientId=) starts locked
+        document.addEventListener('DOMContentLoaded', () => {
+            if ((parseInt(document.getElementById('PatientId')?.value) || 0) > 0) window.lockPatientPhone(true);
+        });
+
         async function populatePatient(patientId) {
             const phoneDrop = document.getElementById('phoneSearchDropdown');
             if (phoneDrop) phoneDrop.style.display = 'none';
@@ -2230,6 +2242,9 @@
                 $('#AgeDays').val(0);
                 if (window._refreshDob) window._refreshDob();
             }
+
+            // an existing patient's phone number is changed only in Patient Master > Edit (the server keeps the stored one too)
+            window.lockPatientPhone?.(true);
 
             const ph = document.getElementById('phoneNumber');
             const phErr = document.getElementById('phoneError');

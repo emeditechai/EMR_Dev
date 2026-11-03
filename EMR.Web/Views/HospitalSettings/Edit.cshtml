@@ -786,6 +786,25 @@
                     </div>
                 </div>
             </div>
+
+            @* SQLScripts/2395 *@
+            <div class="lab-section-title">Phlebotomist App</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-phone-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Is Phlebotomist App Required</div>
+                            <div class="lp-desc">Yes: this branch uses the Phlebotomist App for home collection (visits, sample collection and hand-over on the phone). No: home collection is handled from the desk only.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="IsPhlebotomistAppRequired">
+                                <label class="form-check-label" asp-for="IsPhlebotomistAppRequired">Use the Phlebotomist App at this branch</label>
+                            </div>
+                            <span asp-validation-for="IsPhlebotomistAppRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <script>
                 (function () {
                     var sel = document.getElementById('selDoctorIpMode'), box = document.getElementById('divDoctorIpRunTime');

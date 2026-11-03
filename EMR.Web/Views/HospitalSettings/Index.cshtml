@@ -668,6 +668,21 @@ else
                 </div>
             </div>
 
+            @* SQLScripts/2395 *@
+            <div class="lab-section-title">Phlebotomist App</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-phone-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Is Phlebotomist App Required</div>
+                            <div class="lp-desc">Yes: this branch uses the Phlebotomist App for home collection (visits, sample collection and hand-over on the phone). No: home collection is handled from the desk only.</div>
+                            <span class="lp-pill @(Model.IsPhlebotomistAppRequired ? "yes" : "no")"><i class="bi @(Model.IsPhlebotomistAppRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.IsPhlebotomistAppRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })
