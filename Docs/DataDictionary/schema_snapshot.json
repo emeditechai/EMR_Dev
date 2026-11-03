@@ -15874,6 +15874,19 @@
    "type": "int"
   },
   {
+   "col": "IsPhlebotomistAppRequired",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 103,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -53731,7 +53744,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-03T00:38:21",
+ "extracted_on": "2026-11-03T22:26:13",
  "fk": [
   {
    "col": "LedgerId",
@@ -57070,6 +57083,16 @@
    "tbl": "ApiRefreshToken"
   },
   {
+   "col": "ApkId",
+   "k": 1,
+   "tbl": "AppApkRelease"
+  },
+  {
+   "col": "FtpSettingId",
+   "k": 1,
+   "tbl": "AppFtpSettings"
+  },
+  {
    "col": "Matrix_ID",
    "k": 1,
    "tbl": "ApprovalMatrix"
@@ -59023,6 +59046,8 @@
   "AnaesthesiaRateMaster",
   "AnaesthesiaTypeMaster",
   "ApiRefreshToken",
+  "AppApkRelease",
+  "AppFtpSettings",
   "AppUploadLog",
   "ApprovalMatrix",
   "ApprovalMatrixApprover",
@@ -59495,6 +59520,11 @@
    "cols": "Token_Hash",
    "idx": "UX_ApiRefreshToken_Hash",
    "tbl": "ApiRefreshToken"
+  },
+  {
+   "cols": "BranchId",
+   "idx": "UQ_AppFtpSettings_Branch",
+   "tbl": "AppFtpSettings"
   },
   {
    "cols": "CompanyId, Module_Code, Scope, Branch_ID",
