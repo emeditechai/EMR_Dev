@@ -130,6 +130,21 @@ public class LabUnapproveController(
 
             await LogAsync(before.Bill, picked, reason, unapproveFor);
 
+            // Settings > Audit Notification Setup (SQLScripts/2397): WhatsApp alert of the un-authorised report - in the
+            // background, after it is done; it never changes or blocks the un-approval
+            try
+            {
+                HttpContext.RequestServices.GetRequiredService<IAuditNotificationService>().Queue(new AuditNotice(
+                    AuditNotifyEvents.LabReportUnauthorised, "LAB", model.LabOrderId, "LAB report un-authorised",
+                    [
+                        ("Tests", string.Join(", ", picked.Select(t => t.TestName).Distinct())),
+                        ("For", unapproveFor == ActionRecollect ? "Re-collection (sample back to Sample Collection)" : "Re-test"),
+                        ("Reason", reason)
+                    ],
+                    User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name, User.GetUserId()));
+            }
+            catch { /* the un-approval itself is done */ }
+
             var what = count == 1 ? "1 test" : $"{count} tests";
             return Json(new
             {

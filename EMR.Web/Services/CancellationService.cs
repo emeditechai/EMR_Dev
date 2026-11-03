@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace EMR.Web.Services;
 
-public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerService, IMembershipPointsWhatsAppService pointsWhatsApp, ILogger<CancellationService> logger) : ICancellationService
+public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerService, IMembershipPointsWhatsAppService pointsWhatsApp, IAuditNotificationService auditNotify, ILogger<CancellationService> logger) : ICancellationService
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
@@ -91,6 +91,9 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
 
             logger.LogInformation("Bill cancelled: {ModuleCode} #{ModuleRefId} → {CancellationNo} Amount={CancelledAmount}", request.ModuleCode, request.ModuleRefId, cancellationNo, totalCancelled);
             await QueuePointsWhatsAppAsync(con, request.ModuleCode, request.ModuleRefId, userId);
+            // Settings > Audit Notification Setup (SQLScripts/2397): WhatsApp alert to the chosen users - in the background,
+            // after the cancellation is done; it never changes or blocks it
+            try { auditNotify.QueueCancellation(cancellationId, null, userId); } catch (Exception ex) { logger.LogWarning(ex, "Audit alert of cancellation {Id} not queued", cancellationId); }
 
             return new BillCancellationResponseDto
             {
@@ -153,6 +156,9 @@ public class CancellationService(IDbConnectionFactory db, ILedgerService ledgerS
 
             logger.LogInformation("Refund processed: {ModuleCode} #{ModuleRefId} RefundId={RefundId} Amount={Amount}", request.ModuleCode, request.ModuleRefId, refundId, request.RefundAmount);
             await QueuePointsWhatsAppAsync(con, request.ModuleCode, request.ModuleRefId, userId);
+            // Settings > Audit Notification Setup (SQLScripts/2397): background alert, never blocks the refund
+            try { auditNotify.QueueRefund(request.ModuleCode, request.ModuleRefId, request.CancellationId, request.RefundAmount, request.RefundMode, request.TransactionRef, null, userId); }
+            catch (Exception ex) { logger.LogWarning(ex, "Audit alert of refund {Id} not queued", refundId); }
 
             return new BillRefundResponseDto
             {

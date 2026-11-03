@@ -1,0 +1,165 @@
+@{
+    ViewData["Title"] = "Audit Notification Setup";
+}
+@* Settings > Audit Notification Setup (SQLScripts/2397): WhatsApp alerts of sensitive actions to chosen users *@
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
+<style>
+    .an-wrap { --an-line:#e2e8f0; --an-muted:#64748b; }
+    .an-card { background:#fff; border:1px solid var(--an-line); border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    .an-event { border-left:4px solid #cbd5e1; transition:border-color .15s; }
+    .an-event.is-on { border-left-color:#16a34a; }
+    .an-icon { width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; flex-shrink:0; }
+    .an-icon.lab { background:#fee2e2; color:#b91c1c; } .an-icon.opd { background:#e0e7ff; color:#3730a3; }
+    .an-kpi { padding:.75rem 1rem; } .an-kpi .v { font-size:1.35rem; font-weight:800; } .an-kpi .l { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--an-muted); }
+    .an-wrap .select2-container--bootstrap-5 .select2-selection--multiple { min-height:40px; }
+    .an-log td, .an-log th { font-size:.8rem; }
+    .an-status { min-width:64px; }
+</style>
+
+<div class="container-fluid py-3 an-wrap">
+    @Html.AntiForgeryToken()
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h4 class="mb-0 fw-bold text-dark"><i class="bi bi-bell-fill text-primary me-2"></i>Audit Notification Setup
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 align-middle ms-1" id="anBranch"><i class="bi bi-building me-1"></i>@(User.FindFirst("BranchName")?.Value ?? "Branch")</span></h4>
+            <div class="text-muted small">Choose who gets a <b>WhatsApp</b> alert when a sensitive action happens. Set up <b>per branch</b> (the branch you are signed in to): alerts of this branch's bills go to the users chosen here, at their User Master mobile, after the action is done - they never hold it up. Switch branch to set up another.</div>
+        </div>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="anReload"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    </div>
+
+    <div class="row g-3 mb-3" id="anKpis">
+        <div class="col-6 col-lg-3"><div class="an-card an-kpi"><div class="l">Events</div><div class="v" id="kEvents">–</div></div></div>
+        <div class="col-6 col-lg-3"><div class="an-card an-kpi"><div class="l">Alerts on</div><div class="v text-success" id="kOn">–</div></div></div>
+        <div class="col-6 col-lg-3"><div class="an-card an-kpi"><div class="l">Users chosen</div><div class="v text-primary" id="kUsers">–</div></div></div>
+        <div class="col-6 col-lg-3"><div class="an-card an-kpi"><div class="l">Sent (last 50)</div><div class="v" id="kSent">–</div></div></div>
+    </div>
+
+    <div class="row g-3" id="anEvents">
+        <div class="col-12 text-muted small">Loading…</div>
+    </div>
+
+    <div class="an-card mt-3">
+        <div class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom">
+            <div class="fw-bold"><i class="bi bi-clock-history me-1 text-secondary"></i>Recent alerts</div>
+            <span class="small text-muted">last 50</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0 an-log">
+                <thead class="table-light"><tr><th class="ps-3">When</th><th>Event</th><th>Bill</th><th>To</th><th>Status</th><th>Detail</th></tr></thead>
+                <tbody id="anLog"><tr><td colspan="6" class="ps-3 text-muted">No alert sent yet.</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const dataUrl = '@Url.Action("Data")', saveUrl = '@Url.Action("Save")', testUrl = '@Url.Action("SendTest")';
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmt = s => s ? new Date(s).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    let data = null;
+
+    function userOption(u) {
+        const label = `${u.name}${u.mobile ? ' · ' + u.mobile : ' · no mobile'}${u.username && u.username !== u.name ? ' · ' + u.username : ''}`;
+        return `<option value="${u.userId}" ${u.mobile ? '' : 'data-nomobile="1"'}>${esc(label)}</option>`;
+    }
+
+    function render() {
+        const users = data.users || [];
+        const chosen = code => (data.recipients || []).filter(r => r.eventCode === code).map(r => String(r.userId));
+        if (data.branchName) $('#anBranch').html('<i class="bi bi-building me-1"></i>' + esc(data.branchName));
+        $('#kEvents').text(data.events.length);
+        $('#kOn').text(data.events.filter(e => e.isEnabled).length);
+        $('#kUsers').text(new Set((data.recipients || []).map(r => r.userId)).size);
+        $('#kSent').text((data.log || []).filter(l => l.status === 'Sent').length);
+
+        $('#anEvents').html(data.events.map(e => `
+            <div class="col-12 col-xl-6">
+                <div class="an-card an-event p-3 h-100 ${e.isEnabled ? 'is-on' : ''}" data-code="${esc(e.eventCode)}">
+                    <div class="d-flex align-items-start gap-3">
+                        <div class="an-icon ${e.module === 'OPD' ? 'opd' : 'lab'}"><i class="bi ${esc(e.icon || 'bi-bell')}"></i></div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <span class="fw-bold">${esc(e.title)}</span>
+                                <span class="badge ${e.module === 'OPD' ? 'bg-primary-subtle text-primary' : 'bg-danger-subtle text-danger'} border">${esc(e.module)}</span>
+                                <span class="badge rounded-pill ${e.isEnabled ? 'bg-success' : 'bg-secondary'} an-state">${e.isEnabled ? 'ON' : 'OFF'}</span>
+                            </div>
+                            <div class="small text-muted">${esc(e.description || '')}</div>
+                        </div>
+                        <div class="form-check form-switch m-0" title="Alert on / off">
+                            <input class="form-check-input an-enabled" type="checkbox" role="switch" ${e.isEnabled ? 'checked' : ''} style="width:2.6em;height:1.4em;cursor:pointer">
+                        </div>
+                    </div>
+                    <label class="form-label small fw-semibold mt-3 mb-1"><i class="bi bi-people me-1"></i>Send to</label>
+                    <select class="form-select an-users" multiple data-placeholder="Choose users…">${users.map(userOption).join('')}</select>
+                    <div class="d-flex align-items-center justify-content-between mt-2 gap-2 flex-wrap">
+                        <span class="small an-msg text-muted">${e.modifiedDate ? 'Last saved ' + fmt(e.modifiedDate) : 'Not set up yet'}</span>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-success btn-sm an-test" title="Send a sample alert to the users saved for this event"><i class="bi bi-whatsapp me-1"></i>Send test</button>
+                            <button type="button" class="btn btn-primary btn-sm an-save"><i class="bi bi-save me-1"></i>Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`).join(''));
+
+        $('#anEvents .an-event').each(function () {
+            const code = this.dataset.code, $sel = $(this).find('.an-users');
+            $sel.val(chosen(code)).select2({
+                theme: 'bootstrap-5', width: '100%', placeholder: 'Choose users…', closeOnSelect: false,
+                templateResult: o => o.element && o.element.dataset.nomobile ? $('<span class="text-muted">' + esc(o.text) + ' <i class="bi bi-exclamation-triangle text-warning"></i></span>') : o.text
+            });
+        });
+
+        $('#anLog').html((data.log || []).length ? data.log.map(l => `<tr>
+            <td class="ps-3 text-nowrap">${fmt(l.createdDate)}</td><td>${esc(l.eventTitle || l.eventCode)}</td>
+            <td class="font-monospace">${esc(l.refNo || '')}</td><td>${esc(l.recipientName || '')}<div class="text-muted" style="font-size:.72rem">${esc(l.phone || '')}</div></td>
+            <td><span class="badge an-status ${l.status === 'Sent' ? 'bg-success' : l.status === 'Skipped' ? 'bg-secondary' : 'bg-danger'}">${esc(l.status)}</span></td>
+            <td class="text-muted">${esc(l.detail || '')}</td></tr>`).join('') : '<tr><td colspan="6" class="ps-3 text-muted">No alert sent yet.</td></tr>');
+    }
+
+    async function load() {
+        try {
+            const r = await (await fetch(dataUrl)).json();
+            if (!r.success) return;
+            data = r; render();
+        } catch { $('#anEvents').html('<div class="col-12 text-danger small">Could not load the setup.</div>'); }
+    }
+
+    async function post(url, body, $card, $btn) {
+        const b = new FormData(); Object.entries(body).forEach(([k, v]) => b.append(k, v)); b.append('__RequestVerificationToken', token());
+        $btn.prop('disabled', true);
+        try {
+            const r = await (await fetch(url, { method: 'POST', body: b })).json();
+            $card.find('.an-msg').attr('class', 'small an-msg ' + (r.success ? 'text-success' : 'text-danger')).text(r.message);
+            return r.success;
+        } catch { $card.find('.an-msg').attr('class', 'small an-msg text-danger').text('Could not reach the server.'); return false; }
+        finally { $btn.prop('disabled', false); }
+    }
+
+    $('#anEvents').on('change', '.an-enabled', function () {
+        const $c = $(this).closest('.an-event'), on = this.checked;
+        $c.toggleClass('is-on', on).find('.an-state').toggleClass('bg-success', on).toggleClass('bg-secondary', !on).text(on ? 'ON' : 'OFF');
+        $c.find('.an-msg').attr('class', 'small an-msg text-warning-emphasis').text('Not saved yet - press Save.');
+    });
+    $('#anEvents').on('change', '.an-users', function () {
+        $(this).closest('.an-event').find('.an-msg').attr('class', 'small an-msg text-warning-emphasis').text('Not saved yet - press Save.');
+    });
+    $('#anEvents').on('click', '.an-save', async function () {
+        const $c = $(this).closest('.an-event');
+        const ok = await post(saveUrl, { eventCode: $c.data('code'), isEnabled: $c.find('.an-enabled').is(':checked'), userIds: ($c.find('.an-users').val() || []).join(',') }, $c, $(this));
+        if (ok) { const msg = $c.find('.an-msg').text(); await load(); $(`.an-event[data-code="${$c.data('code')}"] .an-msg`).attr('class', 'small an-msg text-success').text(msg); }
+    });
+    $('#anEvents').on('click', '.an-test', async function () {
+        const $c = $(this).closest('.an-event');
+        await post(testUrl, { eventCode: $c.data('code') }, $c, $(this));
+        const r = await (await fetch(dataUrl)).json(); if (r.success) { data.log = r.log; $('#kSent').text(r.log.filter(l => l.status === 'Sent').length); render(); }
+    });
+    $('#anReload').on('click', load);
+    load();
+})();
+</script>
+}

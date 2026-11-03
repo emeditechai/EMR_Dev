@@ -30,7 +30,8 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IMasterApprovalService, MasterApprovalService>();
 builder.Services.AddScoped<ILoginCredentialsMailer, LoginCredentialsMailer>();
 builder.Services.AddScoped<ILabFtpService, LabFtpService>();
-builder.Services.AddScoped<IAppApkService, AppApkService>();   // Hospital Settings > App (APK) upload (SQLScripts/2393)
+builder.Services.AddScoped<IAppApkService, AppApkService>();
+builder.Services.AddScoped<IAuditNotificationService, AuditNotificationService>();   // Settings > Audit Notification Setup (SQLScripts/2397)   // Hospital Settings > App (APK) upload (SQLScripts/2393)
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
 builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR.Web.Services.Reports.LabTestWorkloadService>();
 // Utility > Campaigns (SQLScripts/2299): EMR.Api api/campaigns, and the background sender (also started at once on "Send now")
