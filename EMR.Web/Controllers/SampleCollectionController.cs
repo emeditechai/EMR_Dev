@@ -95,7 +95,8 @@ namespace EMR.Web.Controllers
             DateTime? toDate,
             string? dateFilterType = "BookingDate",
             string? statusFilter = "All",
-            string? search = null)
+            string? search = null,
+            string? collectionType = null)   // 2390: Lab / Home Collection; empty = all
         {
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
 
@@ -106,7 +107,7 @@ namespace EMR.Web.Controllers
                 : today.AddDays(1).AddSeconds(-1);
 
             var headerResult = await sampleCollectionApiClient.GetHeaderListAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, OwnOrdersOnly);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, OwnOrdersOnly, collectionType);
 
             var statuses = await sampleCollectionApiClient.GetStatusesAsync();
 
@@ -118,6 +119,7 @@ namespace EMR.Web.Controllers
                 DateFilterType = dateFilterType ?? "BookingDate",
                 StatusFilter = statusFilter ?? "All",
                 Search = search,
+                CollectionType = collectionType,
                 Stats = headerResult.Stats,
                 Headers = headerResult.Headers,
                 Statuses = statuses
@@ -132,7 +134,8 @@ namespace EMR.Web.Controllers
             DateTime? toDate,
             string? dateFilterType = "BookingDate",
             string? statusFilter = "All",
-            string? search = null)
+            string? search = null,
+            string? collectionType = null)   // 2390: Lab / Home Collection; empty = all
         {
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
 
@@ -143,7 +146,7 @@ namespace EMR.Web.Controllers
                 : today.AddDays(1).AddSeconds(-1);
 
             var headerResult = await sampleCollectionApiClient.GetHeaderListAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, OwnOrdersOnly);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, OwnOrdersOnly, collectionType);
 
             return Json(new
             {
@@ -188,6 +191,9 @@ namespace EMR.Web.Controllers
                 var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId.Value);
                 if (detail != null)
                 {
+                    // 2390: Home Collection - only after the phlebotomist has handed the samples over
+                    if (!string.IsNullOrWhiteSpace(detail.CollectionHoldReason))
+                        return Json(new { success = false, message = detail.CollectionHoldReason });
                     var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
                     if (tooEarly != null)
                         return Json(new { success = false, message = tooEarly });
@@ -262,6 +268,9 @@ namespace EMR.Web.Controllers
                 detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
                 if (detail != null)
                 {
+                    // 2390: Home Collection - only after the phlebotomist has handed the samples over
+                    if (!string.IsNullOrWhiteSpace(detail.CollectionHoldReason))
+                        return Json(new { success = false, message = detail.CollectionHoldReason });
                     var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
                     if (tooEarly != null)
                         return Json(new { success = false, message = tooEarly });
@@ -334,6 +343,10 @@ namespace EMR.Web.Controllers
                 {
                     return Json(new { success = false, message = "All samples for this order are already collected." });
                 }
+
+                // 2390: Home Collection - only after the phlebotomist has handed the samples over
+                if (!string.IsNullOrWhiteSpace(detail.CollectionHoldReason))
+                    return Json(new { success = false, message = detail.CollectionHoldReason });
 
                 var tooEarly = CollectionBeforeBooking(detail, null, null);
                 if (tooEarly != null)

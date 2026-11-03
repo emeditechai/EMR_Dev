@@ -18,7 +18,8 @@ namespace EMR.Api.Services
             string? dateFilterType,
             string? statusFilter,
             string? search,
-            int? createdBy = null)
+            int? createdBy = null,
+            string? collectionType = null)
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -31,7 +32,8 @@ namespace EMR.Api.Services
                     DateFilterType = string.IsNullOrWhiteSpace(dateFilterType) ? "BookingDate" : dateFilterType,
                     StatusFilter = string.IsNullOrWhiteSpace(statusFilter) ? "All" : statusFilter,
                     Search = search,
-                    CreatedBy = createdBy is > 0 ? createdBy : null   // script 2266
+                    CreatedBy = createdBy is > 0 ? createdBy : null,   // script 2266
+                    CollectionType = collectionType is "Lab" or "Home Collection" ? collectionType : null   // 2390
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -73,7 +75,8 @@ namespace EMR.Api.Services
                     CollectionstatusID = request.CollectionstatusID,
                     SampleCollectionDate = request.SampleCollectionDate,
                     SampleCollectionTime = request.SampleCollectionTime,
-                    UserId = userId
+                    UserId = userId,
+                    EnforceHomeHandover = true   // 2390: Home Collection only after the handover
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -93,7 +96,8 @@ namespace EMR.Api.Services
                     CollectionstatusID = request.CollectionstatusID,
                     SampleCollectionDate = request.SampleCollectionDate,
                     SampleCollectionTime = request.SampleCollectionTime,
-                    UserId = userId
+                    UserId = userId,
+                    EnforceHomeHandover = true   // 2390: Home Collection only after the handover
                 },
                 commandType: CommandType.StoredProcedure
             );
@@ -107,7 +111,8 @@ namespace EMR.Api.Services
                 new
                 {
                     LabOrderId = labOrderId,
-                    UserId = userId
+                    UserId = userId,
+                    EnforceHomeHandover = true   // 2390
                 },
                 commandType: CommandType.StoredProcedure
             );

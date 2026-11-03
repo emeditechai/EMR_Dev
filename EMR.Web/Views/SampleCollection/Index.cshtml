@@ -168,6 +168,12 @@
                 <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Rejected" ? "btn-danger text-white active fw-bold shadow-sm" : "btn-outline-danger")" data-status="Rejected">
                     <i class="bi bi-x-circle me-1"></i>Rejected
                 </button>
+                <span class="fs-8 text-muted fw-semibold ms-md-3 me-1"><i class="bi bi-truck me-1"></i>Collection Type:</span>
+                <select id="selCollectionType" class="form-select form-select-sm w-auto" aria-label="Collection Type">
+                    <option value="">All</option>
+                    <option value="Lab">Lab (Center)</option>
+                    <option value="Home Collection">Home Collection</option>
+                </select>
                 <span class="ms-auto fs-8 text-muted fw-semibold" id="lblOrderCount">Showing @b2cHeaders.Count orders</span>
             </div>
         </div>
@@ -434,6 +440,10 @@
                                 <div class="col-sm-3 col-6">
                                     <span class="text-muted fs-9 d-block">Collection Type</span>
                                     <span id="lblCollectionTypeBadge" class="badge bg-light text-secondary border fs-9">Lab</span>
+                                    <div id="lblHomeVisitStatus" class="fs-9 mt-1 d-none"></div>
+                                </div>
+                                <div class="col-12 d-none" id="divHomeHold">
+                                    <div class="home-hold rounded-2 px-2 py-1 fs-8 fw-semibold"><i class="bi bi-shield-lock me-1"></i><span id="lblHomeHold"></span></div>
                                 </div>
                                 <div class="col-sm-3 col-6" id="rowPhlebotomist">
                                     <span class="text-muted fs-9 d-block">Phlebotomist</span>
@@ -537,6 +547,11 @@
 </div>
 
 <style>
+    /* 2390: Home Collection badge - Bootstrap has no purple utilities, so the badge was white on white */
+    .bg-purple-subtle { background-color: #f3e8ff !important; }
+    .text-purple { color: #6b21a8 !important; }
+    .border-purple { border-color: #c084fc !important; }
+    .home-hold { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; }
     /* ── Tab Switcher for B2C vs B2B ── */
     .sample-source-tabs {
         background-color: #f1f5f9 !important;
@@ -994,6 +1009,13 @@
                 }
                 $('#lblBookingDateTime').text(detail.bookingDateTime ? formatDateTime(detail.bookingDateTime) : '—');
 
+                // 2390: Home Collection - the latest home visit, and why it cannot be collected yet
+                const hvs = detail.homeVisitStatus ? String(detail.homeVisitStatus).replace(/_/g, ' ') : null;
+                $('#lblHomeVisitStatus').toggleClass('d-none', !((detail.collectionType || '').toLowerCase().includes('home')))
+                    .html(`<i class="bi bi-geo-alt me-1"></i>Visit: <strong>${escapeHtml(hvs || 'not dispatched')}</strong>`);
+                $('#divHomeHold').toggleClass('d-none', !detail.collectionHoldReason);
+                $('#lblHomeHold').text(detail.collectionHoldReason || '');
+
                 // Collection Type
                 const colTypeLc = (detail.collectionType || '').toLowerCase();
                 if (colTypeLc.includes('home')) {
@@ -1078,6 +1100,13 @@
                         .removeClass('btn-success')
                         .addClass('btn-secondary')
                         .attr('title', `Enter and validate the pre-printed barcode for '${pendingMissingBarcode.testName}' first`);
+                } else if (detail.collectionHoldReason) {
+                    // 2390: Home Collection not handed over yet - nothing can be collected at the desk
+                    $('#btnCollectAll')
+                        .prop('disabled', true)
+                        .removeClass('btn-success')
+                        .addClass('btn-secondary')
+                        .attr('title', detail.collectionHoldReason);
                 } else {
                     $('#btnCollectAll')
                         .prop('disabled', false)
@@ -2124,6 +2153,8 @@
                 reloadHeaderList();
             });
 
+            $(document).on('change', '#selCollectionType', function () { reloadHeaderList(); });   // 2390
+
             function reloadHeaderList() {
                 const fromDate = $('#txtFromDate').val();
                 const toDate = $('#txtToDate').val();
@@ -2138,7 +2169,8 @@
                         toDate: toDate,
                         dateFilterType: dateFilterType,
                         statusFilter: 'All',
-                        search: search
+                        search: search,
+                        collectionType: $('#selCollectionType').val() || ''   // 2390
                     },
                     success: function (res) {
                         if (res.success) {

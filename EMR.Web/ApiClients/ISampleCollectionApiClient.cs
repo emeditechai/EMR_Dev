@@ -14,7 +14,8 @@ namespace EMR.Web.ApiClients
             string? dateFilterType = "BookingDate",
             string? statusFilter = "All",
             string? search = null,
-            int? createdBy = null);
+            int? createdBy = null,
+            string? collectionType = null);
 
         Task<SampleCollectionOrderDetailDto?> GetDetailAsync(int labOrderId);
 

@@ -27,6 +27,8 @@ namespace EMR.Api.Models
         public string? TokenNo { get; set; }
         public bool IsUrgent { get; set; }
         public string CollectionType { get; set; } = "Lab";
+        public string? HomeVisitStatus { get; set; }   // 2390: latest home visit
+        public bool CanCollect { get; set; } = true;   // 2390: false = Home Collection not handed over yet
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string PaymentStatus { get; set; } = "U";
@@ -71,6 +73,8 @@ namespace EMR.Api.Models
         public string? TokenNo { get; set; }
         public bool IsUrgent { get; set; }
         public string CollectionType { get; set; } = "Lab";
+        public string? HomeVisitStatus { get; set; }   // 2390
+        public string? CollectionHoldReason { get; set; }   // 2390: why it cannot be collected yet (null = it can)
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string PaymentStatus { get; set; } = "U";
