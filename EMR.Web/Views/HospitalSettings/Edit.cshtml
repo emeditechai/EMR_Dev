@@ -970,6 +970,70 @@
                 </div>
             </div>
 
+
+            @* FTP + upload for Android app files (SQLScripts/2393): saved on its own, not with the main form *@
+            <div class="lab-section-title">FTP Credentials for App (APK) Upload</div>
+            <div class="lab-param mb-3" style="--lp:#15803d;--lp-bg:#dcfce7;" id="appFtpBox">
+                <div class="lp-icon"><i class="bi bi-android2"></i></div>
+                <div class="lp-body w-100">
+                    <div class="lp-label">FTP server for App (APK) Upload</div>
+                    <div class="lp-desc">Android app files uploaded here are stored at
+                        <code>&lt;Root folder&gt;/&lt;App name&gt;/&lt;Version&gt;/AppName_vVersion_yyyyMMddHHmmss.apk</code>. Folders are created when missing.
+                        <span id="appFtpInherited" class="d-none text-warning-emphasis"></span></div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-5"><label class="form-label small mb-0">Host name / IP <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="appFtpHost" maxlength="200" autocomplete="off" placeholder="e.g. ftp.example.com" /></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Port</label>
+                            <input type="number" class="form-control form-control-sm" id="appFtpPort" min="1" max="65535" value="21" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Root folder</label>
+                            <input type="text" class="form-control form-control-sm" id="appFtpRoot" maxlength="300" value="emedidoc/apps" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">User ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="appFtpUser" maxlength="150" autocomplete="off" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Password <span class="text-danger" id="appFtpPwdReq">*</span></label>
+                            <input type="password" class="form-control form-control-sm" id="appFtpPassword" maxlength="200" autocomplete="new-password" /></div>
+                        <div class="col-md-6 d-flex gap-4 align-items-center">
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="appFtpPassive" checked>
+                                <label class="form-check-label small" for="appFtpPassive">Passive mode</label></div>
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="appFtpFtps">
+                                <label class="form-check-label small" for="appFtpFtps">FTPS (TLS)</label></div>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="appFtpTest"><i class="bi bi-plug me-1"></i>Test connection</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="appFtpSave"><i class="bi bi-save me-1"></i>Save FTP credentials</button>
+                        </div>
+                    </div>
+                    <div class="small mt-1 text-muted" id="appFtpStatus"></div>
+
+                    <hr class="my-3" />
+                    <div class="lp-label mb-1"><i class="bi bi-cloud-arrow-up me-1"></i>Upload app (.apk)</div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3"><label class="form-label small mb-0">App name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="apkAppName" maxlength="100" list="apkAppNames" placeholder="e.g. Phlebotomist App" />
+                            <datalist id="apkAppNames"></datalist></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Version <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="apkVersion" maxlength="50" placeholder="e.g. 1.0.3" /></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Version code</label>
+                            <input type="number" class="form-control form-control-sm" id="apkVersionCode" min="0" placeholder="e.g. 103" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">APK file <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control form-control-sm" id="apkFile" accept=".apk,application/vnd.android.package-archive" /></div>
+                        <div class="col-md-9"><label class="form-label small mb-0">Release notes</label>
+                            <input type="text" class="form-control form-control-sm" id="apkNotes" maxlength="1000" placeholder="What changed (optional)" /></div>
+                        <div class="col-md-3 text-md-end">
+                            <button type="button" class="btn btn-success btn-sm w-100" id="apkUpload"><i class="bi bi-cloud-arrow-up-fill me-1"></i>Upload APK</button>
+                        </div>
+                    </div>
+                    <div class="progress mt-2 d-none" style="height:6px" id="apkProgressWrap"><div class="progress-bar bg-success" id="apkProgress" style="width:0%"></div></div>
+                    <div class="small mt-1 text-muted" id="apkStatus">.apk up to 300 MB. Each upload is kept in the history below and becomes the app's Latest.</div>
+
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm align-middle mb-0 small">
+                            <thead class="table-light"><tr><th>App</th><th>Version</th><th>File</th><th class="text-end">Size</th><th>Uploaded</th><th>Notes</th><th class="text-end">Action</th></tr></thead>
+                            <tbody id="apkRows"><tr><td colspan="7" class="text-muted">No app uploaded yet.</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })
@@ -1152,6 +1216,114 @@
         if (await post('@Url.Action("SaveFtpSettings")', $('ftpSave'))) { $('ftpPassword').value = ''; load(); }
     });
     load();
+})();
+</script>
+
+<script>
+// FTP for App (APK) upload and the APK version history (SQLScripts/2393) - same pattern as the report-document FTP above
+(function () {
+    const $ = id => document.getElementById(id);
+    if (!$('appFtpBox')) return;
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const status = (el, t, cls) => { $(el).className = 'small mt-1 ' + (cls || 'text-muted'); $(el).textContent = t; };
+    const size = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
+    function body() {
+        const b = new FormData();
+        b.append('host', $('appFtpHost').value.trim()); b.append('port', $('appFtpPort').value || '21');
+        b.append('userName', $('appFtpUser').value.trim()); b.append('password', $('appFtpPassword').value);
+        b.append('rootFolder', $('appFtpRoot').value.trim());
+        b.append('usePassive', $('appFtpPassive').checked); b.append('useFtps', $('appFtpFtps').checked);
+        b.append('__RequestVerificationToken', token());
+        return b;
+    }
+    async function load() {
+        try {
+            const r = await (await fetch('@Url.Action("AppFtpSettings")')).json();
+            if (!r.success) return;
+            $('appFtpHost').value = r.host || ''; $('appFtpPort').value = r.port || 21; $('appFtpUser').value = r.userName || '';
+            $('appFtpRoot').value = r.rootFolder || 'emedidoc/apps'; $('appFtpPassive').checked = r.usePassive; $('appFtpFtps').checked = r.useFtps;
+            $('appFtpPassword').placeholder = r.hasPassword ? '•••••••• saved — leave blank to keep' : '';
+            $('appFtpPwdReq').classList.toggle('d-none', r.hasPassword);
+            if (!r.own && r.inheritedFromBranchId) {
+                $('appFtpInherited').classList.remove('d-none');
+                $('appFtpInherited').textContent = ' This branch uses the App FTP settings of another branch; save here to give it its own.';
+            }
+            if (r.modifiedDate) status('appFtpStatus', 'Last saved ' + new Date(r.modifiedDate).toLocaleString('en-GB'));
+        } catch { }
+    }
+    async function post(url, btn) {
+        btn.disabled = true; status('appFtpStatus', 'Working…');
+        try {
+            const r = await (await fetch(url, { method: 'POST', body: body() })).json();
+            status('appFtpStatus', r.message, r.success ? 'text-success' : 'text-danger');
+            return r.success;
+        } catch { status('appFtpStatus', 'Could not reach the server.', 'text-danger'); return false; }
+        finally { btn.disabled = false; }
+    }
+    async function loadReleases() {
+        try {
+            const r = await (await fetch('@Url.Action("ApkReleases")')).json();
+            const rows = r.rows || [];
+            $('apkAppNames').innerHTML = [...new Set(rows.map(x => x.appName))].map(n => '<option value="' + esc(n) + '">').join('');
+            $('apkRows').innerHTML = rows.length ? rows.map(x => '<tr' + (x.isLatest ? ' class="table-success"' : '') + '>'
+                + '<td class="fw-semibold">' + esc(x.appName) + '</td>'
+                + '<td>v' + esc(x.versionName) + (x.versionCode != null ? ' <span class="text-muted">(' + x.versionCode + ')</span>' : '')
+                +     (x.isLatest ? ' <span class="badge bg-success">Latest</span>' : '') + '</td>'
+                + '<td><div class="font-monospace text-break" style="max-width:260px">' + esc(x.fileName) + '</div><div class="text-muted text-break" style="max-width:260px;font-size:.72rem">' + esc(x.filePath) + '</div></td>'
+                + '<td class="text-end text-nowrap">' + size(x.fileSizeBytes) + '</td>'
+                + '<td class="text-nowrap">' + esc(new Date(x.uploadedDate).toLocaleString('en-GB')) + '<div class="text-muted">' + esc(x.uploadedByName || '') + '</div></td>'
+                + '<td style="max-width:220px">' + esc(x.releaseNotes || '') + '</td>'
+                + '<td class="text-end text-nowrap">' + (x.isLatest ? '' : '<button type="button" class="btn btn-outline-success btn-sm py-0 px-2 me-1" data-latest="' + x.apkId + '" title="Make this the latest release">Make Latest</button>')
+                +     '<button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" data-remove="' + x.apkId + '" title="Remove from the list (the file stays on the FTP server)"><i class="bi bi-trash"></i></button></td>'
+                + '</tr>').join('') : '<tr><td colspan="7" class="text-muted">No app uploaded yet.</td></tr>';
+        } catch { }
+    }
+    async function act(url, id) {
+        const b = new FormData(); b.append('apkId', id); b.append('__RequestVerificationToken', token());
+        try {
+            const r = await (await fetch(url, { method: 'POST', body: b })).json();
+            status('apkStatus', r.message, r.success ? 'text-success' : 'text-danger');
+            if (r.success) loadReleases();
+        } catch { status('apkStatus', 'Could not reach the server.', 'text-danger'); }
+    }
+    $('apkRows').addEventListener('click', e => {
+        const latest = e.target.closest('[data-latest]'), remove = e.target.closest('[data-remove]');
+        if (latest) act('@Url.Action("SetLatestApk")', latest.dataset.latest);
+        if (remove && window.confirm('Remove this release from the list? The file stays on the FTP server.')) act('@Url.Action("RemoveApk")', remove.dataset.remove);
+    });
+    $('apkUpload').addEventListener('click', () => {
+        const f = $('apkFile').files[0];
+        if (!$('apkAppName').value.trim()) return status('apkStatus', 'Enter the app name.', 'text-danger');
+        if (!$('apkVersion').value.trim()) return status('apkStatus', 'Enter the version.', 'text-danger');
+        if (!f) return status('apkStatus', 'Choose the .apk file.', 'text-danger');
+        if (!/\.apk$/i.test(f.name)) return status('apkStatus', 'Only an .apk file can be uploaded.', 'text-danger');
+        if (f.size > 300 * 1048576) return status('apkStatus', 'The file is larger than 300 MB.', 'text-danger');
+        const b = new FormData();
+        b.append('file', f); b.append('appName', $('apkAppName').value.trim()); b.append('versionName', $('apkVersion').value.trim());
+        if ($('apkVersionCode').value) b.append('versionCode', $('apkVersionCode').value);
+        b.append('releaseNotes', $('apkNotes').value.trim()); b.append('__RequestVerificationToken', token());
+        // XMLHttpRequest for the upload progress of a large file
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '@Url.Action("UploadApk")');
+        xhr.upload.onprogress = e => { if (e.lengthComputable) $('apkProgress').style.width = Math.round(e.loaded * 100 / e.total) + '%'; };
+        xhr.onload = () => {
+            $('apkUpload').disabled = false; $('apkProgressWrap').classList.add('d-none');
+            let r; try { r = JSON.parse(xhr.responseText); } catch { r = { success: false, message: xhr.status === 413 ? 'The file is too large for the server.' : 'Upload failed (' + xhr.status + ').' }; }
+            status('apkStatus', r.message, r.success ? 'text-success' : 'text-danger');
+            if (r.success) { $('apkFile').value = ''; $('apkNotes').value = ''; $('apkVersion').value = ''; $('apkVersionCode').value = ''; loadReleases(); }
+        };
+        xhr.onerror = () => { $('apkUpload').disabled = false; $('apkProgressWrap').classList.add('d-none'); status('apkStatus', 'Could not reach the server.', 'text-danger'); };
+        $('apkUpload').disabled = true; $('apkProgress').style.width = '0%'; $('apkProgressWrap').classList.remove('d-none');
+        status('apkStatus', 'Uploading ' + f.name + ' (' + size(f.size) + ')…');
+        xhr.send(b);
+    });
+    $('appFtpBox').addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    $('appFtpTest').addEventListener('click', () => post('@Url.Action("TestAppFtpSettings")', $('appFtpTest')));
+    $('appFtpSave').addEventListener('click', async () => {
+        if (await post('@Url.Action("SaveAppFtpSettings")', $('appFtpSave'))) { $('appFtpPassword').value = ''; load(); }
+    });
+    load(); loadReleases();
 })();
 </script>
 

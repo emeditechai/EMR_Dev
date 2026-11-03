@@ -480,6 +480,10 @@
     </div>
 </div>
 
+@* 2392: Send Report - the token for its POST, and whether this user may send (control SEND_REPORT) *@
+@Html.AntiForgeryToken()
+<span id="permSendReport" class="d-none" asp-permission="LAB.LABREPORTDISPATCH:SEND_REPORT"></span>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
@@ -490,6 +494,8 @@
             const dataUrl = '@Url.Action("GetDashboardJson", "LabReportDispatch")';
             const pdfUrl = '@Url.Action("PrintReportPdf", "LabReportDispatch")';
             const billUrl = '@Url.Action("PrintBill", "LabReportDispatch")';
+            const sendUrl = '@Url.Action("SendReport", "LabReportDispatch")';
+            const canSendReport = $('#permSendReport').length > 0;
             // The Image / Descriptive report has its own existing print page; the PDF above only ever
             // carries the Numeric tests, so a bill holding both is printed from both.
             const imagePrintUrl = '@Url.Action("Print", "LabImageReporting")';
@@ -631,20 +637,36 @@
                 // B2B due is settled with the franchise/company, not the patient at the counter - never
                 // block printing on it. B2C keeps the existing "clear the due first" rule unchanged.
                 const hasDue = !paid && !isB2B;
-                let printBtn;
+                // 2392: one Action menu - Report Print (by state), Bill, Send Report. The items keep the classes / data the
+                // existing click handlers use, so printing works exactly as before.
+                const item = (cls, attrs, icon, text, title, disabled) =>
+                    '<li><button type="button" class="dropdown-item fs-8 d-flex align-items-center gap-2 ' + cls + '"' + (attrs || '')
+                    + (title ? ' title="' + esc(title) + '"' : '') + (disabled ? ' disabled' : '') + '><i class="bi ' + icon + '"></i>' + text + '</button></li>';
+                let printItems;
                 if (!r.canPrint) {
-                    printBtn = '<button type="button" class="btn btn-outline-secondary btn-sm fs-9 px-2 py-1" disabled title="Validate at least one test to print"><i class="bi bi-printer me-1"></i>Print</button>';
+                    printItems = item('', '', 'bi-printer', 'Report Print', 'Validate at least one test to print', true);
                 } else if (hasDue) {
                     // Kept clickable on purpose: the click explains why the report is held back.
-                    printBtn = '<button type="button" class="btn btn-outline-danger btn-sm fs-9 px-2 py-1 btn-print-due" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '" title="Payment pending - the report cannot be printed"><i class="bi bi-lock-fill me-1"></i>Print</button>';
+                    printItems = item('btn-print-due text-danger', ' data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '"', 'bi-lock-fill', 'Report Print', 'Payment pending - the report cannot be printed');
                 } else if (r.dispatchStatus === 'PARTIAL') {
-                    // Part approved, part still awaiting approval: the approved tests can go out as a clean report,
-                    // and the rest as the usual NOT APPROVED copy. Dues are already cleared at this point.
-                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-ready" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="approved" title="Print the approved test(s) of this bill - ' + r.approvedTests + ' of ' + total + '"><i class="bi bi-printer-fill me-1"></i>Print Approved</button>'
-                        + ' <button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-prov" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="pending" title="Print a NOT APPROVED copy of the tests still awaiting approval"><i class="bi bi-printer-fill me-1"></i>Not Approved</button>';
+                    printItems = item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="approved"', 'bi-printer-fill text-success', 'Report Print (Approved)', 'Print the approved test(s) of this bill - ' + r.approvedTests + ' of ' + total)
+                        + item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="pending"', 'bi-printer-fill text-warning', 'Report Print (Not Approved)', 'Print a NOT APPROVED copy of the tests still awaiting approval');
                 } else {
-                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print ' + (isReady ? 'btn-print-ready' : 'btn-print-prov') + '" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="all" title="' + (isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)') + '"><i class="bi bi-printer-fill me-1"></i>' + (isReady ? 'Print' : 'Print (Not Approved)') + '</button>';
+                    printItems = item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="all"', 'bi-printer-fill ' + (isReady ? 'text-success' : 'text-warning'),
+                        isReady ? 'Report Print' : 'Report Print (Not Approved)', isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)');
                 }
+                const billItem = item('btn-print-bill', ' data-id="' + r.labOrderId + '"', 'bi-receipt', 'Bill', 'Print the bill for ' + (r.billNo || 'this order'));
+                // Send Report: the final report only (every test approved) and only once the bill has no due
+                const sendBlock = !isReady ? 'Only an approved report can be sent (' + r.approvedTests + ' of ' + total + ' tests approved)'
+                                : Number(r.balanceDue) > 0 ? 'Clear the due of Rs. ' + Number(r.balanceDue).toFixed(2) + ' to send the report' : '';
+                const sendItem = canSendReport
+                    ? '<li><hr class="dropdown-divider my-1"></li>' + item(sendBlock ? '' : 'btn-send-report', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '"',
+                        'bi-send-fill text-primary', 'Send Report', sendBlock || 'Send the report to the patient by WhatsApp and e-mail', !!sendBlock)
+                    : '';
+                const actionMenu = '<div class="dropdown">'
+                    + '<button type="button" class="btn btn-sm fs-9 px-2 py-1 dropdown-toggle ' + (isReady && !hasDue ? 'btn-print-ready' : 'btn-outline-secondary') + '" data-bs-toggle="dropdown" data-bs-popper-config=\'{"strategy":"fixed"}\' aria-expanded="false">'
+                    + '<i class="bi bi-three-dots-vertical me-1"></i>Action</button>'
+                    + '<ul class="dropdown-menu dropdown-menu-end shadow-sm">' + printItems + billItem + sendItem + '</ul></div>';
 
                 const client = isB2B
                     ? '<div class="fs-9 text-muted text-truncate mt-1" style="max-width:150px" title="' + esc((r.clientType === 'FRANCHISE' ? 'Franchise: ' : 'Company: ') + (r.clientName || '')) + '"><i class="bi ' + (r.clientType === 'FRANCHISE' ? 'bi-shop' : 'bi-building') + ' me-1"></i>' + esc([r.clientCode, r.clientName].filter(Boolean).join(' · ') || '—') + '</div>'
@@ -671,8 +693,7 @@
                     + '<td class="text-nowrap fs-9">' + (r.approvedDate ? esc(fmt(r.approvedDate)) : '<span class="text-muted">—</span>') + '</td>'
                     + '<td class="text-center"><span class="badge badge-ds fs-9 ' + b.cls + '"><i class="bi ' + b.icon + ' me-1"></i>' + b.text + '</span></td>'
                     + '<td class="text-center">' + printedHtml + '</td>'
-                    + '<td class="text-end pe-3 text-nowrap">' + printBtn
-                    +     ' <button type="button" class="btn btn-outline-secondary btn-sm fs-9 px-2 py-1 btn-print-bill" data-id="' + r.labOrderId + '" title="Print the bill for ' + esc(r.billNo || 'this order') + '"><i class="bi bi-receipt me-1"></i>Bill</button></td>'
+                    + '<td class="text-end pe-3 text-nowrap">' + actionMenu + '</td>'
                     + '</tr>';
             }
 
@@ -1073,6 +1094,29 @@
                         openNumericPrint(id, scope, bill);   // the type check must never block a print
                     });
             });
+            // 2392: Action > Send Report - WhatsApp and e-mail through the existing senders (sent again if it already went)
+            $('#tblDispatchBody').on('click', '.btn-send-report', async function () {
+                const id = $(this).data('id'), bill = $(this).data('bill');
+                const ok = await Swal.fire({
+                    icon: 'question', title: 'Send report?',
+                    html: 'The approved report of <b>' + esc(bill) + '</b> will be sent to the patient by <b>WhatsApp</b> and <b>e-mail</b>.',
+                    showCancelButton: true, confirmButtonText: '<i class="bi bi-send-fill me-1"></i>Send', confirmButtonColor: '#0f766e', reverseButtons: true
+                });
+                if (!ok.isConfirmed) return;
+                Swal.fire({ title: 'Sending report...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                $.ajax({ url: sendUrl, type: 'POST', data: { labOrderId: id },
+                         headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() } })
+                    .done(res => {
+                        if (!res.whatsApp && !res.email) { Swal.fire({ icon: 'warning', title: 'Not sent', text: res.message || 'The report could not be sent.' }); return; }
+                        const line = (name, o) => '<tr><td class="text-start fw-semibold pe-3">' + name + '</td><td class="text-start">'
+                            + (o.status === 'Sent' ? '<span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Sent</span>' : '<span class="text-warning-emphasis fw-semibold">' + esc(o.status) + '</span>')
+                            + '<div class="small text-muted">' + esc(o.message || '') + '</div></td></tr>';
+                        Swal.fire({ icon: res.success ? 'success' : 'warning', title: res.success ? 'Report sent' : 'Report not sent',
+                                    html: '<table class="table table-sm mb-0">' + line('WhatsApp', res.whatsApp) + line('E-mail', res.email) + '</table>' });
+                    })
+                    .fail(xhr => Swal.fire({ icon: 'error', title: 'Not sent', text: xhr.status === 403 ? 'You do not have permission to send reports.' : 'Server error while sending the report.' }));
+            });
+
             $('#tblDispatchBody').on('click', '.btn-print-bill', function () {
                 const id = $(this).data('id');
                 window.open(billUrl + '?q=' + encodeURIComponent(encMap[id] || ''), '_blank');

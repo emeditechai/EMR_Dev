@@ -107,8 +107,23 @@ public class LabReportSection
 }
 
 /// <summary>A package heading, a profile heading, or a standalone investigation, with its result rows.</summary>
+/// <summary>LAB > External Document Upload (SQLScripts/2391): a document uploaded for an approved test, merged into the
+/// report right below that test - its pages as images, under the report's own header and footer.</summary>
+public class LabReportExternalDoc
+{
+    public string TestName { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    /// <summary>One image (png / jpg bytes) per page.</summary>
+    public List<byte[]> Pages { get; set; } = new();
+    /// <summary>Shown instead of pages when the document cannot be drawn (e.g. Word files, or the FTP server is unreachable).</summary>
+    public string? Note { get; set; }
+}
+
 public class LabReportGroup
 {
+    /// <summary>External documents of this group's approved tests (SQLScripts/2391), printed right after the group.</summary>
+    public List<LabReportExternalDoc> ExternalDocuments { get; set; } = new();
+
     /// <summary>Set only on the first group of a package - printed as a package banner above it.</summary>
     public string? PackageHeading { get; set; }
     /// <summary>Profile / investigation heading. Null for tests that sit directly under a package.</summary>
@@ -121,6 +136,8 @@ public class LabReportGroup
 
 public class LabReportRow
 {
+    /// <summary>The test (Investigation Master id) - an external document uploaded for it prints below its group (SQLScripts/2391).</summary>
+    public int InvestigationId { get; set; }
     public string TestName { get; set; } = string.Empty;
     public string Result { get; set; } = string.Empty;
     /// <summary>"H", "L", "*" (critical) or a combination such as "* H"; empty when normal.</summary>

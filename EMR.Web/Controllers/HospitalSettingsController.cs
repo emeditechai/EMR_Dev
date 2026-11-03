@@ -19,7 +19,8 @@ public class HospitalSettingsController(
     IAuditLogService auditLogService,
     IWebHostEnvironment webHostEnvironment,
     ILabDefaultSignatoryApiClient signatoryApiClient,
-    ILabFtpService labFtpService) : Controller
+    ILabFtpService labFtpService,
+    IAppApkService appApkService) : Controller
 {
     // ── FTP credentials for external lab report documents (Lab tab, SQLScripts/2354) ─────────
     // Saved on their own (not with the main form). The password is encrypted and never sent back to the page.
@@ -78,6 +79,158 @@ public class HospitalSettingsController(
         }
         var (ok, message) = await labFtpService.TestAsync(settings!, password);
         return Json(new { success = ok, message });
+    }
+
+    // ── FTP server for App (APK) Upload (Lab tab, SQLScripts/2393): its own credentials, same pattern as above ─────────
+
+    [HttpGet]
+    public async Task<IActionResult> AppFtpSettings()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var own = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: true);
+        var used = own ?? await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: false);
+        return Json(new
+        {
+            success = true,
+            own = own is not null,
+            inheritedFromBranchId = own is null ? used?.BranchId : null,
+            host = used?.Host, port = used?.Port ?? 21, userName = used?.UserName,
+            rootFolder = used?.RootFolder ?? "emedidoc/apps", usePassive = used?.UsePassive ?? true, useFtps = used?.UseFtps ?? false,
+            hasPassword = !string.IsNullOrEmpty(own?.PasswordEnc), modifiedDate = own?.ModifiedDate
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveAppFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        var own = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: true);
+        if (string.IsNullOrEmpty(password) && string.IsNullOrEmpty(own?.PasswordEnc))
+            return Json(new { success = false, message = "Enter the FTP password." });
+
+        await appApkService.SaveFtpAsync(settings!, password, User.GetUserId());
+        await auditLogService.LogAsync("Update", "HospitalSettings",
+            $"FTP credentials for App (APK) upload saved (host {settings!.Host}, user {settings.UserName})", User.GetUserId(), branchId);
+        return Json(new { success = true, message = "FTP credentials saved." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> TestAppFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        if (string.IsNullOrEmpty(password))
+        {
+            var stored = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: true);
+            if (string.IsNullOrEmpty(stored?.PasswordEnc)) return Json(new { success = false, message = "Enter the FTP password." });
+            settings!.PasswordEnc = stored.PasswordEnc;
+        }
+        var (ok, message) = await labFtpService.TestAsync(settings!, password);
+        return Json(new { success = ok, message });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ApkReleases()
+    {
+        var rows = await appApkService.ListAsync(User.GetCompanyId());
+        return Json(new { success = true, rows });
+    }
+
+    private const long MaxApkBytes = 300L * 1024 * 1024;
+
+    /// <summary>Uploads an Android app (.apk) to the App FTP: &lt;Root&gt;/&lt;App&gt;/&lt;Version&gt;/App_vVersion_yyyyMMddHHmmss.apk,
+    /// kept in the version history as the app's Latest.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(MaxApkBytes + 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxApkBytes + 1024 * 1024)]
+    public async Task<IActionResult> UploadApk(IFormFile? file, string? appName, string? versionName, int? versionCode, string? releaseNotes)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        appName = appName?.Trim(); versionName = versionName?.Trim();
+        if (string.IsNullOrWhiteSpace(appName) || appName.Length > 100) return Json(new { success = false, message = "Enter the app name (e.g. Phlebotomist App)." });
+        if (string.IsNullOrWhiteSpace(versionName) || versionName.Length > 50) return Json(new { success = false, message = "Enter the version (e.g. 1.0.3)." });
+        if (versionCode is < 0) return Json(new { success = false, message = "The version code must be a positive number." });
+        if (releaseNotes?.Length > 1000) return Json(new { success = false, message = "Release notes can be up to 1000 characters." });
+        if (file is null || file.Length == 0) return Json(new { success = false, message = "Choose the .apk file." });
+        if (!string.Equals(Path.GetExtension(file.FileName), ".apk", StringComparison.OrdinalIgnoreCase))
+            return Json(new { success = false, message = "Only an Android app file (.apk) can be uploaded here." });
+        if (file.Length > MaxApkBytes) return Json(new { success = false, message = "The file is larger than 300 MB." });
+
+        var settings = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: false);
+        if (settings is null || string.IsNullOrEmpty(settings.PasswordEnc))
+            return Json(new { success = false, message = "Save the FTP credentials for App (APK) upload first." });
+
+        // an APK is a zip archive: it starts with "PK\x03\x04"
+        await using var stream = new MemoryStream();
+        await file.CopyToAsync(stream);
+        var bytes = stream.GetBuffer();
+        if (stream.Length < 4 || bytes[0] != 0x50 || bytes[1] != 0x4B || bytes[2] != 0x03 || bytes[3] != 0x04)
+            return Json(new { success = false, message = "The file is not a valid Android app (.apk)." });
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream.ToArray())).ToLowerInvariant();
+
+        var fileName = labFtpService.SafeName($"{appName}_v{versionName}_{DateTime.Now:yyyyMMddHHmmss}") + ".apk";
+        string path;
+        try
+        {
+            stream.Position = 0;
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+            path = await labFtpService.UploadAsync(settings, [appName, versionName], fileName, stream, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "The FTP upload failed: " + ex.Message });
+        }
+
+        // Utility > App Downloads serves the web server's copy (the FTP server is slow for a large file)
+        try
+        {
+            var cacheFile = AppDownloadsController.CacheFile(webHostEnvironment.ContentRootPath, sha);
+            Directory.CreateDirectory(Path.GetDirectoryName(cacheFile)!);
+            await System.IO.File.WriteAllBytesAsync(cacheFile, stream.ToArray());
+        }
+        catch { /* the first download fills it instead */ }
+
+        var id = await appApkService.SaveReleaseAsync(new AppApkRelease
+        {
+            BranchId = branchId.Value, AppName = appName, VersionName = versionName, VersionCode = versionCode,
+            OriginalFileName = Path.GetFileName(file.FileName), FileName = fileName, FilePath = path,
+            FileSizeBytes = file.Length, Sha256 = sha, ReleaseNotes = releaseNotes
+        }, User.GetCompanyId(), User.GetUserId());
+        await auditLogService.LogAsync("Create", "HospitalSettings",
+            $"App (APK) uploaded: {appName} v{versionName}{(versionCode is null ? "" : $" ({versionCode})")} - {path}", User.GetUserId(), branchId);
+        return Json(new { success = true, apkId = id, path, message = $"{appName} v{versionName} uploaded and marked Latest." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetLatestApk(int apkId)
+    {
+        try { await appApkService.SetLatestAsync(User.GetCompanyId(), apkId, User.GetUserId()); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) { return Json(new { success = false, message = ex.Message }); }
+        await auditLogService.LogAsync("Update", "HospitalSettings", $"App (APK) release #{apkId} marked Latest", User.GetUserId(), User.GetCurrentBranchId());
+        return Json(new { success = true, message = "Marked as the latest release." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveApk(int apkId)
+    {
+        try { await appApkService.RemoveAsync(User.GetCompanyId(), apkId, User.GetUserId()); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) { return Json(new { success = false, message = ex.Message }); }
+        await auditLogService.LogAsync("Delete", "HospitalSettings", $"App (APK) release #{apkId} removed from the list", User.GetUserId(), User.GetCurrentBranchId());
+        return Json(new { success = true, message = "Removed from the list (the file stays on the FTP server)." });
     }
 
     private async Task<(Services.LabFtpSettings? Settings, string? Error)> ReadFtpForm(int branchId, string? host, int? port,

@@ -39,8 +39,18 @@ public interface ILabFtpService
     /// <summary>Uploads a file to folder (created when missing) under the root folder and returns its full path.</summary>
     Task<string> UploadAsync(LabFtpSettings settings, IEnumerable<string> folders, string fileName, Stream content, CancellationToken ct);
 
+    /// <summary>Reads a stored file back (the path as UploadAsync returned it); null when it is not there.</summary>
+    Task<byte[]?> DownloadAsync(LabFtpSettings settings, string path, CancellationToken ct);
+
+    /// <summary>Copies a stored file straight into <paramref name="target"/> (no full copy in memory); false when it is not there.
+    /// <paramref name="onStart"/> runs once the file is found, with its size, before the first byte is written.</summary>
+    Task<bool> CopyToAsync(LabFtpSettings settings, string path, Stream target, Func<long, Task> onStart, CancellationToken ct);
+
     /// <summary>A folder / file name safe on FTP servers.</summary>
     string SafeName(string value);
+
+    /// <summary>Encrypts an FTP password the way these settings keep it (also used for the App (APK) FTP, SQLScripts/2393).</summary>
+    string ProtectPassword(string password);
 }
 
 public class LabFtpService(IDbConnectionFactory db, IDataProtectionProvider protection, ILogger<LabFtpService> logger) : ILabFtpService
@@ -118,6 +128,39 @@ public class LabFtpService(IDbConnectionFactory db, IDataProtectionProvider prot
             throw new InvalidOperationException("The FTP server did not accept the file.");
         return path;
     }
+
+    public async Task<byte[]?> DownloadAsync(LabFtpSettings s, string path, CancellationToken ct)
+    {
+        await using var client = Create(s, null);
+        await client.Connect(ct);
+        try
+        {
+            if (!await client.FileExists(path, ct)) return null;
+            return await client.DownloadBytes(path, ct);
+        }
+        finally { await client.Disconnect(ct); }
+    }
+
+    public async Task<bool> CopyToAsync(LabFtpSettings s, string path, Stream target, Func<long, Task> onStart, CancellationToken ct)
+    {
+        await using var client = Create(s, null);
+        await client.Connect(ct);
+        try
+        {
+            if (!await client.FileExists(path, ct)) return false;
+            var size = await client.GetFileSize(path, -1, ct);
+            await using (var src = await client.OpenRead(path, FtpDataType.Binary, 0, size, ct))
+            {
+                await onStart(size);
+                await src.CopyToAsync(target, 81920, ct);
+            }
+            await client.GetReply(ct);
+            return true;
+        }
+        finally { await client.Disconnect(ct); }
+    }
+
+    public string ProtectPassword(string password) => protector.Protect(password);
 
     public string SafeName(string value)
     {

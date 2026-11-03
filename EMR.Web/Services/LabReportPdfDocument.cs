@@ -251,6 +251,11 @@ public class LabReportPdfDocument : IDocument
                 t.Span(section.CategoryName.ToUpperInvariant()).Bold().FontSize(8).FontColor(Navy).LetterSpacing(0.06f);
             });
 
+            // SQLScripts/2391: when the report ends with an external document, its last page also carries the sign-off
+            // (End Of Report), so no page is left holding only that line
+            var lastGroup = section.Groups.Count > 0 ? section.Groups[^1] : null;
+            var endsWithDocument = isLast && lastGroup is not null && lastGroup.ExternalDocuments.Count > 0 && lastGroup.ExternalDocuments[^1].Pages.Count > 0;
+
             foreach (var group in section.Groups)
             {
                 // Small groups are kept together on one page; long ones (e.g. a big CBC profile) may flow across pages.
@@ -258,11 +263,52 @@ public class LabReportPdfDocument : IDocument
                     col.Item().ShowEntire().Element(c => ComposeGroup(c, group));
                 else
                     col.Item().Element(c => ComposeGroup(c, group));
+
+                // SQLScripts/2391: the external documents of this group's approved tests, right below it - each page on a
+                // page of its own, under this report's header / footer
+                foreach (var ext in group.ExternalDocuments)
+                    ComposeExternalDocument(col, ext, endsWithDocument && ReferenceEquals(ext, lastGroup!.ExternalDocuments[^1]) ? ComposeSignOff : null);
             }
 
-            if (isLast)
+            if (isLast && !endsWithDocument)
                 col.Item().PaddingTop(10).Element(ComposeSignOff);
         });
+    }
+
+    private const float SignOffReserve = 70;
+
+    /// <param name="signOff">Drawn under the last page (fitted with room left for it) when the report ends here.</param>
+    private static void ComposeExternalDocument(ColumnDescriptor col, LabReportExternalDoc ext, Action<IContainer>? signOff = null)
+    {
+        if (ext.Pages.Count == 0)
+        {
+            if (!string.IsNullOrWhiteSpace(ext.Note))
+                col.Item().PaddingTop(4).Border(0.5f).BorderColor("#cbd5e1").Background("#f8fafc").Padding(4)
+                    .Text($"{ext.TestName}: {ext.Note}").Italic().FontSize(8);
+            return;
+        }
+        for (var i = 0; i < ext.Pages.Count; i++)
+        {
+            col.Item().PageBreak();
+            col.Item().PaddingBottom(3).Text(t =>
+            {
+                t.Span("External report · ").FontSize(7.5f).FontColor("#64748b");
+                t.Span(ext.TestName).Bold().FontSize(7.5f);
+                t.Span(ext.Pages.Count > 1 ? $" · page {i + 1} of {ext.Pages.Count}" : "").FontSize(7.5f).FontColor("#64748b");
+            });
+            if (signOff is not null && i == ext.Pages.Count - 1)
+            {
+                // the page is fitted with room left at the bottom for the sign-off (End Of Report and its notes)
+                var page = ext.Pages[i];
+                col.Item().Layers(l =>
+                {
+                    l.PrimaryLayer().PaddingBottom(SignOffReserve).AlignCenter().Image(page).FitArea();
+                    l.Layer().AlignBottom().Element(signOff);
+                });
+            }
+            else
+                col.Item().AlignCenter().Image(ext.Pages[i]).FitArea();
+        }
     }
 
     private void ComposeGroup(IContainer container, LabReportGroup group)

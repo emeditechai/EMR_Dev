@@ -23,7 +23,7 @@ public interface ILabReportEmailService
     void QueueIfFinal(int labOrderId, ClaimsPrincipal user, string trigger);
 
     /// <summary>Checks the bill and sends the report now. Returns the outcome for logging / tests.</summary>
-    Task<LabReportEmailOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger);
+    Task<LabReportEmailOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger, bool resend = false);
 }
 
 public record LabReportEmailOutcome(string Status, string Message);
@@ -33,6 +33,8 @@ public static class LabReportEmailTriggers
     public const string EntryApproval = "EntryApproval";
     public const string PathologistApproval = "PathologistApproval";
     public const string PaymentCleared = "PaymentCleared";
+    /// <summary>LAB > Report Dispatch > Send Report (SQLScripts/2392): sent on request, again if it was already sent.</summary>
+    public const string DispatchSend = "DispatchSend";
 }
 
 public class LabReportEmailService(
@@ -87,7 +89,7 @@ public class LabReportEmailService(
         });
     }
 
-    public async Task<LabReportEmailOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger)
+    public async Task<LabReportEmailOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger, bool resend = false)
     {
         EmailState? state;
         using (var con = db.CreateConnection())
@@ -107,7 +109,7 @@ public class LabReportEmailService(
             return new("NotFinal", $"{state.ApprovedTests} of {state.TotalTests} test(s) approved.");
 
         var email = state.PatientEmail?.Trim();
-        var claim = await ClaimAsync(state, email, trigger, user);
+        var claim = await ClaimAsync(state, email, trigger, user, resend);
         if (claim == null || !claim.Proceed) return new("AlreadyHandled", "This final report was already emailed (or is being emailed).");
         var logId = claim.LabReportEmailLogId!.Value;
 
@@ -175,7 +177,7 @@ public class LabReportEmailService(
         }
     }
 
-    private async Task<Claim?> ClaimAsync(EmailState state, string? email, string trigger, ClaimsPrincipal user)
+    private async Task<Claim?> ClaimAsync(EmailState state, string? email, string trigger, ClaimsPrincipal user, bool resend = false)
     {
         using var con = db.CreateConnection();
         return await con.QueryFirstOrDefaultAsync<Claim>(
@@ -188,7 +190,8 @@ public class LabReportEmailService(
                 state.FinalApprovedOn,
                 RecipientEmail = email,
                 TriggeredBy = trigger,
-                UserId = user.GetUserId() is > 0 and var id ? (int?)id : null
+                UserId = user.GetUserId() is > 0 and var id ? (int?)id : null,
+                Resend = resend   // 2392: Report Dispatch > Send Report
             },
             commandType: CommandType.StoredProcedure);
     }

@@ -134,6 +134,46 @@ public class LabReportDispatchController(
     /// Every copy after the first carries a DUPLICATE marker.
     /// </summary>
     [HttpGet]
+    /// <summary>
+    /// Action > Send Report (SQLScripts/2392): the final (all tests approved) report to the patient by WhatsApp and e-mail,
+    /// through the same senders as the automatic send after approval - sent again if it already went. Refused while the
+    /// bill has a due or any test is not approved. Each channel reports its own outcome (switched off, no number, sent...).
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SendReport(int labOrderId)
+    {
+        if (labOrderId <= 0) return Json(new { success = false, message = "Valid LabOrderId is required." });
+        if (!await MayOpenAsync(labOrderId)) return Json(new { success = false, message = "This bill is not available to you." });
+
+        var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
+        if (detail == null) return Json(new { success = false, message = "Lab report details not found." });
+        if (detail.BalanceDue > 0)
+            return Json(new { success = false, message = $"Bill {detail.BillNo} has a due of Rs. {detail.BalanceDue:N2}. The report can be sent once the due is cleared." });
+        var tests = detail.Items ?? [];
+        if (tests.Count == 0 || tests.Any(i => i.ReportStatusId != 5))
+            return Json(new { success = false, message = $"Only an approved report can be sent: {tests.Count(i => i.ReportStatusId == 5)} of {tests.Count} test(s) of bill {detail.BillNo} are approved." });
+
+        var whatsApp = HttpContext.RequestServices.GetRequiredService<ILabReportWhatsAppService>();
+        var email = HttpContext.RequestServices.GetRequiredService<ILabReportEmailService>();
+        var wa = await whatsApp.SendIfFinalAsync(labOrderId, User, LabReportEmailTriggers.DispatchSend, resend: true);
+        var em = await email.SendIfFinalAsync(labOrderId, User, LabReportEmailTriggers.DispatchSend, resend: true);
+
+        await auditLogService.LogActivityAsync(
+            eventType: "Lab Report", actionName: "LAB.ReportSent",
+            description: $"Report of bill {detail.BillNo} sent from Report Dispatch - WhatsApp: {wa.Status} ({wa.Message}); e-mail: {em.Status} ({em.Message}).",
+            userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "LAB",
+            referenceNo: detail.BillNo, referenceId: labOrderId, patientCode: detail.PatientCode);
+
+        return Json(new
+        {
+            success = wa.Status == "Sent" || em.Status == "Sent",
+            billNo = detail.BillNo,
+            whatsApp = new { status = wa.Status, message = wa.Message },
+            email = new { status = em.Status, message = em.Message }
+        });
+    }
+
     public async Task<IActionResult> PrintReportPdf(int labOrderId, string mode = "preview", string? scope = null, string? reportingType = null)
     {
         // Numeric = the Lab Report (default, as always); Template = the Microbiology Report

@@ -447,6 +447,7 @@ public static class LabReportPrintBuilder
 
         return new LabReportRow
         {
+            InvestigationId = item.InvestigationID,
             TestName = item.TestName,
             Result = result,
             FlagText = flagText,
