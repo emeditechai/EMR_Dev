@@ -43,6 +43,7 @@
                 </thead>
                 <tbody>
                     <tr><td>First assignment</td><td class="hd-yes">Yes</td><td class="hd-no">Not needed</td></tr>
+                    <tr><td>Assign a booking saved without a phlebotomist</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
                     <tr><td>Change phlebotomist after saving</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
                     <tr><td>See who is on duty and how busy they are</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
                     <tr><td>See Patient Unavailable and reschedule requests from the phone</td><td class="hd-no">No</td><td class="hd-yes">Yes</td></tr>
@@ -129,7 +130,7 @@
 <script>
 (() => {
     const LABEL = { ASSIGNED: 'Assigned', ACCEPTED: 'Accepted', ON_THE_WAY: 'On the Way', REACHED: 'Reached', IN_PROGRESS: 'In Progress', COLLECTED: 'Sample Collected',
-                    HANDED_OVER: 'Handed Over', RECEIVED: 'Received at Lab', UNAVAILABLE: 'Patient Unavailable', RESCHEDULED: 'Reschedule requested', CANCELLED: 'Cancelled', CLOSED: 'Closed' };
+                    HANDED_OVER: 'Handed Over', RECEIVED: 'Received at Lab', UNAVAILABLE: 'Patient Unavailable', RESCHEDULED: 'Reschedule requested', CANCELLED: 'Cancelled', CLOSED: 'Closed', UNASSIGNED: 'Not assigned' };
     const BADGE = { ACTION: 'bg-danger', WAITING: 'bg-primary', FIELD: 'bg-info text-dark', COLLECTED: 'bg-success', DONE: 'bg-secondary' };
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const when = s => s ? new Date(s).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—';
@@ -162,9 +163,9 @@
                 <td><span class="badge ${BADGE[v.Grp]}">${esc(LABEL[v.Status] || v.Status)}</span>${v.OutcomeReason ? `<div class="hd-reason">${esc(v.OutcomeReason)}</div>` : ''}${v.NeedsReview ? '<div class="small text-warning-emphasis">Needs review</div>' : ''}</td>
                 <td class="text-end">₹${Number(v.BalanceDue).toLocaleString('en-IN')}</td>
                 <td class="text-end text-nowrap">
-                    ${v.CanChange ? `<button type="button" class="btn btn-outline-primary btn-sm hd-do" data-do="assign">Reassign</button>` : ''}
+                    ${v.CanChange ? `<button type="button" class="btn ${v.Status === 'UNASSIGNED' ? 'btn-primary' : 'btn-outline-primary'} btn-sm hd-do" data-do="assign">${v.Status === 'UNASSIGNED' ? 'Assign' : 'Reassign'}</button>` : ''}
                     ${v.CanReschedule ? `<button type="button" class="btn btn-outline-secondary btn-sm hd-do" data-do="reschedule">${v.Status === 'CLOSED' ? 'Reopen' : 'Reschedule'}</button>` : ''}
-                    ${v.CanChange ? `<button type="button" class="btn btn-outline-danger btn-sm hd-do" data-do="close">Close</button>` : ''}
+                    ${v.CanChange && v.Status !== 'UNASSIGNED' ? `<button type="button" class="btn btn-outline-danger btn-sm hd-do" data-do="close">Close</button>` : ''}
                 </td>
             </tr>`).join('');
     }
@@ -178,12 +179,13 @@
         const btn = e.target.closest('.hd-do'); if (!btn) return;
         current = visits.find(v => v.VisitId === Number(btn.closest('tr').dataset.id));
         action = btn.dataset.do;
-        hdModalTitle.textContent = { assign: 'Reassign visit', reschedule: current.Status === 'CLOSED' ? 'Reopen visit' : 'Reschedule visit', close: 'Close visit' }[action];
-        hdModalVisit.textContent = `${current.PatientName} · ${current.BillNo} · now with ${current.PhlebotomistName}`;
+        const unassigned = current.Status === 'UNASSIGNED';
+        hdModalTitle.textContent = { assign: unassigned ? 'Assign visit' : 'Reassign visit', reschedule: current.Status === 'CLOSED' ? 'Reopen visit' : 'Reschedule visit', close: 'Close visit' }[action];
+        hdModalVisit.textContent = `${current.PatientName} · ${current.BillNo} · ${unassigned ? 'no phlebotomist yet' : 'now with ' + current.PhlebotomistName}`;
         hdCloseNote.classList.toggle('d-none', action !== 'close');
         hdSlotWrap.classList.toggle('d-none', action !== 'reschedule');
         hdPhleboWrap.classList.toggle('d-none', action === 'close');
-        hdPhleboLabel.textContent = action === 'assign' ? 'New phlebotomist *' : 'Phlebotomist';
+        hdPhleboLabel.textContent = action === 'assign' ? (unassigned ? 'Phlebotomist *' : 'New phlebotomist *') : 'Phlebotomist';
         hdPhlebo.innerHTML = options(action === 'reschedule');
         hdSlot.value = ''; hdReason.value = '';
         modal.show();
