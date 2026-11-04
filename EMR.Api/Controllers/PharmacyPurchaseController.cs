@@ -169,8 +169,13 @@ public class PharmacyPurchaseController(IPharmacyPurchaseService service) : Cont
     public async Task<IActionResult> SavePayment([FromBody] PhSupplierPaymentSaveRequest r) =>
         Result(await service.ResultAsync("dbo.usp_Api_PhSupPay_Save", new
         {
-            r.CompanyId, r.BranchId, r.UserId, r.SupplierId, Date = r.Date.Date, r.Mode, r.Reference, r.Remarks, r.Alloc
+            r.CompanyId, r.BranchId, r.UserId, r.SupplierId, Date = r.Date.Date, r.Mode, r.Reference, r.Remarks, r.Alloc, r.Adjust
         }));
+
+    // the supplier's open debit notes, for adjustment at payment (SQLScripts/2400)
+    [HttpGet("payments/debitnotes")]
+    public async Task<IActionResult> DebitNotes([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int supplierId) =>
+        Rows(await service.RowsAsync("dbo.usp_Api_PhSupPay_DebitNotes", new { CompanyId = companyId, BranchId = branchId, SupplierId = supplierId }));
 
     [HttpPost("payments/cancel")]
     public async Task<IActionResult> CancelPayment([FromBody] PhDocRefRequest r) =>
@@ -178,9 +183,16 @@ public class PharmacyPurchaseController(IPharmacyPurchaseService service) : Cont
 
     // ── purchase register ──────────────────────────────────────────────────────────────────────────────
     [HttpGet("register")]
-    public async Task<IActionResult> Register([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] DateTime from, [FromQuery] DateTime to, [FromQuery] int? supplierId)
+    public async Task<IActionResult> Register([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] DateTime from, [FromQuery] DateTime to, [FromQuery] int? supplierId,
+        [FromQuery] string? docType = null, [FromQuery] string? search = null)
     {
-        var sets = await service.SetsAsync("dbo.usp_Api_PhPur_Register", new { CompanyId = companyId, BranchId = branchId, From = from.Date, To = to.Date, SupplierId = supplierId }, 2);
+        // SQLScripts/2399: documents, GST rate-wise summary, supplier-wise summary
+        var sets = await service.SetsAsync("dbo.usp_Api_PhPur_Register", new
+        {
+            CompanyId = companyId, BranchId = branchId, From = from.Date, To = to.Date, SupplierId = supplierId,
+            DocType = docType is "PURCHASE" or "RETURN" ? docType : "ALL",
+            Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim()[..Math.Min(search.Trim().Length, 100)]
+        }, 3);
         return Ok(ApiResponse<List<List<IDictionary<string, object?>>>>.Ok(sets));
     }
 }

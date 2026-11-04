@@ -295,6 +295,7 @@ builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectio
 builder.Services.AddScoped<ILabMiscChargeApiClient, LabMiscChargeApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabFranchiseBarcodeApiClient,     LabFranchiseBarcodeApiClient>();
+builder.Services.AddScoped<ILabPhleboBarcodeApiClient,        LabPhleboBarcodeApiClient>();
 builder.Services.AddScoped<ILabBulkUploadApiClient,           LabBulkUploadApiClient>();
 builder.Services.AddScoped<ILabReferenceRangeApiClient,        LabReferenceRangeApiClient>();
 builder.Services.AddScoped<ILabFormulaParameterApiClient,      LabFormulaParameterApiClient>();

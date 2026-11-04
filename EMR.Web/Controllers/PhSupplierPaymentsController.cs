@@ -27,13 +27,14 @@ public class PhSupplierPaymentsController(IPharmacyPurchaseService purchase, IAu
         ViewBag.PageCode = PageCode;
         ViewBag.Supplier = s;
         ViewBag.Returns = (await Purchase.SupplierBalancesAsync(CompanyId, BranchId)).FirstOrDefault(b => b.SupplierId == supplierId)?.Returns ?? 0;
+        ViewBag.DebitNotes = await Purchase.OpenDebitNotesAsync(CompanyId, BranchId, supplierId);   // SQLScripts/2400
         return View("~/Views/PharmacyPurchase/Pay.cshtml", await Purchase.PayablesAsync(CompanyId, BranchId, supplierId));
     }
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Save(int supplierId, DateTime paymentDate, string mode, string? reference, string? remarks, Dictionary<int, decimal>? alloc)
+    public async Task<IActionResult> Save(int supplierId, DateTime paymentDate, string mode, string? reference, string? remarks, Dictionary<int, decimal>? alloc, Dictionary<int, decimal>? adjust)
     {
-        var (id, err) = await Purchase.SavePaymentAsync(CompanyId, BranchId, supplierId, paymentDate, mode, reference, remarks, alloc ?? [], UserId);
+        var (id, err) = await Purchase.SavePaymentAsync(CompanyId, BranchId, supplierId, paymentDate, mode, reference, remarks, alloc ?? [], UserId, adjust);
         if (err != null) { TempData["Error"] = err; return RedirectToAction(nameof(Pay), new { supplierId }); }
         TempData["Success"] = "Payment recorded.";
         return RedirectToAction(nameof(Print), new { id });

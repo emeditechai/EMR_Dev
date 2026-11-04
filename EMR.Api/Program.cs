@@ -130,6 +130,7 @@ builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionRe
 builder.Services.AddScoped<ILabMiscChargeService, LabMiscChargeService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();
+builder.Services.AddScoped<ILabPhleboBarcodeService, LabPhleboBarcodeService>();   // SQLScripts/2401
 builder.Services.AddScoped<ILabReferenceRangeService,        LabReferenceRangeService>();
 builder.Services.AddScoped<ILabFormulaParameterService,      LabFormulaParameterService>();
 builder.Services.AddScoped<ILabDescriptiveTestTemplateService, LabDescriptiveTestTemplateService>();

@@ -1,65 +1,237 @@
 @using EMR.Web.Services
 @model List<PhStockRow>
 @{
-    // Pharmacy > Inventory > Stock Enquiry (SQLScripts/2349)
+    // Pharmacy > Inventory > Stock Enquiry (SQLScripts/2349): batch-wise stock, value at landed cost and MRP, the stock ledger
+    // of a batch. Same data and filters as before; laid out for quick use - summary tiles that filter, quick-filter chips,
+    // batch / item views, sortable columns, expiry pills and the ledger in a side panel.
     ViewData["Title"] = "Stock Enquiry";
     var (search, categoryId, filter) = ((string?, int?, string))ViewBag.Filter;
     var cats = (List<PhOption>)ViewBag.Categories;
-    var stats = new List<KeyValuePair<string, int>> { new("Batches", Model.Count), new("Items", Model.Select(m => m.ItemId).Distinct().Count()), new("Expired", Model.Count(m => m.DaysToExpiry <= 0 && m.Stock > 0)) };
+    var sStores = ViewBag.Stores as List<PhStoreOption> ?? new();
+    int? sStore = ViewBag.StoreId;
+    var inStock = Model.Where(m => m.Stock > 0).ToList();
+    var expired = inStock.Where(m => m.DaysToExpiry <= 0).ToList();
+    var near = inStock.Where(m => m.DaysToExpiry > 0 && m.DaysToExpiry <= 90).ToList();
+    var costValue = Model.Sum(m => m.CostValue);
+    var mrpValue = Model.Sum(m => m.MrpValue);
+    var stats = new List<KeyValuePair<string, int>> { new("Batches", Model.Count), new("Items", Model.Select(m => m.ItemId).Distinct().Count()), new("Expired", expired.Count) };
+    string Rs(decimal v) => "₹" + v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("en-IN"));
+    string Qty(decimal v) => v.ToString("0.##");
+    string Href(string f) => Url.Action("Index", new { search, filter = f, categoryId, storeId = sStore })!;
+    var chips = new[] { ("instock", "In stock", "bi-box-seam"), ("near", "Expiring ≤ 90 days", "bi-hourglass-split"), ("expired", "Expired", "bi-x-octagon"), ("zero", "Zero stock", "bi-dash-circle"), ("all", "All batches", "bi-list-ul") };
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<style>
+    .se-tile { display:block; text-decoration:none; color:inherit; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:.7rem .9rem;
+               border-left:4px solid var(--c,#6f42c1); height:100%; transition:box-shadow .15s, transform .15s; }
+    a.se-tile:hover { box-shadow:0 4px 14px rgba(15,23,42,.08); transform:translateY(-1px); color:inherit; }
+    .se-tile.active { box-shadow:0 0 0 2px var(--c,#6f42c1) inset; }
+    .se-tile .l { font-size:.66rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#64748b; }
+    .se-tile .v { font-size:1.25rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.25; }
+    .se-tile .s { font-size:.72rem; color:#64748b; }
+    .se-chip { border:1px solid #cbd5e1; border-radius:999px; padding:.25rem .8rem; font-size:.8rem; color:#334155; background:#fff; text-decoration:none; white-space:nowrap; }
+    .se-chip:hover { border-color:#6f42c1; color:#6f42c1; }
+    .se-chip.active { background:#6f42c1; border-color:#6f42c1; color:#fff; }
+    .se-table thead th { position:sticky; top:0; z-index:2; background:#f8fafc; font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; white-space:nowrap; cursor:pointer; user-select:none; }
+    .se-table thead th[data-sort]:hover { color:#6f42c1; }
+    .se-table thead th .bi { font-size:.65rem; }
+    .se-table td { vertical-align:middle; font-size:.84rem; }
+    .se-table td.num, .se-table th.num { text-align:right; font-variant-numeric:tabular-nums; }
+    .se-table tbody tr.se-row { cursor:pointer; }
+    .se-table tbody tr.se-row:hover td { background:#f5f3ff; }
+    .se-table tbody tr.exp td:first-child { box-shadow:inset 3px 0 0 #dc2626; }
+    .se-table tbody tr.nr td:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
+    .se-gen { font-size:.74rem; color:#64748b; max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .se-exp { font-size:.72rem; border-radius:999px; padding:.1rem .5rem; white-space:nowrap; }
+    .se-wrap { max-height:calc(100vh - 360px); min-height:300px; overflow:auto; }
+    tr.grp td { background:#f8fafc; font-weight:600; }
+    tr.grp .tg { width:22px; display:inline-block; color:#6f42c1; }
+    #ledgerPanel { width:min(760px, 100vw); }
+</style>
 <partial name="_PharmacyMasterHeader" model="@(new PhHeader("Stock Enquiry", "bi-search", "Batch-wise stock of this branch with value at landed cost and at MRP. Click a row for its movement history (stock ledger).", null, null, Stats: stats, Section: "Pharmacy", Group: "Inventory"))" />
-<div class="card shadow-sm border-0">
-    <form method="get" id="phFilter" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
-        <div class="input-group input-group-sm" style="max-width:320px"><span class="input-group-text bg-white"><i class="bi bi-upc-scan"></i></span><input name="search" id="phSearch" value="@search" class="form-control" placeholder="Item, generic, batch or barcode" autocomplete="off" /><span class="input-group-text bg-white"><span class="ph-kbd">/</span></span></div>
-        <select name="filter" class="form-select form-select-sm" style="width:auto" data-auto>
-            @foreach (var (v, t) in new[] { ("instock", "In stock"), ("near", "Expiring in 90 days"), ("expired", "Expired (in stock)"), ("zero", "Zero stock batches"), ("all", "All batches") }) { <option value="@v" selected="@(v == filter)">@t</option> }
-        </select>
-        @{ var sStores = ViewBag.Stores as List<EMR.Web.Services.PhStoreOption> ?? new(); int? sStore = ViewBag.StoreId; }
-        @if (sStores.Count > 1)
-        {
-            <select name="storeId" class="form-select form-select-sm" style="width:auto" data-auto title="Store / godown"><option value="">All stores (branch)</option>@foreach (var s in sStores) { <option value="@s.StoreId" selected="@(sStore == s.StoreId)">@s.StoreName</option> }</select>
-        }
-        <select name="categoryId" class="form-select form-select-sm" style="width:220px" data-auto><option value="">All categories</option>@foreach (var c in cats) { <option value="@c.Value" selected="@(c.Value == categoryId?.ToString())">@c.Text</option> }</select>
-        <span class="small text-muted">Value at cost <b>₹ @Model.Sum(m => m.CostValue).ToString("N2")</b> · at MRP ₹ @Model.Sum(m => m.MrpValue).ToString("N2")</span>
-        <button type="button" class="btn btn-sm btn-outline-success ms-auto" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
-    </form>
-    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable" id="phTable">
-        <thead><tr><th>#</th><th>Item</th><th>Generic</th><th>Rack</th><th>Batch</th><th>Expiry</th><th class="text-end">MRP / pack</th><th class="text-end">Stock</th><th class="text-end">Cost / unit</th><th class="text-end">Value (cost)</th><th class="text-end">Value (MRP)</th><th>Supplier</th></tr></thead>
-        <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
-            <tr data-item="@r.ItemId" data-batch="@r.BatchId" data-name="@r.ItemName · @r.BatchNo" class="@(r.DaysToExpiry <= 0 ? "table-danger" : r.DaysToExpiry <= 90 ? "table-warning" : "")">
-                <td class="text-muted small">@(i + 1)</td><td class="fw-semibold">@if (r.FormShort != null) { <span class="ph-form-tag">@r.FormShort</span> }@r.ItemName <span class="badge sch sch-@r.ScheduleCode">@r.ScheduleCode</span>@if (r.IsBlocked) { <span class="badge bg-dark">blocked</span> }</td>
-                <td class="small">@r.GenericName</td><td>@r.RackNo</td><td class="font-monospace small">@r.BatchNo</td>
-                <td class="text-nowrap">@r.ExpiryDate.ToString("MMM-yyyy")@if (r.DaysToExpiry <= 0) { <span class="badge bg-danger ms-1">expired</span> } else if (r.DaysToExpiry <= 90) { <span class="small text-muted"> (@r.DaysToExpiry d)</span> }</td>
-                <td class="text-end">@r.Mrp.ToString("N2")</td><td class="text-end fw-semibold text-nowrap">@r.Stock.ToString("0.##") @r.SaleUom@if (r.ConversionQty > 1) { <div class="small text-muted">@((r.Stock / r.ConversionQty).ToString("0.##")) @r.PurchaseUom</div> }</td>
-                <td class="text-end">@r.LandedCost.ToString("0.00##")</td><td class="text-end">@r.CostValue.ToString("N2")</td><td class="text-end">@r.MrpValue.ToString("N2")</td><td class="small">@r.SupplierName</td></tr> }</tbody>
-    </table>
-    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Nothing matches.</div> }</div>
+
+@* summary - each tile filters the list *@
+<div class="row g-2 mb-3">
+    <div class="col-6 col-lg"><div class="se-tile" style="--c:#6f42c1"><div class="l"><i class="bi bi-cash-stack me-1"></i>Stock value (cost)</div><div class="v">@Rs(costValue)</div><div class="s">at MRP @Rs(mrpValue)</div></div></div>
+    <div class="col-6 col-lg"><div class="se-tile" style="--c:#0f766e"><div class="l"><i class="bi bi-graph-up-arrow me-1"></i>Margin on stock</div><div class="v">@Rs(mrpValue - costValue)</div><div class="s">@(mrpValue > 0 ? ((mrpValue - costValue) * 100 / mrpValue).ToString("0.#") : "0")% of MRP value</div></div></div>
+    <div class="col-6 col-lg"><a class="se-tile @(filter == "instock" ? "active" : "")" style="--c:#2563eb" href="@Href("instock")"><div class="l"><i class="bi bi-box-seam me-1"></i>In stock</div><div class="v">@inStock.Select(m => m.ItemId).Distinct().Count() items</div><div class="s">@inStock.Count batch(es)</div></a></div>
+    <div class="col-6 col-lg"><a class="se-tile @(filter == "near" ? "active" : "")" style="--c:#d97706" href="@Href("near")"><div class="l"><i class="bi bi-hourglass-split me-1"></i>Expiring ≤ 90 days</div><div class="v text-warning-emphasis">@near.Count batch(es)</div><div class="s">@Rs(near.Sum(m => m.CostValue)) at cost</div></a></div>
+    <div class="col-6 col-lg"><a class="se-tile @(filter == "expired" ? "active" : "")" style="--c:#dc2626" href="@Href("expired")"><div class="l"><i class="bi bi-x-octagon me-1"></i>Expired in stock</div><div class="v text-danger">@expired.Count batch(es)</div><div class="s">@Rs(expired.Sum(m => m.CostValue)) to return / write off</div></a></div>
 </div>
-<div class="small text-muted mt-2"><span class="badge bg-danger-subtle text-danger border">red</span> expired · <span class="badge bg-warning-subtle text-warning-emphasis border">amber</span> expiring within 90 days. Click a row for the stock ledger.</div>
-<div class="modal fade" id="ledgerModal" tabindex="-1"><div class="modal-dialog modal-xl"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="ledgerTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-    <div class="modal-body p-0"><table class="table table-sm mb-0 small"><thead><tr><th>Date</th><th>Document</th><th>No.</th><th>Batch</th><th class="text-end">In</th><th class="text-end">Out</th><th class="text-end">Balance</th><th class="text-end">Cost</th><th>By</th></tr></thead><tbody id="ledgerRows"></tbody></table></div>
-</div></div></div>
+
+<div class="card shadow-sm border-0">
+    <form method="get" id="phFilter" class="card-body py-2 border-bottom">
+        <input type="hidden" name="filter" value="@filter" />
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <div class="input-group input-group-sm" style="max-width:360px">
+                <span class="input-group-text bg-white"><i class="bi bi-upc-scan"></i></span>
+                <input name="search" id="phSearch" value="@search" class="form-control" placeholder="Search item, generic, batch or scan barcode" autocomplete="off" />
+                @if (!string.IsNullOrEmpty(search)) { <a class="btn btn-outline-secondary" title="Clear search" href="@Url.Action("Index", new { filter, categoryId, storeId = sStore })"><i class="bi bi-x-lg"></i></a> }
+                <span class="input-group-text bg-white" title="Press / to search"><span class="ph-kbd">/</span></span>
+            </div>
+            @if (sStores.Count > 1)
+            {
+                <select name="storeId" class="form-select form-select-sm" style="width:auto" data-auto title="Store / godown"><option value="">All stores (branch)</option>@foreach (var s in sStores) { <option value="@s.StoreId" selected="@(sStore == s.StoreId)">@s.StoreName</option> }</select>
+            }
+            <select name="categoryId" class="form-select form-select-sm" style="width:200px" data-auto><option value="">All categories</option>@foreach (var c in cats) { <option value="@c.Value" selected="@(c.Value == categoryId?.ToString())">@c.Text</option> }</select>
+            <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="View">
+                <button type="button" class="btn btn-outline-secondary active" data-view="batch"><i class="bi bi-list-ul me-1"></i>By batch</button>
+                <button type="button" class="btn btn-outline-secondary" data-view="item"><i class="bi bi-collection me-1"></i>By item</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-success" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+            @foreach (var (val, text, icon) in chips) { <a class="se-chip @(filter == val ? "active" : "")" href="@Href(val)"><i class="bi @icon me-1"></i>@text</a> }
+            <span class="small text-muted ms-auto" id="seCount">@Model.Count batch(es)</span>
+        </div>
+    </form>
+
+    <div class="se-wrap"><table class="table table-hover mb-0 se-table" id="phTable">
+        <thead><tr>
+            <th style="width:36px">#</th>
+            <th data-sort="name">Item <i class="bi bi-arrow-down-up"></i></th>
+            <th data-sort="batch">Batch / Rack <i class="bi bi-arrow-down-up"></i></th>
+            <th data-sort="exp">Expiry <i class="bi bi-arrow-down-up"></i></th>
+            <th class="num" data-sort="mrp">MRP / pack <i class="bi bi-arrow-down-up"></i></th>
+            <th class="num" data-sort="stock">Stock <i class="bi bi-arrow-down-up"></i></th>
+            <th class="num" data-sort="cost">Cost / unit <i class="bi bi-arrow-down-up"></i></th>
+            <th class="num" data-sort="cv">Value (cost) <i class="bi bi-arrow-down-up"></i></th>
+            <th class="num" data-sort="mv">Value (MRP) <i class="bi bi-arrow-down-up"></i></th>
+            <th data-sort="sup">Supplier <i class="bi bi-arrow-down-up"></i></th>
+        </tr></thead>
+        <tbody>
+        @for (var i = 0; i < Model.Count; i++)
+        {
+            var r = Model[i];
+            var cls = r.Stock > 0 && r.DaysToExpiry <= 0 ? "exp" : r.Stock > 0 && r.DaysToExpiry <= 90 ? "nr" : "";
+            <tr class="se-row @cls" data-item="@r.ItemId" data-batch="@r.BatchId" data-name="@r.ItemName · @r.BatchNo"
+                data-k-name="@r.ItemName" data-k-batch="@r.BatchNo" data-k-exp="@r.ExpiryDate.ToString("yyyyMMdd")" data-k-mrp="@r.Mrp" data-k-stock="@r.Stock"
+                data-k-cost="@r.LandedCost" data-k-cv="@r.CostValue" data-k-mv="@r.MrpValue" data-k-sup="@r.SupplierName">
+                <td class="text-muted small">@(i + 1)</td>
+                <td>
+                    <div class="fw-semibold">@if (r.FormShort != null) { <span class="ph-form-tag">@r.FormShort</span> }@r.ItemName
+                        @if (!string.IsNullOrEmpty(r.ScheduleCode)) { <span class="badge sch sch-@r.ScheduleCode">@r.ScheduleCode</span> }
+                        @if (r.IsBlocked) { <span class="badge bg-dark">blocked</span> }</div>
+                    <div class="se-gen" title="@r.GenericName">@r.GenericName@(string.IsNullOrEmpty(r.ManufacturerName) ? "" : " · " + r.ManufacturerName)</div>
+                </td>
+                <td><span class="font-monospace small">@r.BatchNo</span>@if (!string.IsNullOrWhiteSpace(r.RackNo)) { <div class="small text-muted"><i class="bi bi-grid-3x3-gap me-1"></i>@r.RackNo</div> }</td>
+                <td class="text-nowrap">@r.ExpiryDate.ToString("MMM-yyyy")
+                    <div>@if (r.DaysToExpiry <= 0) { <span class="se-exp bg-danger text-white">expired</span> }
+                         else if (r.DaysToExpiry <= 90) { <span class="se-exp bg-warning-subtle text-warning-emphasis border border-warning-subtle">in @r.DaysToExpiry d</span> }
+                         else if (r.DaysToExpiry <= 180) { <span class="se-exp bg-light text-secondary border">in @(r.DaysToExpiry / 30) mo</span> }</div></td>
+                <td class="num">@r.Mrp.ToString("N2")</td>
+                <td class="num text-nowrap"><span class="fw-bold @(r.Stock <= 0 ? "text-muted" : "")">@Qty(r.Stock) @r.SaleUom</span>@if (r.ConversionQty > 1) { <div class="small text-muted">@Qty(r.Stock / r.ConversionQty) @r.PurchaseUom</div> }</td>
+                <td class="num">@r.LandedCost.ToString("0.00##")</td>
+                <td class="num">@r.CostValue.ToString("N2")</td>
+                <td class="num">@r.MrpValue.ToString("N2")</td>
+                <td class="small">@r.SupplierName</td>
+            </tr>
+        }
+        </tbody>
+        @if (Model.Count > 0)
+        {
+            <tfoot class="fw-bold"><tr><td colspan="7" class="text-end">Total (@Model.Count batch(es))</td><td class="num">@costValue.ToString("N2")</td><td class="num">@mrpValue.ToString("N2")</td><td></td></tr></tfoot>
+        }
+    </table>
+    @if (Model.Count == 0)
+    {
+        <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-1 d-block mb-2 opacity-50"></i>Nothing matches.
+            @if (!string.IsNullOrEmpty(search) || categoryId != null || filter != "instock") { <div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Index")">Clear filters</a></div> }</div>
+    }
+    </div>
+    <div class="card-footer bg-white small text-muted d-flex flex-wrap gap-3">
+        <span><span class="d-inline-block" style="width:10px;height:10px;background:#dc2626;border-radius:2px"></span> expired</span>
+        <span><span class="d-inline-block" style="width:10px;height:10px;background:#f59e0b;border-radius:2px"></span> expiring within 90 days</span>
+        <span><i class="bi bi-hand-index me-1"></i>Click a row for its stock ledger · click a column to sort · <span class="ph-kbd">/</span> to search</span>
+    </div>
+</div>
+
+@* stock ledger of a batch - side panel *@
+<div class="offcanvas offcanvas-end" tabindex="-1" id="ledgerPanel">
+    <div class="offcanvas-header border-bottom">
+        <div><div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.05em">Stock ledger</div><h5 class="offcanvas-title mb-0" id="ledgerTitle"></h5></div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+        <div class="d-flex gap-3 px-3 py-2 border-bottom small" id="ledgerSum"></div>
+        <table class="table table-sm mb-0 small"><thead class="table-light"><tr><th>Date</th><th>Document</th><th>No.</th><th class="text-end">In</th><th class="text-end">Out</th><th class="text-end">Balance</th><th class="text-end">Cost</th><th>By</th></tr></thead><tbody id="ledgerRows"></tbody></table>
+    </div>
+</div>
+
 @section Scripts {
 <script src="~/lib/xlsx/xlsx.full.min.js"></script>
 <script>
 (function () {
-    const DOC = { GRN: 'Goods receipt', PRET: 'Purchase return', SALE: 'Sale', SRET: 'Sale return', SCAN: 'Sale cancelled', TRFO: 'Transfer out', TRFI: 'Transfer in', ADJ: 'Adjustment', WOF: 'Write-off', PCNT: 'Physical count', OPEN: 'Opening' };
-    const form = document.getElementById('phFilter'), search = document.getElementById('phSearch');
+    const DOC = { GRN: 'Goods receipt', PRET: 'Purchase return', SALE: 'Sale', SRET: 'Sale return', SCAN: 'Sale cancelled', TRFO: 'Transfer out', TRFI: 'Transfer in', ISO: 'Issue out', ISI: 'Issue in', ADJ: 'Adjustment', WOF: 'Write-off', PCNT: 'Physical count', OPEN: 'Opening' };
+    const form = document.getElementById('phFilter'), search = document.getElementById('phSearch'), tbody = document.querySelector('#phTable tbody');
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const fmt = v => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     form.querySelectorAll('[data-auto]').forEach(s => s.addEventListener('change', () => form.submit()));
     let t; search.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => form.submit(), 450); });
     if (search.value) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
     document.addEventListener('keydown', e => { if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); search.focus(); } });
-    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    document.querySelectorAll('#phTable tr[data-item]').forEach(tr => tr.addEventListener('click', async () => {
-        const rows = await fetch('@Url.Action("Ledger")?itemId=' + tr.dataset.item + '&batchId=' + tr.dataset.batch).then(r => r.json());
-        document.getElementById('ledgerTitle').textContent = tr.dataset.name;
-        document.getElementById('ledgerRows').innerHTML = rows.map(r => `<tr><td>${new Date(r.txnDate).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</td><td>${DOC[r.docType] || esc(r.docType)}</td><td class="font-monospace">${esc(r.docNo)}</td><td>${esc(r.batchNo)}</td>
-            <td class="text-end text-success">${r.qtyIn ? r.qtyIn : ''}</td><td class="text-end text-danger">${r.qtyOut ? r.qtyOut : ''}</td><td class="text-end fw-semibold">${r.balanceAfter}</td><td class="text-end">${r.unitCost.toFixed(2)}</td><td>${esc(r.userName)}</td></tr>`).join('') || '<tr><td colspan="9" class="text-center text-muted py-3">No movements.</td></tr>';
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('ledgerModal')).show();
+
+    const rows = [...tbody.querySelectorAll('tr.se-row')];
+    const renumber = () => rows.filter(r => r.parentNode).forEach((r, i) => r.cells[0].textContent = i + 1);
+
+    // sort by a column (click again to reverse)
+    let sortKey = null, asc = true;
+    document.querySelectorAll('#phTable thead th[data-sort]').forEach(th => th.addEventListener('click', () => {
+        const k = th.dataset.sort; asc = sortKey === k ? !asc : true; sortKey = k;
+        const num = ['mrp', 'stock', 'cost', 'cv', 'mv', 'exp'].includes(k);
+        rows.sort((a, b) => { const x = a.dataset['k' + k[0].toUpperCase() + k.slice(1)] ?? '', y = b.dataset['k' + k[0].toUpperCase() + k.slice(1)] ?? '';
+                              const d = num ? (parseFloat(x) || 0) - (parseFloat(y) || 0) : x.localeCompare(y); return asc ? d : -d; });
+        document.querySelectorAll('#phTable thead th .bi').forEach(i => i.className = 'bi bi-arrow-down-up');
+        th.querySelector('.bi').className = 'bi ' + (asc ? 'bi-sort-up' : 'bi-sort-down');
+        render();
     }));
-    document.getElementById('phExport').addEventListener('click', () => { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.table_to_sheet(document.getElementById('phTable'), { raw: true }), 'Stock'); XLSX.writeFile(wb, 'Pharmacy_Stock.xlsx'); });
+
+    // by batch / by item (an item's batches under one line with its totals; click the line to open them)
+    let view = 'batch';
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+        view = b.dataset.view; document.querySelectorAll('[data-view]').forEach(x => x.classList.toggle('active', x === b)); render();
+    }));
+    function render() {
+        tbody.innerHTML = '';
+        if (view === 'batch') { rows.forEach(r => { r.style.display = ''; tbody.appendChild(r); }); renumber(); document.getElementById('seCount').textContent = rows.length + ' batch(es)'; return; }
+        const groups = new Map();
+        rows.forEach(r => { const k = r.dataset.item; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+        let n = 0;
+        groups.forEach((list, item) => {
+            const s = f => list.reduce((t, r) => t + (parseFloat(r.dataset[f]) || 0), 0);
+            const first = list[0], uom = first.cells[5].querySelector('span')?.textContent.replace(/^[\d.,\s-]+/, '') || '';
+            const g = document.createElement('tr'); g.className = 'grp'; g.dataset.item = item;
+            g.innerHTML = `<td>${++n}</td><td><span class="tg"><i class="bi bi-chevron-right"></i></span>${first.cells[1].querySelector('.fw-semibold').innerHTML}</td>
+                <td class="small text-muted">${list.length} batch(es)</td><td class="small">${esc(list.map(r => r.cells[3].firstChild.textContent.trim()).sort((a, b) => a.localeCompare(b))[0])}</td><td></td>
+                <td class="num">${(+s('kStock').toFixed(2))} ${esc(uom)}</td><td></td><td class="num">${fmt(s('kCv'))}</td><td class="num">${fmt(s('kMv'))}</td><td></td>`;
+            tbody.appendChild(g);
+            list.forEach(r => { r.style.display = 'none'; r.cells[0].textContent = ''; tbody.appendChild(r); });
+            g.addEventListener('click', () => { const open = g.querySelector('.tg .bi').classList.toggle('bi-chevron-down'); g.querySelector('.tg .bi').classList.toggle('bi-chevron-right', !open); list.forEach(r => r.style.display = open ? '' : 'none'); });
+        });
+        document.getElementById('seCount').textContent = groups.size + ' item(s) · ' + rows.length + ' batch(es)';
+    }
+
+    // stock ledger of the batch, in the side panel
+    const panel = new bootstrap.Offcanvas(document.getElementById('ledgerPanel'));
+    rows.forEach(tr => tr.addEventListener('click', async () => {
+        document.getElementById('ledgerTitle').textContent = tr.dataset.name;
+        document.getElementById('ledgerSum').innerHTML = `<span>Stock <b>${esc(tr.cells[5].querySelector('span').textContent)}</b></span><span>Value <b>₹${fmt(tr.dataset.kCv)}</b></span><span>Expiry <b>${esc(tr.cells[3].firstChild.textContent.trim())}</b></span>`;
+        document.getElementById('ledgerRows').innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">Loading…</td></tr>';
+        panel.show();
+        const data = await fetch('@Url.Action("Ledger")?itemId=' + tr.dataset.item + '&batchId=' + tr.dataset.batch).then(r => r.json()).catch(() => null);
+        document.getElementById('ledgerRows').innerHTML = (data || []).map(r => `<tr><td class="text-nowrap">${new Date(r.txnDate).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+            <td>${DOC[r.docType] || esc(r.docType)}</td><td class="font-monospace">${esc(r.docNo)}</td>
+            <td class="text-end text-success">${r.qtyIn ? '+' + r.qtyIn : ''}</td><td class="text-end text-danger">${r.qtyOut ? '−' + r.qtyOut : ''}</td>
+            <td class="text-end fw-semibold">${r.balanceAfter}</td><td class="text-end">${Number(r.unitCost).toFixed(2)}</td><td>${esc(r.userName)}</td></tr>`).join('')
+            || '<tr><td colspan="8" class="text-center text-muted py-3">No movements.</td></tr>';
+    }));
+
+    document.getElementById('phExport').addEventListener('click', () => {
+        const head = ['#', 'Item', 'Generic', 'Batch', 'Rack', 'Expiry', 'MRP / pack', 'Stock', 'UOM', 'Cost / unit', 'Value (cost)', 'Value (MRP)', 'Supplier'];
+        const data = rows.map((r, i) => [i + 1, r.dataset.kName, r.querySelector('.se-gen')?.textContent.trim() || '', r.dataset.kBatch, r.cells[2].querySelector('.text-muted')?.textContent.trim() || '',
+            r.cells[3].firstChild.textContent.trim(), +r.dataset.kMrp, +r.dataset.kStock, r.cells[5].querySelector('span').textContent.replace(/^[\d.,\s-]+/, ''), +r.dataset.kCost, +r.dataset.kCv, +r.dataset.kMv, r.dataset.kSup]);
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head, ...data]), 'Stock'); XLSX.writeFile(wb, 'Pharmacy_Stock.xlsx');
+    });
 })();
 </script>
 }

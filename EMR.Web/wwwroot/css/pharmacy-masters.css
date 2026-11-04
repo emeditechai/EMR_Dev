@@ -2,9 +2,12 @@
 .ph-head { background: var(--emr-gradient, linear-gradient(135deg, #644098 0%, #7e52b8 50%, #a8407a 100%)); color: #fff; border-radius: 14px; padding: 18px 22px; }
 .ph-head .breadcrumb-item, .ph-head .breadcrumb-item + .breadcrumb-item::before, .ph-head .breadcrumb-item a { color: rgba(255,255,255,.8); }
 .ph-head h1 { font-size: 1.35rem; }
-.ph-stat { background: rgba(255,255,255,.14); border-radius: 10px; padding: 6px 14px; text-align: center; min-width: 86px; }
-.ph-stat b { display: block; font-size: 1.15rem; }
-.ph-stat span { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; opacity: .85; }
+.ph-stat { background: rgba(255,255,255,.14); border-radius: 10px; padding: 8px 12px; text-align: center;
+           /* every count card of a header the same size: number on top, label below, both centred */
+           flex: 1 1 0; width: 118px; min-width: 118px; max-width: 150px; min-height: 74px;
+           display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.ph-stat b { display: block; font-size: 1.15rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.ph-stat span { display: block; font-size: .7rem; line-height: 1.15; text-transform: uppercase; letter-spacing: .04em; opacity: .85; white-space: nowrap; }
 .ph-toolbar { position: sticky; top: 0; z-index: 5; background: var(--bs-body-bg, #fff); }
 .ph-table thead th { position: sticky; top: 0; background: #f1f5f9; font-size: .74rem; text-transform: uppercase; letter-spacing: .03em; color: #475569; white-space: nowrap; z-index: 2; }
 .ph-table td { font-size: .875rem; vertical-align: middle; }

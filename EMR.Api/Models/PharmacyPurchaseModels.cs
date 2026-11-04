@@ -24,7 +24,7 @@ public record PhDocRefRequest(int CompanyId, int BranchId, int Id, int UserId);
 public record PhPurchaseReturnSaveRequest(int Id, int CompanyId, int BranchId, int UserId, DateTime DocDate, int SupplierId, int ReasonId, bool IsInterState,
     string? Remarks, string Lines, int? StoreId = null);
 
-public record PhSupplierPaymentSaveRequest(int CompanyId, int BranchId, int UserId, int SupplierId, DateTime Date, string Mode, string? Reference, string? Remarks, string Alloc);
+public record PhSupplierPaymentSaveRequest(int CompanyId, int BranchId, int UserId, int SupplierId, DateTime Date, string Mode, string? Reference, string? Remarks, string Alloc, string? Adjust = null);
 
 /// <summary>A document with its lines and the item details of those lines (each a row of column / value).</summary>
 public class PhDocResult
