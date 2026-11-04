@@ -171,5 +171,38 @@
   ],
   "date": "04 Nov 2026",
   "version": "1.12"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table PhDrugInteraction (12 columns, module not yet grouped)",
+   "New table PhLoyaltyLedger (16 columns, module not yet grouped)",
+   "New table PhLoyaltyOtp (8 columns, module not yet grouped)",
+   "New table PhRefillReminder (16 columns, module not yet grouped)",
+   "New table PhRxGenericMap (9 columns, module not yet grouped)",
+   "New table PhSaleClinicalAlert (8 columns, module not yet grouped)",
+   "New table PhSaleRx (13 columns, module not yet grouped)",
+   "New table PhSupplierScheme (14 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) PharmacyAutoReorderEnabled, PharmacyReorderSalesDays, PharmacyReorderSafetyDays, PharmacyReorderCoverDays, PharmacySchemeAutoApply, PharmacyGs1ScanEnabled, PharmacyCountBlind, PharmacyCountRecountPercent, PharmacyCycleCountDays, PharmacyAbcAPercent, PharmacyAbcBPercent, PharmacySlowMovingDays, PharmacyDeadStockDays, PharmacySplitPaymentEnabled, PharmacySubstituteSuggest, PharmacyRxLinkEnabled, PharmacyClinicalChecksEnabled, PharmacyMajorInteractionBlock, PharmacyRefillReminderEnabled, PharmacyRefillReminderDaysBefore, PharmacyLoyaltyEnabled, PharmacyLoyaltyEarnPer100, PharmacyLoyaltyPointValue, PharmacyLoyaltyMinRedeem, PharmacyLoyaltyMaxRedeemPercent, PharmacyLoyaltyExpiryDays, PharmacyLoyaltyType, PharmacyLoyaltyDiscountPercent, PharmacyLoyaltyEarnPercent, PharmacyLoyaltyEarnBasis, PharmacyLoyaltyMinBillToEarn, PharmacyLoyaltyMaxEarnPerBill, PharmacyLoyaltyEarnOnRedeemBill, PharmacyLoyaltyLockInDays, PharmacyLoyaltyMinBillToRedeem, PharmacyLoyaltyRedeemOtp, PharmacyLoyaltyWalkinByMobile, PharmacyLoyaltyNotifyWhatsApp, PharmacyLoyaltyExpiryReminderDays",
+   "PhCustomer: new column(s) CreditDays",
+   "PhItem: new column(s) VedClass",
+   "PhPurchaseIndent: new column(s) SupplierId, EmailedTo, EmailedDate",
+   "PhSale: new column(s) ConsultationId, CreditRefNo, LoyaltyRedeemPoints, LoyaltyRedeemValue, LoyaltyEarnedPoints, LoyaltyDiscountPercent, LoyaltyDiscountValue",
+   "PhSaleDtl: new column(s) DaysSupply",
+   "PhStockCountDtl: new column(s) FirstCountQty, RecountRequired, RecountedBy, RecountedDate, CountedBy, CountedDate",
+   "PhSupplier: new column(s) ReceiveIndentEmail",
+   "New foreign key PhDrugInteraction.GenericId1 -> PhGeneric.GenericId",
+   "New foreign key PhDrugInteraction.GenericId2 -> PhGeneric.GenericId",
+   "New foreign key PhPurchaseIndent.SupplierId -> PhSupplier.SupplierId",
+   "New foreign key PhRefillReminder.SaleId -> PhSale.SaleId",
+   "New foreign key PhRxGenericMap.GenericId -> PhGeneric.GenericId",
+   "New foreign key PhSaleClinicalAlert.SaleId -> PhSale.SaleId",
+   "New foreign key PhSaleRx.SaleId -> PhSale.SaleId",
+   "New foreign key PhSupplierScheme.ItemId -> PhItem.ItemId",
+   "New foreign key PhSupplierScheme.SupplierId -> PhSupplier.SupplierId",
+   "Lookup values changed: ApprovalModule"
+  ],
+  "date": "04 Nov 2026",
+  "version": "1.13"
  }
 ]
