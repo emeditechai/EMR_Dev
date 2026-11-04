@@ -16,7 +16,7 @@ public record PhInvCountCreate(int CompanyId, int BranchId, int UserId, string? 
 public record PhIssueRequestSave(int Id, int CompanyId, int BranchId, int UserId, int FromStoreId, int ToStoreId, string? Remarks, bool Submit, string Lines);
 public record PhIssueIssueRequest(int CompanyId, int BranchId, int UserId, int Id, string? Remarks, string Lines);
 public record PhIssueReceiveRequest(int CompanyId, int BranchId, int UserId, int Id, string? Remarks, string Received);
-public record PhInvCountsSave(int CompanyId, int BranchId, int Id, string Counts);
+public record PhInvCountsSave(int CompanyId, int BranchId, int Id, string Counts, int? UserId = null);
 public record PhInvCorrectionSave(int CompanyId, int BranchId, int UserId, int BatchId, string NewBatchNo, DateTime NewExpiry, decimal NewMrp, string Reason);
 
 /// <summary>Pharmacy > Inventory (SQLScripts/2360): stock, transfers, adjustments / write-offs, physical counts, batch corrections, dashboard.</summary>
@@ -109,7 +109,12 @@ public class PharmacyInventoryController(IPharmacyProcService ph) : ControllerBa
 
     [HttpPost("count/save")]
     public async Task<IActionResult> SaveCounts([FromBody] PhInvCountsSave r) =>
-        Row(await ph.RowAsync("dbo.usp_Api_PhInv_SaveCounts", new { r.CompanyId, r.BranchId, r.Id, r.Counts }));
+        Row(await ph.RowAsync("dbo.usp_Api_PhInv_SaveCounts", new { r.CompanyId, r.BranchId, r.Id, r.Counts, r.UserId }));
+
+    // SQLScripts/2405: racks with stock, last verified, due for a cycle count
+    [HttpGet("count/cycle-plan")]
+    public async Task<IActionResult> CycleCountPlan([FromQuery] int companyId, [FromQuery] int branchId) =>
+        Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(await ph.RowsAsync("dbo.usp_Api_PhInv_CycleCountPlan", new { CompanyId = companyId, BranchId = branchId })));
 
     [HttpPost("count/action")]
     public async Task<IActionResult> CountAction([FromBody] PhInvActionRequest r) =>

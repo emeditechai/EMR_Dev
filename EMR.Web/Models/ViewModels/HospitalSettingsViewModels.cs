@@ -309,6 +309,123 @@ public class HospitalSettingsViewModel
     [Display(Name = "GRN Not Required")]
     public bool PharmacyGrnNotRequired { get; set; }
 
+    [Display(Name = "Auto Reorder")]
+    public bool PharmacyAutoReorderEnabled { get; set; } = false;
+
+    [Display(Name = "Average Sales Over (Days)")]
+    public int PharmacyReorderSalesDays { get; set; } = 30;
+
+    [Display(Name = "Safety Stock (Days)")]
+    public int PharmacyReorderSafetyDays { get; set; } = 3;
+
+    [Display(Name = "Order to Cover (Days)")]
+    public int PharmacyReorderCoverDays { get; set; } = 15;
+
+    [Display(Name = "Apply Supplier Schemes at GRN / PO")]
+    public bool PharmacySchemeAutoApply { get; set; } = true;
+
+    [Display(Name = "GS1 DataMatrix Scanning")]
+    public bool PharmacyGs1ScanEnabled { get; set; } = true;
+
+    [Display(Name = "Blind Stock Count")]
+    public bool PharmacyCountBlind { get; set; } = true;
+
+    [Display(Name = "Recount if Variance Above (%)")]
+    public decimal PharmacyCountRecountPercent { get; set; } = 5m;
+
+    [Display(Name = "Cycle Count Every (Days)")]
+    public int PharmacyCycleCountDays { get; set; } = 30;
+
+    [Display(Name = "ABC - Class A up to (% of value)")]
+    public decimal PharmacyAbcAPercent { get; set; } = 70m;
+
+    [Display(Name = "ABC - Class B up to (% of value)")]
+    public decimal PharmacyAbcBPercent { get; set; } = 90m;
+
+    [Display(Name = "Slow Moving if No Sale For (Days)")]
+    public int PharmacySlowMovingDays { get; set; } = 60;
+
+    [Display(Name = "Dead Stock if No Sale For (Days)")]
+    public int PharmacyDeadStockDays { get; set; } = 180;
+
+    [Display(Name = "Split Payment at Counter")]
+    public bool PharmacySplitPaymentEnabled { get; set; } = true;
+
+    [Display(Name = "Suggest Substitute Brands")]
+    public bool PharmacySubstituteSuggest { get; set; } = true;
+
+    [Display(Name = "Pull OPD Prescription into Bill")]
+    public bool PharmacyRxLinkEnabled { get; set; } = true;
+
+    [Display(Name = "Clinical Safety Checks")]
+    public bool PharmacyClinicalChecksEnabled { get; set; } = true;
+
+    [Display(Name = "Block Sale on Major Interaction")]
+    public bool PharmacyMajorInteractionBlock { get; set; } = false;
+
+    [Display(Name = "Refill Reminders by WhatsApp")]
+    public bool PharmacyRefillReminderEnabled { get; set; } = false;
+
+    [Display(Name = "Remind (Days Before Run-out)")]
+    public int PharmacyRefillReminderDaysBefore { get; set; } = 2;
+
+    [Display(Name = "Loyalty Points")]
+    public bool PharmacyLoyaltyEnabled { get; set; } = false;
+
+    [Display(Name = "Points Earned per ₹100")]
+    public decimal PharmacyLoyaltyEarnPer100 { get; set; } = 1m;
+
+    [Display(Name = "Value of 1 Point (₹)")]
+    public decimal PharmacyLoyaltyPointValue { get; set; } = 1m;
+
+    [Display(Name = "Min. Points to Redeem")]
+    public int PharmacyLoyaltyMinRedeem { get; set; } = 100;
+
+    [Display(Name = "Max. Bill % Payable by Points")]
+    public decimal PharmacyLoyaltyMaxRedeemPercent { get; set; } = 20m;
+
+    [Display(Name = "Points Expire After (Days)")]
+    public int PharmacyLoyaltyExpiryDays { get; set; } = 365;
+
+    [Display(Name = "Loyalty Type")]
+    public string PharmacyLoyaltyType { get; set; } = "POINTS";
+
+    [Display(Name = "Loyalty Discount %")]
+    public decimal PharmacyLoyaltyDiscountPercent { get; set; } = 5m;
+
+    [Display(Name = "Wallet Credit % of Bill")]
+    public decimal PharmacyLoyaltyEarnPercent { get; set; } = 1m;
+
+    [Display(Name = "Earn On")]
+    public string PharmacyLoyaltyEarnBasis { get; set; } = "NET";
+
+    [Display(Name = "Min. Bill to Earn (₹)")]
+    public decimal PharmacyLoyaltyMinBillToEarn { get; set; } = 0m;
+
+    [Display(Name = "Max. Points per Bill")]
+    public decimal PharmacyLoyaltyMaxEarnPerBill { get; set; } = 0m;
+
+    [Display(Name = "Earn on a Bill that Used Points")]
+    public bool PharmacyLoyaltyEarnOnRedeemBill { get; set; } = true;
+
+    [Display(Name = "Points Usable After (Days)")]
+    public int PharmacyLoyaltyLockInDays { get; set; } = 0;
+
+    [Display(Name = "Min. Bill to Use Points (₹)")]
+    public decimal PharmacyLoyaltyMinBillToRedeem { get; set; } = 0m;
+
+    [Display(Name = "OTP on WhatsApp to Use Points")]
+    public bool PharmacyLoyaltyRedeemOtp { get; set; } = false;
+
+    [Display(Name = "Walk-ins are Members by Mobile")]
+    public bool PharmacyLoyaltyWalkinByMobile { get; set; } = false;
+
+    [Display(Name = "WhatsApp the Member")]
+    public bool PharmacyLoyaltyNotifyWhatsApp { get; set; } = true;
+
+    [Display(Name = "Expiry Reminder (Days Before)")]
+    public int PharmacyLoyaltyExpiryReminderDays { get; set; } = 7;
+
 
     [Display(Name = "Login Retry Count")]
     [Range(0, 20, ErrorMessage = "Login Retry Count must be between 0 and 20 (0 = no lock).")]

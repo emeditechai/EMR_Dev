@@ -49,8 +49,18 @@
     </a>
 </div>
 
-<form asp-action="Edit" method="post" enctype="multipart/form-data">
+<form asp-action="Edit" method="post" enctype="multipart/form-data" id="hsForm" novalidate>
     @Html.AntiForgeryToken()
+    @* why a save was refused, whatever tab the field is on *@
+    <div class="alert alert-danger @(ViewData.ModelState.IsValid ? "d-none" : "")" id="hsErrors">
+        <div class="fw-bold mb-1"><i class="bi bi-exclamation-octagon me-1"></i>Settings not saved - please correct:</div>
+        <ul class="mb-0 small" id="hsErrorList">
+            @foreach (var e in ViewData.ModelState.Where(x => x.Value!.Errors.Count > 0))
+            {
+                foreach (var er in e.Value!.Errors) { <li data-field="@e.Key">@(string.IsNullOrEmpty(er.ErrorMessage) ? $"{e.Key}: the value is not valid." : er.ErrorMessage)</li> }
+            }
+        </ul>
+    </div>
     <input type="hidden" asp-for="Id" />
     <input type="hidden" asp-for="BranchId" />
     <input type="hidden" asp-for="BranchName" />
@@ -1123,6 +1133,248 @@
                     <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyBillNotificationRequired"><label class="form-check-label small fw-semibold" asp-for="PharmacyBillNotificationRequired">Send Bill by WhatsApp / E-mail</label></div>
                 </div>
 
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Auto reorder</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyAutoReorderEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyAutoReorderEnabled"></label>
+                        <div class="form-text mt-0">Suggest purchase quantities from sales and raise POs grouped by supplier.</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyReorderSalesDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyReorderSalesDays" type="number" min="1" max="180" class="form-control" />
+                    <div class="form-text">Window used for average daily sales.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyReorderSafetyDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyReorderSafetyDays" type="number" min="0" max="60" class="form-control" />
+                    <div class="form-text">Extra days of sales kept as buffer.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyReorderCoverDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyReorderCoverDays" type="number" min="1" max="120" class="form-control" />
+                    <div class="form-text">Suggested order brings stock up to this many days of sales.</div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Purchase</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacySchemeAutoApply">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacySchemeAutoApply"></label>
+                        <div class="form-text mt-0">Free quantity of a running scheme (e.g. 10+1) is filled in automatically.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyGs1ScanEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyGs1ScanEnabled"></label>
+                        <div class="form-text mt-0">Read GTIN, batch and expiry from a 2D pack code at GRN and sale.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Stock audit</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyCountBlind">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyCountBlind"></label>
+                        <div class="form-text mt-0">Counters do not see the system quantity while counting.</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyCountRecountPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyCountRecountPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">Lines whose variance exceeds this % must be recounted before submit. 0 = off.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyCycleCountDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyCycleCountDays" type="number" min="1" max="365" class="form-control" />
+                    <div class="form-text">Each rack is due for a count after this many days.</div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Stock analysis</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyAbcAPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyAbcAPercent" type="number" min="1" max="99" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyAbcBPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyAbcBPercent" type="number" min="1" max="99" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacySlowMovingDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacySlowMovingDays" type="number" min="7" max="365" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyDeadStockDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyDeadStockDays" type="number" min="30" max="730" class="form-control" />
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Counter sale</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacySplitPaymentEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacySplitPaymentEnabled"></label>
+                        <div class="form-text mt-0">One bill can be paid by cash + UPI + card.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacySubstituteSuggest">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacySubstituteSuggest"></label>
+                        <div class="form-text mt-0">Show in-stock brands of the same generic and strength.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyRxLinkEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyRxLinkEnabled"></label>
+                        <div class="form-text mt-0">Load the patient's OPD prescription and check dispensed vs prescribed.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Clinical</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyClinicalChecksEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyClinicalChecksEnabled"></label>
+                        <div class="form-text mt-0">Drug interaction, allergy and duplicate-therapy warnings at sale.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyMajorInteractionBlock">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyMajorInteractionBlock"></label>
+                        <div class="form-text mt-0">Off: the pharmacist may continue with a reason. On: a Major interaction stops the sale.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Customer</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyRefillReminderEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyRefillReminderEnabled"></label>
+                        <div class="form-text mt-0">Remind customers before their medicines run out.</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyRefillReminderDaysBefore" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyRefillReminderDaysBefore" type="number" min="0" max="15" class="form-control" />
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Loyalty</div>
+                <div class="col-md-4 ">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyEnabled"></label>
+                        <div class="form-text mt-0">Patients, pharmacy customers and (if set below) walk-ins by mobile get a loyalty benefit.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyLoyaltyType" class="form-label fw-semibold small"></label>
+                    <select asp-for="PharmacyLoyaltyType" class="form-select" id="loyType">
+                        <option value="POINTS">Wallet - credit % of the bill as points, used on the next bill</option>
+                        <option value="DISCOUNT">Instant discount - fixed % off on every bill</option>
+                    </select>
+                    <div class="form-text" id="loyTypeHelp"></div>
+                </div>
+                <div class="col-md-4 ">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyNotifyWhatsApp">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyNotifyWhatsApp"></label>
+                        <div class="form-text mt-0">Credited / used / balance after each bill, and before points expire.</div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyWalkinByMobile">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyWalkinByMobile"></label>
+                        <div class="form-text mt-0">A walk-in who gives a 10-digit mobile gets the loyalty benefit (member discount or wallet) on that number.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-semibold text-muted loy-pts mt-2">Wallet - earning</div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyEarnPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyEarnPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">E.g. 5 = ₹5 worth of points for a ₹100 bill.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyEarnBasis" class="form-label fw-semibold small"></label>
+                    <select asp-for="PharmacyLoyaltyEarnBasis" class="form-select"><option value="NET">Net bill paid</option><option value="DISCOUNTABLE">Discount-allowed items only</option></select>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMinBillToEarn" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMinBillToEarn" type="number" min="0" max="1000000" step="0.01" class="form-control" />
+                    <div class="form-text">0 = any bill.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMaxEarnPerBill" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMaxEarnPerBill" type="number" min="0" max="1000000" step="any" class="form-control" />
+                    <div class="form-text">0 = no cap.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyLockInDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyLockInDays" type="number" min="0" max="90" class="form-control" />
+                    <div class="form-text">Pending until then (keep ≥ the sale return days).</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyExpiryDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyExpiryDays" type="number" min="0" max="3650" class="form-control" />
+                    <div class="form-text">From when usable. 0 = never.</div>
+                </div>
+                <div class="col-md-4 loy-pts">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyEarnOnRedeemBill">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyEarnOnRedeemBill"></label>
+                        <div class="form-text mt-0">Off: a bill paid partly by points earns nothing.</div>
+                    </div>
+                </div>
+
+                <div class="col-12 small fw-semibold text-muted loy-pts mt-2">Wallet - using points</div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyPointValue" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyPointValue" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">₹ value of 1 point.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMinRedeem" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMinRedeem" type="number" min="0" max="100000" class="form-control" />
+                    <div class="form-text">Balance needed before points can be used.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMinBillToRedeem" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMinBillToRedeem" type="number" min="0" max="1000000" step="0.01" class="form-control" />
+                    <div class="form-text">0 = any bill.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMaxRedeemPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMaxRedeemPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">Part of a bill points can pay.</div>
+                </div>
+                <div class="col-md-4 loy-pts">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyRedeemOtp">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyRedeemOtp"></label>
+                        <div class="form-text mt-0">A code is sent to the member's WhatsApp before points are used.</div>
+                    </div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyExpiryReminderDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyExpiryReminderDays" type="number" min="0" max="60" class="form-control" />
+                    <div class="form-text">0 = no reminder.</div>
+                </div>
+
+                <div class="col-md-3 loy-disc">
+                    <label asp-for="PharmacyLoyaltyDiscountPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyDiscountPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">Filled in as the bill discount for a member; not counted against the counter's discount limit.</div>
+                </div>
+                <script>
+                    (function () {
+                        const t = document.getElementById('loyType'), help = document.getElementById('loyTypeHelp');
+                        const sync = () => {
+                            const d = t.value === 'DISCOUNT';
+                            document.querySelectorAll('.loy-pts').forEach(e => e.classList.toggle('d-none', d));
+                            document.querySelectorAll('.loy-disc').forEach(e => e.classList.toggle('d-none', !d));
+                            help.textContent = d ? 'The member gets the % off at once; nothing goes to a wallet.' : 'Points go to the member\'s wallet and are used on a later bill (like health credits).';
+                        };
+                        t.addEventListener('change', sync); sync();
+                    })();
+                </script>
                 <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">IPD issue</div>
                 <div class="col-md-3">
                     <label asp-for="PharmacyTtoBillingMode" class="form-label fw-semibold small">Discharge Medicines (TTO) Billed On</label>
@@ -1190,6 +1442,48 @@
 </div>
 
 @section Scripts {
+<script>
+// Save: a field that breaks its limits (on any tab) is shown - its tab opened and the field focused - instead of the browser
+// refusing to submit silently; fields hidden by a switch (e.g. the other loyalty type) never block the save.
+(function () {
+    const form = document.getElementById('hsForm'); if (!form) return;
+    const box = document.getElementById('hsErrors'), list = document.getElementById('hsErrorList');
+    const labelOf = el => { const l = el.id && form.querySelector(`label[for="${el.id}"]`); return (l ? l.textContent : el.name || 'A field').replace(/\s+/g, ' ').trim(); };
+    const openTabOf = el => {
+        const pane = el.closest('.tab-pane');
+        if (pane && !pane.classList.contains('active')) {
+            const btn = document.querySelector(`[data-bs-target="#${pane.id}"]`);
+            if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+        }
+    };
+    const hidden = el => !!el.closest('.d-none');
+    form.addEventListener('submit', e => {
+        const bad = [...form.querySelectorAll('input, select, textarea')].filter(el => !el.disabled && !hidden(el) && !el.checkValidity());
+        if (!bad.length) return;
+        e.preventDefault();
+        list.innerHTML = bad.map(el => `<li>${labelOf(el)}: ${el.validationMessage}</li>`).join('');
+        box.classList.remove('d-none');
+        // the reason also right under each field, and in a pop-up, so it is seen where the cursor goes
+        form.querySelectorAll('.hs-inline-err').forEach(x => x.remove());
+        form.querySelectorAll('.is-invalid').forEach(x => x.classList.remove('is-invalid'));
+        bad.forEach(el => {
+            el.classList.add('is-invalid');
+            el.insertAdjacentHTML('afterend', `<div class="invalid-feedback d-block hs-inline-err">${el.validationMessage}</div>`);
+            el.addEventListener('input', () => { el.classList.remove('is-invalid'); el.parentElement.querySelector('.hs-inline-err')?.remove(); }, { once: true });
+        });
+        openTabOf(bad[0]);
+        setTimeout(() => { bad[0].focus(); bad[0].scrollIntoView({ block: 'center' }); }, 150);
+        if (window.Swal) Swal.fire({ icon: 'warning', title: 'Settings not saved', html: `<b>${labelOf(bad[0])}</b>: ${bad[0].validationMessage}${bad.length > 1 ? `<div class="small mt-1">and ${bad.length - 1} more - see the red fields</div>` : ''}`, returnFocus: false })
+            .then(() => bad[0].focus());
+    });
+    // jQuery Validation (_ValidationScriptsPartial) also checks this form and blocks the save without a message (e.g. its
+    // "step" rule refuses 10000.00 on step 1); the check above shows every problem, so it is switched off here.
+    window.addEventListener('load', () => { if (window.jQuery && $.fn.validate) { const v = $(form).data('validator') || $(form).validate(); v.settings.ignore = '*'; } });
+    // after a refused save: open the tab of the first field in error
+    const first = form.querySelector('.input-validation-error') || [...(list?.querySelectorAll('li[data-field]') || [])].map(li => form.querySelector(`[name="${li.dataset.field}"]`)).find(Boolean);
+    if (first) { openTabOf(first); setTimeout(() => first.focus(), 200); }
+})();
+</script>
 <script>
 (function () {
     const $ = id => document.getElementById(id);

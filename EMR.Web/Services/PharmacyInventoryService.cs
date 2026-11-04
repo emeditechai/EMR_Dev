@@ -152,6 +152,24 @@ public class PhInvLine
     public string? Remarks { get; set; }
     public decimal SystemQty { get; set; }         // physical count snapshot
     public decimal? CountedQty { get; set; }
+    public decimal? FirstCountQty { get; set; }    // SQLScripts/2405: kept when a big difference is sent for recount
+    public bool RecountRequired { get; set; }
+    public DateTime? RecountedDate { get; set; }
+    public string? RecountedByName { get; set; }
+}
+
+/// <summary>A rack of the cycle count plan (SQLScripts/2405).</summary>
+public class PhCycleRack
+{
+    public string RackNo { get; set; } = "";
+    public int Items { get; set; }
+    public int Batches { get; set; }
+    public decimal StockValue { get; set; }
+    public DateTime? LastCounted { get; set; }
+    public string? OpenCount { get; set; }
+    public int? DaysSince { get; set; }
+    public int EveryDays { get; set; }
+    public bool IsDue { get; set; }
 }
 
 public class PhInvDoc
@@ -196,6 +214,8 @@ public class PhInvDoc
     // physical count
     public string? Scope { get; set; }
     public DateTime? FrozenAt { get; set; }
+    public bool BlindCount { get; set; }           // SQLScripts/2405: Hospital Settings > MED
+    public decimal RecountPercent { get; set; }
     public int? AdjustmentId { get; set; }
     public int CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
@@ -302,6 +322,7 @@ public interface IPharmacyInventoryService
     Task<string?> ReceiveIssueAsync(int companyId, int branchId, int id, Dictionary<int, decimal> received, Dictionary<int, string> reasons, string? remarks, int userId);
     Task<string?> CancelIssueAsync(int companyId, int branchId, int id, int userId);
     Task<string?> SaveCountsAsync(int companyId, int branchId, int id, Dictionary<int, decimal?> counts, int userId);
+    Task<List<PhCycleRack>> CycleCountPlanAsync(int companyId, int branchId);
     Task<string?> CountActionAsync(int companyId, int branchId, int id, string action, string? remarks, int userId);
 
     Task<List<PhBatchCorrectionRow>> CorrectionsAsync(int companyId, int branchId, string? status);
@@ -489,8 +510,11 @@ public class PharmacyInventoryService(PharmacyApiClient api) : IPharmacyInventor
     public async Task<string?> SaveCountsAsync(int companyId, int branchId, int id, Dictionary<int, decimal?> counts, int userId)
     {
         if (counts.Values.Any(v => v < 0)) return "A count cannot be negative.";
-        return (await api.PostAsync<Res>($"{Base}/count/save", new { companyId, branchId, id, Counts = Json(counts.Select(c => new { LineId = c.Key, Qty = c.Value })) })).Error;
+        return (await api.PostAsync<Res>($"{Base}/count/save", new { companyId, branchId, id, userId, Counts = Json(counts.Select(c => new { LineId = c.Key, Qty = c.Value })) })).Error;
     }
+
+    public Task<List<PhCycleRack>> CycleCountPlanAsync(int companyId, int branchId) =>
+        api.GetAsync<List<PhCycleRack>>($"{Base}/count/cycle-plan" + Q(("companyId", companyId), ("branchId", branchId)));
 
     public async Task<string?> CountActionAsync(int companyId, int branchId, int id, string action, string? remarks, int userId) =>
         (await api.PostAsync<Res>($"{Base}/count/action", new { companyId, branchId, userId, id, action, remarks })).Error;

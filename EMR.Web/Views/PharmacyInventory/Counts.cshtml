@@ -19,6 +19,28 @@
         <div class="col-md-2"><button class="btn btn-sm btn-primary w-100"><i class="bi bi-snow me-1"></i>Freeze &amp; start</button></div>
     </div>
 </form>
+@{ var plan = ViewBag.CyclePlan as List<PhCycleRack> ?? new(); var due = plan.Count(r => r.IsDue); }
+@if (plan.Count > 0)
+{
+    @* Cycle count plan (SQLScripts/2405): every rack is verified once every N days (Hospital Settings > MED) *@
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-header bg-white d-flex align-items-center gap-2 py-2">
+            <i class="bi bi-calendar2-check text-primary"></i><span class="fw-bold small">Cycle count plan</span>
+            <span class="badge @(due > 0 ? "bg-danger" : "bg-success")">@(due > 0 ? $"{due} rack(s) due" : "All racks up to date")</span>
+            <span class="small text-muted ms-auto">Each rack every @plan[0].EveryDays days</span>
+        </div>
+        <div class="ph-wrap" style="max-height:260px"><table class="table table-sm mb-0 ph-table">
+            <thead><tr><th>Rack</th><th class="text-end">Items</th><th class="text-end">Batches</th><th class="text-end">Stock value</th><th>Last verified</th><th class="text-end">Days</th><th>State</th><th></th></tr></thead>
+            <tbody>@foreach (var r in plan) {
+                <tr class="@(r.IsDue ? "table-warning" : "")"><td class="fw-semibold">@r.RackNo</td><td class="text-end">@r.Items</td><td class="text-end">@r.Batches</td><td class="text-end">@r.StockValue.ToString("N2")</td>
+                    <td class="small">@(r.LastCounted?.ToString("dd-MMM-yyyy") ?? "Never")</td><td class="text-end">@(r.DaysSince?.ToString() ?? "—")</td>
+                    <td class="small">@if (r.OpenCount != null) { <span class="badge bg-info-subtle text-info-emphasis border">open: @r.OpenCount</span> } else if (r.IsDue) { <span class="badge bg-danger">Due</span> } else { <span class="text-success">OK</span> }</td>
+                    <td class="text-end">@if (r.IsDue && r.RackNo != "(no rack)") {
+                        <form method="post" asp-action="Create" asp-permission="PHARMACY.STOCKCOUNT:CREATE" class="d-inline">@Html.AntiForgeryToken()<input type="hidden" name="rack" value="@r.RackNo" /><input type="hidden" name="remarks" value="Cycle count - rack @r.RackNo" />
+                            <button class="btn btn-sm btn-outline-primary py-0"><i class="bi bi-snow me-1"></i>Count now</button></form> }</td></tr> }</tbody>
+        </table></div>
+    </div>
+}
 <div class="card shadow-sm border-0"><div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable">
     <thead><tr><th>#</th><th>Number</th><th>Frozen at</th><th>Scope</th><th class="text-end">Batches</th><th class="text-end">Difference (cost)</th><th>By</th><th>Status</th></tr></thead>
     <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];

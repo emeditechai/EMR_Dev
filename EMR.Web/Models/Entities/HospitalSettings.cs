@@ -120,6 +120,47 @@ public class HospitalSettings
     public bool PharmacyBillNotificationRequired { get; set; } = false;
     /// <summary>SQLScripts/2346: Yes = approving a purchase order posts the stock (no separate GRN); No (default) = stock comes in on the GRN.</summary>
     public bool PharmacyGrnNotRequired { get; set; } = false;
+    // Pharmacy round 2 (SQLScripts/2402)
+    public bool PharmacyAutoReorderEnabled { get; set; } = false;
+    public int PharmacyReorderSalesDays { get; set; } = 30;
+    public int PharmacyReorderSafetyDays { get; set; } = 3;
+    public int PharmacyReorderCoverDays { get; set; } = 15;
+    public bool PharmacySchemeAutoApply { get; set; } = true;
+    public bool PharmacyGs1ScanEnabled { get; set; } = true;
+    public bool PharmacyCountBlind { get; set; } = true;
+    public decimal PharmacyCountRecountPercent { get; set; } = 5m;
+    public int PharmacyCycleCountDays { get; set; } = 30;
+    public decimal PharmacyAbcAPercent { get; set; } = 70m;
+    public decimal PharmacyAbcBPercent { get; set; } = 90m;
+    public int PharmacySlowMovingDays { get; set; } = 60;
+    public int PharmacyDeadStockDays { get; set; } = 180;
+    public bool PharmacySplitPaymentEnabled { get; set; } = true;
+    public bool PharmacySubstituteSuggest { get; set; } = true;
+    public bool PharmacyRxLinkEnabled { get; set; } = true;
+    public bool PharmacyClinicalChecksEnabled { get; set; } = true;
+    public bool PharmacyMajorInteractionBlock { get; set; } = false;
+    public bool PharmacyRefillReminderEnabled { get; set; } = false;
+    public int PharmacyRefillReminderDaysBefore { get; set; } = 2;
+    public bool PharmacyLoyaltyEnabled { get; set; } = false;
+    public decimal PharmacyLoyaltyEarnPer100 { get; set; } = 1m;
+    public decimal PharmacyLoyaltyPointValue { get; set; } = 1m;
+    public int PharmacyLoyaltyMinRedeem { get; set; } = 100;
+    public decimal PharmacyLoyaltyMaxRedeemPercent { get; set; } = 20m;
+    public int PharmacyLoyaltyExpiryDays { get; set; } = 365;
+    public string PharmacyLoyaltyType { get; set; } = "POINTS";          // SQLScripts/2407: POINTS | DISCOUNT
+    public decimal PharmacyLoyaltyDiscountPercent { get; set; } = 5m;
+    // loyalty wallet (SQLScripts/2409)
+    public decimal PharmacyLoyaltyEarnPercent { get; set; } = 1m;
+    public string PharmacyLoyaltyEarnBasis { get; set; } = "NET";
+    public decimal PharmacyLoyaltyMinBillToEarn { get; set; } = 0m;
+    public decimal PharmacyLoyaltyMaxEarnPerBill { get; set; } = 0m;
+    public bool PharmacyLoyaltyEarnOnRedeemBill { get; set; } = true;
+    public int PharmacyLoyaltyLockInDays { get; set; } = 0;
+    public decimal PharmacyLoyaltyMinBillToRedeem { get; set; } = 0m;
+    public bool PharmacyLoyaltyRedeemOtp { get; set; } = false;
+    public bool PharmacyLoyaltyWalkinByMobile { get; set; } = false;
+    public bool PharmacyLoyaltyNotifyWhatsApp { get; set; } = true;
+    public int PharmacyLoyaltyExpiryReminderDays { get; set; } = 7;
 
     /// <summary>SQLScripts/2320: wrong passwords allowed before the account is locked for 10 minutes; 0 (default) = no lock.</summary>
     public int LoginRetryCount { get; set; }

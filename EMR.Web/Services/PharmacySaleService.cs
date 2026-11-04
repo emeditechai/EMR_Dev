@@ -57,6 +57,7 @@ public class PhPosBatch
 public class PhSaleLineIn
 {
     public int ItemId { get; set; }
+    public int? DaysSupply { get; set; }       // SQLScripts/2406: days the medicine lasts (refill reminder)
     public int? BatchId { get; set; }          // null = first expiry first (split over batches when needed)
     public decimal Qty { get; set; }           // sale units
     public decimal DiscPercent { get; set; }
@@ -90,6 +91,38 @@ public class PhSaleRequest
     public string? HoldLabel { get; set; }
     public List<PhSaleLineIn> Lines { get; set; } = [];
     public List<PhPaymentIn> Payments { get; set; } = [];
+    // SQLScripts/2406
+    public int? ConsultationId { get; set; }   // OPD consultation the bill dispenses
+    public List<PhRxLineIn> RxLines { get; set; } = [];
+    public string? AlertReason { get; set; }   // why the pharmacist goes ahead despite the clinical alerts
+    public decimal RedeemPoints { get; set; }
+    public string? CreditRefNo { get; set; }   // employee ID / policy / claim no. (corporate / insurance credit)
+    public string? RedeemOtp { get; set; }     // SQLScripts/2409: WhatsApp OTP to use wallet points
+}
+
+/// <summary>A medicine of the linked OPD prescription and what the counter did with it (SQLScripts/2406).</summary>
+public class PhRxLineIn
+{
+    public int Seq { get; set; }
+    public int? MedicationId { get; set; }
+    public string? MedicationName { get; set; }
+    public int? GenericId { get; set; }
+    public string? Dose { get; set; }
+    public string? Frequency { get; set; }
+    public string? Instructions { get; set; }
+    public string Status { get; set; } = "NOT_DISPENSED";   // DISPENSED | NOT_DISPENSED
+    public int? ItemId { get; set; }
+    public string? Reason { get; set; }
+}
+
+/// <summary>A clinical alert of a bill (SQLScripts/2406).</summary>
+public class PhClinicalAlert
+{
+    public string Kind { get; set; } = "";        // INTERACTION | ALLERGY | DUPLICATE
+    public string Severity { get; set; } = "";    // MINOR | MODERATE | MAJOR
+    public string? Title { get; set; }
+    public string Message { get; set; } = "";
+    public string? Advice { get; set; }
 }
 
 public class PhSaleResult
@@ -102,6 +135,9 @@ public class PhSaleResult
     public decimal NetAmount { get; set; }
     public decimal Change { get; set; }
     public decimal BalanceDue { get; set; }
+    public decimal PointsEarned { get; set; }
+    public decimal PointsRedeemed { get; set; }
+    public decimal LoyaltyDiscount { get; set; }
 }
 
 public class PhSaleLine
@@ -240,6 +276,28 @@ public class PhPharmacySettings
     public bool LooseReturnAllowed { get; set; }
     public string BillPrintFormat { get; set; } = "A4";
     public bool BillNotificationRequired { get; set; }
+    // round 2 (SQLScripts/2402, 2404)
+    public bool Gs1ScanEnabled { get; set; }
+    public bool SplitPaymentEnabled { get; set; } = true;
+    public bool SubstituteSuggest { get; set; } = true;
+    public bool RxLinkEnabled { get; set; }
+    public bool ClinicalChecksEnabled { get; set; }
+    public bool MajorInteractionBlock { get; set; }
+    public bool LoyaltyEnabled { get; set; }
+    public decimal LoyaltyEarnPer100 { get; set; }
+    public decimal LoyaltyPointValue { get; set; }
+    public int LoyaltyMinRedeem { get; set; }
+    public decimal LoyaltyMaxRedeemPercent { get; set; }
+    public int LoyaltyExpiryDays { get; set; }
+    public bool RefillReminderEnabled { get; set; }
+    public string LoyaltyType { get; set; } = "POINTS";   // SQLScripts/2407: POINTS | DISCOUNT
+    public decimal LoyaltyDiscountPercent { get; set; }
+    // wallet (SQLScripts/2409)
+    public decimal LoyaltyEarnPercent { get; set; }
+    public bool LoyaltyWalkinByMobile { get; set; }
+    public bool LoyaltyRedeemOtp { get; set; }
+    public bool LoyaltyNotifyWhatsApp { get; set; } = true;
+    public int LoyaltyLockInDays { get; set; }
 }
 
 public interface IPharmacySaleService
@@ -255,7 +313,7 @@ public interface IPharmacySaleService
     Task<List<PhSaleListRow>> ListAsync(int companyId, int branchId, string status, string? search, DateTime? from, DateTime? to);
     Task<PhSaleBill?> GetAsync(int companyId, int branchId, int saleId);
     Task<PhSaleBill?> FindForReturnAsync(int companyId, int branchId, string q);
-    Task<(int Id, string? No, string? Error)> SaveReturnAsync(int companyId, int branchId, int saleId, Dictionary<int, decimal> qty, int reasonId, string refundMode, string? refundRef, string? remarks, int userId);
+    Task<(int Id, string? No, string? Error)> SaveReturnAsync(int companyId, int branchId, int saleId, Dictionary<int, decimal> qty, int reasonId, string refundMode, string? refundRef, string? remarks, int userId, Dictionary<int, string?>? batch = null);
     Task<List<PhSaleReturnRow>> ReturnsAsync(int companyId, int branchId, DateTime from, DateTime to, string? search);
     Task<(PhSaleReturnRow? Head, PhSaleBill? Bill, List<PhSaleLine> Lines)> GetReturnAsync(int companyId, int branchId, int returnId);
     Task<string?> CancelAsync(int companyId, int branchId, int saleId, string reason, int userId);
@@ -267,6 +325,17 @@ public interface IPharmacySaleService
     Task<List<System.Text.Json.JsonElement>> CustomersAsync(int companyId, string? q);
     Task<List<System.Text.Json.JsonElement>> PatientsAsync(int companyId, string q);
     Task<List<System.Text.Json.JsonElement>> DoctorsAsync(int companyId, string? q);
+    // SQLScripts/2406
+    Task<List<System.Text.Json.JsonElement>> RxListAsync(int companyId, int branchId, int patientId);
+    Task<(System.Text.Json.JsonElement? Last, List<System.Text.Json.JsonElement> Patients)> WalkinByMobileAsync(int companyId, string mobile);
+    Task<(System.Text.Json.JsonElement? Head, List<System.Text.Json.JsonElement> Lines)> RxLinesAsync(int companyId, int branchId, int consultationId, int? storeId);
+    Task<List<PhClinicalAlert>> ClinicalCheckAsync(int companyId, int branchId, int? patientId, int? customerId, IEnumerable<int> itemIds);
+    Task<System.Text.Json.JsonElement?> LoyaltyAsync(int companyId, int branchId, int? patientId, int? customerId, string? mobile = null);
+    // loyalty wallet (SQLScripts/2409)
+    Task<string?> LoyaltyOtpAsync(int companyId, string memberKey, string code);
+    Task<(List<System.Text.Json.JsonElement> Members, System.Text.Json.JsonElement? Totals)> LoyaltyMembersAsync(int companyId, int branchId, string? q);
+    Task<(System.Text.Json.JsonElement? Wallet, List<System.Text.Json.JsonElement> Rows)> LoyaltyStatementAsync(int companyId, int? patientId, int? customerId, string? mobile);
+    Task<string?> LoyaltyAdjustAsync(int companyId, int branchId, int userId, int? patientId, int? customerId, string? mobile, decimal points, string? reason);
 }
 
 /// <summary>
@@ -310,6 +379,58 @@ public class PharmacySaleService(PharmacyApiClient api) : IPharmacySaleService
     public Task<List<JsonElement>> PatientsAsync(int companyId, string q) => api.GetAsync<List<JsonElement>>($"{Base}/patients" + Q(("companyId", companyId), ("q", q)));
     public Task<List<JsonElement>> DoctorsAsync(int companyId, string? q) => api.GetAsync<List<JsonElement>>($"{Base}/doctors" + Q(("companyId", companyId), ("q", q)));
 
+    // ── OPD prescription, clinical checks, loyalty (SQLScripts/2406) ─────────────────────────────────────
+    public async Task<(JsonElement? Last, List<JsonElement> Patients)> WalkinByMobileAsync(int companyId, string mobile)
+    {
+        var sets = await api.GetAsync<List<List<JsonElement>>>($"{Base}/walkin-by-mobile" + Q(("companyId", companyId), ("mobile", mobile)));
+        return (sets.Count > 0 && sets[0].Count > 0 ? sets[0][0] : null, sets.Count > 1 ? sets[1] : []);
+    }
+
+    public Task<List<JsonElement>> RxListAsync(int companyId, int branchId, int patientId) =>
+        api.GetAsync<List<JsonElement>>($"{Base}/rx-list" + Q(("companyId", companyId), ("branchId", branchId), ("patientId", patientId)));
+
+    public async Task<(JsonElement? Head, List<JsonElement> Lines)> RxLinesAsync(int companyId, int branchId, int consultationId, int? storeId)
+    {
+        var sets = await api.GetAsync<List<List<JsonElement>>>($"{Base}/rx-lines" + Q(("companyId", companyId), ("branchId", branchId), ("consultationId", consultationId), ("storeId", storeId)));
+        return (sets.Count > 0 && sets[0].Count > 0 ? sets[0][0] : null, sets.Count > 1 ? sets[1] : []);
+    }
+
+    public async Task<List<PhClinicalAlert>> ClinicalCheckAsync(int companyId, int branchId, int? patientId, int? customerId, IEnumerable<int> itemIds)
+    {
+        var ids = itemIds.Where(i => i > 0).Distinct().ToList();
+        if (ids.Count == 0) return [];
+        return await api.PostAsync<List<PhClinicalAlert>>($"{Base}/clinical-check", new { companyId, branchId, patientId, customerId, ItemIds = Json(ids) });
+    }
+
+    public async Task<JsonElement?> LoyaltyAsync(int companyId, int branchId, int? patientId, int? customerId, string? mobile = null) =>
+        patientId is null && customerId is null && string.IsNullOrWhiteSpace(mobile) ? null
+            : await api.GetAsync<JsonElement?>($"{Base}/loyalty" + Q(("companyId", companyId), ("branchId", branchId), ("patientId", patientId), ("customerId", customerId), ("mobile", mobile)));
+
+    // ── loyalty wallet (SQLScripts/2409) ─────────────────────────────────────────────────────────────────
+    private sealed class ErrRow { public string? Error { get; set; } }
+
+    public async Task<string?> LoyaltyOtpAsync(int companyId, string memberKey, string code) =>
+        (await api.PostAsync<ErrRow?>($"{Base}/loyalty/otp", new { companyId, memberKey, code }))?.Error;
+
+    public async Task<(List<JsonElement> Members, JsonElement? Totals)> LoyaltyMembersAsync(int companyId, int branchId, string? q)
+    {
+        var sets = await api.GetAsync<List<List<JsonElement>>>($"{Base}/loyalty/members" + Q(("companyId", companyId), ("branchId", branchId), ("q", string.IsNullOrWhiteSpace(q) ? null : q.Trim())));
+        return (sets.Count > 0 ? sets[0] : [], sets.Count > 1 && sets[1].Count > 0 ? sets[1][0] : null);
+    }
+
+    public async Task<(JsonElement? Wallet, List<JsonElement> Rows)> LoyaltyStatementAsync(int companyId, int? patientId, int? customerId, string? mobile)
+    {
+        var sets = await api.GetAsync<List<List<JsonElement>>>($"{Base}/loyalty/statement" + Q(("companyId", companyId), ("patientId", patientId), ("customerId", customerId), ("mobile", mobile)));
+        return (sets.Count > 0 && sets[0].Count > 0 ? sets[0][0] : null, sets.Count > 1 ? sets[1] : []);
+    }
+
+    public async Task<string?> LoyaltyAdjustAsync(int companyId, int branchId, int userId, int? patientId, int? customerId, string? mobile, decimal points, string? reason)
+    {
+        if (points == 0 || points != Math.Floor(points)) return "Enter whole points (+ to credit, - to debit).";
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length < 3) return "Give the reason for the adjustment.";
+        return (await api.PostAsync<ErrRow?>($"{Base}/loyalty/adjust", new { companyId, branchId, userId, patientId, customerId, mobile, points, reason = reason.Trim()[..Math.Min(200, reason.Trim().Length)] }))?.Error;
+    }
+
     // ── save a bill ─────────────────────────────────────────────────────────────────────────────────────
     public async Task<PhSaleResult> HoldAsync(int companyId, int branchId, PhSaleRequest r, int userId)
     {
@@ -333,14 +454,66 @@ public class PharmacySaleService(PharmacyApiClient api) : IPharmacySaleService
         var pays = r.Payments.Where(x => x.Amount > 0).Select(x => new PhPaymentIn { Method = x.Method.ToUpperInvariant(), Amount = R2(x.Amount), Ref = x.Ref?.Trim() }).ToList();
         if (pays.Any(x => !Methods.Contains(x.Method))) return Fail("Pick the payment mode.");
         if (pays.Any(x => x.Method is "CARD" or "UPI" or "NEFT" or "CHEQUE" && string.IsNullOrWhiteSpace(x.Ref))) return Fail("Enter the card / UPI / transaction reference.");
+        var set = await SettingsAsync(branchId);
+        if (!hold && !set.SplitPaymentEnabled && pays.Select(x => x.Method).Distinct().Count() > 1) return Fail("Split payment is off for this branch: take the bill in one payment mode.");
+        if (lines.Any(l => l.DaysSupply is < 0 or > 365)) return Fail("Days of supply must be between 1 and 365.");
+        if (r.RedeemPoints < 0 || r.RedeemPoints != Math.Floor(r.RedeemPoints)) return Fail("Redeem whole points.");
+        if (r.RedeemPoints > 0 && set.LoyaltyType == "DISCOUNT") return Fail("Loyalty is a discount at this branch: there are no points to use.");
+        r.CreditRefNo = string.IsNullOrWhiteSpace(r.CreditRefNo) ? null : r.CreditRefNo.Trim();
+        if (r.CreditRefNo?.Length > 60) return Fail("Credit reference: up to 60 characters.");
+
+        // OPD prescription (SQLScripts/2406): every medicine prescribed is either on the bill or has a reason
+        string? rxJson = null;
+        if (r.ConsultationId is > 0 && !hold)
+        {
+            if (!set.RxLinkEnabled) return Fail("Pulling the OPD prescription is off for this branch.");
+            if (r.CustomerKind != "PATIENT" || r.PatientId is null) return Fail("An OPD prescription is dispensed to the patient it was written for: bill to that patient.");
+            var (head, rx) = await RxLinesAsync(companyId, branchId, r.ConsultationId.Value, r.StoreId);
+            if (head is null || !head.Value.TryGetProperty("PatientId", out var pid) || pid.GetInt32() != r.PatientId) return Fail("That prescription is not of this patient.");
+            var billItems = lines.Select(l => l.ItemId).ToHashSet();
+            var given = new List<PhRxLineIn>();
+            foreach (var e in rx)
+            {
+                var seq = e.GetProperty("Seq").GetInt32();
+                var c = r.RxLines.FirstOrDefault(x => x.Seq == seq) ?? new PhRxLineIn { Seq = seq };
+                var line = new PhRxLineIn
+                {
+                    Seq = seq, MedicationId = e.TryGetProperty("MedicationId", out var m) && m.ValueKind == JsonValueKind.Number ? m.GetInt32() : null,
+                    MedicationName = e.GetProperty("MedicationName").GetString(), GenericId = e.TryGetProperty("GenericId", out var g) && g.ValueKind == JsonValueKind.Number ? g.GetInt32() : null,
+                    Dose = e.GetProperty("Dose").GetString(), Frequency = e.GetProperty("Frequency").GetString(), Instructions = e.GetProperty("Instructions").GetString(),
+                    Status = c.Status == "DISPENSED" && c.ItemId is int it && billItems.Contains(it) ? "DISPENSED" : "NOT_DISPENSED",
+                    ItemId = c.Status == "DISPENSED" ? c.ItemId : null, Reason = c.Reason?.Trim()
+                };
+                if (line.Status == "NOT_DISPENSED" && string.IsNullOrWhiteSpace(line.Reason))
+                    return Fail($"{line.MedicationName} is prescribed but not on the bill: add it, or give the reason it is not dispensed.");
+                given.Add(line);
+            }
+            rxJson = Json(given.Select(x => new { x.Seq, x.MedicationId, x.MedicationName, x.GenericId, x.Dose, x.Frequency, x.Instructions, x.Status, x.ItemId, x.Reason }));
+        }
+        else r.ConsultationId = hold ? r.ConsultationId : null;
+
+        // clinical safety checks (SQLScripts/2406), worked out again here: the counter's answer is not trusted
+        string? alertJson = null;
+        if (!hold && set.ClinicalChecksEnabled)
+        {
+            var alerts = await ClinicalCheckAsync(companyId, branchId, r.CustomerKind == "PATIENT" ? r.PatientId : null, r.CustomerKind == "CUSTOMER" ? r.CustomerId : null, lines.Select(l => l.ItemId));
+            if (alerts.Count > 0)
+            {
+                var major = alerts.FirstOrDefault(a => a.Severity == "MAJOR" && a.Kind == "INTERACTION");
+                if (major != null && set.MajorInteractionBlock) return Fail($"Major drug interaction - {major.Title}: {major.Message} This sale is blocked (Hospital Settings > MED).");
+                if (string.IsNullOrWhiteSpace(r.AlertReason)) return Fail($"{alerts.Count} clinical alert(s) on this bill: give the reason to go ahead.");
+                var reason = r.AlertReason.Trim();
+                alertJson = Json(alerts.Select(a => new { a.Kind, a.Severity, Message = (a.Title + ": " + a.Message), Reason = reason.Length > 300 ? reason[..300] : reason }));
+            }
+        }
 
         var res = await api.PostAsync<PhSaleResult>($"{Base}/save", new
         {
             companyId, branchId, userId, hold, canDiscount, canCredit, r.HoldId, r.CustomerKind, r.PatientId, r.CustomerId, r.CustomerName, r.Mobile, r.Email, r.Address,
             r.DoctorId, r.DoctorName, r.DoctorRegNo, r.RxNo, r.RxDate, r.BillDiscPercent, r.Remarks, r.HoldLabel,
-            Lines = Json(lines.Select(l => new { l.ItemId, l.BatchId, l.Qty, l.DiscPercent })),
+            Lines = Json(lines.Select(l => new { l.ItemId, l.BatchId, l.Qty, l.DiscPercent, l.DaysSupply })),
             Payments = Json(pays.Select(p => new { p.Method, p.Amount, p.Ref })),
-            r.StoreId
+            r.StoreId, r.ConsultationId, RxLines = rxJson, Alerts = alertJson, RedeemPoints = hold ? 0 : r.RedeemPoints, r.CreditRefNo, RedeemOtp = r.RedeemOtp?.Trim()
         });
         return res;
     }
@@ -373,15 +546,18 @@ public class PharmacySaleService(PharmacyApiClient api) : IPharmacySaleService
         return id == null ? null : await GetAsync(companyId, branchId, id.SaleId);
     }
 
-    public async Task<(int Id, string? No, string? Error)> SaveReturnAsync(int companyId, int branchId, int saleId, Dictionary<int, decimal> qty, int reasonId, string refundMode, string? refundRef, string? remarks, int userId)
+    public async Task<(int Id, string? No, string? Error)> SaveReturnAsync(int companyId, int branchId, int saleId, Dictionary<int, decimal> qty, int reasonId, string refundMode, string? refundRef, string? remarks, int userId, Dictionary<int, string?>? batch = null)
     {
         qty = qty.Where(x => x.Value > 0).ToDictionary(x => x.Key, x => x.Value);
         if (qty.Count == 0) return (0, null, "Enter the quantity returned for at least one item.");
         if (reasonId <= 0) return (0, null, "Pick the reason for the return.");
+        // SQLScripts/2406: only the batch sold on the bill is taken back - the batch on the pack is checked by the procedure
+        string? BatchOf(int id) => batch != null && batch.TryGetValue(id, out var b) && !string.IsNullOrWhiteSpace(b) ? b.Trim().ToUpperInvariant() : null;
+        if (qty.Keys.Any(k => BatchOf(k) == null)) return (0, null, "Scan or type the batch number on the pack for each item returned.");
         var r = await api.PostAsync<SaveRow>($"{Base}/return/save", new
         {
             companyId, branchId, userId, saleId, reasonId, refundMode, refundRef, remarks,
-            Lines = Json(qty.Select(x => new { SaleDtlId = x.Key, Qty = x.Value }))
+            Lines = Json(qty.Select(x => new { SaleDtlId = x.Key, Qty = x.Value, BatchNo = BatchOf(x.Key) }))
         });
         return r.Error != null ? (0, null, r.Error) : (r.Id, r.DocNo, null);
     }

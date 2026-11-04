@@ -6,7 +6,14 @@ namespace EMR.Api.Controllers;
 
 public record PhSaleSaveRequest(int CompanyId, int BranchId, int UserId, bool Hold, bool CanDiscount, bool CanCredit, int? HoldId, string CustomerKind,
     int? PatientId, int? CustomerId, string? CustomerName, string? Mobile, string? Email, string? Address, int? DoctorId, string? DoctorName, string? DoctorRegNo,
-    string? RxNo, DateTime? RxDate, decimal BillDiscPercent, string? Remarks, string? HoldLabel, string Lines, string Payments, int? StoreId = null);
+    string? RxNo, DateTime? RxDate, decimal BillDiscPercent, string? Remarks, string? HoldLabel, string Lines, string Payments, int? StoreId = null,
+    int? ConsultationId = null, string? RxLines = null, string? Alerts = null, decimal RedeemPoints = 0, string? CreditRefNo = null, string? RedeemOtp = null);
+
+public record PhLoyaltyOtpRequest(int CompanyId, string MemberKey, string Code);
+public record PhLoyaltyAdjustRequest(int CompanyId, int BranchId, int UserId, int? PatientId, int? CustomerId, string? Mobile, decimal Points, string Reason);
+
+/// <summary>Clinical check of a bill (SQLScripts/2406): ItemIds = JSON array of item ids.</summary>
+public record PhClinicalCheckRequest(int CompanyId, int BranchId, int? PatientId, int? CustomerId, string ItemIds);
 
 public record PhSaleRefRequest(int CompanyId, int BranchId, int UserId, int SaleId, string? Reason);
 
@@ -65,8 +72,48 @@ public class PharmacySalesController(IPharmacyProcService ph) : ControllerBase
         Row(await ph.RowAsync("dbo.usp_Api_PhSale_Save", new
         {
             r.CompanyId, r.BranchId, r.UserId, r.Hold, r.CanDiscount, r.CanCredit, r.HoldId, r.CustomerKind, r.PatientId, r.CustomerId, r.CustomerName, r.Mobile,
-            r.Email, r.Address, r.DoctorId, r.DoctorName, r.DoctorRegNo, r.RxNo, RxDate = r.RxDate?.Date, r.BillDiscPercent, r.Remarks, r.HoldLabel, r.Lines, r.Payments, r.StoreId
+            r.Email, r.Address, r.DoctorId, r.DoctorName, r.DoctorRegNo, r.RxNo, RxDate = r.RxDate?.Date, r.BillDiscPercent, r.Remarks, r.HoldLabel, r.Lines, r.Payments, r.StoreId,
+            r.ConsultationId, r.RxLines, r.Alerts, r.RedeemPoints, r.CreditRefNo, r.RedeemOtp
         }));
+
+    // ── SQLScripts/2406: OPD prescription, clinical checks, loyalty ─────────────────────────────────────
+    // SQLScripts/2412: walk-in found by mobile (last walk-in bill + registered patients with this phone)
+    [HttpGet("walkin-by-mobile")]
+    public async Task<IActionResult> WalkinByMobile([FromQuery] int companyId, [FromQuery] string mobile) =>
+        Sets(await ph.SetsAsync("dbo.usp_Api_PhSale_WalkinByMobile", new { CompanyId = companyId, Mobile = mobile }, 2));
+
+    [HttpGet("rx-list")]
+    public async Task<IActionResult> RxList([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int patientId, [FromQuery] int days = 30) =>
+        Rows(await ph.RowsAsync("dbo.usp_Api_PhSale_RxList", new { CompanyId = companyId, BranchId = branchId, PatientId = patientId, Days = days }));
+
+    [HttpGet("rx-lines")]
+    public async Task<IActionResult> RxLines([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int consultationId, [FromQuery] int? storeId) =>
+        Sets(await ph.SetsAsync("dbo.usp_Api_PhSale_RxLines", new { CompanyId = companyId, BranchId = branchId, ConsultationId = consultationId, StoreId = storeId }, 2));
+
+    [HttpPost("clinical-check")]
+    public async Task<IActionResult> ClinicalCheck([FromBody] PhClinicalCheckRequest r) =>
+        Rows(await ph.RowsAsync("dbo.usp_Api_PhSale_ClinicalCheck", new { r.CompanyId, r.BranchId, r.PatientId, r.CustomerId, r.ItemIds }));
+
+    [HttpGet("loyalty")]
+    public async Task<IActionResult> Loyalty([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int? patientId, [FromQuery] int? customerId, [FromQuery] string? mobile) =>
+        Row(await ph.RowAsync("dbo.usp_Api_PhSale_LoyaltyBalance", new { CompanyId = companyId, BranchId = branchId, PatientId = patientId, CustomerId = customerId, Mobile = mobile }));
+
+    // ── loyalty wallet (SQLScripts/2409) ─────────────────────────────────────────────────────────────────
+    [HttpPost("loyalty/otp")]
+    public async Task<IActionResult> LoyaltyOtp([FromBody] PhLoyaltyOtpRequest r) =>
+        Row(await ph.RowAsync("dbo.usp_Api_PhLoyalty_OtpCreate", new { r.CompanyId, r.MemberKey, r.Code }));
+
+    [HttpGet("loyalty/members")]
+    public async Task<IActionResult> LoyaltyMembers([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] string? q) =>
+        Sets(await ph.SetsAsync("dbo.usp_Api_PhLoyalty_Members", new { CompanyId = companyId, BranchId = branchId, Q = q }, 2));
+
+    [HttpGet("loyalty/statement")]
+    public async Task<IActionResult> LoyaltyStatement([FromQuery] int companyId, [FromQuery] int? patientId, [FromQuery] int? customerId, [FromQuery] string? mobile) =>
+        Sets(await ph.SetsAsync("dbo.usp_Api_PhLoyalty_Statement", new { CompanyId = companyId, PatientId = patientId, CustomerId = customerId, Mobile = mobile }, 2));
+
+    [HttpPost("loyalty/adjust")]
+    public async Task<IActionResult> LoyaltyAdjust([FromBody] PhLoyaltyAdjustRequest r) =>
+        Row(await ph.RowAsync("dbo.usp_Api_PhLoyalty_Adjust", new { r.CompanyId, r.BranchId, r.UserId, r.PatientId, r.CustomerId, r.Mobile, r.Points, r.Reason }));
 
     [HttpPost("discard-hold")]
     public async Task<IActionResult> DiscardHold([FromBody] PhSaleRefRequest r) =>

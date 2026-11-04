@@ -157,6 +157,9 @@
             <div class="col-md-3"><label class="form-label" for="ReorderLevel">Reorder level</label><input asp-for="ReorderLevel" type="number" step="0.01" min="0" class="form-control" /></div>
             <div class="col-md-3"><label class="form-label" for="MaxQty">Maximum</label><input asp-for="MaxQty" type="number" step="0.01" min="0" class="form-control" /></div>
             <div class="col-md-3"><label class="form-label" for="LeadDays">Supplier lead time (days)</label><input asp-for="LeadDays" type="number" min="0" max="90" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label" for="VedClass">VED class</label>
+                <select asp-for="VedClass" class="form-select"><option value="">Not set</option><option value="V">V - Vital (life-saving, never out of stock)</option><option value="E">E - Essential</option><option value="D">D - Desirable</option></select>
+                <div class="form-text">Criticality, used with ABC in the ABC-VED analysis.</div></div>
             <div class="col-12 small fw-semibold text-muted border-top pt-3">This branch <span class="fw-normal">(empty = default)</span></div>
             <div class="col-md-3"><label class="form-label" for="RackNo">Rack / bin</label><input asp-for="RackNo" class="form-control text-uppercase" maxlength="30" placeholder="A-03-2" /></div>
             <div class="col-md-2"><label class="form-label" for="BranchMinQty">Minimum</label><input asp-for="BranchMinQty" type="number" step="0.01" min="0" class="form-control" /></div>

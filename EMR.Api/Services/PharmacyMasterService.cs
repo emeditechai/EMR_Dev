@@ -35,7 +35,7 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
         ["generics"] = "PhGeneric", ["manufacturers"] = "PhManufacturer", ["suppliers"] = "PhSupplier", ["categories"] = "PhCategory",
         ["dosageforms"] = "PhDosageForm", ["units"] = "PhUom", ["hsn"] = "PhHsn", ["schedules"] = "PhDrugSchedule",
         ["pricerules"] = "PhPriceRule", ["discounts"] = "PhDiscountScheme", ["customers"] = "PhCustomer", ["reasons"] = "PhReason",
-        ["numberseries"] = "PhNumberSeries", ["stores"] = "PhStore"
+        ["numberseries"] = "PhNumberSeries", ["stores"] = "PhStore", ["supplierschemes"] = "PhSupplierScheme", ["rxmap"] = "PhRxGenericMap", ["interactions"] = "PhDrugInteraction"
     };
 
     public bool IsKnownMaster(string key) => Tables.ContainsKey(key);
@@ -69,7 +69,11 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
             ["states"] = (await m.ReadAsync<PhOptionDto>()).ToList(),
             ["mainCategories"] = (await m.ReadAsync<PhOptionDto>()).ToList(),
             ["categories"] = (await m.ReadAsync<PhOptionDto>()).ToList(),
-            ["schemes"] = (await m.ReadAsync<PhOptionDto>()).ToList()
+            ["schemes"] = (await m.ReadAsync<PhOptionDto>()).ToList(),
+            ["suppliers"] = (await m.ReadAsync<PhOptionDto>()).ToList(),
+            ["items"] = (await m.ReadAsync<PhOptionDto>()).ToList(),
+            ["generics"] = (await m.ReadAsync<PhOptionDto>()).ToList(),
+            ["medications"] = (await m.ReadAsync<PhOptionDto>()).ToList()
         };
     }
 
@@ -163,7 +167,7 @@ public class PharmacyMasterService(IDbConnectionFactory db) : IPharmacyMasterSer
             f.ItemCode, f.ItemName, f.GenericId, f.ManufacturerId, f.CategoryId, f.DosageFormId, f.Strength, f.PackSize, f.ScheduleCode, f.HsnId,
             f.PurchaseUomId, f.SaleUomId, f.ConversionQty, f.AllowLooseSale, f.IsColdChain, f.IsHighAlert, f.IsLasa, f.IsReturnable, f.IsDiscountAllowed,
             f.PrescriptionRequired, f.Barcode, f.ReorderLevel, f.MinQty, f.MaxQty, f.LeadDays, f.Remarks, f.IsActive,
-            f.RackNo, f.BranchReorderLevel, f.BranchMinQty, f.BranchMaxQty, f.IsStocked
+            f.RackNo, f.BranchReorderLevel, f.BranchMinQty, f.BranchMaxQty, f.IsStocked, f.VedClass
         }, commandType: CommandType.StoredProcedure);
     }
 }

@@ -122,6 +122,9 @@ public class PhReportsController(PharmacyApiClient api, IAuditLogService audit, 
     [HttpGet] public Task<IActionResult> RateVariation() => PageOf();
     [HttpGet] public Task<IActionResult> RateVariationData([FromQuery] PhRptQuery q) => DataOf(q);
     [HttpGet] public Task<IActionResult> RateVariationExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
+    [HttpGet] public Task<IActionResult> SchemeMargin() => PageOf();
+    [HttpGet] public Task<IActionResult> SchemeMarginData([FromQuery] PhRptQuery q) => DataOf(q);
+    [HttpGet] public Task<IActionResult> SchemeMarginExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
 
     [HttpGet] public Task<IActionResult> IndentTurnaround() => PageOf();
     [HttpGet] public Task<IActionResult> IndentTurnaroundData([FromQuery] PhRptQuery q) => DataOf(q);
@@ -159,6 +162,12 @@ public class PhReportsController(PharmacyApiClient api, IAuditLogService audit, 
     [HttpGet] public Task<IActionResult> FsnAnalysis() => PageOf();
     [HttpGet] public Task<IActionResult> FsnAnalysisData([FromQuery] PhRptQuery q) => DataOf(q);
     [HttpGet] public Task<IActionResult> FsnAnalysisExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
+    [HttpGet] public Task<IActionResult> AbcVed() => PageOf();
+    [HttpGet] public Task<IActionResult> AbcVedData([FromQuery] PhRptQuery q) => DataOf(q);
+    [HttpGet] public Task<IActionResult> AbcVedExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
+    [HttpGet] public Task<IActionResult> DeadStock() => PageOf();
+    [HttpGet] public Task<IActionResult> DeadStockData([FromQuery] PhRptQuery q) => DataOf(q);
+    [HttpGet] public Task<IActionResult> DeadStockExport(string format, [FromQuery] PhRptQuery q) => ExportOf(format, q);
 
     [HttpGet] public Task<IActionResult> Transfers() => PageOf();
     [HttpGet] public Task<IActionResult> TransfersData([FromQuery] PhRptQuery q) => DataOf(q);

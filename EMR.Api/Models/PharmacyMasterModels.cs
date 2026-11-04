@@ -86,6 +86,7 @@ public class PhItemDto
     public decimal MinQty { get; set; }
     public decimal MaxQty { get; set; }
     public int LeadDays { get; set; } = 2;
+    public string? VedClass { get; set; }
     public string? Remarks { get; set; }
     public bool IsActive { get; set; } = true;
     public string? RackNo { get; set; }

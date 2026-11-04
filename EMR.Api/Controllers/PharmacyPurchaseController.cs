@@ -25,6 +25,20 @@ public class PharmacyPurchaseController(IPharmacyPurchaseService service) : Cont
     public async Task<IActionResult> Reorder([FromQuery] int companyId, [FromQuery] int branchId) =>
         Rows(await service.RowsAsync("dbo.usp_Api_PhPur_ReorderSuggest", new { CompanyId = companyId, BranchId = branchId }));
 
+    // SQLScripts/2403: sales-based Auto Reorder (settings, suggestions) and one draft PO per supplier
+    [HttpGet("auto-reorder")]
+    public async Task<IActionResult> AutoReorder([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int? supplierId, [FromQuery] int? categoryId, [FromQuery] bool showAll = false) =>
+        Ok(ApiResponse<List<List<IDictionary<string, object?>>>>.Ok(await service.SetsAsync("dbo.usp_Api_PhReorder_Suggest",
+            new { CompanyId = companyId, BranchId = branchId, SupplierId = supplierId, CategoryId = categoryId, ShowAll = showAll }, 2)));
+
+    [HttpPost("auto-reorder/create-pos")]
+    public async Task<IActionResult> AutoReorderCreatePos([FromBody] PhAutoReorderCreateRequest req) =>
+        Rows(await service.RowsAsync("dbo.usp_Api_PhReorder_CreatePos", new { req.CompanyId, req.BranchId, req.UserId, req.Lines }));
+
+    [HttpGet("scheme-free")]
+    public async Task<IActionResult> SchemeFree([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int supplierId, [FromQuery] int itemId, [FromQuery] decimal qty, [FromQuery] DateTime? onDate) =>
+        Rows(await service.RowsAsync("dbo.usp_Api_PhPur_SchemeFree", new { CompanyId = companyId, BranchId = branchId, SupplierId = supplierId, ItemId = itemId, Qty = qty, OnDate = onDate }));
+
     [HttpGet("suppliers")]
     public async Task<IActionResult> Suppliers([FromQuery] int companyId) =>
         Rows(await service.RowsAsync("dbo.usp_Api_PhPur_Suppliers", new { CompanyId = companyId }));
@@ -82,7 +96,7 @@ public class PharmacyPurchaseController(IPharmacyPurchaseService service) : Cont
     // ── indent ─────────────────────────────────────────────────────────────────────────────────────────
     [HttpPost("indent/save")]
     public async Task<IActionResult> SaveIndent([FromBody] PhIndentSaveRequest r) =>
-        Result(await service.ResultAsync("dbo.usp_Api_PhIndent_Save", new { r.Id, r.CompanyId, r.BranchId, r.UserId, DocDate = r.DocDate.Date, r.Priority, r.Remarks, r.Lines }));
+        Result(await service.ResultAsync("dbo.usp_Api_PhIndent_Save", new { r.Id, r.CompanyId, r.BranchId, r.UserId, DocDate = r.DocDate.Date, r.Priority, r.Remarks, r.Lines, r.SupplierId }));
 
     [HttpPost("indent/action")]
     public async Task<IActionResult> IndentAction([FromBody] PhDocActionRequest r) =>
@@ -113,6 +127,14 @@ public class PharmacyPurchaseController(IPharmacyPurchaseService service) : Cont
     public async Task<IActionResult> UndoDirect([FromBody] PhPoUndoDirectRequest r)
     {
         await service.ExecAsync("dbo.usp_Api_PhPo_UndoDirectApprove", new { r.PoId, r.GrnId });
+        return Ok(ApiResponse.Ok());
+    }
+
+    // SQLScripts/2413: indent e-mailed to the supplier
+    [HttpPost("indent/emailed")]
+    public async Task<IActionResult> IndentEmailed([FromBody] PhIndentEmailedRequest r)
+    {
+        await service.ExecAsync("dbo.usp_Api_PhIndent_MarkEmailed", new { r.IndentId, r.Email });
         return Ok(ApiResponse.Ok());
     }
 

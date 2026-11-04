@@ -44,6 +44,7 @@
         <span class="small text-muted">@Model.Count of @total shown</span>
         <div class="ms-auto d-flex gap-2">
             <button type="button" class="btn btn-sm btn-outline-success" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <a asp-action="Import" asp-permission="MASTER.PH_ITEMS:IMPORT" class="btn btn-sm btn-outline-primary"><i class="bi bi-cloud-arrow-up me-1"></i>Import</a>
             @if (canEdit)
             {
                 <a asp-action="Form" class="btn btn-sm btn-primary" id="phAdd" title="Alt + N"><i class="bi bi-plus-circle me-1"></i>Add item <span class="ph-kbd ms-1 bg-transparent text-white border-light">Alt+N</span></a>

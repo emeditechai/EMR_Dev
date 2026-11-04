@@ -30,7 +30,7 @@
     </div></div>
     @if (expired) { <div class="alert alert-danger">The return period of this bill is over.</div> }
     <div class="card shadow-sm border-0 mb-3"><div class="table-responsive"><table class="table table-sm mb-0 ph-table">
-        <thead><tr><th>Item</th><th>Batch · exp.</th><th class="text-end">Sold</th><th class="text-end">Already returned</th><th class="text-end">Rate (after disc.)</th><th class="text-end" style="width:170px">Return now</th><th class="text-end">Value</th></tr></thead>
+        <thead><tr><th>Item</th><th>Batch · exp.</th><th class="text-end">Sold</th><th class="text-end">Already returned</th><th class="text-end">Rate (after disc.)</th><th class="text-end" style="width:170px">Return now</th><th style="width:150px" title="Scan or type the batch printed on the pack brought back">Batch on pack</th><th class="text-end">Value</th></tr></thead>
         <tbody>
         @foreach (var l in b.Lines)
         {
@@ -39,10 +39,11 @@
             <tr class="@(why != null ? "text-muted" : "")"><td class="fw-semibold">@l.FormShort @l.ItemName <span class="badge sch sch-@l.ScheduleCode">@l.ScheduleCode</span></td><td class="small">@l.BatchNo · @l.ExpiryDate.ToString("MMM-yy")</td>
                 <td class="text-end">@l.Qty.ToString("0.##") @l.SaleUom</td><td class="text-end">@l.ReturnedQty.ToString("0.##")</td><td class="text-end">@rate.ToString("0.00")</td>
                 <td class="text-end">@if (why == null && !expired) { <div class="input-group input-group-sm"><input type="number" name="qty[@l.SaleDtlId]" class="form-control text-end rq" min="0" max="@l.Returnable" step="@(set.LooseReturnAllowed ? 1 : l.ConversionQty)" data-rate="@rate" placeholder="max @l.Returnable.ToString("0.##")" /><span class="input-group-text">@l.SaleUom</span></div>@if (!set.LooseReturnAllowed && l.ConversionQty > 1) { <div class="small text-muted">packs of @l.ConversionQty</div> } } else { <span class="small">@(why ?? "period over")</span> }</td>
+                <td>@if (why == null && !expired) { <input name="batch[@l.SaleDtlId]" class="form-control form-control-sm text-uppercase rb" data-batch="@l.BatchNo" maxlength="120" placeholder="scan / type" autocomplete="off" /> }</td>
                 <td class="text-end fw-semibold rv">—</td></tr>
         }
         </tbody>
-        <tfoot><tr><td colspan="6" class="text-end fw-bold">Return value</td><td class="text-end fw-bold" id="rTotal">0.00</td></tr></tfoot>
+        <tfoot><tr><td colspan="7" class="text-end fw-bold">Return value</td><td class="text-end fw-bold" id="rTotal">0.00</td></tr></tfoot>
     </table></div></div>
     @if (!expired)
     {
@@ -59,15 +60,27 @@
     </form>
 }
 @section Scripts {
+<script src="~/js/ph-gs1.js" asp-append-version="true"></script>
 <script>
 (function () {
     const rq = [...document.querySelectorAll('.rq')], tot = document.getElementById('rTotal'); if (!rq.length) return;
     const sum = () => { let t = 0; rq.forEach(i => { const v = (parseFloat(i.value) || 0) * parseFloat(i.dataset.rate); i.closest('tr').querySelector('.rv').textContent = v ? v.toFixed(2) : '—'; t += v; }); tot.textContent = t.toFixed(2); };
     rq.forEach(i => i.addEventListener('input', sum));
+    // batch on the pack (SQLScripts/2406): a GS1 pack code gives the batch; it must be the batch sold on this line
+    document.querySelectorAll('.rb').forEach(b => b.addEventListener('change', () => {
+        const g = window.PhGs1 ? PhGs1.parse(b.value) : null;
+        if (g && g.batch) b.value = g.batch;
+        b.value = b.value.trim().toUpperCase();
+        const ok = !b.value || b.value === String(b.dataset.batch).toUpperCase();
+        b.classList.toggle('is-invalid', !ok); b.classList.toggle('is-valid', !!b.value && ok);
+        b.title = ok ? '' : 'Not the batch sold on this bill (' + b.dataset.batch + ')';
+    }));
     const f = document.getElementById('retForm');
     f.addEventListener('submit', async e => {
         if (f.dataset.ok) return; e.preventDefault();
         if (!rq.some(i => parseFloat(i.value) > 0)) { Swal.fire({ icon: 'info', title: 'Enter the quantity coming back.' }); return; }
+        const noBatch = rq.filter(i => parseFloat(i.value) > 0).find(i => { const b = i.closest('tr').querySelector('.rb'); return !b || !b.value.trim() || b.classList.contains('is-invalid'); });
+        if (noBatch) { Swal.fire({ icon: 'warning', title: 'Check the batch', text: 'For each item coming back, scan or type the batch number on the pack - it must be the batch sold on this bill.' }); return; }
         const r = await Swal.fire({ title: 'Save this return?', text: `Return value ₹ ${tot.textContent}. Stock goes back to the same batch.`, icon: 'question', showCancelButton: true });
         if (r.isConfirmed) { f.dataset.ok = '1'; f.submit(); }
     });
