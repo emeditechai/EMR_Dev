@@ -163,6 +163,7 @@ builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
 builder.Services.AddHostedService<FollowUpReminderService>();
 // membership points: expire points not used by their expiry date (SQLScripts/2236)
 builder.Services.AddHostedService<MembershipPointsExpiryService>();
+builder.Services.AddHostedService<PharmacyRefillReminderService>();   // SQLScripts/2406
 
 // Video Consultation (Whereby)
 builder.Services.AddHttpClient("Whereby", client =>
@@ -295,6 +296,8 @@ builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectio
 builder.Services.AddScoped<ILabMiscChargeApiClient, LabMiscChargeApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabFranchiseBarcodeApiClient,     LabFranchiseBarcodeApiClient>();
+builder.Services.AddScoped<ILabPhleboBarcodeApiClient,        LabPhleboBarcodeApiClient>();
+builder.Services.AddScoped<PharmacyItemImport>();   // SQLScripts/2411
 builder.Services.AddScoped<ILabBulkUploadApiClient,           LabBulkUploadApiClient>();
 builder.Services.AddScoped<ILabReferenceRangeApiClient,        LabReferenceRangeApiClient>();
 builder.Services.AddScoped<ILabFormulaParameterApiClient,      LabFormulaParameterApiClient>();

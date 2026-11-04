@@ -16,6 +16,7 @@ public class PhStockCountsController(IPharmacyInventoryService inventory, IPharm
     {
         ViewBag.Categories = (await masters.ItemLookupsAsync(CompanyId)).Categories;
         ViewBag.Stores = await Inventory.StoresAsync(CompanyId, BranchId, "ANY");
+        ViewBag.CyclePlan = await Inventory.CycleCountPlanAsync(CompanyId, BranchId);
         return View("~/Views/PharmacyInventory/Counts.cshtml", await Inventory.CountsAsync(CompanyId, BranchId));
     }
 
@@ -45,6 +46,9 @@ public class PhStockCountsController(IPharmacyInventoryService inventory, IPharm
         ViewBag.Header = await purchase.BranchHeaderAsync(BranchId);
         return View("~/Views/PharmacyInventory/CountSheet.cshtml", d);
     }
+
+    [HttpGet]
+    public async Task<IActionResult> CyclePlan() => Json(await Inventory.CycleCountPlanAsync(CompanyId, BranchId));
 
     [HttpGet] public IActionResult Variance(int id) => RedirectToAction(nameof(Form), new { id, variance = true });
 

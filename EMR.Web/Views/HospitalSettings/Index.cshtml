@@ -58,6 +58,8 @@
     .lab-param:hover .lp-desc { -webkit-line-clamp:unset; overflow:visible; }
     .lab-param .lp-pill { grid-column:2; grid-row:1; margin-top:0; font-size:.68rem; padding:.08rem .55rem; white-space:nowrap; }
     .lab-param .lp-pill + .lp-pill { grid-column:1 / -1; grid-row:auto; justify-self:start; margin-top:.35rem; }
+    /* MED tab: a value (licence, days, %) sits under the description so long values never squeeze the title */
+    #tabMed .lab-param .lp-pill.val, #tabMed .lab-param .lp-pill.na { grid-column:1 / -1; grid-row:auto; justify-self:start; margin-top:.35rem; white-space:normal; }
     .coming-soon-badge { font-size:.65rem; background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; border:1px solid #e2e8f0; }
 </style>
 }
@@ -694,50 +696,103 @@ else
 
         @* ── MED Tab (SQLScripts/2343) ── *@
         <div class="tab-pane fade module-tab-pane" id="tabMed" role="tabpanel">
-            <div class="d-flex align-items-center mb-3 gap-2">
-                <span class="fw-bold" style="color:#6f42c1"><i class="bi bi-capsule me-1"></i>MED / Pharmacy Configuration</span>
-                @if (Model.PharmacyEnabled) { <span class="badge bg-success">Pharmacy enabled</span> } else { <span class="badge bg-secondary">Pharmacy not enabled</span> }
-            </div>
             @{
                 string D(DateTime? d) => d?.ToString("dd-MMM-yyyy") ?? "—";
                 string V(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
-                string Lic(string? no, DateTime? to) => string.IsNullOrWhiteSpace(no) ? "—" : no + (to.HasValue ? (to.Value < DateTime.Today ? " (expired " : " (valid to ") + D(to) + ")" : "");
-                var medParams = new (string Label, string Value)[]
+                bool Expired(DateTime? to) => to.HasValue && to.Value < DateTime.Today;
+                string Lic(string? no, DateTime? to) => string.IsNullOrWhiteSpace(no) ? "—" : no + (to.HasValue ? " · to " + D(to) : "");
+                // (label, description, icon, colour, pill kind: yes / no / val / na, pill text)
+                (string, string, string, string, string, string) B(string l, string d, string i, string c, bool on, string? yes = null, string? no = null) => (l, d, i, c, on ? "yes" : "no", on ? (yes ?? "YES") : (no ?? "NO"));
+                (string, string, string, string, string, string) T(string l, string d, string i, string c, string v, bool bad = false) => (l, d, i, c, v == "—" ? "na" : bad ? "no" : "val", v);
+                var medSections = new (string Title, (string Label, string Desc, string Icon, string Color, string Kind, string Text)[] Items)[]
                 {
-                    ("Pharmacy Name", V(Model.PharmacyName ?? Model.HospitalName)),
-                    ("Pharmacy GSTIN", V(Model.PharmacyGstin ?? Model.GSTCode)),
-                    ("Drug Licence 20B", Lic(Model.PharmacyDrugLicence20B, Model.PharmacyDrugLicence20BValidTo)),
-                    ("Drug Licence 21B", Lic(Model.PharmacyDrugLicence21B, Model.PharmacyDrugLicence21BValidTo)),
-                    ("Pharmacist In-charge", V(Model.PharmacistName) + (string.IsNullOrWhiteSpace(Model.PharmacistRegNo) ? "" : " · Reg. " + Model.PharmacistRegNo)),
-                    ("NDPS / Schedule X Licence", V(Model.PharmacyNdpsLicenceNo)),
-                    ("Pharmacy Contact", V(Model.PharmacyContactNo)),
-                    ("GRN Not Required", Model.PharmacyGrnNotRequired ? "Yes - PO approval adds stock" : "No - stock on GRN"),
-                    ("Negative Stock", Model.PharmacyAllowNegativeStock ? "Allowed" : "Not allowed"),
-                    ("Min. Shelf Life - Sale", Model.PharmacyMinShelfLifeSaleDays + " days"),
-                    ("Min. Shelf Life - IPD", Model.PharmacyMinShelfLifeIpdDays == 0 ? "Until expiry" : Model.PharmacyMinShelfLifeIpdDays + " days"),
-                    ("Min. Shelf Life - GRN", Model.PharmacyMinShelfLifeGrnDays + " days"),
-                    ("Near-Expiry Alert", Model.PharmacyNearExpiryAlertDays + " days"),
-                    ("Sale Return Within", Model.PharmacySaleReturnDays + " days" + (Model.PharmacyLooseReturnAllowed ? " · loose allowed" : " · full packs only")),
-                    ("Max. Manual Discount", Model.PharmacyMaxManualDiscountPercent.ToString("0.##") + "%"),
-                    ("Bill", Model.PharmacyBillPrintFormat + (Model.PharmacyRoundOffBill ? " · rounded off" : "") + (Model.PharmacyBillNotificationRequired ? " · WhatsApp / e-mail" : "")),
-                    ("IPD Issue GST", Model.PharmacyIpdGstExempt ? "Exempt" : "Charged"),
-                    ("Discharge Medicines (TTO)", Model.PharmacyTtoBillingMode == "SALE" ? "Separate pharmacy bill" : "On IPD bill"),
-                    ("Discharge with Pending Indent", Model.PharmacyBlockDischargeOnPendingIndent ? "Blocked" : "Allowed")
+                    ("Pharmacy & Drug Licence", new[]
+                    {
+                        T("Pharmacy Name", "Printed on the pharmacy bill.", "bi-shop", "#6f42c1", V(Model.PharmacyName ?? Model.HospitalName)),
+                        T("Pharmacy GSTIN", "GSTIN on sale bills and GST returns.", "bi-receipt", "#2563eb", V(Model.PharmacyGstin ?? Model.GSTCode)),
+                        T("Drug Licence 20B", Expired(Model.PharmacyDrugLicence20BValidTo) ? "Expired: sales are stopped until renewed." : "Retail sale licence; sales stop when it expires.", "bi-patch-check-fill", "#16a34a", Lic(Model.PharmacyDrugLicence20B, Model.PharmacyDrugLicence20BValidTo), Expired(Model.PharmacyDrugLicence20BValidTo)),
+                        T("Drug Licence 21B", "Retail licence for Schedule C / C1 drugs.", "bi-patch-check", "#0d9488", Lic(Model.PharmacyDrugLicence21B, Model.PharmacyDrugLicence21BValidTo), Expired(Model.PharmacyDrugLicence21BValidTo)),
+                        T("Pharmacist In-charge", "Registered pharmacist named on the bill.", "bi-person-badge", "#0891b2", V(Model.PharmacistName) + (string.IsNullOrWhiteSpace(Model.PharmacistRegNo) ? "" : " · Reg. " + Model.PharmacistRegNo)),
+                        T("NDPS / Schedule X Licence", "Needed to sell Schedule X / NDPS drugs.", "bi-shield-lock", "#c9232e", V(Model.PharmacyNdpsLicenceNo)),
+                        T("Pharmacy Contact", "Phone on bills and refill reminders.", "bi-telephone", "#475569", V(Model.PharmacyContactNo))
+                    }),
+                    ("Purchase", new[]
+                    {
+                        B("GRN Not Required", "Yes: PO approval with the bill details adds the stock. No: stock comes in on the GRN.", "bi-box-arrow-in-down", "#2563eb", Model.PharmacyGrnNotRequired),
+                        B("Auto Reorder", Model.PharmacyAutoReorderEnabled ? $"Average of {Model.PharmacyReorderSalesDays} days · safety {Model.PharmacyReorderSafetyDays} · cover {Model.PharmacyReorderCoverDays} days." : "Sales-based order suggestions and draft POs per supplier.", "bi-arrow-repeat", "#7c3aed", Model.PharmacyAutoReorderEnabled),
+                        B("Supplier Schemes at PO / GRN", "Free quantity of a running scheme (e.g. 10 + 1) fills in automatically.", "bi-gift", "#d97706", Model.PharmacySchemeAutoApply),
+                        B("GS1 DataMatrix Scanning", "2D pack code gives GTIN, batch and expiry at GRN, sale and return.", "bi-qr-code-scan", "#0891b2", Model.PharmacyGs1ScanEnabled)
+                    }),
+                    ("Stock & Expiry", new[]
+                    {
+                        B("Negative Stock", "Sell more than the stock shown.", "bi-dash-circle", "#c9232e", Model.PharmacyAllowNegativeStock, "ALLOWED", "NOT ALLOWED"),
+                        T("Min. Shelf Life - Sale", "A batch expiring sooner is not sold.", "bi-calendar-x", "#d97706", Model.PharmacyMinShelfLifeSaleDays + " days"),
+                        T("Min. Shelf Life - IPD", "For ward issue.", "bi-hospital", "#0d9488", Model.PharmacyMinShelfLifeIpdDays == 0 ? "Until expiry" : Model.PharmacyMinShelfLifeIpdDays + " days"),
+                        T("Min. Shelf Life - GRN", "Short-expiry supplies are warned at receipt.", "bi-box-seam", "#2563eb", Model.PharmacyMinShelfLifeGrnDays + " days"),
+                        T("Near-Expiry Alert", "Batches expiring within this are flagged.", "bi-alarm", "#c9232e", Model.PharmacyNearExpiryAlertDays + " days")
+                    }),
+                    ("Stock Audit & Analysis", new[]
+                    {
+                        B("Blind Stock Count", "Counters do not see the system stock until the count is submitted.", "bi-eye-slash", "#475569", Model.PharmacyCountBlind),
+                        T("Recount Above", "Bigger differences must be counted again before submit.", "bi-arrow-counterclockwise", "#d97706", Model.PharmacyCountRecountPercent > 0 ? Model.PharmacyCountRecountPercent.ToString("0.##") + "%" : "Off"),
+                        T("Cycle Count", "Each rack is due for a count after this.", "bi-calendar2-check", "#16a34a", "Every " + Model.PharmacyCycleCountDays + " days"),
+                        T("ABC Classes", "Share of consumption value for class A and B.", "bi-bar-chart-steps", "#7c3aed", $"A ≤ {Model.PharmacyAbcAPercent:0.##}% · B ≤ {Model.PharmacyAbcBPercent:0.##}%"),
+                        T("Slow / Dead Stock", "Days without a sale.", "bi-hourglass-bottom", "#64748b", $"Slow {Model.PharmacySlowMovingDays} · dead {Model.PharmacyDeadStockDays} days")
+                    }),
+                    ("Counter Sale & Returns", new[]
+                    {
+                        B("Split Payment", "One bill paid by cash + UPI + card.", "bi-wallet2", "#16a34a", Model.PharmacySplitPaymentEnabled),
+                        B("Suggest Substitute Brands", "In-stock brands of the same generic when an item is out of stock.", "bi-arrow-left-right", "#0891b2", Model.PharmacySubstituteSuggest),
+                        B("Pull OPD Prescription", "Load the patient's OPD prescription and check dispensed vs prescribed.", "bi-file-medical", "#2563eb", Model.PharmacyRxLinkEnabled),
+                        T("Max. Manual Discount", "Above this needs the Discount permission.", "bi-percent", "#d97706", Model.PharmacyMaxManualDiscountPercent.ToString("0.##") + "%"),
+                        T("Sale Return Within", Model.PharmacyLooseReturnAllowed ? "Loose / cut strips taken back." : "Full packs only.", "bi-arrow-return-left", "#c9232e", Model.PharmacySaleReturnDays + " days"),
+                        T("Bill Print", Model.PharmacyRoundOffBill ? "Rounded off to the rupee." : "Not rounded off.", "bi-printer", "#475569", Model.PharmacyBillPrintFormat),
+                        B("Send Bill by WhatsApp / E-mail", "Bill sent to the buyer after saving.", "bi-whatsapp", "#16a34a", Model.PharmacyBillNotificationRequired)
+                    }),
+                    ("Clinical Safety", new[]
+                    {
+                        B("Clinical Safety Checks", "Drug interaction, allergy and duplicate-therapy warnings at sale.", "bi-heart-pulse", "#c9232e", Model.PharmacyClinicalChecksEnabled),
+                        B("Block Sale on Major Interaction", "No: the pharmacist may continue with a reason.", "bi-sign-stop", "#b91c1c", Model.PharmacyMajorInteractionBlock)
+                    }),
+                    ("Customer & Loyalty", new[]
+                    {
+                        B("Refill Reminders by WhatsApp", Model.PharmacyRefillReminderEnabled ? $"Sent {Model.PharmacyRefillReminderDaysBefore} days before the medicine runs out." : "Remind buyers before their medicines run out.", "bi-bell", "#0891b2", Model.PharmacyRefillReminderEnabled),
+                        B("Loyalty", !Model.PharmacyLoyaltyEnabled ? "Patients and pharmacy customers get a loyalty benefit." : Model.PharmacyLoyaltyType == "DISCOUNT" ? $"Instant discount {Model.PharmacyLoyaltyDiscountPercent:0.##}% on every member bill" + (Model.PharmacyLoyaltyWalkinByMobile ? " (walk-ins by mobile too)." : ".") : $"Wallet: {Model.PharmacyLoyaltyEarnPercent:0.##}% of the bill as points (1 pt = ₹{Model.PharmacyLoyaltyPointValue:0.##}), usable after {Model.PharmacyLoyaltyLockInDays} days, on a later bill up to {Model.PharmacyLoyaltyMaxRedeemPercent:0.##}%" + (Model.PharmacyLoyaltyExpiryDays > 0 ? $"; expire in {Model.PharmacyLoyaltyExpiryDays} days" : "") + (Model.PharmacyLoyaltyRedeemOtp ? "; OTP to use" : "") + (Model.PharmacyLoyaltyWalkinByMobile ? "; walk-ins by mobile" : "") + ".", "bi-star-fill", "#d97706", Model.PharmacyLoyaltyEnabled, Model.PharmacyLoyaltyType == "DISCOUNT" ? "DISCOUNT" : "WALLET", "OFF"),
+                    }),
+                    ("IPD Issue", new[]
+                    {
+                        B("IPD Issue GST Exempt", "Part of the healthcare service - confirm with your CA.", "bi-receipt-cutoff", "#16a34a", Model.PharmacyIpdGstExempt),
+                        T("Discharge Medicines (TTO)", "Where discharge medicines are billed.", "bi-bag-plus", "#2563eb", Model.PharmacyTtoBillingMode == "SALE" ? "Separate pharmacy bill" : "On IPD bill"),
+                        B("Block Discharge on Pending Indent", "Pending pharmacy indent / return stops discharge.", "bi-door-closed", "#c9232e", Model.PharmacyBlockDischargeOnPendingIndent)
+                    })
                 };
             }
-            <div class="row g-3">
-                @foreach (var (label, value) in medParams)
-                {
-                    <div class="col-6 col-md-3">
-                        <div class="param-card">
-                            <div class="param-label">@label</div>
-                            <div class="param-value @(value.Contains("(expired") ? "text-danger" : "")">@value</div>
-                        </div>
-                    </div>
-                }
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="fw-bold" style="color:#6f42c1"><i class="bi bi-capsule me-1"></i>MED / Pharmacy Configuration</span>
+                <span class="coming-soon-badge">@medSections.Sum(x => x.Items.Length) parameters</span>
+                @if (Model.PharmacyEnabled) { <span class="lp-pill yes mt-0"><i class="bi bi-check-circle-fill"></i>Pharmacy enabled</span> } else { <span class="lp-pill no mt-0"><i class="bi bi-x-circle-fill"></i>Pharmacy not enabled</span> }
             </div>
+            @foreach (var sec in medSections)
+            {
+                <div class="lab-section-title">@sec.Title</div>
+                <div class="row g-3 mb-4">
+                    @foreach (var p in sec.Items)
+                    {
+                        var pillIcon = p.Kind switch { "yes" => "bi-check-circle-fill", "no" => "bi-x-circle-fill", "na" => "bi-dash-circle", _ => "bi-info-circle-fill" };
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="lab-param" style="--lp:@p.Color;--lp-bg:@(p.Color)22;">
+                                <div class="lp-icon"><i class="bi @p.Icon"></i></div>
+                                <div>
+                                    <div class="lp-label">@p.Label</div>
+                                    <div class="lp-desc" title="@p.Desc">@p.Desc</div>
+                                    <span class="lp-pill @p.Kind"><i class="bi @pillIcon"></i>@p.Text</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
         </div>
-
     </div>
 }
 

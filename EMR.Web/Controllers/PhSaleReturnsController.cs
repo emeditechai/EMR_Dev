@@ -38,9 +38,9 @@ public class PhSaleReturnsController(IPharmacySaleService sales, IPharmacyPurcha
     [HttpGet] public async Task<IActionResult> FindBill(string q) => Json(await sales.FindForReturnAsync(CompanyId, BranchId, q));
 
     [HttpPost, ValidateAntiForgeryToken]
-    public async Task<IActionResult> Save(int saleId, Dictionary<int, decimal>? qty, int reasonId, string? refundMode, string? refundRef, string? remarks)
+    public async Task<IActionResult> Save(int saleId, Dictionary<int, decimal>? qty, int reasonId, string? refundMode, string? refundRef, string? remarks, Dictionary<int, string?>? batch)
     {
-        var (id, no, err) = await sales.SaveReturnAsync(CompanyId, BranchId, saleId, qty ?? [], reasonId, refundMode ?? "", refundRef, remarks, User.GetUserId());
+        var (id, no, err) = await sales.SaveReturnAsync(CompanyId, BranchId, saleId, qty ?? [], reasonId, refundMode ?? "", refundRef, remarks, User.GetUserId(), batch);
         if (err != null) { TempData["Error"] = err; return RedirectToAction(nameof(Form), new { saleId }); }
         await audit.LogAsync("Pharmacy", "SaleReturn", $"Pharmacy sale return {no} against bill #{saleId}", User.GetUserId(), BranchId);
         TempData["Success"] = $"Return {no} saved: stock taken back.";

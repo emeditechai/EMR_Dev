@@ -27,6 +27,9 @@ public class PharmacyMastersController(
     [HttpGet] public Task<IActionResult> Schedules() => List("schedules");
     [HttpGet] public Task<IActionResult> PriceRules() => List("pricerules");
     [HttpGet] public Task<IActionResult> Discounts() => List("discounts");
+    [HttpGet] public Task<IActionResult> SupplierSchemes() => List("supplierschemes");
+    [HttpGet] public Task<IActionResult> RxMap() => List("rxmap");
+    [HttpGet] public Task<IActionResult> Interactions() => List("interactions");
     [HttpGet] public Task<IActionResult> Customers() => List("customers");
     [HttpGet] public Task<IActionResult> Reasons() => List("reasons");
     [HttpGet] public Task<IActionResult> NumberSeries() => List("numberseries");
@@ -41,6 +44,9 @@ public class PharmacyMastersController(
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveHsn() => Save("hsn", nameof(Hsn));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SavePriceRule() => Save("pricerules", nameof(PriceRules));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveDiscount() => Save("discounts", nameof(Discounts));
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveSupplierScheme() => Save("supplierschemes", nameof(SupplierSchemes));
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveRxMap() => Save("rxmap", nameof(RxMap));
+    [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveInteraction() => Save("interactions", nameof(Interactions));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveCustomer() => Save("customers", nameof(Customers));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveReason() => Save("reasons", nameof(Reasons));
     [HttpPost, ValidateAntiForgeryToken] public Task<IActionResult> SaveNumberSeries() => Save("numberseries", nameof(NumberSeries));

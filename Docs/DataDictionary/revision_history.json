@@ -162,11 +162,19 @@
   "version": "1.11"
  },
  {
-  "by": "purojitbhar",
+  "by": "abhikporel",
   "changes": [
    "New table LabPhleboBarcodePool (13 columns, module not yet grouped)",
    "New table LabPhleboBarcodeSeries (16 columns, module not yet grouped)",
    "New table PhDebitNoteAdjust (10 columns, module not yet grouped)",
+   "New foreign key LabPhleboBarcodePool.SeriesId -> LabPhleboBarcodeSeries.SeriesId"
+  ],
+  "date": "04 Nov 2026",
+  "version": "1.12"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
    "New table PhDrugInteraction (12 columns, module not yet grouped)",
    "New table PhLoyaltyLedger (16 columns, module not yet grouped)",
    "New table PhLoyaltyOtp (8 columns, module not yet grouped)",
@@ -183,7 +191,6 @@
    "PhSaleDtl: new column(s) DaysSupply",
    "PhStockCountDtl: new column(s) FirstCountQty, RecountRequired, RecountedBy, RecountedDate, CountedBy, CountedDate",
    "PhSupplier: new column(s) ReceiveIndentEmail",
-   "New foreign key LabPhleboBarcodePool.SeriesId -> LabPhleboBarcodeSeries.SeriesId",
    "New foreign key PhDrugInteraction.GenericId1 -> PhGeneric.GenericId",
    "New foreign key PhDrugInteraction.GenericId2 -> PhGeneric.GenericId",
    "New foreign key PhPurchaseIndent.SupplierId -> PhSupplier.SupplierId",
@@ -195,7 +202,7 @@
    "New foreign key PhSupplierScheme.SupplierId -> PhSupplier.SupplierId",
    "Lookup values changed: ApprovalModule"
   ],
-  "date": "05 Nov 2026",
-  "version": "1.12"
+  "date": "04 Nov 2026",
+  "version": "1.13"
  }
 ]

@@ -1,0 +1,120 @@
+@using EMR.Web.Services
+@{
+    // Pharmacy > Sales > Loyalty Wallet (SQLScripts/2409)
+    ViewData["Title"] = "Loyalty Wallet";
+    var set = (PhPharmacySettings)ViewBag.Settings;
+    var wallet = set.LoyaltyType != "DISCOUNT";
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<style>
+    .lw-kpi { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:.6rem .9rem; height:100%; }
+    .lw-kpi .l { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
+    .lw-kpi .v { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
+    #lwTable td, #lwTable th, #stTable td, #stTable th { font-size:.8rem; vertical-align:middle; }
+    .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    #lwTable tbody tr { cursor:pointer; }
+    .lw-kind { font-size:.68rem; font-weight:700; border-radius:2rem; padding:.1rem .5rem; }
+</style>
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Loyalty Wallet", "bi-wallet2", "Points members collect on pharmacy bills and use on later bills: balance, pending (lock-in), expiring, statement and manual adjustments.", null, null, Section: "Pharmacy", Group: "Sales"))" />
+@Html.AntiForgeryToken()
+@if (!set.LoyaltyEnabled || !wallet)
+{
+    <div class="alert alert-warning small"><i class="bi bi-info-circle me-1"></i>@(set.LoyaltyEnabled ? "Loyalty is an instant discount at this branch - no wallet points are collected now. Earlier points stay usable here." : "Loyalty is off for this branch (Hospital Settings > MED > Loyalty). Earlier wallets are still shown.")</div>
+}
+<div class="row g-2 mb-3">
+    <div class="col-6 col-lg-3"><div class="lw-kpi"><div class="l">Members with a wallet</div><div class="v" id="kM">–</div></div></div>
+    <div class="col-6 col-lg-3"><div class="lw-kpi"><div class="l">Points usable now</div><div class="v text-primary" id="kP">–</div></div></div>
+    <div class="col-6 col-lg-3"><div class="lw-kpi"><div class="l">Liability (₹ value)</div><div class="v text-danger" id="kL">–</div></div></div>
+    <div class="col-6 col-lg-3"><div class="lw-kpi"><div class="l">Earned / used (all time)</div><div class="v" id="kE">–</div></div></div>
+</div>
+<div class="card shadow-sm border-0">
+    <div class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="width:300px"><span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+            <input type="search" id="q" class="form-control" placeholder="Name, mobile or UHID" /></div>
+        <span class="small text-muted ms-auto" id="cnt"></span>
+    </div>
+    <div class="table-responsive"><table class="table table-sm table-hover mb-0" id="lwTable">
+        <thead class="table-light"><tr><th>Member</th><th>Mobile</th><th>Type</th><th class="num">Usable</th><th class="num">Pending</th><th class="num">Value ₹</th><th class="num">Earned</th><th class="num">Used</th><th>Last activity</th></tr></thead>
+        <tbody id="lwBody"><tr><td colspan="9" class="text-muted p-3">Loading…</td></tr></tbody>
+    </table></div>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="stCanvas" style="width:min(760px,100%)">
+    <div class="offcanvas-header border-bottom py-2"><div><h6 class="mb-0 fw-bold" id="stName"></h6><div class="small text-muted" id="stSub"></div></div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
+    <div class="offcanvas-body">
+        <div class="row g-2 mb-3" id="stKpis"></div>
+        <div class="border rounded p-2 mb-3 bg-light" id="adjBox">
+            <div class="small fw-bold mb-1"><i class="bi bi-plus-slash-minus me-1"></i>Adjust points</div>
+            <div class="d-flex gap-2 flex-wrap">
+                <input type="number" id="adjPts" class="form-control form-control-sm num" style="width:110px" step="1" placeholder="+50 / -20" />
+                <input id="adjWhy" class="form-control form-control-sm" style="flex:1;min-width:200px" maxlength="200" placeholder="Reason (goodwill, correction, campaign…)" />
+                <button type="button" class="btn btn-sm btn-primary" id="adjSave">Save</button>
+            </div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm mb-0" id="stTable">
+            <thead class="table-light"><tr><th>Date</th><th>Entry</th><th class="num">Points</th><th>Bill / return</th><th>Usable from · expires</th><th>Note</th></tr></thead>
+            <tbody id="stBody"></tbody></table></div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const urls = { members: '@Url.Action("Members")', statement: '@Url.Action("Statement")', adjust: '@Url.Action("Adjust")' };
+    const canAdjust = typeof emrCan !== 'function' || emrCan('PHARMACY.LOYALTYWALLET', 'ADJUST');
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const n0 = v => Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    const n2 = v => Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const d = v => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    const toast = (icon, title) => Swal.fire({ toast: true, position: 'top-end', icon, title, timer: 2500, showConfirmButton: false });
+    const KIND = { EARN: ['Credited', 'success'], REDEEM: ['Used', 'primary'], REVERSE: ['Taken back', 'danger'], REFUND: ['Given back', 'info'], ADJUST: ['Adjusted', 'warning'] };
+    let members = [], cur = null, t;
+
+    async function load() {
+        const r = await (await fetch(urls.members + '?q=' + encodeURIComponent($('#q').val()))).json();
+        members = r.members || []; const tt = r.totals || {};
+        $('#kM').text(n0(tt.Members)); $('#kP').text(n0(tt.Points)); $('#kL').text('₹' + n2(tt.Liability)); $('#kE').text(n0(tt.Earned) + ' / ' + n0(tt.Used));
+        $('#cnt').text(members.length + ' member(s)');
+        $('#lwBody').html(members.length ? members.map((m, k) => `<tr data-k="${k}"><td class="fw-semibold">${esc(m.Name || '—')}${m.Uhid ? ` <span class="text-muted small">${esc(m.Uhid)}</span>` : ''}</td>
+            <td>${esc(m.Phone || '')}</td><td><span class="badge bg-light text-dark border">${m.MemberType === 'PATIENT' ? 'Patient' : m.MemberType === 'CUSTOMER' ? 'Customer' : 'Walk-in'}</span></td>
+            <td class="num fw-bold">${n0(m.Available)}</td><td class="num text-muted">${m.Pending > 0 ? n0(m.Pending) : '–'}</td><td class="num">${n2(m.Value)}</td>
+            <td class="num">${n0(m.Earned)}</td><td class="num">${n0(m.Used)}</td><td class="small">${d(m.LastActivity)}</td></tr>`).join('')
+            : '<tr><td colspan="9" class="text-center text-muted p-4">No wallet yet.</td></tr>');
+    }
+    async function open(m) {
+        cur = m;
+        const p = new URLSearchParams(); if (m.PatientId) p.set('patientId', m.PatientId); else if (m.CustomerId) p.set('customerId', m.CustomerId); else p.set('mobile', m.Mobile);
+        const r = await (await fetch(urls.statement + '?' + p)).json();
+        const w = r.wallet || {};
+        $('#stName').text(m.Name || m.Phone); $('#stSub').text((m.Uhid ? 'UHID ' + m.Uhid + ' · ' : '') + (m.Phone || ''));
+        const k = (l, v, c = '') => `<div class="col-6 col-md-3"><div class="lw-kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div></div></div>`;
+        $('#stKpis').html(k('Usable now', n0(w.Available), 'text-primary') + k('Pending', n0(w.Pending)) + k('Expiring in 30 d', n0(w.ExpiringSoon), w.ExpiringSoon > 0 ? 'text-danger' : '') + k('Expired', n0(w.Expired), 'text-muted'));
+        $('#adjBox').toggle(canAdjust); $('#adjPts').val(''); $('#adjWhy').val('');
+        $('#stBody').html((r.rows || []).map(x => { const kd = KIND[x.Kind] || [x.Kind, 'secondary'];
+            return `<tr class="${x.State && x.State.startsWith('Bill cancelled') ? 'text-decoration-line-through text-muted' : ''}"><td class="small">${d(x.CreatedDate)}</td>
+            <td><span class="lw-kind bg-${kd[1]}-subtle text-${kd[1]}-emphasis border">${kd[0]}</span></td>
+            <td class="num fw-bold ${x.Points < 0 ? 'text-danger' : 'text-success'}">${x.Points > 0 ? '+' : ''}${n0(x.Points)}</td>
+            <td class="small font-monospace">${esc(x.SaleNo || '')}${x.ReturnNo ? '<br>' + esc(x.ReturnNo) : ''}</td>
+            <td class="small">${x.Points > 0 ? d(x.AvailableOn) + (x.ExpiresOn ? ' · ' + d(x.ExpiresOn) : '') : ''}</td>
+            <td class="small">${esc(x.Remarks || '')}${x.State ? `<div class="text-warning-emphasis">${esc(x.State)}</div>` : ''}<div class="text-muted">${esc(x.ByName || '')} · ${esc(x.BranchName || '')}</div></td></tr>`; }).join('')
+            || '<tr><td colspan="6" class="text-muted text-center p-3">No entries.</td></tr>');
+        bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('stCanvas')).show();
+    }
+    $('#lwBody').on('click', 'tr[data-k]', function () { open(members[this.dataset.k]); });
+    $('#q').on('input', () => { clearTimeout(t); t = setTimeout(load, 300); });
+    $('#adjSave').on('click', async function () {
+        const pts = parseInt($('#adjPts').val()), why = $('#adjWhy').val().trim();
+        if (!pts || !why) { toast('warning', 'Enter the points (+ / -) and the reason.'); return; }
+        if (!(await Swal.fire({ title: `${pts > 0 ? 'Credit' : 'Debit'} ${Math.abs(pts)} points?`, text: why, icon: 'question', showCancelButton: true })).isConfirmed) return;
+        const b = new FormData();
+        if (cur.PatientId) b.append('patientId', cur.PatientId); else if (cur.CustomerId) b.append('customerId', cur.CustomerId); else b.append('mobile', cur.Mobile);
+        b.append('points', pts); b.append('reason', why); b.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').val());
+        const r = await (await fetch(urls.adjust, { method: 'POST', body: b })).json();
+        toast(r.success ? 'success' : 'error', r.message);
+        if (r.success) { await load(); open(members.find(m => m.PatientId === cur.PatientId && m.CustomerId === cur.CustomerId && m.Mobile === cur.Mobile) || cur); }
+    });
+    load();
+})();
+</script>
+}

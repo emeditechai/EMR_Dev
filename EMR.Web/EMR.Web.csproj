@@ -51,4 +51,8 @@
       <AbsolutePath>wwwroot\\uploads\\.*</AbsolutePath>
     </MsDeploySkipRules>
   </ItemGroup>
+  <ItemGroup>
+    <!-- SQLScripts/2411: standard pharmacy starter item list for Item Master > Import -->
+    <None Update="App_Data\pharmacy-standard-items.csv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

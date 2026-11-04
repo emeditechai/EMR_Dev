@@ -2,7 +2,10 @@
 @model PhInvDoc
 @{
     var d = Model; int me = ViewBag.UserId; var mine = d.CreatedBy == me;
-    var counting = d.Status == "COUNTING"; var showSystem = !counting || Context.Request.Query["variance"] == "True" || Context.Request.Query["variance"] == "true";
+    var counting = d.Status == "COUNTING";
+    // Hospital Settings > MED > Blind Stock Count (SQLScripts/2405): no system quantity until the count is submitted
+    var showSystem = !counting || (!d.BlindCount && (Context.Request.Query["variance"] == "True" || Context.Request.Query["variance"] == "true"));
+    var recounts = d.Lines.Count(l => l.RecountRequired && l.RecountedDate == null);
     ViewData["Title"] = d.DocNo;
     var counted = d.Lines.Count(l => l.CountedQty != null);
     var diffValue = d.Lines.Where(l => l.CountedQty != null).Sum(l => (l.CountedQty!.Value - l.SystemQty) * l.UnitCost);
@@ -11,21 +14,24 @@
 <partial name="_PharmacyMasterHeader" model="@(new PhHeader("Physical Stock Verification", "bi-clipboard-check", $"Frozen {d.FrozenAt:dd-MMM-yyyy HH:mm} · {d.Scope} · by {d.CreatedByName}", null, null, d.DocNo, d.DocNo, Url.Action("Index"),
     new List<KeyValuePair<string, int>> { new("Batches", d.Lines.Count), new("Counted", counted), new("Differences", d.Lines.Count(l => l.CountedQty != null && l.CountedQty != l.SystemQty)) }, "Pharmacy", "Inventory"))" />
 @if (d.ActionRemarks != null) { <div class="alert alert-warning small"><b>Note:</b> @d.ActionRemarks</div> }
+@if (counting && recounts > 0) { <div class="alert alert-danger small"><i class="bi bi-arrow-repeat me-1"></i><b>@recounts batch(es) to recount</b> - their first count differed from the stock by more than @d.RecountPercent.ToString("0.##")%. Count them again (marked RECOUNT), save, and submit.</div> }
+@if (counting && d.BlindCount) { <div class="alert alert-info small py-1"><i class="bi bi-eye-slash me-1"></i>Blind count: the system stock is shown to the approver after you submit.</div> }
 <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
     <partial name="_InvStatus" model="d.Status" />
     <a asp-action="Sheet" asp-route-id="@d.Id" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>Count sheet (blind)</a>
-    @if (counting) { <a asp-action="Form" asp-route-id="@d.Id" asp-route-variance="@(!showSystem)" class="btn btn-sm btn-outline-secondary">@(showSystem ? "Hide system stock" : "Show variance")</a> }
+    @if (counting && !d.BlindCount) { <a asp-action="Form" asp-route-id="@d.Id" asp-route-variance="@(!showSystem)" class="btn btn-sm btn-outline-secondary">@(showSystem ? "Hide system stock" : "Show variance")</a> }
     <input id="q" class="form-control form-control-sm" style="max-width:260px" placeholder="Find item / batch / rack" />
     @if (showSystem) { <span class="ms-auto small">Difference at cost <b class="@(diffValue < 0 ? "text-danger" : "text-success")">₹ @diffValue.ToString("N2")</b></span> }
 </div>
 <form method="post" asp-action="SaveCounts" asp-route-id="@d.Id" id="cntForm">
 @Html.AntiForgeryToken()
 <div class="card shadow-sm border-0 mb-3"><div class="ph-wrap" style="max-height:calc(100vh - 340px)"><table class="table table-sm mb-0 ph-table" id="tbl">
-    <thead><tr><th>Rack</th><th>Item</th><th>Batch · exp.</th>@if (showSystem) { <th class="text-end">System</th> }<th class="text-end" style="width:130px">Counted</th>@if (showSystem) { <th class="text-end">Difference</th><th class="text-end">Value</th> }</tr></thead>
+    <thead><tr><th>Rack</th><th>Item</th><th>Batch · exp.</th>@if (showSystem) { <th class="text-end">System</th> }<th class="text-end" style="width:130px">Counted</th>@if (d.Lines.Any(l => l.RecountRequired)) { <th class="text-end">1st count</th> }@if (showSystem) { <th class="text-end">Difference</th><th class="text-end">Value</th> }</tr></thead>
     <tbody>@foreach (var l in d.Lines) { var diff = l.CountedQty - l.SystemQty;
-        <tr class="@(showSystem && diff != null && diff != 0 ? (diff < 0 ? "table-danger" : "table-success") : "")"><td>@(l.RackNo ?? "—")</td><td class="fw-semibold">@l.FormShort @l.ItemName</td><td class="small">@l.BatchNo · @l.ExpiryDate?.ToString("MMM-yy")</td>
+        <tr class="@(counting && l.RecountRequired && l.RecountedDate == null ? "table-warning" : showSystem && diff != null && diff != 0 ? (diff < 0 ? "table-danger" : "table-success") : "")"><td>@(l.RackNo ?? "—")</td><td class="fw-semibold">@l.FormShort @l.ItemName @if (l.RecountRequired) { <span class="badge @(l.RecountedDate == null ? "bg-danger" : "bg-secondary")" title="@(l.RecountedDate == null ? "Count again" : $"Recounted by {l.RecountedByName} {l.RecountedDate:dd-MMM HH:mm}")">@(l.RecountedDate == null ? "RECOUNT" : "recounted")</span> }</td><td class="small">@l.BatchNo · @l.ExpiryDate?.ToString("MMM-yy")</td>
             @if (showSystem) { <td class="text-end">@l.SystemQty.ToString("0.##")</td> }
             <td class="text-end">@if (counting) { <input type="number" min="0" step="1" name="count[@l.LineId]" value="@l.CountedQty?.ToString("0.###")" class="form-control form-control-sm text-end ms-auto" style="width:100px" /> } else { @l.CountedQty?.ToString("0.##") } <span class="small text-muted">@l.SaleUom</span></td>
+            @if (d.Lines.Any(x => x.RecountRequired)) { <td class="text-end small text-muted">@(l.RecountRequired ? (counting && d.BlindCount && l.RecountedDate == null ? "hidden" : l.FirstCountQty?.ToString("0.##")) : "")</td> }
             @if (showSystem) { <td class="text-end fw-semibold">@diff?.ToString("+0.##;-0.##;0")</td><td class="text-end">@(((diff ?? 0) * l.UnitCost).ToString("N2"))</td> }</tr> }</tbody>
 </table></div></div>
 </form>

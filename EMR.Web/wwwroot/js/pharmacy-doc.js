@@ -86,7 +86,7 @@
                 case 'reorder': return `<span class="text-muted">${qtyFmt(num(l.ReorderLevel))}</span>`;
                 case 'qty': return n(i, 'Qty', l.Qty);
                 case 'rqty': return editable ? `<div class="input-group input-group-sm justify-content-end">${inp(i, 'Qty', l.Qty || '', `type="number" min="0" step="1" max="${num(l.Stock)}" style="max-width:80px"`)}<span class="input-group-text">${esc(l.SaleUom || '')}</span></div>` : `${qtyFmt(num(l.Qty))} ${esc(l.SaleUom || '')}`;
-                case 'free': return n(i, 'FreeQty', l.FreeQty, '1', 64);
+                case 'free': return n(i, 'FreeQty', l.FreeQty, '1', 64) + (l._scheme && num(l.FreeQty) > 0 ? `<div class="small text-success text-end" title="Supplier scheme">${esc(l._scheme)}</div>` : '');
                 case 'rate': return n(i, 'Rate', l.Rate, '0.0001', 92);
                 case 'urate': return money(num(l.Rate));
                 case 'disc': return n(i, 'DiscPercent', l.DiscPercent, '0.01', 64);
@@ -123,7 +123,7 @@
             }).join('') + (editable ? `<tr class="newrow"><td class="text-muted small">${lines.length + 1}</td><td colspan="${cols.length + 1}"><div class="phd-pick">
                 <i class="bi ${kind === 'return' ? 'bi-upc-scan' : 'bi-plus-lg'}"></i>
                 <input id="phPick" class="form-control" placeholder="${kind === 'return' ? 'Add batch: type item, batch or scan barcode (F2)' : 'Add item: type brand, generic or scan barcode (F2)'}" autocomplete="off">
-                <div id="phPickList" class="list-group position-absolute w-100 shadow d-none"></div></div></td></tr>` : '');
+                <div id="phPickList" class="list-group shadow d-none" style="position:fixed;z-index:1080;overflow-y:auto"></div></div></td></tr>` : '');
             totals();
             if (editable) bindPicker();
             aiMark();
@@ -173,6 +173,23 @@
             if (to >= 0) tr.children[to + 1].innerHTML = cell('total', l, t.dataset.i);
             totals();
         });
+        // supplier scheme (SQLScripts/2403): a running "buy X get Y free" fills the free quantity when the quantity changes,
+        // unless the free quantity was typed by hand on that line
+        const schemeTimers = {};
+        if (editable && cfg.urls.schemeFree && (kind === 'po' || kind === 'grn')) tbody.addEventListener('input', e => {
+            const t = e.target; if (!t.dataset.f) return;
+            const i = t.dataset.i, l = lines[i];
+            if (t.dataset.f === 'FreeQty') { l._freeManual = true; return; }
+            if (t.dataset.f !== 'Qty' || l._freeManual) return;
+            clearTimeout(schemeTimers[i]);
+            schemeTimers[i] = setTimeout(async () => {
+                const sup = $('SupplierId') ? $('SupplierId').value : '';
+                if (!sup || !l.ItemId || !(num(l.Qty) > 0)) return;
+                const f = await fetch(cfg.urls.schemeFree + '?' + new URLSearchParams({ supplierId: sup, itemId: l.ItemId, qty: num(l.Qty) })).then(r => r.json()).catch(() => null);
+                if (!f || !f.autoApply || l._freeManual || num(l.FreeQty) === num(f.freeQty)) return;
+                l.FreeQty = num(f.freeQty); l._scheme = f.schemeText; price(l); render();
+            }, 400);
+        });
         tbody.addEventListener('change', e => { if (e.target.dataset.f === 'GstPercent') { lines[e.target.dataset.i].GstPercent = num(e.target.value); render(); } });
         tbody.addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (b) { lines.splice(+b.dataset.del, 1); render(); focusPicker(); } });
         tbody.addEventListener('click', async e => {
@@ -208,6 +225,7 @@
         $('IsInterState') && $('IsInterState').addEventListener('change', totals);
 
         // ── picker ──
+        let scan = null;   // the GS1 pack code being added (bindPicker -> addItem)
         function focusPicker() { const p = $('phPick'); p && p.focus(); }
         function addItem(it) {
             it = pascal(it);
@@ -220,6 +238,14 @@
                 const l = { ItemId: it.ItemId, ItemName: it.ItemName, ItemCode: it.ItemCode, FormShort: it.FormShort, PurchaseUom: it.PurchaseUom, SaleUom: it.SaleUom,
                     ConversionQty: it.ConversionQty, Stock: it.Stock, ReorderLevel: it.ReorderLevel, GstPercent: it.GstPercent, Rate: it.LastRate || 0, Mrp: it.LastMrp || 0, LastMrp: it.LastMrp || 0,
                     Qty: kind === 'indent' ? suggest(it) : null, FreeQty: 0, DiscPercent: 0 };
+                if (scan && grnLike) {   // scanned GS1 pack code: batch and expiry come from the pack
+                    if (scan.batch) l.BatchNo = scan.batch.slice(0, 30);
+                    if (scan.expiry) l.ExpiryDate = scan.expiry.slice(0, 8) + '01';
+                    const dup = scan.batch && lines.find(x => x.ItemId === l.ItemId && (x.BatchNo || '').toUpperCase() === scan.batch);
+                    scan = null;
+                    if (dup) { dup.Qty = num(dup.Qty) + 1; price(dup); render(); flash(`${l.ItemName} batch ${dup.BatchNo}: ${dup.Qty}`); return; }
+                }
+                scan = null;
                 lines.push(l);
             }
             render();
@@ -236,17 +262,22 @@
         function bindPicker() {
             const p = $('phPick'), list = $('phPickList');
             if (!p) return;
+            // GS1 DataMatrix (SQLScripts/2404): GTIN finds the item; batch and expiry are filled from the pack code
+            const gs1 = q => cfg.gs1 && window.PhGs1 ? PhGs1.parse(q) : null;
             p.addEventListener('input', () => {
                 clearTimeout(timer);
                 const q = p.value.trim();
                 if (q.length < 2) { list.classList.add('d-none'); return; }
                 timer = setTimeout(async () => {
+                    const g = gs1(q); scan = g;
+                    const key = g ? (kind === 'return' ? (g.batch || g.gtin) : g.gtin) : q;
                     const sup = $('SupplierId') ? $('SupplierId').value : '';
-                    const url = (kind === 'return' ? cfg.urls.batchSearch + '?supplierId=' + encodeURIComponent(sup) + '&storeId=' + encodeURIComponent($('StoreId') ? $('StoreId').value : '') + '&q=' : cfg.urls.itemSearch + '?q=') + encodeURIComponent(q);
+                    const url = (kind === 'return' ? cfg.urls.batchSearch + '?supplierId=' + encodeURIComponent(sup) + '&storeId=' + encodeURIComponent($('StoreId') ? $('StoreId').value : '') + '&q=' : cfg.urls.itemSearch + '?q=') + encodeURIComponent(key);
                     results = await fetch(url).then(r => r.ok ? r.json() : []).catch(() => []);
                     active = results.length ? 0 : -1;
                     draw();
-                    if (results.length === 1 && /^\d{8,14}$/.test(q)) { addItem(results[0]); }   // scanned barcode
+                    if (g && !results.length) flash(`No item has the GTIN ${g.gtin}: add it to the item's Barcode in Item Master.`);
+                    if (results.length === 1 && (g || /^\d{8,14}$/.test(q))) { addItem(results[0]); p.value = ''; }   // scanned barcode / pack code
                 }, 250);
             });
             p.addEventListener('keydown', e => {
@@ -258,18 +289,30 @@
             });
             list.addEventListener('mousedown', e => { const a = e.target.closest('[data-k]'); if (a) { e.preventDefault(); addItem(results[a.dataset.k]); } });
             p.addEventListener('blur', () => setTimeout(() => list.classList.add('d-none'), 150));
+            // the list floats above the page (fixed, under the box - or above it when there is no room), so the table's
+            // scroll area never clips it
+            function place() {
+                if (list.classList.contains('d-none')) return;
+                const r = p.getBoundingClientRect(), below = window.innerHeight - r.bottom - 8, above = r.top - 8;
+                const up = below < 260 && above > below, room = Math.max(160, Math.min(420, up ? above : below));
+                list.style.left = r.left + 'px'; list.style.width = r.width + 'px'; list.style.maxHeight = room + 'px';
+                if (up) { list.style.top = ''; list.style.bottom = (window.innerHeight - r.top + 2) + 'px'; }
+                else { list.style.bottom = ''; list.style.top = (r.bottom + 2) + 'px'; }
+            }
+            window.addEventListener('scroll', place, true);
+            window.addEventListener('resize', place);
             function draw() {
                 if (!results.length) {
                     list.innerHTML = '<div class="list-group-item small text-muted">Nothing found.' + (cfg.urls.newItem && kind !== 'return'
                         ? ` <a href="${cfg.urls.newItem}" target="_blank" class="ms-1"><i class="bi bi-plus-circle"></i> Create a new item</a> (then search again)` : '') + '</div>';
-                    list.classList.remove('d-none'); return;
+                    list.classList.remove('d-none'); place(); return;
                 }
                 list.innerHTML = results.map((r, k) => kind === 'return'
                     ? `<a href="#" class="list-group-item list-group-item-action py-1 ${k === active ? 'active' : ''}" data-k="${k}"><div class="d-flex justify-content-between"><span class="fw-semibold">${r.formShort ? esc(r.formShort) + ' ' : ''}${esc(r.itemName)}</span><span class="small">Stock ${qtyFmt(r.stock)} ${esc(r.saleUom)}</span></div>
                        <div class="small ${k === active ? '' : 'text-muted'}">Batch ${esc(r.batchNo)} · Exp ${fmtMonth(r.expiryDate)} · MRP ₹${money(r.mrp)} · ${esc(r.supplierName || '')}</div></a>`
                     : `<a href="#" class="list-group-item list-group-item-action py-1 ${k === active ? 'active' : ''}" data-k="${k}"><div class="d-flex justify-content-between"><span class="fw-semibold">${r.formShort ? esc(r.formShort) + ' ' : ''}${esc(r.itemName)} <span class="badge sch sch-${esc(r.scheduleCode)}">${esc(r.scheduleCode)}</span></span><span class="small">Stock ${qtyFmt(r.stock)} ${esc(r.saleUom)}</span></div>
                        <div class="small ${k === active ? '' : 'text-muted'}">${esc(r.genericName || '')} · ${esc(r.manufacturerName || '')} · 1 ${esc(r.purchaseUom)} = ${r.conversionQty} ${esc(r.saleUom)}${r.lastRate ? ` · last rate ₹${money(r.lastRate)} (${esc(r.lastSupplier || '')})` : ''}</div></a>`).join('');
-                list.classList.remove('d-none');
+                list.classList.remove('d-none'); place();
                 const a = list.querySelector('.active'); a && a.scrollIntoView({ block: 'nearest' });
             }
         }

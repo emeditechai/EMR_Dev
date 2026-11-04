@@ -1,0 +1,133 @@
+@using EMR.Web.Services
+@{
+    // Master > Pharmacy > Item / Drug Master > Import (SQLScripts/2411)
+    ViewData["Title"] = "Import Items";
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<style>
+    .im-card { border:1px solid #e2e8f0; border-radius:12px; background:#fff; padding:1rem 1.1rem; height:100%; }
+    .im-card h6 { font-weight:700; }
+    .im-step { width:26px; height:26px; border-radius:50%; background:#ede9fe; color:#6f42c1; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:.8rem; margin-right:.4rem; }
+    .im-kpi { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:.5rem .8rem; }
+    .im-kpi .l { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
+    .im-kpi .v { font-size:1.15rem; font-weight:800; font-variant-numeric:tabular-nums; }
+    #imTable td, #imTable th { font-size:.8rem; vertical-align:middle; }
+    .im-filter .btn { font-size:.75rem; }
+</style>
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Import Items", "bi-cloud-arrow-up", "Bring many items into the Item / Drug Master at once - from your distributor's list in the Excel template, or the standard starter list of commonly sold medicines and surgicals. Nothing is saved until you press Import.", null, null, Section: "Master", Group: "Pharmacy Master"))" />
+@Html.AntiForgeryToken()
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-4">
+        <div class="im-card">
+            <h6><span class="im-step">1</span>Standard starter list</h6>
+            <p class="small text-muted mb-2">About 365 commonly sold Indian brands - medicines (antibiotics, analgesics, cardiac, diabetic, insulins, respiratory, neuro, derma, IV fluids...), surgicals and devices - with generic, manufacturer, form, strength, pack, schedule, HSN / GST and category.</p>
+            <p class="small text-warning-emphasis mb-3"><i class="bi bi-exclamation-triangle me-1"></i>A starting point: check schedules, packs and GST against your supplier's bills before selling.</p>
+            <button type="button" class="btn btn-primary btn-sm" id="btnStd"><i class="bi bi-collection me-1"></i>Check the standard list</button>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="im-card">
+            <h6><span class="im-step">2</span>Your own list (Excel / CSV)</h6>
+            <p class="small text-muted mb-2">Fill the template (or your distributor's item list in the same columns) and upload it. Required: Item name, Category, Schedule, HSN, Purchase unit, Sale unit, Conversion.
+                A missing generic, manufacturer, category, HSN, unit or dosage form is created; an item already in the master is skipped.</p>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <a asp-action="ImportTemplate" class="btn btn-outline-success btn-sm"><i class="bi bi-file-earmark-excel me-1"></i>Download template</a>
+                <input type="file" id="imFile" accept=".xlsx,.csv" class="form-control form-control-sm" style="max-width:320px" />
+                <button type="button" class="btn btn-primary btn-sm" id="btnCheck"><i class="bi bi-search me-1"></i>Check file</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0 d-none" id="imResult">
+    <div class="card-body border-bottom">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="fw-bold"><i class="bi bi-list-check me-1"></i><span id="imSource"></span></span>
+            <span class="badge" id="imState"></span>
+            <button type="button" class="btn btn-success btn-sm ms-auto" id="btnImport" disabled><i class="bi bi-cloud-arrow-up me-1"></i>Import <span id="imCount">0</span> items</button>
+        </div>
+        <div class="row g-2">
+            <div class="col-6 col-md-3"><div class="im-kpi"><div class="l">Rows</div><div class="v" id="kTotal">0</div></div></div>
+            <div class="col-6 col-md-3"><div class="im-kpi"><div class="l">To add / added</div><div class="v text-success" id="kAdd">0</div></div></div>
+            <div class="col-6 col-md-3"><div class="im-kpi"><div class="l">Already in master</div><div class="v text-secondary" id="kSkip">0</div></div></div>
+            <div class="col-6 col-md-3"><div class="im-kpi"><div class="l">With errors</div><div class="v text-danger" id="kErr">0</div></div></div>
+        </div>
+    </div>
+    <div class="card-body py-2 border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="btn-group btn-group-sm im-filter" id="imFilter">
+            <button type="button" class="btn btn-outline-secondary active" data-s="">All</button>
+            <button type="button" class="btn btn-outline-success" data-s="NEW,ADDED">To add / added</button>
+            <button type="button" class="btn btn-outline-secondary" data-s="SKIP">Already in master</button>
+            <button type="button" class="btn btn-outline-danger" data-s="ERROR">Errors</button>
+        </div>
+        <input type="search" id="imQ" class="form-control form-control-sm" style="max-width:240px" placeholder="Find item / manufacturer" />
+    </div>
+    <div class="table-responsive" style="max-height:60vh"><table class="table table-sm table-hover mb-0" id="imTable">
+        <thead class="table-light" style="position:sticky;top:0"><tr><th>Row</th><th>Item</th><th>Manufacturer</th><th>Sch.</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody id="imBody"></tbody>
+    </table></div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const urls = { check: '@Url.Action("ImportCheck")', run: '@Url.Action("ImportRun")', list: '@Url.Action("Index")' };
+    const token = () => $('input[name="__RequestVerificationToken"]').val();
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const BADGE = { NEW: ['To add', 'success'], ADDED: ['Added', 'success'], SKIP: ['In master', 'secondary'], ERROR: ['Error', 'danger'] };
+    let rows = [], data = null, source = '', filter = '';
+
+    function render() {
+        const q = $('#imQ').val().trim().toLowerCase();
+        const vis = rows.filter(r => (!filter || filter.split(',').includes(r.status)) && (!q || (r.itemName + ' ' + (r.manufacturer || '')).toLowerCase().includes(q)));
+        $('#imBody').html(vis.slice(0, 2000).map(r => { const b = BADGE[r.status] || [r.status, 'secondary'];
+            return `<tr><td class="text-muted">${r.rowNo}</td><td class="fw-semibold">${esc(r.itemName || '—')}</td><td>${esc(r.manufacturer || '')}</td><td>${esc(r.schedule || '')}</td>
+                <td><span class="badge bg-${b[1]}-subtle text-${b[1]}-emphasis border">${b[0]}</span></td><td class="small ${r.status === 'ERROR' ? 'text-danger' : 'text-muted'}">${esc(r.message || '')}</td></tr>`; }).join('')
+            || '<tr><td colspan="6" class="text-center text-muted p-3">No rows.</td></tr>');
+    }
+    function show(res, done) {
+        rows = res.rows || []; const t = res.totals || {};
+        $('#imResult').removeClass('d-none');
+        $('#imSource').text(source);
+        $('#kTotal').text(t.total || 0); $('#kAdd').text(done ? (t.added || 0) : (t.toAdd || 0)); $('#kSkip').text(t.skipped || 0); $('#kErr').text(t.errors || 0);
+        $('#imState').attr('class', 'badge ' + (done ? 'bg-success' : 'bg-info')).text(done ? 'Imported' : 'Checked - nothing saved yet');
+        $('#imCount').text(t.toAdd || 0);
+        $('#btnImport').prop('disabled', done || !(t.toAdd > 0));
+        render();
+    }
+    async function check(fd, label) {
+        source = label;
+        fd.append('__RequestVerificationToken', token());
+        Swal.fire({ title: 'Checking…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            const r = await (await fetch(urls.check, { method: 'POST', body: fd })).json();
+            Swal.close();
+            if (!r.success) { Swal.fire({ icon: 'warning', title: 'Not checked', text: r.message }); return; }
+            data = r.data; source = r.source; show(r, false);
+        } catch { Swal.fire({ icon: 'error', title: 'Could not reach the server.' }); }
+    }
+    $('#btnStd').on('click', () => { const fd = new FormData(); fd.append('standard', 'true'); check(fd, 'Standard starter list'); });
+    $('#btnCheck').on('click', () => {
+        const f = $('#imFile')[0].files[0];
+        if (!f) { Swal.fire({ icon: 'info', title: 'Choose the Excel / CSV file first.' }); return; }
+        const fd = new FormData(); fd.append('file', f); check(fd, f.name);
+    });
+    $('#btnImport').on('click', async function () {
+        const n = $('#imCount').text();
+        if (!(await Swal.fire({ title: `Import ${n} items?`, text: 'Rows with errors and items already in the master are left out.', icon: 'question', showCancelButton: true, confirmButtonText: 'Import' })).isConfirmed) return;
+        const fd = new FormData(); fd.append('json', JSON.stringify(data)); fd.append('source', source); fd.append('__RequestVerificationToken', token());
+        $(this).prop('disabled', true);
+        Swal.fire({ title: 'Importing…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            const r = await (await fetch(urls.run, { method: 'POST', body: fd })).json();
+            if (!r.success) { Swal.fire({ icon: 'error', title: 'Not imported', text: r.message }); $(this).prop('disabled', false); return; }
+            show(r, true);
+            Swal.fire({ icon: 'success', title: `${r.totals.added} items added`, html: `${r.totals.skipped} already in master · ${r.totals.errors} with errors<div class="mt-2"><a href="${urls.list}">Open Item / Drug Master</a></div>` });
+        } catch { Swal.fire({ icon: 'error', title: 'Could not reach the server.' }); $(this).prop('disabled', false); }
+    });
+    $('#imFilter').on('click', 'button', function () { $('#imFilter button').removeClass('active'); $(this).addClass('active'); filter = this.dataset.s; render(); });
+    $('#imQ').on('input', render);
+})();
+</script>
+}

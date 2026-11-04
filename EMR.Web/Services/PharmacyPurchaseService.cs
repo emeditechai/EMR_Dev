@@ -7,6 +7,73 @@ namespace EMR.Web.Services;
 // Quantities on indent / PO / GRN are in purchase units (packs); stock and returns are in sale units.
 // Amounts are always worked out here (the page only previews them); GRN and return posting is in stored procedures.
 
+// ── Auto Reorder / supplier schemes (SQLScripts/2403) ──
+public class PhReorderSettings
+{
+    public bool Enabled { get; set; }
+    public int SalesDays { get; set; }
+    public int SafetyDays { get; set; }
+    public int CoverDays { get; set; }
+    public bool GrnNotRequired { get; set; }
+}
+
+public class PhReorderRow
+{
+    public int ItemId { get; set; }
+    public string? ItemCode { get; set; }
+    public string? ItemName { get; set; }
+    public string? FormShort { get; set; }
+    public string? Strength { get; set; }
+    public string? PackSize { get; set; }
+    public string? GenericName { get; set; }
+    public string? ManufacturerName { get; set; }
+    public string? PurchaseUom { get; set; }
+    public int ConversionQty { get; set; }
+    public decimal GstPercent { get; set; }
+    public decimal StockPacks { get; set; }
+    public decimal PendingPoQty { get; set; }
+    public decimal AvgDaily { get; set; }
+    public decimal? DaysOfStock { get; set; }
+    public int LeadDays { get; set; }
+    public decimal ReorderLevel { get; set; }
+    public decimal MaxQty { get; set; }
+    public decimal ReorderPoint { get; set; }
+    public decimal OrderUpTo { get; set; }
+    public decimal SuggestedQty { get; set; }
+    public decimal? LastMrp { get; set; }
+    public int? SupplierId { get; set; }
+    public string? SupplierName { get; set; }
+    public decimal? Rate { get; set; }
+    public decimal DiscPercent { get; set; }
+    public decimal FreeQty { get; set; }
+    public string? SchemeText { get; set; }
+}
+
+public class PhReorderLine
+{
+    public int ItemId { get; set; }
+    public int SupplierId { get; set; }
+    public decimal Qty { get; set; }
+    public decimal Rate { get; set; }
+    public decimal DiscPercent { get; set; }
+}
+
+public class PhReorderCreated
+{
+    public int PoId { get; set; }
+    public string? SupplierName { get; set; }
+    public int Lines { get; set; }
+    public decimal NetAmount { get; set; }
+    public string? Error { get; set; }
+}
+
+public class PhSchemeFree
+{
+    public decimal FreeQty { get; set; }
+    public string? SchemeText { get; set; }
+    public bool AutoApply { get; set; }
+}
+
 public class PhTxnItem
 {
     public int ItemId { get; set; }
@@ -124,6 +191,7 @@ public class PhSupplierInfo
     public string SupplierName { get; set; } = "";
     public string? Gstin { get; set; }
     public string? Email { get; set; }
+    public bool ReceiveIndentEmail { get; set; }   // SQLScripts/2413
     public int CreditDays { get; set; }
     public DateTime? DrugLicenceValidTo { get; set; }
     public bool IsInterState { get; set; }
@@ -156,7 +224,19 @@ public class PhPayable
     public DateTime? DueDate { get; set; }
     public decimal NetAmount { get; set; }
     public decimal Paid { get; set; }
-    public decimal Balance => NetAmount - Paid;
+    public decimal Adjusted { get; set; }   // debit notes set off (SQLScripts/2400)
+    public decimal Balance => NetAmount - Paid - Adjusted;
+}
+
+/// <summary>An open debit note (purchase return) of a supplier (SQLScripts/2400).</summary>
+public class PhOpenDebitNote
+{
+    public int ReturnId { get; set; }
+    public string ReturnNo { get; set; } = "";
+    public DateTime ReturnDate { get; set; }
+    public decimal NetAmount { get; set; }
+    public decimal Adjusted { get; set; }
+    public decimal Available => NetAmount - Adjusted;
 }
 
 public class PhSupplierBalance
@@ -166,7 +246,11 @@ public class PhSupplierBalance
     public decimal Purchases { get; set; }
     public decimal Returns { get; set; }
     public decimal Paid { get; set; }
+    /// <summary>Purchases - returns - paid: positive = payable to the supplier; negative = debit balance (the supplier owes the branch).</summary>
     public decimal Balance => Purchases - Returns - Paid;
+    public decimal Adjusted { get; set; }       // SQLScripts/2400: debit notes set off against bills
+    public decimal UnadjustedDn { get; set; }   // open debit notes, to adjust at the next payment
+    public decimal BillsDue { get; set; }       // open bills' balance (net of payments and adjustments)
     public decimal Overdue { get; set; }
     public int OpenBills { get; set; }
 }
@@ -211,6 +295,7 @@ public class PhDocPage
     public List<string> Warnings { get; set; } = [];
     public PhSupplierInfo? Supplier { get; set; }
     public int MinShelfLifeDays { get; set; }
+    public bool Gs1ScanEnabled { get; set; }
     public bool Editable => Doc.Status == "DRAFT";
     public bool Direct => Kind == "po" && Doc.IsDirect;
 }
@@ -238,12 +323,21 @@ public class PhRegisterRow
     public DateTime DocDate { get; set; }
     public string SupplierName { get; set; } = "";
     public string? Gstin { get; set; }
-    public string? InvoiceNo { get; set; }
+    public string? StateName { get; set; }          // SQLScripts/2399
+    public string SupplyType { get; set; } = "";   // Intra-state | Inter-state
+    public string? InvoiceNo { get; set; }          // a debit note: the supplier bill(s) of the returned batches
     public DateTime? InvoiceDate { get; set; }
+    public string? RefGrnNo { get; set; }           // a debit note: the GRN(s) it returns against
+    public int Lines { get; set; }
+    public decimal Qty { get; set; }
+    public decimal FreeQty { get; set; }
+    public decimal Gross { get; set; }
+    public decimal Discount { get; set; }
     public decimal Taxable { get; set; }
     public decimal Cgst { get; set; }
     public decimal Sgst { get; set; }
     public decimal Igst { get; set; }
+    public decimal Gst { get; set; }
     public decimal Other { get; set; }
     public decimal RoundOff { get; set; }
     public decimal Net { get; set; }
@@ -252,8 +346,27 @@ public class PhRegisterRow
 public class PhGstSummaryRow
 {
     public decimal GstPercent { get; set; }
+    public decimal PurchaseTaxable { get; set; }
+    public decimal ReturnTaxable { get; set; }
+    public decimal Taxable { get; set; }
+    public decimal Cgst { get; set; }
+    public decimal Sgst { get; set; }
+    public decimal Igst { get; set; }
+    public decimal Gst { get; set; }
+}
+
+public class PhSupplierSummaryRow
+{
+    public string SupplierName { get; set; } = "";
+    public string? Gstin { get; set; }
+    public string? StateName { get; set; }
+    public int Purchases { get; set; }
+    public decimal PurchaseAmount { get; set; }
+    public int Returns { get; set; }
+    public decimal ReturnAmount { get; set; }
     public decimal Taxable { get; set; }
     public decimal Gst { get; set; }
+    public decimal Net { get; set; }
 }
 
 public interface IPharmacyPurchaseService
@@ -261,7 +374,8 @@ public interface IPharmacyPurchaseService
     Task<List<PhRateHistory>> RateHistoryAsync(int companyId, int itemId);
     Task<string?> AttachAsync(int companyId, int branchId, int grnId, string path, string name);
     Task MarkEmailedAsync(int poId, string email);
-    Task<(List<PhRegisterRow> Rows, List<PhGstSummaryRow> Gst)> RegisterAsync(int companyId, int branchId, DateTime from, DateTime to, int? supplierId);
+    Task MarkIndentEmailedAsync(int indentId, string email);
+    Task<(List<PhRegisterRow> Rows, List<PhGstSummaryRow> Gst, List<PhSupplierSummaryRow> Suppliers)> RegisterAsync(int companyId, int branchId, DateTime from, DateTime to, int? supplierId, string? docType = null, string? search = null);
     Task<List<PhOption>> OpenPosAsync(int companyId, int branchId, int supplierId);
     Task<PhBranchHeader> BranchHeaderAsync(int branchId);
     Task<List<PhTxnItem>> ItemSearchAsync(int companyId, int branchId, string q, int take = 15);
@@ -276,11 +390,15 @@ public interface IPharmacyPurchaseService
     Task<List<PhOption>> ReasonsAsync(int companyId, string type);
     Task<int> MinShelfLifeGrnDaysAsync(int branchId);
     Task<bool> GrnNotRequiredAsync(int branchId);
+    Task<bool> Gs1ScanEnabledAsync(int branchId);
     Task<Dictionary<string, int>> StatusCountsAsync(string kind, int companyId, int branchId);
     Task<List<PhDocListRow>> ListAsync(string kind, int companyId, int branchId, string? status, string? search, DateTime? from, DateTime? to);
     Task<PhDoc?> GetAsync(string kind, int companyId, int branchId, int id);
 
     Task<List<PhTxnItem>> ReorderSuggestAsync(int companyId, int branchId);
+    Task<(PhReorderSettings Settings, List<PhReorderRow> Rows)> AutoReorderAsync(int companyId, int branchId, int? supplierId, int? categoryId, bool showAll);
+    Task<(List<PhReorderCreated> Created, string? Error)> AutoReorderCreatePosAsync(int companyId, int branchId, List<PhReorderLine> lines, int userId);
+    Task<PhSchemeFree> SchemeFreeAsync(int companyId, int branchId, int supplierId, int itemId, decimal qty);
     Task<(int Id, string? Error)> SaveIndentAsync(int companyId, int branchId, PhDoc d, int userId);
     Task<string?> IndentActionAsync(int companyId, int branchId, int id, string action, string? remarks, int userId);
 
@@ -300,7 +418,8 @@ public interface IPharmacyPurchaseService
 
     Task<List<PhSupplierBalance>> SupplierBalancesAsync(int companyId, int branchId);
     Task<List<PhPayable>> PayablesAsync(int companyId, int branchId, int supplierId);
-    Task<(int Id, string? Error)> SavePaymentAsync(int companyId, int branchId, int supplierId, DateTime date, string mode, string? reference, string? remarks, Dictionary<int, decimal> alloc, int userId);
+    Task<(int Id, string? Error)> SavePaymentAsync(int companyId, int branchId, int supplierId, DateTime date, string mode, string? reference, string? remarks, Dictionary<int, decimal> alloc, int userId, Dictionary<int, decimal>? adjust = null);
+    Task<List<PhOpenDebitNote>> OpenDebitNotesAsync(int companyId, int branchId, int supplierId);
     Task<string?> CancelPaymentAsync(int companyId, int branchId, int id, int userId);
 }
 
@@ -317,7 +436,7 @@ public class PharmacyPurchaseService(PharmacyApiClient api) : IPharmacyPurchaseS
 
     private sealed class PhResult { public int Id { get; set; } public string? DocNo { get; set; } public string? Error { get; set; } }
     private sealed class DocWire { public PhDoc? Header { get; set; } public List<PhDocLine> Lines { get; set; } = []; public List<PhTxnItem> Items { get; set; } = []; }
-    private sealed record Settings(bool GrnNotRequired, int MinShelfLifeGrnDays);
+    private sealed record Settings(bool GrnNotRequired, int MinShelfLifeGrnDays, bool Gs1ScanEnabled = false);
     private sealed record StatusCount(string Status, int Cnt);
     private sealed record LastMrpRow(int ItemId, decimal? LastMrp);
 
@@ -344,12 +463,15 @@ public class PharmacyPurchaseService(PharmacyApiClient api) : IPharmacyPurchaseS
 
     public Task MarkEmailedAsync(int poId, string email) => api.PostAsync($"{Base}/po/emailed", new { poId, email });
 
-    public async Task<(List<PhRegisterRow> Rows, List<PhGstSummaryRow> Gst)> RegisterAsync(int companyId, int branchId, DateTime from, DateTime to, int? supplierId)
+    public Task MarkIndentEmailedAsync(int indentId, string email) => api.PostAsync($"{Base}/indent/emailed", new { indentId, email });
+
+    public async Task<(List<PhRegisterRow> Rows, List<PhGstSummaryRow> Gst, List<PhSupplierSummaryRow> Suppliers)> RegisterAsync(int companyId, int branchId, DateTime from, DateTime to, int? supplierId, string? docType = null, string? search = null)
     {
         var sets = await api.GetAsync<List<List<System.Text.Json.JsonElement>>>($"{Base}/register" +
-            Q(("companyId", companyId), ("branchId", branchId), ("from", from), ("to", to), ("supplierId", supplierId)));
+            Q(("companyId", companyId), ("branchId", branchId), ("from", from), ("to", to), ("supplierId", supplierId), ("docType", docType), ("search", search)));
         return (sets[0].Select(e => e.Deserialize<PhRegisterRow>(PharmacyApiClient.Json)!).ToList(),
-                sets[1].Select(e => e.Deserialize<PhGstSummaryRow>(PharmacyApiClient.Json)!).ToList());
+                sets[1].Select(e => e.Deserialize<PhGstSummaryRow>(PharmacyApiClient.Json)!).ToList(),
+                sets.Count > 2 ? sets[2].Select(e => e.Deserialize<PhSupplierSummaryRow>(PharmacyApiClient.Json)!).ToList() : []);
     }
 
     /// <summary>Indian-style amount in words: "Rupees One Lakh Twenty Three Thousand ... and Fifty Paise Only".</summary>
@@ -404,6 +526,8 @@ public class PharmacyPurchaseService(PharmacyApiClient api) : IPharmacyPurchaseS
 
     public async Task<bool> GrnNotRequiredAsync(int branchId) => (await SettingsAsync(branchId)).GrnNotRequired;
 
+    public async Task<bool> Gs1ScanEnabledAsync(int branchId) => (await SettingsAsync(branchId)).Gs1ScanEnabled;
+
     public async Task<int> MinShelfLifeGrnDaysAsync(int branchId) => (await SettingsAsync(branchId)).MinShelfLifeGrnDays;
 
     public async Task<PhSupplierInfo?> SupplierInfoAsync(int companyId, int branchId, int supplierId)
@@ -442,6 +566,29 @@ public class PharmacyPurchaseService(PharmacyApiClient api) : IPharmacyPurchaseS
     }
 
     // ── purchase indent ──────────────────────────────────────────────────────────────────────────────────
+    public async Task<(PhReorderSettings Settings, List<PhReorderRow> Rows)> AutoReorderAsync(int companyId, int branchId, int? supplierId, int? categoryId, bool showAll)
+    {
+        var sets = await api.GetAsync<List<List<System.Text.Json.JsonElement>>>($"{Base}/auto-reorder" +
+            Q(("companyId", companyId), ("branchId", branchId), ("supplierId", supplierId), ("categoryId", categoryId), ("showAll", showAll)));
+        var settings = sets.Count > 0 && sets[0].Count > 0 ? sets[0][0].Deserialize<PhReorderSettings>(PharmacyApiClient.Json)! : new PhReorderSettings();
+        var rows = sets.Count > 1 ? sets[1].Select(e => e.Deserialize<PhReorderRow>(PharmacyApiClient.Json)!).ToList() : [];
+        return (settings, rows);
+    }
+
+    public async Task<(List<PhReorderCreated> Created, string? Error)> AutoReorderCreatePosAsync(int companyId, int branchId, List<PhReorderLine> lines, int userId)
+    {
+        lines = lines.Where(l => l.ItemId > 0).ToList();
+        if (lines.Count == 0) return ([], "Tick at least one item.");
+        if (lines.Count > 500) return ([], "Up to 500 items at a time.");
+        var rows = await api.PostAsync<List<PhReorderCreated>>($"{Base}/auto-reorder/create-pos", new { companyId, branchId, userId, Lines = Json(lines) });
+        var err = rows.FirstOrDefault(r => !string.IsNullOrEmpty(r.Error))?.Error;
+        return err != null ? ([], err) : (rows, null);
+    }
+
+    public async Task<PhSchemeFree> SchemeFreeAsync(int companyId, int branchId, int supplierId, int itemId, decimal qty) =>
+        (await api.GetAsync<List<PhSchemeFree>>($"{Base}/scheme-free" + Q(("companyId", companyId), ("branchId", branchId), ("supplierId", supplierId), ("itemId", itemId), ("qty", qty))))
+            .FirstOrDefault() ?? new PhSchemeFree();
+
     public Task<List<PhTxnItem>> ReorderSuggestAsync(int companyId, int branchId) =>
         api.GetAsync<List<PhTxnItem>>($"{Base}/reorder" + Q(("companyId", companyId), ("branchId", branchId)));
 
@@ -451,9 +598,10 @@ public class PharmacyPurchaseService(PharmacyApiClient api) : IPharmacyPurchaseS
         if (lines.Count == 0) return (0, "Add at least one item.");
         if (lines.Any(l => l.Qty <= 0)) return (0, "Every item needs a quantity above zero.");
         if (lines.GroupBy(l => l.ItemId).Any(g => g.Count() > 1)) return (0, "An item is listed twice; keep one line per item.");
+        if (d.SupplierId is null or 0) return (0, "Pick the supplier the indent is for.");   // SQLScripts/2413
         var r = await api.PostAsync<PhResult>($"{Base}/indent/save", new
         {
-            d.Id, companyId, branchId, userId, d.DocDate, d.Priority, d.Remarks,
+            d.Id, companyId, branchId, userId, d.DocDate, d.Priority, d.Remarks, d.SupplierId,
             Lines = Json(lines.Select(l => new { l.ItemId, l.Qty, l.Remarks }))
         });
         return (r.Id, r.Error);
@@ -677,17 +825,23 @@ public class PharmacyPurchaseService(PharmacyApiClient api) : IPharmacyPurchaseS
     public Task<List<PhPayable>> PayablesAsync(int companyId, int branchId, int supplierId) =>
         api.GetAsync<List<PhPayable>>($"{Base}/payments/payables" + Q(("companyId", companyId), ("branchId", branchId), ("supplierId", supplierId)));
 
-    public async Task<(int Id, string? Error)> SavePaymentAsync(int companyId, int branchId, int supplierId, DateTime date, string mode, string? reference, string? remarks, Dictionary<int, decimal> alloc, int userId)
+    public Task<List<PhOpenDebitNote>> OpenDebitNotesAsync(int companyId, int branchId, int supplierId) =>
+        api.GetAsync<List<PhOpenDebitNote>>($"{Base}/payments/debitnotes" + Q(("companyId", companyId), ("branchId", branchId), ("supplierId", supplierId)));
+
+    public async Task<(int Id, string? Error)> SavePaymentAsync(int companyId, int branchId, int supplierId, DateTime date, string mode, string? reference, string? remarks, Dictionary<int, decimal> alloc, int userId, Dictionary<int, decimal>? adjust = null)
     {
         alloc = alloc.Where(a => a.Value > 0).ToDictionary(a => a.Key, a => R2(a.Value));
-        if (alloc.Count == 0) return (0, "Enter the amount paid against at least one bill.");
-        if (mode is not ("CASH" or "CHEQUE" or "NEFT" or "UPI" or "CARD")) return (0, "Pick the payment mode.");
-        if (mode != "CASH" && string.IsNullOrWhiteSpace(reference)) return (0, "Enter the cheque / transaction reference.");
+        adjust = (adjust ?? []).Where(a => a.Value > 0).ToDictionary(a => a.Key, a => R2(a.Value));
+        if (alloc.Count == 0 && adjust.Count == 0) return (0, "Enter the amount paid or the debit note adjusted against at least one bill.");
+        var cashPaid = alloc.Count > 0;   // SQLScripts/2400: adjustment only = no cash, no mode / reference needed
+        if (cashPaid && mode is not ("CASH" or "CHEQUE" or "NEFT" or "UPI" or "CARD")) return (0, "Pick the payment mode.");
+        if (cashPaid && mode != "CASH" && string.IsNullOrWhiteSpace(reference)) return (0, "Enter the cheque / transaction reference.");
         if (date > DateTime.Today) return (0, "Payment date cannot be in the future.");
         var r = await api.PostAsync<PhResult>($"{Base}/payments/save", new
         {
             companyId, branchId, userId, supplierId, date, mode, reference = reference?.Trim(), remarks,
-            Alloc = Json(alloc.Select(a => new { GrnId = a.Key, Amount = a.Value }))
+            Alloc = Json(alloc.Select(a => new { GrnId = a.Key, Amount = a.Value })),
+            Adjust = adjust.Count > 0 ? Json(adjust.Select(a => new { GrnId = a.Key, Amount = a.Value })) : null
         });
         return (r.Id, r.Error);
     }

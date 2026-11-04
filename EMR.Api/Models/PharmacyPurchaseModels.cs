@@ -2,7 +2,7 @@ namespace EMR.Api.Models;
 
 // Pharmacy > Purchase (SQLScripts/2358). Lines travel as JSON text to the save procedures (OPENJSON).
 
-public record PhIndentSaveRequest(int Id, int CompanyId, int BranchId, int UserId, DateTime DocDate, string? Priority, string? Remarks, string Lines);
+public record PhIndentSaveRequest(int Id, int CompanyId, int BranchId, int UserId, DateTime DocDate, string? Priority, string? Remarks, string Lines, int? SupplierId = null);
 
 public record PhDocActionRequest(int Id, int CompanyId, int BranchId, int UserId, string Action, string? Remarks);
 
@@ -24,7 +24,7 @@ public record PhDocRefRequest(int CompanyId, int BranchId, int Id, int UserId);
 public record PhPurchaseReturnSaveRequest(int Id, int CompanyId, int BranchId, int UserId, DateTime DocDate, int SupplierId, int ReasonId, bool IsInterState,
     string? Remarks, string Lines, int? StoreId = null);
 
-public record PhSupplierPaymentSaveRequest(int CompanyId, int BranchId, int UserId, int SupplierId, DateTime Date, string Mode, string? Reference, string? Remarks, string Alloc);
+public record PhSupplierPaymentSaveRequest(int CompanyId, int BranchId, int UserId, int SupplierId, DateTime Date, string Mode, string? Reference, string? Remarks, string Alloc, string? Adjust = null);
 
 /// <summary>A document with its lines and the item details of those lines (each a row of column / value).</summary>
 public class PhDocResult
@@ -41,3 +41,8 @@ public class PhResult
     public string? DocNo { get; set; }
     public string? Error { get; set; }
 }
+
+/// <summary>Auto Reorder: create one draft PO per supplier (SQLScripts/2403). Lines = JSON [{ItemId, SupplierId, Qty, Rate, DiscPercent}].</summary>
+public record PhAutoReorderCreateRequest(int CompanyId, int BranchId, int UserId, string Lines);
+
+public record PhIndentEmailedRequest(int IndentId, string Email);

@@ -23,6 +23,11 @@ public abstract class PharmacyPurchaseControllerBase(IPharmacyPurchaseService pu
     protected abstract string Icon { get; }
     protected abstract string Description { get; }
 
+    /// <summary>Free quantity of a running supplier scheme for a line (SQLScripts/2403).</summary>
+    [HttpGet]
+    public async Task<IActionResult> SchemeFree(int supplierId, int itemId, decimal qty) =>
+        Json(supplierId > 0 && itemId > 0 && qty > 0 ? await purchase.SchemeFreeAsync(CompanyId, BranchId, supplierId, itemId, qty) : new PhSchemeFree());
+
     [HttpGet]
     public async Task<IActionResult> Index(string? status, string? search, DateTime? from, DateTime? to)
     {
@@ -83,10 +88,11 @@ public abstract class PharmacyPurchaseControllerBase(IPharmacyPurchaseService pu
         var page = new PhDocPage
         {
             Kind = Kind, PageCode = PageCode, Title = Title, Icon = Icon, Description = Description, Doc = doc,
-            Suppliers = Kind == "indent" ? [] : await purchase.SuppliersAsync(CompanyId),
+            Suppliers = await purchase.SuppliersAsync(CompanyId),
             // a draft GRN always shows what needs checking (and the tick box to accept it) when it is opened
             Warnings = warnings ?? (Kind == "grn" && doc.Id > 0 && doc.Status == "DRAFT" ? await purchase.GrnWarningsAsync(CompanyId, BranchId, doc.Id) : []),
-            MinShelfLifeDays = Kind == "grn" || doc.IsDirect ? await purchase.MinShelfLifeGrnDaysAsync(BranchId) : 0
+            MinShelfLifeDays = Kind == "grn" || doc.IsDirect ? await purchase.MinShelfLifeGrnDaysAsync(BranchId) : 0,
+            Gs1ScanEnabled = Kind != "indent" && await purchase.Gs1ScanEnabledAsync(BranchId)
         };
         if (doc.SupplierId is int sid and > 0)
         {

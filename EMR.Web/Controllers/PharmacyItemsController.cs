@@ -11,7 +11,8 @@ namespace EMR.Web.Controllers;
 public class PharmacyItemsController(
     IPharmacyMasterService masters,
     IAuditLogService auditLogService,
-    IActionPermissionGuard permissionGuard) : Controller
+    IActionPermissionGuard permissionGuard,
+    PharmacyItemImport importer) : Controller
 {
     private const string PageCode = "MASTER.PH_ITEMS";
     private const int PageSize = 50;
@@ -82,6 +83,43 @@ public class PharmacyItemsController(
         m.SaleUomId = Pick(lk.Uoms, "Tablet");
         m.DosageFormId = Pick(lk.DosageForms, "Tablet") is var d and > 0 ? d : null;
         m.ConversionQty = 10;
+    }
+
+    // ── import (SQLScripts/2411): Excel / CSV file or the standard starter list ──────────────────────────
+    [HttpGet]
+    public IActionResult Import() => View("~/Views/PharmacyItems/Import.cshtml");
+
+    [HttpGet]
+    public IActionResult ImportTemplate() =>
+        File(importer.Template(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Pharmacy_Item_Import_Template.xlsx");
+
+    /// <summary>Checks the file (or the standard list) without saving: each row's status, and the rows to send back to import.</summary>
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> ImportCheck(IFormFile? file, bool standard = false)
+    {
+        List<Dictionary<string, object?>> rows; string? err;
+        if (standard) (rows, err) = importer.ReadStandardList();
+        else if (file == null || file.Length == 0) return Json(new { success = false, message = "Choose the Excel / CSV file." });
+        else if (!(file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || file.FileName.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)))
+            return Json(new { success = false, message = "Only .xlsx or .csv files." });
+        else { using var s = file.OpenReadStream(); (rows, err) = importer.Read(s, file.FileName); }
+        if (err != null) return Json(new { success = false, message = err });
+        var (result, totals) = await importer.RunAsync(CompanyId, User.GetUserId(), rows, commit: false);
+        return Json(new { success = true, rows = result, totals, data = rows, source = standard ? "Standard starter list" : file!.FileName });
+    }
+
+    /// <summary>Imports the checked rows (sent back by the page); rows with errors or already present are left out by the procedure.</summary>
+    [HttpPost, ValidateAntiForgeryToken, RequestSizeLimit(20_000_000)]
+    public async Task<IActionResult> ImportRun([FromForm] string? json, [FromForm] string? source)
+    {
+        List<Dictionary<string, object?>>? rows;
+        try { rows = System.Text.Json.JsonSerializer.Deserialize<List<Dictionary<string, object?>>>(json ?? "[]"); }
+        catch (System.Text.Json.JsonException) { return Json(new { success = false, message = "The checked list could not be read; check the file again." }); }
+        if (rows == null || rows.Count == 0) return Json(new { success = false, message = "Nothing to import." });
+        if (rows.Count > PharmacyItemImport.MaxRows) return Json(new { success = false, message = $"Up to {PharmacyItemImport.MaxRows} rows at a time." });
+        var (result, totals) = await importer.RunAsync(CompanyId, User.GetUserId(), rows, commit: true);
+        await auditLogService.LogAsync("PharmacyItems", "Import", $"Pharmacy item import ({source}): {totals.Added} added, {totals.Skipped} skipped, {totals.Errors} with errors", User.GetUserId(), BranchId);
+        return Json(new { success = true, rows = result, totals });
     }
 
     private async Task<IActionResult> FormView(PhItemForm model)

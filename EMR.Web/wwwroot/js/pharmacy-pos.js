@@ -18,6 +18,8 @@
     window.PhPos = function (cfg) {
         let kind = 'WALKIN', patient = null, customer = null, doctorId = null, holdId = null, seq = 0;
         let lines = [], pays = [];
+        // SQLScripts/2406: linked OPD prescription, clinical alerts, loyalty
+        let rx = null, alerts = [], loyalty = null;
 
         // ── counter (selling store): remembered per branch on this computer; changing it empties the bill ──
         const storeSel = $('posStore');
@@ -33,10 +35,18 @@
         function renderCustomer() {
             const box = $('custBox');
             if (kind === 'WALKIN') {
-                box.innerHTML = `<div class="row g-2"><div class="col-md-4"><label class="form-label">Name</label><input id="wName" class="form-control" placeholder="Customer name" maxlength="150"></div>
-                    <div class="col-md-3"><label class="form-label">Mobile</label><input id="wMobile" class="form-control num" placeholder="Bill on WhatsApp" maxlength="10" inputmode="numeric"></div>
+                // SQLScripts/2412: mobile first - a returning walk-in's name and address come from the last bill
+                box.innerHTML = `<div class="row g-2"><div class="col-md-3"><label class="form-label">Mobile</label><input id="wMobile" class="form-control num" placeholder="10-digit mobile" maxlength="10" inputmode="numeric" autocomplete="off"></div>
+                    <div class="col-md-4"><label class="form-label">Name</label><input id="wName" class="form-control" placeholder="Customer name" maxlength="150"></div>
                     <div class="col-md-5"><label class="form-label">Address</label><input id="wAddress" class="form-control" placeholder="Needed for Schedule H1 / X" maxlength="300"></div></div>`;
                 $('wName').addEventListener('input', rxCheck); $('wAddress').addEventListener('input', rxCheck);
+                // SQLScripts/2409: a walk-in's wallet is on the mobile number
+                let mt; $('wMobile').addEventListener('input', () => {
+                    $('wMobile').value = $('wMobile').value.replace(/\D/g, '').slice(0, 10);
+                    clearTimeout(mt); mt = setTimeout(() => { customerExtras(); walkinLookup(); }, 350);
+                });
+                $('wMobile').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ($('wName').value ? $('itemSearch') : $('wName')).focus(); } });
+                $('wMobile').insertAdjacentHTML('afterend', '<div class="small mt-1" id="wHint"></div>');
             } else {
                 const sel = kind === 'PATIENT' ? patient : customer;
                 if (sel) {
@@ -60,9 +70,178 @@
                         }, 1);
                 }
             }
-            rxCheck();
+            rxCheck(); customerExtras(); clinKey = ''; clinicalSoon();
         }
         document.querySelectorAll('input[name=ck]').forEach(r => r.addEventListener('change', () => { kind = r.value; renderCustomer(); refreshPrices(); totals(); }));
+
+        // returning walk-in (SQLScripts/2412): fill name / address from the last bill; offer the registered patient
+        let lookedUp = '';
+        async function walkinLookup() {
+            const m = ($('wMobile')?.value || '').trim(), hint = $('wHint');
+            if (!hint) return;
+            if (!/^[6-9]\d{9}$/.test(m)) { hint.innerHTML = m.length === 10 ? '<span class="text-danger">Mobile must start with 6-9.</span>' : ''; lookedUp = ''; return; }
+            if (m === lookedUp) return;
+            lookedUp = m;
+            const r = await getJson(cfg.urls.walkin + '?mobile=' + m);
+            if ($('wMobile')?.value.trim() !== m) return;
+            const last = r && r.last, pts = (r && r.patients) || [];
+            if (last) {
+                if (!$('wName').value.trim()) $('wName').value = last.Name || '';
+                if (!$('wAddress').value.trim()) $('wAddress').value = last.Address || '';
+                rxCheck();
+            }
+            hint.innerHTML = (last ? `<span class="text-success"><i class="bi bi-person-check me-1"></i>Returning buyer · ${last.Bills} bill(s), last ${new Date(last.LastBillDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>` : '<span class="text-muted">New buyer</span>')
+                + (pts.length ? `<div>${pts.map((p, k) => `<a href="#" class="me-2" data-pt="${k}"><i class="bi bi-person-vcard me-1"></i>Bill as patient ${esc(p.name)} (${esc(p.uhid)})</a>`).join('')}</div>` : '');
+            hint.querySelectorAll('[data-pt]').forEach(a => a.onclick = ev => {
+                ev.preventDefault();
+                patient = pts[a.dataset.pt]; kind = 'PATIENT'; document.querySelector('input[name=ck][value=PATIENT]').checked = true;
+                renderCustomer(); refreshPrices(); totals(); focusSearch();
+            });
+        }
+
+        // ── who the bill is for: OPD prescriptions, loyalty points, credit reference (SQLScripts/2406) ──────
+        const member = () => kind === 'PATIENT' && patient ? { patientId: patient.id } : kind === 'CUSTOMER' && customer ? { customerId: customer.id }
+            : kind === 'WALKIN' && cfg.settings.LoyaltyWalkinByMobile && /^[6-9]\d{9}$/.test(($('wMobile')?.value || '').trim()) ? { mobile: $('wMobile').value.trim() } : null;
+        let extrasFor = '', loyFilled = null;
+        async function customerExtras() {
+            const m = member(), key = JSON.stringify(m || {}) + kind;
+            if (key === extrasFor) return;
+            extrasFor = key;
+            if (rx && !(kind === 'PATIENT' && patient)) { rx = null; renderRx(); }
+            // credit reference for corporate / insurance credit
+            const ct = kind === 'CUSTOMER' && customer ? customer.type : null;
+            $('creditRefBox').classList.toggle('d-none', !(ct === 'CORPORATE' || ct === 'INSURANCE'));
+            $('creditRefLbl').textContent = ct === 'INSURANCE' ? 'Policy / claim no.' : 'Employee ID / authorisation no.';
+            // loyalty
+            // a member discount filled in for the previous buyer goes away with them (SQLScripts/2408)
+            if (loyFilled != null && num($('billDisc').value) === loyFilled) $('billDisc').value = 0;
+            loyFilled = null;
+            loyalty = null; $('loyRedeem').value = 0;
+            if (cfg.settings.LoyaltyEnabled && m) {
+                const l = await getJson(cfg.urls.loyalty + '?' + new URLSearchParams(m));
+                if (l && l.Enabled && l.IsMember) loyalty = l;
+            }
+            $('loyRow').classList.toggle('d-none', !loyalty);
+            const loyDisc = loyalty && loyalty.LoyaltyType === 'DISCOUNT';
+            $('loyRedeem').classList.toggle('d-none', !!loyDisc);
+            if (loyDisc) {   // SQLScripts/2407/2408: the member's loyalty % is the default bill discount, no points
+                $('loyInfo').innerHTML = `<span class="badge bg-success-subtle text-success border">Member discount ${num(loyalty.DiscountPercent)}% - set as bill discount</span>`;
+                if (num($('billDisc').value) < num(loyalty.DiscountPercent)) { $('billDisc').value = num(loyalty.DiscountPercent); loyFilled = num(loyalty.DiscountPercent); }
+                render();
+            } else if (loyalty) {   // wallet (SQLScripts/2409): use points from earlier bills; this bill's credit comes after
+                const can = loyalty.Points >= loyalty.MinRedeem && loyalty.Points > 0;
+                const extra = [loyalty.Pending > 0 ? `${q3(loyalty.Pending)} pending` : '', loyalty.ExpiringSoon > 0 ? `<span class="text-danger">${q3(loyalty.ExpiringSoon)} expire by ${new Date(loyalty.NextExpiry).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>` : ''].filter(Boolean).join(' · ');
+                $('loyOtpBox').classList.toggle('d-none', !(can && loyalty.RedeemOtp));
+                $('loyInfo').innerHTML = `<i class="bi bi-wallet2 me-1"></i>Wallet <b>${q3(loyalty.Points)}</b> pts = ₹${money(loyalty.Points * loyalty.PointValue)}${can ? ` · up to ${num(loyalty.MaxRedeemPercent)}% of bill` : loyalty.Points > 0 ? ` · usable from ${loyalty.MinRedeem}` : ''}${extra ? '<br>' + extra : ''}<br><span class="text-success">This bill earns ${num(loyalty.EarnPercent)}%${loyalty.MinBillToEarn > 0 ? ` (bill ≥ ₹${money(loyalty.MinBillToEarn)})` : ''}</span>`;
+                $('loyRedeem').disabled = !can; $('loyRedeem').max = loyalty.Points;
+            }
+            // OPD prescriptions of the patient
+            const box = $('rxPanel');
+            if (cfg.settings.RxLinkEnabled && kind === 'PATIENT' && patient && !rx) {
+                const list = await getJson(cfg.urls.rxList + '?patientId=' + patient.id);
+                box.classList.toggle('d-none', !list.length);
+                box.innerHTML = list.length ? `<div class="alert alert-info py-1 px-2 small mb-0 d-flex align-items-center gap-2"><i class="bi bi-file-medical"></i>
+                    <span><b>${list.length}</b> OPD prescription(s) in the last 30 days.</span>
+                    <button type="button" class="btn btn-sm btn-primary py-0 ms-auto" id="rxPick"><i class="bi bi-download me-1"></i>Load prescription</button></div>` : '';
+                $('rxPick') && ($('rxPick').onclick = () => pickRx(list));
+            } else if (!rx) { box.classList.add('d-none'); box.innerHTML = ''; }
+            totals();
+        }
+        $('loyRedeem').addEventListener('input', () => totals());
+        $('loyOtpSend').addEventListener('click', async () => {
+            const m = member(); if (!m) return;
+            $('loyOtpSend').disabled = true;
+            const r = await postJson(cfg.urls.loyaltyOtp, { PatientId: m.patientId || null, CustomerId: m.customerId || null, Mobile: m.mobile || null });
+            toast(r.success ? 'success' : 'error', r.message || 'Could not send the OTP.');
+            setTimeout(() => $('loyOtpSend').disabled = false, 30000);
+            $('loyOtp').focus();
+        });
+        const loyPct = () => loyalty && loyalty.LoyaltyType === 'DISCOUNT' ? num(loyalty.DiscountPercent) : 0;
+        const redeemValue = () => {
+            if (!loyalty || loyalty.LoyaltyType === 'DISCOUNT') return 0;
+            const pts = Math.min(Math.floor(num($('loyRedeem').value)), loyalty.Points);
+            return pts > 0 ? r2(pts * loyalty.PointValue) : 0;
+        };
+
+        async function pickRx(list) {
+            const r = await Swal.fire({
+                title: 'OPD prescriptions', width: 680, showCancelButton: true, showConfirmButton: false, cancelButtonText: 'Close',
+                html: `<div class="list-group text-start">${list.map((c, k) => `<button type="button" class="list-group-item list-group-item-action" data-c="${k}">
+                    <div class="d-flex justify-content-between"><b>${new Date(c.VisitDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} · ${esc(c.DoctorName || '')}</b>
+                    <span class="small">${c.Medicines} medicine(s)</span></div>
+                    <div class="small text-muted">${esc(c.OPDBillNo || '')}${c.DispensedOn ? ` · <span class="text-warning-emphasis">already dispensed on bill ${esc(c.DispensedOn)}</span>` : ''}</div></button>`).join('')}</div>`,
+                didOpen: el => el.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => { Swal.close(); loadRx(list[b.dataset.c]); }))
+            });
+            return r;
+        }
+        async function loadRx(c) {
+            const d = await getJson(cfg.urls.rxLines + '?consultationId=' + c.ConsultationId + storeQ());
+            if (!d || !d.head) { toast('error', 'Prescription not found.'); return; }
+            const h = d.head;
+            rx = { id: h.ConsultationId, no: h.OPDBillNo, date: h.VisitDate, lines: d.lines.map(x => ({ ...x, reason: '' })) };
+            $('docName').value = h.DoctorName || ''; $('docReg').value = h.DoctorRegNo || ''; doctorId = h.DoctorId || null;
+            $('rxNo').value = h.OPDBillNo || ('OPD-' + h.ConsultationId); $('rxDate').value = String(h.VisitDate).slice(0, 10);
+            // add the suggested brand of each medicine (one pack / unit to start with)
+            for (const m of rx.lines) {
+                if (!m.SuggestedItemId || lines.some(l => l.item.genericId === m.GenericId)) continue;
+                const found = (await getJson(cfg.urls.items + '?genericId=' + m.GenericId + storeQ())).find(x => x.itemId === m.SuggestedItemId);
+                if (found) await addItem(found);
+            }
+            renderRx(); rxCheck(); focusSearch();
+        }
+        const NOT_GIVEN = ['Out of stock', 'Patient declined', 'Patient already has it', 'Substituted on doctor\'s advice', 'Buying elsewhere'];
+        function renderRx() {
+            const box = $('rxPanel');
+            if (!rx) { box.classList.add('d-none'); box.innerHTML = ''; extrasFor = ''; return; }
+            box.classList.remove('d-none');
+            box.innerHTML = `<div class="border rounded p-2" style="background:#f8fafc">
+                <div class="d-flex align-items-center gap-2 small mb-1"><i class="bi bi-file-medical text-primary"></i><b>OPD prescription ${esc(rx.no || '')}</b>
+                    <span class="text-muted">${new Date(rx.date).toLocaleDateString('en-GB')}</span>
+                    <button type="button" class="btn btn-sm btn-link p-0 ms-auto" id="rxDrop">unlink</button></div>
+                <table class="table table-sm mb-0 small align-middle"><tbody>${rx.lines.map((m, k) => {
+                    const given = m.GenericId && lines.some(l => l.item.genericId === m.GenericId);
+                    m.status = given ? 'DISPENSED' : 'NOT_DISPENSED';
+                    m.itemId = given ? lines.find(l => l.item.genericId === m.GenericId).item.itemId : null;
+                    return `<tr><td style="width:22px">${given ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-circle text-danger"></i>'}</td>
+                        <td><b>${esc(m.MedicationName)}</b> <span class="text-muted">${esc([m.Dose, m.Frequency, m.Instructions].filter(Boolean).join(' · '))}</span>
+                            <div class="text-muted">${m.GenericId ? esc(m.GenericName) + (m.Mapped ? '' : ' <span class="badge bg-warning-subtle text-warning-emphasis border" title="Matched by name - check strength; map it in Master > OPD Medicine Mapping">auto</span>') : '<span class="text-danger">No pharmacy generic mapped</span>'}</div></td>
+                        <td class="text-end" style="width:230px">${given ? '<span class="text-success">on the bill</span>'
+                            : `<div class="d-flex gap-1 justify-content-end">${m.GenericId && m.BrandsInStock ? `<button type="button" class="btn btn-sm btn-outline-primary py-0" data-rxadd="${k}">Add</button>` : ''}
+                               <select class="form-select form-select-sm" data-rxwhy="${k}" style="max-width:170px"><option value="">Not given because…</option>${NOT_GIVEN.map(w => `<option ${m.reason === w ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select></div>`}</td></tr>`;
+                }).join('')}</tbody></table></div>`;
+            $('rxDrop').onclick = () => { rx = null; renderRx(); customerExtras(); };
+            box.querySelectorAll('[data-rxwhy]').forEach(sel => sel.onchange = () => { rx.lines[sel.dataset.rxwhy].reason = sel.value; });
+            box.querySelectorAll('[data-rxadd]').forEach(b => b.onclick = async () => {
+                const m = rx.lines[b.dataset.rxadd];
+                const subs = (await getJson(cfg.urls.items + '?genericId=' + m.GenericId + storeQ())).filter(x => x.stock > 0);
+                if (subs.length) await addItem(subs.find(x => x.itemId === m.SuggestedItemId) || subs[0]);
+            });
+        }
+
+        // ── clinical safety checks: re-run whenever the items change ───────────────────────────────────
+        let clinTimer, clinKey = '';
+        function clinicalSoon() {
+            if (!cfg.settings.ClinicalChecksEnabled) return;
+            clearTimeout(clinTimer);
+            clinTimer = setTimeout(async () => {
+                const ids = [...new Set(lines.map(l => l.item.itemId))].sort(), m = member() || {};
+                const key = ids.join(',') + JSON.stringify(m);
+                if (key === clinKey) return;
+                clinKey = key;
+                alerts = ids.length ? await postJson(cfg.urls.clinical, { PatientId: m.patientId || null, CustomerId: m.customerId || null, ItemIds: ids }) : [];
+                if (!Array.isArray(alerts)) alerts = [];
+                renderAlerts();
+            }, 400);
+        }
+        function renderAlerts() {
+            const box = $('clinBox');
+            box.classList.toggle('d-none', !alerts.length);
+            const cls = s => s === 'MAJOR' ? 'danger' : s === 'MODERATE' ? 'warning' : 'secondary';
+            const ico = k => k === 'ALLERGY' ? 'bi-exclamation-octagon-fill' : k === 'DUPLICATE' ? 'bi-files' : 'bi-arrow-left-right';
+            box.innerHTML = alerts.map(a => `<div class="alert alert-${cls(a.severity)} py-1 px-2 small mb-1"><i class="bi ${ico(a.kind)} me-1"></i>
+                <b>${esc(a.kind === 'INTERACTION' ? 'Interaction' : a.kind === 'ALLERGY' ? 'Allergy' : 'Duplicate therapy')} (${esc(a.severity.toLowerCase())})</b> - ${esc(a.title || '')}:
+                ${esc(a.message)}${a.advice ? `<div class="fst-italic">${esc(a.advice)}</div>` : ''}</div>`).join('');
+        }
         const priceType = () => kind === 'CUSTOMER' && customer?.type === 'STAFF' ? 'STAFF' : 'WALKIN';
 
         // generic dropdown picker (keyboard)
@@ -122,7 +301,31 @@
         }
         const search = $('itemSearch'), list = $('itemList');
         let lastResults = [];
-        picker(search, list, async q => (lastResults = await getJson(cfg.urls.items + '?q=' + encodeURIComponent(q) + storeQ())), itemRow, addItem, 2, ITEM_HEAD, r => r.stock > 0 ? '' : 'oos');
+        // GS1 DataMatrix (SQLScripts/2404): a scanned 2D pack code finds the item by GTIN and bills that very batch
+        const gs1 = q => cfg.settings.Gs1ScanEnabled && window.PhGs1 ? PhGs1.parse(q) : null;
+        search.addEventListener('keydown', async e => {
+            if (e.key !== 'Enter') return;
+            const g = gs1(search.value);
+            if (!g) return;
+            e.preventDefault(); e.stopImmediatePropagation(); list.classList.add('d-none');
+            await scanned(g);
+        });
+        picker(search, list, async q => { const g = gs1(q); return (lastResults = await getJson(cfg.urls.items + '?q=' + encodeURIComponent(g ? g.gtin : q) + storeQ())); },
+            itemRow, addItem, 2, ITEM_HEAD, r => r.stock > 0 ? '' : 'oos');
+
+        async function scanned(g) {
+            search.value = '';
+            const today = new Date().toISOString().slice(0, 10);
+            if (g.expiry && g.expiry < today) { Swal.fire({ icon: 'error', title: 'Expired pack', text: `Batch ${g.batch || ''} expired on ${g.expiry}. Do not sell it.` }); return; }
+            const found = (await getJson(cfg.urls.items + '?q=' + encodeURIComponent(g.gtin) + storeQ()))[0];
+            if (!found) { Swal.fire({ icon: 'warning', title: 'Pack not in Item Master', text: `No item has the barcode / GTIN ${g.gtin}. Add it to the item's Barcode (EAN / GTIN) in Item Master.` }); return; }
+            const line = lines.find(l => l.item.itemId === found.itemId && g.batch && l.batchId && l.batches.find(b => b.batchId === l.batchId)?.batchNo?.toUpperCase() === g.batch);
+            if (line) {   // same pack scanned again: one more pack (or unit)
+                line.qtyIn = num(line.qtyIn) + 1; render(); toast('success', `${found.itemName}: ${line.qtyIn} ${line.mode === 'P' ? found.purchaseUom : found.saleUom}`); focusSearch(); return;
+            }
+            await addItem(found, g.batch);
+            focusSearch();
+        }
         list.addEventListener('mousedown', async e => {
             const s = e.target.closest('[data-subs]');
             if (!s) return;
@@ -134,13 +337,35 @@
         }, true);
         const focusSearch = () => { search.value = ''; search.focus(); };
 
-        async function addItem(it) {
-            if (it.stock <= 0) { toast('warning', it.itemName + ' is out of stock. Try a substitute.'); return; }
-            const existing = lines.find(l => l.item.itemId === it.itemId && !l.batchId);
+        // out of stock: offer in-stock brands of the same generic (Hospital Settings > MED > Suggest Substitute Brands)
+        async function outOfStock(it) {
+            if (!cfg.settings.SubstituteSuggest || !it.genericId) { toast('warning', it.itemName + ' is out of stock.'); return; }
+            const subs = (await getJson(cfg.urls.items + '?genericId=' + it.genericId + storeQ())).filter(r => r.stock > 0 && r.itemId !== it.itemId);
+            if (!subs.length) { toast('warning', it.itemName + ' is out of stock, and no other brand of ' + (it.genericName || 'this generic') + ' is in stock.'); return; }
+            const r = await Swal.fire({
+                title: it.itemName + ' is out of stock', width: 640, showCancelButton: true, showConfirmButton: false, cancelButtonText: 'Close',
+                html: `<div class="text-start small text-muted mb-2">Same generic: <b>${esc(it.genericName || '')}</b>${it.strength ? ' · ' + esc(it.strength) : ''}. Pick a substitute (tell the customer):</div>
+                       <div class="list-group text-start">${subs.slice(0, 8).map((x, k) => `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" data-sub="${k}">
+                         <span><b>${esc(x.itemName)}</b> <span class="small text-muted">${esc(x.strength || '')} · ${esc(x.manufacturerName || '')}</span>${x.strength && it.strength && x.strength !== it.strength ? ' <span class="badge bg-warning-subtle text-warning-emphasis">different strength</span>' : ''}</span>
+                         <span class="small num">${q3(x.stock)} ${esc(x.saleUom)} · ${x.packMrp ? '₹' + money(x.packMrp) : ''}</span></button>`).join('')}</div>`,
+                didOpen: el => el.querySelectorAll('[data-sub]').forEach(b => b.addEventListener('click', () => { Swal.close(); addItem(subs[b.dataset.sub]); }))
+            });
+            return r;
+        }
+
+        async function addItem(it, scanBatch) {
+            if (it.stock <= 0) { outOfStock(it); return; }
+            const existing = scanBatch ? null : lines.find(l => l.item.itemId === it.itemId && !l.batchId);
             if (existing) { render(); const q = document.querySelector(`[data-key="${existing.key}"] [data-f=qty]`); q && (q.focus(), q.select()); return; }
             const batches = await getJson(cfg.urls.batches + '?itemId=' + it.itemId + storeQ());
             if (!batches.length) { toast('warning', 'No sellable batch (expired or within ' + cfg.settings.MinShelfLifeSaleDays + ' days of expiry).'); return; }
-            const l = { key: ++seq, item: it, batches, batchId: null, mode: it.conversionQty > 1 && !it.allowLooseSale ? 'P' : (it.conversionQty > 1 ? 'P' : 'U'), qtyIn: 1, disc: 0, rate: 0, unitMrp: batches[0].unitMrp };
+            let batchId = null;
+            if (scanBatch) {
+                const b = batches.find(x => String(x.batchNo).toUpperCase() === scanBatch);
+                if (b) batchId = b.batchId;
+                else Swal.fire({ icon: 'warning', title: 'Batch not in sellable stock', text: `Scanned batch ${scanBatch} of ${it.itemName} is not in this counter's sellable stock (not received, blocked, or too close to expiry). Billed from the first-expiry batch - check the pack in hand.` });
+            }
+            const l = { key: ++seq, item: it, batches, batchId, mode: it.conversionQty > 1 && !it.allowLooseSale ? 'P' : (it.conversionQty > 1 ? 'P' : 'U'), qtyIn: 1, disc: 0, rate: 0, unitMrp: batches[0].unitMrp };
             lines.push(l);
             await price(l);
             render(); rxCheck();
@@ -172,7 +397,8 @@
                     <td class="sn">${i + 1}</td>
                     <td class="it"><div class="it-nm">${it.formShort ? `<span class="ph-form-tag">${esc(it.formShort)}</span>` : ''}${esc(it.itemName)} ${sch(it.scheduleCode)}
                         ${it.isColdChain ? '<i class="bi bi-snow text-info" title="cold chain"></i>' : ''}${it.isHighAlert ? ' <i class="bi bi-exclamation-octagon-fill text-danger" title="high alert"></i>' : ''}${it.isLasa ? ' <i class="bi bi-eye-fill text-warning" title="LASA"></i>' : ''}</div>
-                        <div class="it-sub">${esc(it.genericName || '')}${it.rackNo ? ' · rack ' + esc(it.rackNo) : ''} · stock <span class="${short ? 'text-danger fw-bold' : ''}">${q3(stockUnits)}</span></div></td>
+                        <div class="it-sub">${esc(it.genericName || '')}${it.rackNo ? ' · rack ' + esc(it.rackNo) : ''} · stock <span class="${short ? 'text-danger fw-bold' : ''}">${q3(stockUnits)}</span>
+                        ${cfg.settings.RefillReminderEnabled ? ` · <label class="mb-0" title="Days this medicine lasts - a WhatsApp refill reminder is sent before it runs out">lasts <input class="form-control form-control-sm d-inline-block num py-0 px-1" data-f="days" type="number" min="0" max="365" value="${l.days || ''}" style="width:52px;height:22px"> days</label>` : ''}</div></td>
                     <td><select class="form-select" data-f="batch" style="min-width:160px"><option value="">Auto (first expiry)</option>
                         ${l.batches.map(b => `<option value="${b.batchId}" ${l.batchId === b.batchId ? 'selected' : ''}>${esc(b.batchNo)} · ${mon(b.expiryDate)} · ₹${money(b.packMrp)} · ${q3(b.stock)}</option>`).join('')}</select></td>
                     <td><div class="qty"><input class="form-control num" data-f="qty" type="number" min="0" step="1" value="${l.qtyIn}">
@@ -187,10 +413,13 @@
                     <td><button type="button" class="del" data-del title="Remove (Ctrl+Del)"><i class="bi bi-x-circle-fill"></i></button></td></tr>`;
             }).join('');
             totals();
+            if (rx) renderRx();
+            clinicalSoon();
         }
         $('lines').addEventListener('input', e => {
             const tr = e.target.closest('tr'); if (!tr) return;
             const l = lines.find(x => x.key == tr.dataset.key), f = e.target.dataset.f;
+            if (f === 'days') { l.days = Math.max(0, Math.min(365, parseInt(e.target.value) || 0)); return; }
             if (f === 'qty') l.qtyIn = e.target.value; else if (f === 'disc') l.disc = e.target.value; else return;
             calc(l); tr.querySelector('[data-c=amt]').innerHTML = money(l.amount); totals();
         });
@@ -199,12 +428,12 @@
             const l = lines.find(x => x.key == tr.dataset.key), f = e.target.dataset.f;
             if (f === 'batch') { l.batchId = e.target.value ? +e.target.value : null; await price(l); }
             if (f === 'mode') { const u = units(l); l.mode = e.target.value; l.qtyIn = l.mode === 'P' ? Math.max(1, Math.round(u / l.item.conversionQty)) : u; }
-            if (f === 'qty' || f === 'batch' || f === 'mode' || f === 'disc') render();
+            if (f === 'qty' || f === 'batch' || f === 'mode' || f === 'disc') render();   // (days: kept on the line, no re-render)
         });
         $('lines').addEventListener('click', e => { if (e.target.closest('[data-del]')) { const tr = e.target.closest('tr'); lines = lines.filter(x => x.key != tr.dataset.key); render(); rxCheck(); focusSearch(); } });
         $('lines').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.f) { e.preventDefault(); render(); focusSearch(); } });
         $('billDisc').addEventListener('input', () => {
-            if (num($('billDisc').value) > cfg.settings.MaxManualDiscountPercent && !cfg.canDiscount) toast('warning', `Above ${cfg.settings.MaxManualDiscountPercent}%: needs a user with the Discount permission.`);
+            if (num($('billDisc').value) - loyPct() > cfg.settings.MaxManualDiscountPercent && !cfg.canDiscount) toast('warning', `Above ${cfg.settings.MaxManualDiscountPercent}%: needs a user with the Discount permission.`);
             render();
         });
 
@@ -213,6 +442,15 @@
         function totals() {
             let mrp = 0, amt = 0, tax = 0, gst = 0;
             lines.forEach(l => { calc(l); mrp += l.mrpAmt; amt += l.amount; tax += l.taxable; gst += l.gst; });
+            // loyalty points used: a discount before GST, at most the branch's % of the bill (the server checks again)
+            let red = redeemValue();
+            if (loyalty && red > 0) {
+                const cap = r2(amt * num(loyalty.MaxRedeemPercent) / 100);
+                if (red > cap) { red = cap; $('loyRedeem').classList.add('is-invalid'); $('loyRedeem').title = `Up to ₹${money(cap)} (${num(loyalty.MaxRedeemPercent)}% of the bill)`; }
+                else { $('loyRedeem').classList.remove('is-invalid'); $('loyRedeem').title = ''; }
+                if (amt > 0) { const f = (amt - red) / amt; tax = r2(tax * f); gst = r2(gst * f); }
+                amt = r2(amt - red);
+            }
             net = cfg.settings.RoundOffBill ? Math.round(amt) : r2(amt);
             $('tNet').textContent = '₹ ' + money(net); $('tMrp').textContent = money(mrp); $('tDisc').textContent = money(mrp - amt);
             $('tTax').textContent = money(tax); $('tGst').textContent = money(gst); $('tRound').textContent = money(net - amt);
@@ -238,6 +476,9 @@
             $('changeRow').classList.toggle('d-none', change <= 0); $('tChange').textContent = '₹ ' + money(change);
         }
         function addPay(m) {
+            if (cfg.settings.SplitPaymentEnabled === false && pays.length && !pays.some(x => x.method === m)) {
+                pays = []; renderPays();   // split payment is off for this branch: the new method replaces the old one
+            }
             let p = pays.find(x => x.method === m);
             if (!p) { const paid = pays.reduce((s, x) => s + num(x.amount), 0); p = { method: m, amount: Math.max(0, r2(net - paid)) || '', ref: '' }; pays.push(p); renderPays(); }
             const box = $('pays').querySelector(`[data-i="${pays.indexOf(p)}"] [data-p=${m === 'CASH' ? 'amount' : 'ref'}]`); box && (box.focus(), box.select && box.select());
@@ -263,8 +504,14 @@
                 StoreId: storeSel && storeSel.value ? +storeSel.value : null, HoldId: holdId, CustomerKind: kind, PatientId: kind === 'PATIENT' ? patient?.id : null, CustomerId: kind === 'CUSTOMER' ? customer?.id : null,
                 CustomerName: kind === 'WALKIN' ? w('wName') : null, Mobile: kind === 'WALKIN' ? w('wMobile') : null, Address: kind === 'WALKIN' ? w('wAddress') : null,
                 DoctorId: doctorId, DoctorName: w('docName'), DoctorRegNo: w('docReg'), RxNo: w('rxNo'), RxDate: w('rxDate'), BillDiscPercent: num($('billDisc').value),
-                Lines: lines.map(l => ({ ItemId: l.item.itemId, BatchId: l.batchId, Qty: units(l), DiscPercent: num(l.disc) })),
-                Payments: pays.filter(p => num(p.amount) > 0).map(p => ({ Method: p.method, Amount: num(p.amount), Ref: p.ref || null }))
+                Lines: lines.map(l => ({ ItemId: l.item.itemId, BatchId: l.batchId, Qty: units(l), DiscPercent: num(l.disc), DaysSupply: l.days || null })),
+                Payments: pays.filter(p => num(p.amount) > 0).map(p => ({ Method: p.method, Amount: num(p.amount), Ref: p.ref || null })),
+                ConsultationId: rx ? rx.id : null,
+                RxLines: rx ? rx.lines.map(m => ({ Seq: m.Seq, Status: m.status, ItemId: m.itemId, Reason: m.reason || null })) : [],
+                RedeemPoints: loyalty && loyalty.LoyaltyType !== 'DISCOUNT' ? Math.max(0, Math.floor(num($('loyRedeem').value))) : 0,
+                RedeemOtp: loyalty && loyalty.RedeemOtp ? ($('loyOtp').value.trim() || null) : null,
+                CreditRefNo: $('creditRefBox').classList.contains('d-none') ? null : ($('creditRef').value.trim() || null),
+                AlertReason: null
             };
         }
         let busy = false;
@@ -273,14 +520,39 @@
             if (!lines.length) { toast('info', 'Add an item first.'); focusSearch(); return; }
             if (kind !== 'WALKIN' && !(kind === 'PATIENT' ? patient : customer)) { toast('info', kind === 'PATIENT' ? 'Pick the patient.' : 'Pick the credit customer.'); return; }
             if (!pays.length && net > 0 && !(kind === 'CUSTOMER' && customer?.credit)) { addPay('CASH'); return; }
+            if (rx) {
+                renderRx();
+                const missing = rx.lines.find(m => m.status !== 'DISPENSED' && !m.reason);
+                if (missing) { Swal.fire({ icon: 'warning', title: 'Prescription not complete', text: `${missing.MedicationName} is prescribed but not on the bill: add it, or pick why it is not given.` }); return; }
+            }
+            const body = request();
+            if (cfg.settings.ClinicalChecksEnabled && lines.length) {
+                clinKey = ''; clearTimeout(clinTimer);
+                const ids = [...new Set(lines.map(l => l.item.itemId))], m = member() || {};
+                alerts = await postJson(cfg.urls.clinical, { PatientId: m.patientId || null, CustomerId: m.customerId || null, ItemIds: ids });
+                if (!Array.isArray(alerts)) alerts = [];
+                renderAlerts();
+                if (alerts.length) {
+                    const major = alerts.find(a => a.severity === 'MAJOR' && a.kind === 'INTERACTION');
+                    if (major && cfg.settings.MajorInteractionBlock) { Swal.fire({ icon: 'error', title: 'Sale blocked', text: `Major interaction - ${major.title}: ${major.message}` }); return; }
+                    const r = await Swal.fire({
+                        icon: alerts.some(a => a.severity === 'MAJOR') ? 'error' : 'warning', title: `${alerts.length} clinical alert(s)`, width: 640,
+                        html: `<div class="text-start small">${alerts.map(a => `<div class="mb-1"><b>${esc(a.title || '')}</b>: ${esc(a.message)}</div>`).join('')}</div>`,
+                        input: 'text', inputLabel: 'Reason to go ahead (recorded with the bill)', inputPlaceholder: 'e.g. Prescriber confirmed, counselled patient',
+                        showCancelButton: true, confirmButtonText: 'Dispense anyway', inputValidator: v => !v || !v.trim() ? 'A reason is required.' : null
+                    });
+                    if (!r.isConfirmed) return;
+                    body.AlertReason = r.value.trim();
+                }
+            }
             busy = true; $('btnSave').disabled = true;
-            const res = await postJson(cfg.urls.save, request());
+            const res = await postJson(cfg.urls.save, body);
             busy = false; $('btnSave').disabled = false;
             if (!res.success) { Swal.fire({ icon: 'error', title: 'Not saved', text: res.error || 'Please check the bill.' }); return; }
             const fmt = $('printFmt').value;
             if (fmt) window.open(`${cfg.urls.print}?id=${res.saleId}&format=${fmt}`, '_blank', 'width=900,height=900');
             showLast(res, fmt);
-            Swal.fire({ icon: 'success', title: `Bill ${res.saleNo}`, html: `Net ₹${money(res.netAmount)}${res.change > 0 ? `<div class="fs-4 fw-bold text-success mt-2">Return change ₹${money(res.change)}</div>` : ''}${res.balanceDue > 0 ? `<div class="text-danger mt-1">On credit ₹${money(res.balanceDue)}</div>` : ''}`,
+            Swal.fire({ icon: 'success', title: `Bill ${res.saleNo}`, html: `Net ₹${money(res.netAmount)}${res.change > 0 ? `<div class="fs-4 fw-bold text-success mt-2">Return change ₹${money(res.change)}</div>` : ''}${res.balanceDue > 0 ? `<div class="text-danger mt-1">On credit ₹${money(res.balanceDue)}</div>` : ''}${res.pointsRedeemed > 0 ? `<div class="small mt-1">${q3(res.pointsRedeemed)} points used</div>` : ''}${res.loyaltyDiscount > 0 ? `<div class="small text-success mt-1">Member discount ₹${money(res.loyaltyDiscount)}</div>` : ''}${res.pointsEarned > 0 ? `<div class="small text-success mt-1"><i class="bi bi-wallet2 me-1"></i>${q3(res.pointsEarned)} points credited to the wallet</div>` : ''}`,
                 confirmButtonText: 'New bill', showDenyButton: true, denyButtonText: 'Open bill' })
                 .then(r => { if (r.isDenied) location.href = `${cfg.urls.bill}?id=${res.saleId}`; });
             reset();
@@ -349,6 +621,8 @@
         }
         function reset() {
             lines = []; pays = []; patient = null; customer = null; doctorId = null; holdId = null;
+            rx = null; alerts = []; loyalty = null; extrasFor = ''; loyFilled = null; clinKey = ''; renderRx(); renderAlerts();
+            $('loyRedeem').value = 0; $('loyOtp').value = ''; $('loyOtpBox').classList.add('d-none'); $('creditRef').value = ''; $('loyRow').classList.add('d-none'); $('creditRefBox').classList.add('d-none');
             ['docName', 'docReg', 'rxNo', 'rxDate'].forEach(id => $(id).value = ''); $('billDisc').value = 0;
             renderCustomer(); render(); renderPays(); setMode(); focusSearch();
         }
@@ -360,7 +634,7 @@
         document.addEventListener('keydown', e => {
             const k = e.key;
             if (k === 'F2') { e.preventDefault(); focusSearch(); }
-            else if (k === 'F4') { e.preventDefault(); (kind === 'WALKIN' ? $('wName') : $('custSearch') || $('custChange'))?.focus(); }
+            else if (k === 'F4') { e.preventDefault(); (kind === 'WALKIN' ? $('wMobile') : $('custSearch') || $('custChange'))?.focus(); }
             else if (k === 'F6') { e.preventDefault(); addPay(pays[0]?.method || 'CASH'); }
             else if (k === 'F7') { e.preventDefault(); $('btnHeld') && showHeld(); }
             else if (k === 'F8') { e.preventDefault(); $('btnHold') && hold(); }

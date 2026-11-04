@@ -4,11 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EMR.Api.Controllers;
 
+public record PhItemImportRequest(int CompanyId, int UserId, string Rows, bool Commit);
+
 /// <summary>Pharmacy masters and Item Master (SQLScripts/2357). Called by EMR.Web's PharmacyApiClient.</summary>
+
 [ApiController]
 [Route("api/pharmacy/masters")]
 [Produces("application/json")]
-public class PharmacyMastersController(IPharmacyMasterService service) : ControllerBase
+public class PharmacyMastersController(IPharmacyMasterService service, IPharmacyProcService ph) : ControllerBase
 {
     [HttpPost("ensure")]
     public async Task<IActionResult> Ensure([FromBody] PhCompanyBranchRequest req)
@@ -71,4 +74,9 @@ public class PharmacyMastersController(IPharmacyMasterService service) : Control
     [HttpPost("items/save")]
     public async Task<IActionResult> SaveItem([FromBody] PhItemSaveRequest req) =>
         Ok(ApiResponse<PhSaveResult>.Ok(await service.SaveItemAsync(req)));
+
+    /// <summary>Item Master bulk import (SQLScripts/2411): Commit false = check only. Answers 1 rows with status, 2 totals.</summary>
+    [HttpPost("items/import")]
+    public async Task<IActionResult> ImportItems([FromBody] PhItemImportRequest r) =>
+        Ok(ApiResponse<List<List<IDictionary<string, object?>>>>.Ok(await ph.SetsAsync("dbo.usp_Api_PhItem_Import", new { r.CompanyId, r.UserId, r.Rows, r.Commit }, 2)));
 }

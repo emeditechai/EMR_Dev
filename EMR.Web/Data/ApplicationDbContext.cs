@@ -276,6 +276,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasKey(x => x.Id);
             entity.Property(x => x.BranchId).HasColumnName("BranchID");
             entity.Property(x => x.HospitalName).HasColumnName("HotelName");
+            // pharmacy round-2 settings (SQLScripts/2402-2409): the column precision, so EF never truncates silently
+            foreach (var p5 in new[] { "PharmacyCountRecountPercent", "PharmacyAbcAPercent", "PharmacyAbcBPercent", "PharmacyLoyaltyMaxRedeemPercent",
+                                       "PharmacyLoyaltyDiscountPercent", "PharmacyLoyaltyEarnPercent" })
+                entity.Property(p5).HasPrecision(5, 2);
+            foreach (var p8 in new[] { "PharmacyLoyaltyEarnPer100", "PharmacyLoyaltyPointValue" }) entity.Property(p8).HasPrecision(8, 2);
+            foreach (var p12 in new[] { "PharmacyLoyaltyMinBillToEarn", "PharmacyLoyaltyMaxEarnPerBill", "PharmacyLoyaltyMinBillToRedeem" }) entity.Property(p12).HasPrecision(12, 2);
             entity.HasOne(x => x.Branch)
                 .WithMany()
                 .HasForeignKey(x => x.BranchId)

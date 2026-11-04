@@ -61,7 +61,7 @@ public static class PharmacyMasterDefs
         new("ROL", "ROL - Rolls"), new("SET", "SET - Sets"), new("UNT", "UNT - Units"), new("BAG", "BAG - Bags"), new("CTN", "CTN - Cartons"), new("DOZ", "DOZ - Dozens"), new("OTH", "OTH - Others")
     ];
     public static readonly PhOption[] StoreTypes = [new("MAIN", "Main store (receives and sells)"), new("GODOWN", "Godown"), new("COUNTER", "Counter")];
-    public static readonly PhOption[] CustomerTypes = [new("REGULAR", "Regular"), new("STAFF", "Staff"), new("CORPORATE", "Corporate"), new("DOCTOR", "Doctor")];
+    public static readonly PhOption[] CustomerTypes = [new("REGULAR", "Regular"), new("STAFF", "Staff"), new("CORPORATE", "Corporate"), new("INSURANCE", "Insurance / TPA"), new("DOCTOR", "Doctor")];
     public static readonly PhOption[] ReasonTypes =
     [
         new("SALE_RETURN", "Sale return"), new("IPD_RETURN", "IPD / ward return"), new("PURCHASE_RETURN", "Purchase return"),
@@ -114,6 +114,7 @@ public static class PharmacyMasterDefs
                 new() { Name = "Gstin", Label = "GSTIN", Max = 15, Col = 4, Upper = true, Pattern = GstinRx, PatternMessage = "GSTIN is not in the 15-character format." },
                 new() { Name = "Pan", Label = "PAN", Max = 10, Col = 4, Upper = true, InList = false, Pattern = "^[A-Z]{5}[0-9]{4}[A-Z]$", PatternMessage = "PAN is not valid (ABCDE1234F)." },
                 new() { Name = "CreditDays", Label = "Credit days", Kind = "number", Col = 4, Default = 30 },
+                new() { Name = "ReceiveIndentEmail", Label = "Receive Indent E-mail", Kind = "bool", Col = 4, InList = false, Help = "Yes: an approved purchase indent for this supplier is e-mailed to them as PDF." },
                 new() { Name = "DrugLicenceNo", Label = "Drug licence no(s). (20B / 21B)", Max = 100, Col = 8 },
                 new() { Name = "DrugLicenceValidTo", Label = "Licence valid to", Kind = "date", Col = 4 },
                 new() { Name = "BankName", Label = "Bank", Max = 100, Col = 4, InList = false },
@@ -225,6 +226,47 @@ public static class PharmacyMasterDefs
         },
         new()
         {
+            Key = "supplierschemes", PageCode = "MASTER.PH_SUPPLIERSCHEMES", Title = "Supplier Scheme (Free Goods)", Singular = "supplier scheme", Icon = "bi-gift", SaveAction = "SaveSupplierScheme",
+            Description = "Trade offers such as 10 + 1: buy 10 packs, get 1 free. Free quantity is filled in on purchase orders, GRNs and auto reorder (Hospital Settings > MED). Leave supplier empty for an offer from any supplier.",
+            Table = "PhSupplierScheme", IdCol = "SupplierSchemeId", OrderBy = "ItemId",
+            Fields =
+            [
+                new() { Name = "ItemId", Label = "Item", Kind = "select", Lookup = "items", Required = true, Col = 6 },
+                new() { Name = "SupplierId", Label = "Supplier", Kind = "select", Lookup = "suppliers", Col = 6, Help = "Empty = any supplier." },
+                new() { Name = "BuyQty", Label = "Buy (packs)", Kind = "decimal", Required = true, Col = 3 },
+                new() { Name = "FreeQty", Label = "Free (packs)", Kind = "decimal", Required = true, Col = 3 },
+                new() { Name = "ValidFrom", Label = "Valid from", Kind = "date", Required = true, Col = 3 },
+                new() { Name = "ValidTo", Label = "Valid to", Kind = "date", Col = 3, Help = "Empty = until changed." },
+                new() { Name = "Remarks", Label = "Remarks", Max = 200, Col = 12, InList = false }
+            ]
+        },
+        new()
+        {
+            Key = "rxmap", PageCode = "MASTER.PH_RXMAP", Title = "OPD Medicine Mapping", Singular = "mapping", Icon = "bi-link-45deg", SaveAction = "SaveRxMap",
+            Description = "Links each medicine of the OPD Medication Master (what doctors prescribe) to a pharmacy generic, so a prescription loads into the counter bill with the right brands. Not mapped: matched by name and shown as 'auto' to check.",
+            Table = "PhRxGenericMap", IdCol = "RxMapId", OrderBy = "MedicationId",
+            Fields =
+            [
+                new() { Name = "MedicationId", Label = "OPD medicine (as prescribed)", Kind = "select", Lookup = "medications", Required = true, Col = 6 },
+                new() { Name = "GenericId", Label = "Pharmacy generic (dispensed)", Kind = "select", Lookup = "generics", Required = true, Col = 6 }
+            ]
+        },
+        new()
+        {
+            Key = "interactions", PageCode = "MASTER.PH_INTERACTIONS", Title = "Drug Interaction", Singular = "interaction", Icon = "bi-exclamation-diamond", SaveAction = "SaveInteraction",
+            Description = "Pairs of generics that interact. The counter warns when both are on a bill (or one was dispensed to the same person in the last 30 days), matched by molecule across strengths and combinations. Major can block the sale (Hospital Settings > MED).",
+            Table = "PhDrugInteraction", IdCol = "InteractionId", OrderBy = "Severity",
+            Fields =
+            [
+                new() { Name = "GenericId1", Label = "Generic A", Kind = "select", Lookup = "generics", Required = true, Col = 6 },
+                new() { Name = "GenericId2", Label = "Generic B", Kind = "select", Lookup = "generics", Required = true, Col = 6 },
+                new() { Name = "Severity", Label = "Severity", Kind = "select", Required = true, Col = 4, Options = [new("MAJOR", "Major - avoid"), new("MODERATE", "Moderate - monitor"), new("MINOR", "Minor - inform")] },
+                new() { Name = "Effect", Label = "Effect", Required = true, Max = 300, Col = 8, Placeholder = "e.g. Raised bleeding risk" },
+                new() { Name = "Advice", Label = "Advice to the pharmacist", Max = 300, Col = 12, InList = false, Placeholder = "e.g. Check with the prescriber; counsel on bleeding signs" }
+            ]
+        },
+        new()
+        {
             Key = "customers", PageCode = "MASTER.PH_CUSTOMERS", Title = "Pharmacy Customer", Singular = "customer", Icon = "bi-person-vcard", SaveAction = "SaveCustomer",
             Description = "Regular walk-in buyers (for credit sale, a fixed discount or a GST invoice). Hospital patients are picked by UHID and need no entry here.",
             Table = "PhCustomer", IdCol = "CustomerId", OrderBy = "CustomerName",
@@ -238,6 +280,7 @@ public static class PharmacyMasterDefs
                 new() { Name = "Address", Label = "Address", Kind = "textarea", Max = 300, Col = 12, InList = false },
                 new() { Name = "CreditAllowed", Label = "Credit sale allowed", Kind = "bool", Col = 4 },
                 new() { Name = "CreditLimit", Label = "Credit limit", Kind = "decimal", Col = 4, Default = 0 },
+                new() { Name = "CreditDays", Label = "Credit days", Kind = "number", Col = 4, Default = 30, InList = false, Help = "A credit bill unpaid beyond this blocks new credit." },
                 new() { Name = "SchemeId", Label = "Discount scheme", Kind = "select", Lookup = "schemes", Col = 4 }
             ]
         },
@@ -349,6 +392,7 @@ public class PhItemForm
     public decimal MinQty { get; set; }
     public decimal MaxQty { get; set; }
     public int LeadDays { get; set; } = 2;
+    public string? VedClass { get; set; }          // SQLScripts/2405: V vital / E essential / D desirable
     public string? Remarks { get; set; }
     public bool IsActive { get; set; } = true;
     // this branch (PhItemBranch)
@@ -463,7 +507,16 @@ public class PharmacyMasterService(PharmacyApiClient api) : IPharmacyMasterServi
                 if (applies != "CUSTOMER_TYPE") p["CustomerType"] = null;
                 if (V(p, "ValidFrom") is DateTime vf && V(p, "ValidTo") is DateTime vt && vt < vf) return "Valid to is before valid from.";
                 break;
+            case "interactions":
+                if (V(p, "GenericId1") is int g1 && V(p, "GenericId2") is int g2 && g1 == g2) return "Pick two different generics.";
+                break;
+            case "supplierschemes":
+                if ((V(p, "BuyQty") as decimal? ?? 0) <= 0 || (V(p, "FreeQty") as decimal? ?? 0) <= 0) return "Buy and free quantity must both be more than zero (e.g. 10 + 1).";
+                if ((V(p, "FreeQty") as decimal? ?? 0) > (V(p, "BuyQty") as decimal? ?? 0)) return "Free quantity cannot be more than the quantity bought.";
+                if (V(p, "ValidFrom") is DateTime sf && V(p, "ValidTo") is DateTime st && st < sf) return "Valid to is before valid from.";
+                break;
             case "customers":
+                if (V(p, "CreditDays") is int custDays && (custDays < 0 || custDays > 365)) return "Credit days must be between 0 and 365.";
                 if (V(p, "CreditAllowed") is false) p["CreditLimit"] = 0m;
                 else if ((V(p, "CreditLimit") as decimal? ?? 0) <= 0) return "Give a credit limit, or untick credit sale.";
                 break;
@@ -472,6 +525,7 @@ public class PharmacyMasterService(PharmacyApiClient api) : IPharmacyMasterServi
                 if (pad is < 3 or > 10) return "Digits must be between 3 and 10.";
                 break;
             case "suppliers":
+                if (V(p, "ReceiveIndentEmail") is true && string.IsNullOrWhiteSpace(V(p, "Email") as string)) return "Enter the supplier's e-mail to send them indents.";
                 if (V(p, "CreditDays") is int cd && (cd < 0 || cd > 365)) return "Credit days must be between 0 and 365.";
                 break;
         }
@@ -572,6 +626,7 @@ public class PharmacyMasterService(PharmacyApiClient api) : IPharmacyMasterServi
         if (f.PurchaseUomId == f.SaleUomId && f.ConversionQty != 1) return (0, "Purchase and sale unit are the same, so the conversion must be 1.");
         if (f.MinQty < 0 || f.ReorderLevel < 0 || f.MaxQty < 0) return (0, "Stock levels cannot be negative.");
         if (f.MaxQty > 0 && (f.MinQty > f.MaxQty || f.ReorderLevel > f.MaxQty)) return (0, "Minimum and reorder level must not be above the maximum.");
+        f.VedClass = f.VedClass is "V" or "E" or "D" ? f.VedClass : null;
         if (f.ScheduleCode is "X" or "NDPS") f.IsReturnable = false;   // controlled drugs are never taken back over the counter
         if (f.ScheduleCode is "H1" or "X" or "NDPS") f.PrescriptionRequired = true;   // register drugs: prescriber and Rx no. are statutory
 

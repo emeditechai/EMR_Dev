@@ -42,11 +42,24 @@
         </div>
         @if (k == "indent")
         {
+            @* SQLScripts/2413: the indent is raised on a supplier (its PDF is e-mailed to them on approval) *@
+            <div class="col-lg-4 col-md-6">
+                <label class="form-label req" for="SupplierId">Supplier</label>
+                @if (ro) { <input class="form-control" value="@d.SupplierName" disabled /> }
+                else
+                {
+                    <select id="SupplierId" class="form-select" required>
+                        <option value="">— select supplier —</option>
+                        @foreach (var s in Model.Suppliers) { <option value="@s.Value" selected="@(s.Value == d.SupplierId?.ToString())">@s.Text</option> }
+                    </select>
+                }
+                <div class="form-text">@if (d.EmailedTo != null) { <span class="text-success"><i class="bi bi-envelope-check me-1"></i>E-mailed to @d.EmailedTo, @d.EmailedDate?.ToString("dd-MMM-yyyy HH:mm")</span> } else { <span>Approved indent is e-mailed if the supplier has "Receive Indent E-mail".</span> }</div>
+            </div>
             <div class="col-md-2">
                 <label class="form-label" for="Priority">Priority</label>
                 <select id="Priority" class="form-select" disabled="@ro"><option value="NORMAL" selected="@(d.Priority != "URGENT")">Normal</option><option value="URGENT" selected="@(d.Priority == "URGENT")">Urgent</option></select>
             </div>
-            <div class="col-md-8"><label class="form-label" for="Remarks">Remarks</label><input id="Remarks" class="form-control" maxlength="300" value="@d.Remarks" disabled="@ro" placeholder="Why it is needed (optional)" /></div>
+            <div class="col-md-4"><label class="form-label" for="Remarks">Remarks</label><input id="Remarks" class="form-control" maxlength="300" value="@d.Remarks" disabled="@ro" placeholder="Why it is needed (optional)" /></div>
             @if (!string.IsNullOrEmpty(d.ActionRemarks)) { <div class="col-12"><div class="alert alert-light border small mb-0"><b>Approver's note:</b> @d.ActionRemarks</div></div> }
         }
         else
@@ -187,11 +200,16 @@
         @switch (k)
         {
             case "indent":
-                if (d.Status == "DRAFT") { <form method="post" asp-action="Submit" asp-route-id="@d.Id" asp-permission="@($"{pc}:SUBMIT")" data-confirm="Submit this indent for approval? It cannot be changed after that."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form> }
+                if (d.Status == "DRAFT") { <form method="post" asp-action="Submit" asp-route-id="@d.Id" asp-permission="@($"{pc}:SUBMIT")" data-confirm="Submit this indent? It goes for approval (Approval Matrix) - or, with no matrix, is approved and sent to the supplier at once. It cannot be changed after that."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form> }
                 if (d.Status == "SUBMITTED")
                 {
                     <form method="post" asp-action="Reject" asp-route-id="@d.Id" asp-permission="@($"{pc}:REJECT")" data-remarks="Reason for rejecting" data-required="1"><button class="btn btn-outline-danger"><i class="bi bi-x-octagon me-1"></i>Reject</button></form>
                     <form method="post" asp-action="Approve" asp-route-id="@d.Id" asp-permission="@($"{pc}:APPROVE")" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve</button></form>
+                }
+                if (d.Status is "APPROVED" or "ORDERED")
+                {
+                    <a asp-action="Pdf" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
+                    <form method="post" asp-action="Email" asp-route-id="@d.Id" asp-permission="@($"{pc}:EMAIL")" data-confirm="E-mail this indent (PDF) to the supplier now?"><button class="btn btn-outline-primary"><i class="bi bi-envelope me-1"></i>@(d.EmailedTo != null ? "Send again" : "Send to supplier")</button></form>
                 }
                 if (d.Status == "APPROVED") { <a asp-controller="PhPurchaseOrders" asp-action="Form" asp-route-indentId="@d.Id" asp-permission="PHARMACY.PURCHASEORDER:SAVE" class="btn btn-primary"><i class="bi bi-file-earmark-plus me-1"></i>Create purchase order</a> }
                 if (d.Status is "DRAFT" or "SUBMITTED" or "APPROVED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="@($"{pc}:CANCEL")" data-remarks="Reason for cancelling"><button class="btn btn-outline-danger"><i class="bi bi-trash me-1"></i>Cancel indent</button></form> }
@@ -225,14 +243,16 @@
 @section Scripts {
 <script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
 @if (k == "grn" || Model.Direct) { <script src="~/lib/xlsx/xlsx.full.min.js"></script> }
+<script src="~/js/ph-gs1.js" asp-append-version="true"></script>
 <script src="~/js/pharmacy-doc.js" asp-append-version="true"></script>
 <script>
 PhDocForm({
-    kind: @Html.Raw(J(k)), direct: @(Model.Direct ? "true" : "false"), editable: @(Model.Editable ? "true" : "false"), doc: @Html.Raw(J(d)), minShelfDays: @Model.MinShelfLifeDays,
+    kind: @Html.Raw(J(k)), direct: @(Model.Direct ? "true" : "false"), editable: @(Model.Editable ? "true" : "false"), doc: @Html.Raw(J(d)), minShelfDays: @Model.MinShelfLifeDays, gs1: @(Model.Gs1ScanEnabled ? "true" : "false"),
     urls: { itemSearch: '@Url.Action("ItemSearch")', supplierInfo: '@Url.Action("SupplierInfo")', reorder: '@Url.Action("ReorderSuggest")',
             openPos: '@Url.Action("OpenPos")', poLines: '@Url.Action("PoLines")', batchSearch: '@Url.Action("BatchSearch")',
             rateHistory: @Html.Raw(k is "po" or "grn" ? "'" + Url.Action("RateHistory") + "'" : "null"), newItem: '@Url.Action("Form", "PharmacyItems")',
-            readBill: @Html.Raw(k is "po" or "grn" ? "'" + Url.Action("ReadBill") + "'" : "null"), learnBill: @Html.Raw(k is "po" or "grn" ? "'" + Url.Action("LearnBill") + "'" : "null") }
+            readBill: @Html.Raw(k is "po" or "grn" ? "'" + Url.Action("ReadBill") + "'" : "null"), learnBill: @Html.Raw(k is "po" or "grn" ? "'" + Url.Action("LearnBill") + "'" : "null"),
+            schemeFree: @Html.Raw(k is "po" or "grn" ? "'" + Url.Action("SchemeFree") + "'" : "null") }
 });
 // confirm / remarks prompts on the action buttons
 document.querySelectorAll('form[data-confirm], form[data-remarks]').forEach(f => f.addEventListener('submit', async e => {

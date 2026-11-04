@@ -73,6 +73,9 @@
                         <div class="col-md-3"><label class="form-label">Rx date</label><input id="rxDate" type="date" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")"></div>
                     </div>
                     <div class="pos-alerts mt-2 d-none" id="rxWarn"></div>
+                    @* SQLScripts/2406: the OPD prescription being dispensed, and clinical safety alerts *@
+                    <div class="mt-2 d-none" id="rxPanel"></div>
+                    <div class="mt-2 d-none" id="clinBox"></div>
                 </div>
             </div>
 
@@ -124,6 +127,12 @@
                         <tr><td>Taxable value</td><td id="tTax">0.00</td></tr>
                         <tr><td>CGST + SGST</td><td id="tGst">0.00</td></tr>
                         <tr><td>Round off</td><td id="tRound">0.00</td></tr>
+                        <tr class="d-none" id="loyRow"><td>Loyalty points
+                                <div class="small text-muted" id="loyInfo"></div>
+                                <div class="d-none mt-1" id="loyOtpBox"><div class="input-group input-group-sm" style="max-width:220px">
+                                    <button type="button" class="btn btn-outline-primary" id="loyOtpSend"><i class="bi bi-whatsapp me-1"></i>Send OTP</button>
+                                    <input id="loyOtp" class="form-control num" maxlength="6" inputmode="numeric" placeholder="OTP"></div></div></td>
+                            <td><input id="loyRedeem" type="number" min="0" step="1" value="0" class="form-control text-end ms-auto num" style="width:84px" title="Points to use on this bill"></td></tr>
                         <tr class="sep"><td>Bill discount %
                                 <div class="small text-muted">max @set.MaxManualDiscountPercent.ToString("0.##")%@(canDiscount ? " without approval" : "")</div></td>
                             <td><input id="billDisc" type="number" min="0" max="100" step="0.5" value="0" class="form-control text-end ms-auto num" style="width:84px"></td></tr>
@@ -141,6 +150,8 @@
                         <button type="button" data-q="exact">Exact</button><button type="button" data-q="100">₹100</button><button type="button" data-q="200">₹200</button>
                         <button type="button" data-q="500">₹500</button><button type="button" data-q="2000">₹2000</button>
                     </div>
+                    <div class="mb-2 d-none" id="creditRefBox"><label class="form-label small mb-0" id="creditRefLbl">Employee ID / authorisation no.</label>
+                        <input id="creditRef" class="form-control form-control-sm" maxlength="60" placeholder="Needed for credit"></div>
                     <div id="pays"></div>
                     <div class="pos-due mt-1"><span>Paid</span><b class="money" id="tPaid">0.00</b></div>
                     <div class="pos-due"><span id="dueLbl">Balance</span><b class="money" id="tDue">0.00</b></div>
@@ -177,14 +188,17 @@
 
 @Html.AntiForgeryToken()
 @section Scripts {
+<script src="~/js/ph-gs1.js" asp-append-version="true"></script>
 <script src="~/js/pharmacy-pos.js" asp-append-version="true"></script>
 <script>
 PhPos({
-    settings: @Html.Raw(J(new { set.MaxManualDiscountPercent, set.RoundOffBill, set.MinShelfLifeSaleDays })),
+    settings: @Html.Raw(J(new { set.MaxManualDiscountPercent, set.RoundOffBill, set.MinShelfLifeSaleDays, set.Gs1ScanEnabled, set.SplitPaymentEnabled, set.SubstituteSuggest,
+        set.RxLinkEnabled, set.ClinicalChecksEnabled, set.MajorInteractionBlock, set.LoyaltyEnabled, set.LoyaltyPointValue, set.LoyaltyMinRedeem, set.LoyaltyMaxRedeemPercent, set.RefillReminderEnabled, set.LoyaltyType, set.LoyaltyDiscountPercent, set.LoyaltyWalkinByMobile, set.LoyaltyRedeemOtp })),
     branchId: @(User.GetCurrentBranchId() ?? 0), canDiscount: @(canDiscount ? "true" : "false"), canCredit: @(canCredit ? "true" : "false"), recall: @Html.Raw(J(ViewBag.Recall)),
     urls: { items: '@Url.Action("ItemSearch")', batches: '@Url.Action("Batches")', price: '@Url.Action("PriceFor")', patients: '@Url.Action("Patients")',
             customers: '@Url.Action("Customers")', doctors: '@Url.Action("Doctors")', held: '@Url.Action("Held")', recall: '@Url.Action("Recall")', save: '@Url.Action("Save")',
-            hold: '@Url.Action("Hold")', discard: '@Url.Action("DiscardHold")', print: '@Url.Action("Print")', bill: '@Url.Action("Bill")' }
+            hold: '@Url.Action("Hold")', discard: '@Url.Action("DiscardHold")', print: '@Url.Action("Print")', bill: '@Url.Action("Bill")',
+            rxList: '@Url.Action("RxList")', rxLines: '@Url.Action("RxLines")', clinical: '@Url.Action("ClinicalCheck")', loyalty: '@Url.Action("Loyalty")', loyaltyOtp: '@Url.Action("LoyaltyOtp")', walkin: '@Url.Action("WalkinByMobile")' }
 });
 </script>
 }

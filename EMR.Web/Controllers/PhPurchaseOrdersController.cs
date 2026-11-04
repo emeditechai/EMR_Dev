@@ -24,7 +24,9 @@ public class PhPurchaseOrdersController(IPharmacyPurchaseService purchase, IAudi
             if (indentId != null)
             {
                 d.RefId = indentId;
-                d.RefNo = (await Purchase.GetAsync("indent", CompanyId, BranchId, indentId.Value))?.DocNo;
+                var ind = await Purchase.GetAsync("indent", CompanyId, BranchId, indentId.Value);
+                d.RefNo = ind?.DocNo;
+                d.SupplierId = ind?.SupplierId;   // SQLScripts/2413: the order starts on the indent's supplier
                 d.Lines = await Purchase.IndentLinesForPoAsync(CompanyId, BranchId, indentId.Value);
                 if (d.Lines.Count == 0) { TempData["Error"] = "The indent is not approved or is already ordered."; return RedirectToAction(nameof(Index)); }
             }

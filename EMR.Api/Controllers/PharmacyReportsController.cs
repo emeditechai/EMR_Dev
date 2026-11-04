@@ -37,6 +37,7 @@ public class PharmacyReportsController(IPharmacyProcService ph) : ControllerBase
         ["supplier-ageing"] = "dbo.usp_PhRpt_SupplierAgeing",
         ["supplier-payments"] = "dbo.usp_PhRpt_SupplierPayments",
         ["rate-variation"] = "dbo.usp_PhRpt_RateVariation",
+        ["scheme-margin"] = "dbo.usp_PhRpt_SchemeMargin",
         ["indent-turnaround"] = "dbo.usp_PhRpt_IndentTurnaround",
         // stock & inventory (SQLScripts/2363)
         ["current-stock"] = "dbo.usp_PhRpt_CurrentStock",
@@ -47,6 +48,8 @@ public class PharmacyReportsController(IPharmacyProcService ph) : ControllerBase
         ["non-moving"] = "dbo.usp_PhRpt_NonMoving",
         ["abc-analysis"] = "dbo.usp_PhRpt_AbcAnalysis",
         ["fsn-analysis"] = "dbo.usp_PhRpt_FsnAnalysis",
+        ["abc-ved"] = "dbo.usp_PhRpt_AbcVed",
+        ["dead-stock"] = "dbo.usp_PhRpt_DeadStock",
         ["transfers"] = "dbo.usp_PhRpt_Transfers",
         ["adjustments"] = "dbo.usp_PhRpt_Adjustments",
         ["count-variance"] = "dbo.usp_PhRpt_CountVariance",
