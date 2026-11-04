@@ -15,6 +15,7 @@ public interface IPhleboService
     Task<int> SaveDocumentAsync(PhleboCaller caller, int? visitId, string docType, IFormFile file, string? remarks);
     Task<object> VisitsAsync(PhleboCaller caller, DateTime? date);
     Task<object?> VisitAsync(PhleboCaller caller, int visitId);
+    Task<object> RouteAsync(PhleboCaller caller, int visitId, double latitude, double longitude);
     Task<object?> VisitEventAsync(PhleboCaller caller, int visitId, PhleboEventRequest request);
     Task SendOtpAsync(PhleboCaller caller, int visitId);
     Task VerifyAsync(PhleboCaller caller, int visitId, PhleboVerifyRequest request);

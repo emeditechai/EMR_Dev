@@ -48,8 +48,8 @@ public sealed class PasswordOtpService(
             return;
         }
 
-        var result = await whatsApp.SendAsync(user.BranchId.Value, user.Mobile,
-            $"Dear {user.FullName}, your eCare360Plus password reset code is {code}. It is valid for {CodeMinutes} minutes. Do not share it with anyone.");
+        var text = $"Dear {user.FullName}, your eCare360Plus password reset code is {code}. It is valid for {CodeMinutes} minutes. Do not share it with anyone.";
+        var result = await whatsApp.SendAsync(user.BranchId.Value, user.Mobile, text, "PWD_OTP", user.Id, logText: text.Replace(code, "******"));
         if (result != WhatsAppSendResult.Sent) logger.LogWarning("[PASSWORD-OTP] Code not sent to user {UserId}: {Result}", user.Id, result);
     }
 

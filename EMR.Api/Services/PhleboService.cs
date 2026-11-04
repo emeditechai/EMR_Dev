@@ -15,6 +15,7 @@ public sealed class PhleboService(
     IConfiguration configuration,
     IWebHostEnvironment environment,
     IWhatsAppTextSender whatsApp,
+    IHttpClientFactory httpClientFactory,
     ILogger<PhleboService> logger) : IPhleboService
 {
     private static readonly HashSet<string> VisitDocTypes = new(StringComparer.OrdinalIgnoreCase) { "PRESCRIPTION", "CONSENT", "ID_PROOF", "SIGNATURE" };
@@ -97,6 +98,54 @@ public sealed class PhleboService(
         return Camel(await con.QueryAsync("dbo.usp_Phlebo_Visit_List", new { c.UserId, Date = date?.Date }, commandType: CommandType.StoredProcedure));
     }
 
+    /// <summary>The road route from the phone to the patient for the in-app map, from an OSRM routing server
+    /// (Routing:OsrmUrl, by default the free public OpenStreetMap one, which has fair-use limits and no key).</summary>
+    public async Task<object> RouteAsync(PhleboCaller c, int visitId, double latitude, double longitude)
+    {
+        using var con = db.CreateConnection();
+        var to = await con.QueryFirstOrDefaultAsync<(decimal? Lat, decimal? Lng)>(
+            "SELECT Latitude, Longitude FROM dbo.LabHomeVisit WHERE VisitId = @visitId AND PhlebotomistId = @UserId", new { visitId, c.UserId });
+        if (to.Lat is null || to.Lng is null) throw new PhleboRuleException("This address has no map location saved. Ask the office to add it on the bill.");
+
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var server = (configuration["Routing:OsrmUrl"] is { Length: > 0 } u ? u : "https://router.project-osrm.org").TrimEnd('/');
+        var url = $"{server}/route/v1/driving/{longitude.ToString(inv)},{latitude.ToString(inv)};{to.Lng.Value.ToString(inv)},{to.Lat.Value.ToString(inv)}"
+                  + "?overview=full&geometries=polyline";
+        try
+        {
+            var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(20);
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.UserAgent.ParseAdd("eCare360Plus-PhlebotomistApp/1.0");
+            var response = await client.SendAsync(request);
+            var text = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(text);
+            var root = doc.RootElement;
+            var code = root.TryGetProperty("code", out var cd) ? cd.GetString() : null;
+            if (code == "NoRoute") throw new PhleboRuleException("No road route was found to this address.");
+            if (!response.IsSuccessStatusCode || code != "Ok" || root.GetProperty("routes").GetArrayLength() == 0)
+            {
+                logger.LogWarning("[PHLEBO] Routing answered {Status} {Code}", (int)response.StatusCode, code);
+                throw new PhleboRuleException("The route could not be loaded. Try again.");
+            }
+            var r = root.GetProperty("routes")[0];
+            var metres = r.GetProperty("distance").GetDouble();
+            var minutes = Math.Max(1, (int)Math.Round(r.GetProperty("duration").GetDouble() / 60));
+            return new
+            {
+                points = r.GetProperty("geometry").GetString(),
+                distance = metres >= 1000 ? $"{metres / 1000:0.0} km" : $"{metres:0} m",
+                duration = minutes >= 60 ? $"{minutes / 60} h {minutes % 60} min" : $"{minutes} min",
+                latitude = to.Lat, longitude = to.Lng
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "[PHLEBO] Route not loaded for visit {VisitId}", visitId);
+            throw new PhleboRuleException("The route could not be loaded. Try again.");
+        }
+    }
+
     public async Task<object?> VisitAsync(PhleboCaller c, int visitId)
     {
         using var con = db.CreateConnection();
@@ -126,15 +175,20 @@ public sealed class PhleboService(
             new { c.UserId, VisitId = visitId, OtpHash = HashOtp(visitId, code), Expires = DateTime.Now.Add(OtpLife) }, commandType: CommandType.StoredProcedure);
         if (to is null) throw new PhleboRuleException("The patient has no mobile number.");
 
-        var result = await whatsApp.SendAsync(to.BranchId, to.PhoneNumber,
-            $"Dear {to.FirstName}, your home sample collection code is {code}. Share it with the phlebotomist at your door. It is valid for {OtpLife.TotalMinutes:0} minutes.");
-        if (result == WhatsAppSendResult.NotConfigured)
-            throw new PhleboRuleException("WhatsApp is not set up for this branch. Use the patient's ID proof instead.");
-        if (result == WhatsAppSendResult.Failed)
+        var text = $"Dear {to.FirstName}, your home sample collection code is {code}. Share it with the phlebotomist at your door. It is valid for {OtpLife.TotalMinutes:0} minutes.";
+        var result = await whatsApp.SendAsync(to.BranchId, to.PhoneNumber, text, "PHLEBO_OTP", visitId, logText: text.Replace(code, "****"));
+        if (result != WhatsAppSendResult.Sent) logger.LogWarning("[PHLEBO] OTP not sent for visit {VisitId}: {Result}", visitId, result);
+        // the phlebotomist sees why, and can verify by ID proof instead
+        string? why = result switch
         {
-            logger.LogWarning("[PHLEBO] OTP not sent for visit {VisitId}", visitId);
-            throw new PhleboRuleException("The code could not be sent. Try again, or use the patient's ID proof.");
-        }
+            WhatsAppSendResult.NotConfigured => "WhatsApp is not set up for this branch. Use the patient's ID proof instead.",
+            WhatsAppSendResult.InvalidNumber => "The patient's mobile number is not a valid number. Use the patient's ID proof, and ask the office to correct the number.",
+            WhatsAppSendResult.NotOnWhatsApp => "The patient's mobile number is not on WhatsApp. Use the patient's ID proof instead.",
+            WhatsAppSendResult.Busy => "WhatsApp is busy. Wait a few seconds and tap Send code again, or use the patient's ID proof.",
+            WhatsAppSendResult.Failed => "The code could not be sent. Try again, or use the patient's ID proof.",
+            _ => null
+        };
+        if (why is not null) throw new PhleboRuleException(why);
     }
 
     public async Task VerifyAsync(PhleboCaller c, int visitId, PhleboVerifyRequest r)

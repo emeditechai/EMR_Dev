@@ -4,34 +4,84 @@
     {
       "name": "emr-api",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "EMR.Api/EMR.Api.csproj", "--launch-profile", "https"],
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "EMR.Api/EMR.Api.csproj",
+        "--launch-profile",
+        "https"
+      ],
       "port": 5125,
       "url": "https://localhost:5125"
     },
     {
       "name": "emr-api-http",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "EMR.Api/EMR.Api.csproj", "--launch-profile", "http"],
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "EMR.Api/EMR.Api.csproj",
+        "--launch-profile",
+        "http"
+      ],
       "port": 5201
     },
     {
       "name": "mobile-metro",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "export PATH=/opt/homebrew/bin:$PATH; cd '../EMR_Dev_Mob ile_App/EMRPatientApp' && npx react-native start"],
+      "runtimeArgs": [
+        "-c",
+        "export PATH=/opt/homebrew/bin:$PATH; cd '../EMR_Dev_Mob ile_App/EMRPatientApp' && npx react-native start"
+      ],
       "port": 8081
     },
     {
       "name": "emr-web-5127",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "ASPNETCORE_ENVIRONMENT=Development /usr/local/share/dotnet/dotnet run --project EMR.Web/EMR.Web.csproj --no-launch-profile --urls http://localhost:5127"],
+      "runtimeArgs": [
+        "-c",
+        "ASPNETCORE_ENVIRONMENT=Development /usr/local/share/dotnet/dotnet run --project EMR.Web/EMR.Web.csproj --no-launch-profile --urls http://localhost:5127"
+      ],
       "port": 5127,
       "autoPort": false
     },
     {
       "name": "emr-web",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "EMR.Web/EMR.Web.csproj", "--launch-profile", "http"],
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "EMR.Web/EMR.Web.csproj",
+        "--launch-profile",
+        "http"
+      ],
       "port": 5124
+    },
+    {
+      "name": "emr-web-5129",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd EMR.Web && ASPNETCORE_ENVIRONMENT=Development /usr/local/share/dotnet/dotnet bin/Debug/net9.0/EMR.Web.dll --urls http://localhost:5129"
+      ],
+      "port": 5129,
+      "autoPort": false
+    },
+    {
+      "name": "emr-api-5125",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--no-build",
+        "--project",
+        "EMR.Api/EMR.Api.csproj",
+        "--launch-profile",
+        "https",
+        "--urls",
+        "https://localhost:5125"
+      ],
+      "port": 5125,
+      "url": "https://localhost:5125"
     }
   ]
 }

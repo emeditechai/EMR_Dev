@@ -90,6 +90,11 @@ public sealed class PhleboController(IPhleboService phlebo, ILogger<PhleboContro
     public Task<IActionResult> Documents(int id, [FromForm] string docType, IFormFile file, [FromForm] string? remarks) => Run(async c =>
         Ok(new { success = true, documentId = await phlebo.SaveDocumentAsync(c, id, docType, file, remarks) }));
 
+    // the in-app map: the road route from the phone's position to the patient
+    [HttpGet("visits/{id:int}/route")]
+    public Task<IActionResult> Route(int id, [FromQuery] double lat, [FromQuery] double lng) => Run(async c =>
+        Ok(new { success = true, route = await phlebo.RouteAsync(c, id, lat, lng) }));
+
     [HttpGet("visits/{id:int}/tests")]
     public Task<IActionResult> SearchTests(int id, [FromQuery] string search) => Run(async c =>
         Ok(new { success = true, tests = await phlebo.SearchTestsAsync(c, id, search ?? "") }));
