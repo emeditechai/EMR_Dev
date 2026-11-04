@@ -26391,6 +26391,383 @@
    "type": "datetime2"
   },
   {
+   "col": "BarcodeId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 8,
+   "nullable": false,
+   "ord": 1,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "bigint"
+  },
+  {
+   "col": "SeriesId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "int"
+  },
+  {
+   "col": "PhlebotomistId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "int"
+  },
+  {
+   "col": "BarcodeNo",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 100,
+   "nullable": false,
+   "ord": 4,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "nvarchar"
+  },
+  {
+   "col": "SequenceNo",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "int"
+  },
+  {
+   "col": "Status",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 6,
+   "prec": 3,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "tinyint"
+  },
+  {
+   "col": "LabOrderId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 7,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "int"
+  },
+  {
+   "col": "SamplecollectionID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 8,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "bigint"
+  },
+  {
+   "col": "UsedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 9,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "int"
+  },
+  {
+   "col": "UsedDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 10,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "datetime"
+  },
+  {
+   "col": "VoidedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 11,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "int"
+  },
+  {
+   "col": "VoidedDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 12,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "datetime"
+  },
+  {
+   "col": "VoidReason",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 1000,
+   "nullable": true,
+   "ord": 13,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodePool",
+   "type": "nvarchar"
+  },
+  {
+   "col": "SeriesId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "PhlebotomistId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "SeriesCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 40,
+   "nullable": false,
+   "ord": 5,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "nvarchar"
+  },
+  {
+   "col": "FinancialYear",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 20,
+   "nullable": false,
+   "ord": 6,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "nvarchar"
+  },
+  {
+   "col": "StartNumber",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 7,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "EndNumber",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 8,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "Quantity",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 9,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "Status",
+   "def": "('Active')",
+   "descr": null,
+   "ident": false,
+   "len": 40,
+   "nullable": false,
+   "ord": 10,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "nvarchar"
+  },
+  {
+   "col": "SampleCategoryCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 20,
+   "nullable": true,
+   "ord": 11,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "nvarchar"
+  },
+  {
+   "col": "GeneratedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 12,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "GeneratedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 13,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "datetime"
+  },
+  {
+   "col": "CancelledBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 14,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "int"
+  },
+  {
+   "col": "CancelledDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 15,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "datetime"
+  },
+  {
+   "col": "CancelReason",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 1000,
+   "nullable": true,
+   "ord": 16,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabPhleboBarcodeSeries",
+   "type": "nvarchar"
+  },
+  {
    "col": "Detail_ID",
    "def": null,
    "descr": null,
@@ -36958,6 +37335,136 @@
    "scale": 0,
    "tbl": "PhCustomer",
    "type": "int"
+  },
+  {
+   "col": "AdjustId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "int"
+  },
+  {
+   "col": "PaymentId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "int"
+  },
+  {
+   "col": "ReturnId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "int"
+  },
+  {
+   "col": "GrnId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 6,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "int"
+  },
+  {
+   "col": "Amount",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 9,
+   "nullable": false,
+   "ord": 7,
+   "prec": 14,
+   "scale": 2,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "decimal"
+  },
+  {
+   "col": "Status",
+   "def": "('POSTED')",
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": false,
+   "ord": 8,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "varchar"
+  },
+  {
+   "col": "CreatedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 9,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "int"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 10,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PhDebitNoteAdjust",
+   "type": "datetime"
   },
   {
    "col": "SchemeId",
@@ -53744,7 +54251,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-03T22:26:13",
+ "extracted_on": "2026-11-04T11:22:01",
  "fk": [
   {
    "col": "LedgerId",
@@ -53920,6 +54427,20 @@
    "rcol": "Id",
    "rtbl": "Users",
    "tbl": "AuditLogs"
+  },
+  {
+   "col": "EventCode",
+   "fk": "FK_AuditNotifyEventSetting_Event",
+   "rcol": "EventCode",
+   "rtbl": "AuditNotifyEvent",
+   "tbl": "AuditNotifyEventSetting"
+  },
+  {
+   "col": "EventCode",
+   "fk": "FK_AuditNotifyRecipient_Event",
+   "rcol": "EventCode",
+   "rtbl": "AuditNotifyEvent",
+   "tbl": "AuditNotifyRecipient"
   },
   {
    "col": "InvoiceId",
@@ -55103,6 +55624,13 @@
    "rcol": "Misc_Charge_ID",
    "rtbl": "LabMiscChargeMaster",
    "tbl": "LabOrderMiscCharge"
+  },
+  {
+   "col": "SeriesId",
+   "fk": "FK_LabPhleboBarcodePool_Series",
+   "rcol": "SeriesId",
+   "rtbl": "LabPhleboBarcodeSeries",
+   "tbl": "LabPhleboBarcodePool"
   },
   {
    "col": "RateCard_ID",
@@ -57133,6 +57661,31 @@
    "tbl": "AuditLogs"
   },
   {
+   "col": "EventCode",
+   "k": 1,
+   "tbl": "AuditNotifyEvent"
+  },
+  {
+   "col": "BranchId",
+   "k": 1,
+   "tbl": "AuditNotifyEventSetting"
+  },
+  {
+   "col": "EventCode",
+   "k": 2,
+   "tbl": "AuditNotifyEventSetting"
+  },
+  {
+   "col": "LogId",
+   "k": 1,
+   "tbl": "AuditNotifyLog"
+  },
+  {
+   "col": "RecipientId",
+   "k": 1,
+   "tbl": "AuditNotifyRecipient"
+  },
+  {
    "col": "Log_ID",
    "k": 1,
    "tbl": "AuthorizationDecisionLog"
@@ -58003,6 +58556,16 @@
    "tbl": "LabParameterOptionMaster"
   },
   {
+   "col": "BarcodeId",
+   "k": 1,
+   "tbl": "LabPhleboBarcodePool"
+  },
+  {
+   "col": "SeriesId",
+   "k": 1,
+   "tbl": "LabPhleboBarcodeSeries"
+  },
+  {
    "col": "Detail_ID",
    "k": 1,
    "tbl": "LabRateCardDetail"
@@ -58351,6 +58914,11 @@
    "col": "CustomerId",
    "k": 1,
    "tbl": "PhCustomer"
+  },
+  {
+   "col": "AdjustId",
+   "k": 1,
+   "tbl": "PhDebitNoteAdjust"
   },
   {
    "col": "SchemeId",
@@ -59055,6 +59623,10 @@
   "ApprovalRequest",
   "AreaMaster",
   "AuditLogs",
+  "AuditNotifyEvent",
+  "AuditNotifyEventSetting",
+  "AuditNotifyLog",
+  "AuditNotifyRecipient",
   "AuthorizationDecisionLog",
   "B2BInvoice",
   "B2BInvoiceItem",
@@ -59221,6 +59793,8 @@
   "LabOrganismMaster",
   "LabOutsourceTracking",
   "LabParameterOptionMaster",
+  "LabPhleboBarcodePool",
+  "LabPhleboBarcodeSeries",
   "LabRateCardDetail",
   "LabRateCardMaster",
   "LabReferenceRangeMaster",
@@ -59287,6 +59861,7 @@
   "PhBillItemAlias",
   "PhCategory",
   "PhCustomer",
+  "PhDebitNoteAdjust",
   "PhDiscountScheme",
   "PhDosageForm",
   "PhDrugSchedule",
@@ -59535,6 +60110,11 @@
    "cols": "AreaCode",
    "idx": "UQ_AreaCode",
    "tbl": "AreaMaster"
+  },
+  {
+   "cols": "BranchId, EventCode, UserId",
+   "idx": "UQ_AuditNotifyRecipient",
+   "tbl": "AuditNotifyRecipient"
   },
   {
    "cols": "InvoiceNo",
@@ -59900,6 +60480,16 @@
    "cols": "Option_Code",
    "idx": "UX_LabParameterOptionMaster_Code",
    "tbl": "LabParameterOptionMaster"
+  },
+  {
+   "cols": "BarcodeNo",
+   "idx": "UQ_LabPhleboBarcodePool_No",
+   "tbl": "LabPhleboBarcodePool"
+  },
+  {
+   "cols": "SeriesCode",
+   "idx": "UQ_LabPhleboBarcodeSeries_Code",
+   "tbl": "LabPhleboBarcodeSeries"
   },
   {
    "cols": "LabOrderId, Rule_ID",

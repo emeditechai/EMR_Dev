@@ -160,5 +160,16 @@
   ],
   "date": "03 Nov 2026",
   "version": "1.11"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabPhleboBarcodePool (13 columns, module not yet grouped)",
+   "New table LabPhleboBarcodeSeries (16 columns, module not yet grouped)",
+   "New table PhDebitNoteAdjust (10 columns, module not yet grouped)",
+   "New foreign key LabPhleboBarcodePool.SeriesId -> LabPhleboBarcodeSeries.SeriesId"
+  ],
+  "date": "04 Nov 2026",
+  "version": "1.12"
  }
 ]
