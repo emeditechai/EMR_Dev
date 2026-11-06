@@ -315,6 +315,7 @@
                                             </div>
                                             <div class="fs-9 text-muted mt-1 fw-semibold">
                                                 <span class="badge @overallBadge fs-9">@h.CollectedCount/@h.TotalTests Collected</span>
+                                                @if (h.WithPhlebotomistCount > 0) { <span class="badge bg-info-subtle text-info-emphasis border fs-9 ms-1" title="Collected by the phlebotomist; not handed over to the lab yet"><i class="bi bi-person-walking me-1"></i>@h.WithPhlebotomistCount with phlebotomist</span> }
                                             </div>
                                             <div class="mt-1">
                                                 @{
@@ -1415,7 +1416,9 @@
                                      <button type="button" class="btn btn-outline-primary btn-validate-manual-barcode" data-sample-id="${test.samplecollectionID}" title="Validate"><i class="bi bi-check2"></i></button>
                                    </div>
                                    <div class="fs-9 manual-barcode-feedback mt-1" data-sample-id="${test.samplecollectionID}"></div>`
-                                : `<span class="badge bg-warning-subtle text-dark border border-warning-subtle fs-9"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`);
+                                : (test.awaitingHandover
+                                    ? `<span class="badge bg-info-subtle text-info-emphasis border fs-9" title="Collected by the phlebotomist; not handed over to the lab yet"><i class="bi bi-person-walking me-1"></i>With phlebotomist</span>`
+                                    : `<span class="badge bg-warning-subtle text-dark border border-warning-subtle fs-9"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`));
 
                         let statusOptionsHtml = '';
                         statuses.forEach(st => {
@@ -1468,6 +1471,11 @@
                                     </div>
                                 </div>
                             `;
+                        } else if (test.awaitingHandover) {
+                            // 2418: collected by the phlebotomist (app), not handed over to the lab yet - nothing to do here
+                            statusCellHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1 fs-9 fw-semibold" title="Collected by the phlebotomist; shown as collected once the app marks it handed over">
+                                    <i class="bi bi-person-walking me-1"></i>With phlebotomist</span>`;
+                            actionCellHtml = `<div class="fs-9 text-muted"><i class="bi bi-hourglass-split me-1"></i>Awaiting hand-over</div>`;
                         } else {
                             statusCellHtml = `
                                 <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!canEditTest ? 'disabled' : ''}>
@@ -2346,6 +2354,7 @@
                                 </div>
                                 <div class="fs-9 text-muted mt-1 fw-semibold">
                                     <span class="badge ${overallBadge} fs-9">${h.collectedCount}/${h.totalTests} Collected</span>
+                                    ${h.withPhlebotomistCount > 0 ? `<span class="badge bg-info-subtle text-info-emphasis border fs-9 ms-1" title="Collected by the phlebotomist; not handed over to the lab yet"><i class="bi bi-person-walking me-1"></i>${h.withPhlebotomistCount} with phlebotomist</span>` : ''}
                                 </div>
                                 <div class="mt-1">
                                     ${typeBadge}
