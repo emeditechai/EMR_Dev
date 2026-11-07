@@ -298,6 +298,7 @@ builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiCli
 builder.Services.AddScoped<ILabFranchiseBarcodeApiClient,     LabFranchiseBarcodeApiClient>();
 builder.Services.AddScoped<ILabPhleboBarcodeApiClient,        LabPhleboBarcodeApiClient>();
 builder.Services.AddScoped<PharmacyItemImport>();   // SQLScripts/2411
+builder.Services.AddScoped<IFranchiseLoginService, FranchiseLoginService>();
 builder.Services.AddScoped<ILabBulkUploadApiClient,           LabBulkUploadApiClient>();
 builder.Services.AddScoped<ILabReferenceRangeApiClient,        LabReferenceRangeApiClient>();
 builder.Services.AddScoped<ILabFormulaParameterApiClient,      LabFormulaParameterApiClient>();
