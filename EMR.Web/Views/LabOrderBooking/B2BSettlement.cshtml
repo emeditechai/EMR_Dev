@@ -37,6 +37,20 @@
             background: #fff;
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
+        /* settle by invoice (default): the invoice row is ticked and its amount is spread over its bills */
+        .table-bills tbody tr.inv-row td { background:#f1f5ff; border-top:2px solid #c7d2fe; }
+        .table-bills tbody tr.inv-row.selected-row td { background:#e0f2e9; }
+        .table-bills tbody tr.bill-child td { font-size:.85rem; }
+        .table-bills tbody tr.bill-child td:nth-child(2) { padding-left:1.6rem; }
+        .mode-inv .bill-child .chk-bill-row, .mode-inv .bill-child .inp-settle-amt { pointer-events:none; opacity:.6; }
+        .mode-bill .inv-row .chk-inv, .mode-bill .inv-row .inp-inv-amt { display:none; }
+        /* by invoice: bills collapsed under their invoice until opened */
+        .mode-inv .bill-child { display:none; }
+        .mode-inv .bill-child.open { display:table-row; }
+        .inv-toggle { border:0; background:none; padding:0 .35rem 0 0; color:#64748b; line-height:1; }
+        .inv-toggle i { transition:transform .15s; display:inline-block; }
+        .inv-row.expanded .inv-toggle i { transform:rotate(90deg); }
+        .mode-bill .inv-toggle { display:none; }
         .table-bills tbody tr.selected-row {
             background-color: #eff6ff !important;
         }
@@ -148,6 +162,12 @@
                 <span class="badge bg-primary" id="lblBillCount">0 Bills</span>
             </div>
             <div class="d-flex align-items-center gap-2">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Settle by">
+                    <input type="radio" class="btn-check" name="settleMode" id="modeInv" value="INV" checked onchange="setSettleMode('INV')">
+                    <label class="btn btn-outline-primary" for="modeInv" title="Tick an invoice; its amount is spread over its bills (oldest first)"><i class="bi bi-file-earmark-text me-1"></i>By invoice</label>
+                    <input type="radio" class="btn-check" name="settleMode" id="modeBill" value="BILL" onchange="setSettleMode('BILL')">
+                    <label class="btn btn-outline-primary" for="modeBill" title="Tick and pay bill by bill"><i class="bi bi-receipt me-1"></i>By bill</label>
+                </div>
                 <button type="button" class="btn btn-sm btn-outline-primary" id="btnSelectAll">
                     <i class="bi bi-check-all me-1"></i>Select All
                 </button>
@@ -158,7 +178,7 @@
         </div>
 
         <div class="table-responsive" style="min-height:220px; max-height:520px; overflow-y:auto;">
-            <table class="table table-hover align-middle mb-0 table-bills" id="tblOutstandingBills">
+            <table class="table table-hover align-middle mb-0 table-bills mode-inv" id="tblOutstandingBills">
                 <thead class="table-light sticky-top" style="z-index:5;">
                     <tr class="small text-uppercase text-secondary">
                         <th style="width:40px;" class="text-center">
@@ -290,6 +310,8 @@
         var currentAgentType = '@selectedAgentType';
         var currentAgentId = @selectedAgentId;
         var loadedBills = [];
+        var settleMode = 'INV';
+        var preselectInvoiceId = @((int)(ViewBag.SelectedInvoiceId ?? 0));
 
         $(document).ready(function() {
             $('.s2-basic').select2({ theme: 'bootstrap-5', width: '100%' });
@@ -305,13 +327,11 @@
             });
 
             $('#btnSelectAll').on('click', function() {
-                $('.chk-bill-row').prop('checked', true).trigger('change');
-                $('#chkMasterBills').prop('checked', true);
+                $('#chkMasterBills').prop('checked', true); toggleSelectAll($('#chkMasterBills')[0]);
             });
 
             $('#btnClearAll').on('click', function() {
-                $('.chk-bill-row').prop('checked', false).trigger('change');
-                $('#chkMasterBills').prop('checked', false);
+                $('#chkMasterBills').prop('checked', false); toggleSelectAll($('#chkMasterBills')[0]);
             });
 
             if (currentAgentId > 0) {
@@ -424,7 +444,48 @@
                 return;
             }
 
-            bills.forEach(function(b, idx) {
+            // group the bills under their invoice (oldest bill first inside an invoice)
+            var groups = [], byInv = {};
+            bills.forEach(function (b) {
+                var k = b.invoiceId ? 'I' + b.invoiceId : 'N';
+                if (!byInv[k]) { byInv[k] = { key: k, invoiceId: b.invoiceId, invoiceNo: b.invoiceNo, bills: [] }; groups.push(byInv[k]); }
+                byInv[k].bills.push(b);
+            });
+            $('#lblBillCount').text(`${groups.length} Invoice(s) · ${bills.length} Bill(s)`);
+            groups.forEach(function (g) {
+                g.bills.sort(function (a, b) { return new Date(a.orderDate) - new Date(b.orderDate) || a.labOrderId - b.labOrderId; });
+                var due = g.bills.reduce(function (m, b) { return !b.dueDate ? m : (!m || new Date(b.dueDate) < new Date(m) ? b.dueDate : m); }, null);
+                var sum = function (f) { return g.bills.reduce(function (t, b) { return t + (b[f] || 0); }, 0); };
+                var bal = sum('balanceDue'), over = g.bills.some(function (b) { return b.isOverdue; });
+                $tbody.append(`
+                    <tr class="inv-row" id="rowInv_${g.key}" data-key="${g.key}">
+                        <td class="text-center"><input class="form-check-input chk-inv" type="checkbox" data-key="${g.key}" onchange="onInvoiceCheck(this)" /></td>
+                        <td colspan="2"><button type="button" class="inv-toggle" onclick="toggleInvoiceBills('${g.key}')" title="Show / hide the bills"><i class="bi bi-chevron-right"></i></button>${g.invoiceNo
+                            ? `<a href="/LabOrderBooking/B2BInvoiceDetail/${g.invoiceId}" target="_blank" class="fw-bold font-monospace text-decoration-none"><i class="bi bi-file-earmark-text me-1"></i>${g.invoiceNo}</a>`
+                            : '<span class="fw-bold text-muted">Bills without an invoice</span>'}
+                            <div class="small text-muted"><a href="#" class="text-muted" onclick="toggleInvoiceBills('${g.key}'); return false;">${g.bills.length} bill(s)</a></div></td>
+                        <td class="small text-muted">${due ? new Date(due).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '--'}${over ? ' <span class="badge bg-danger" style="font-size:0.65rem;">Overdue</span>' : ''}</td>
+                        <td colspan="2"></td>
+                        <td class="text-end font-monospace small fw-semibold">₹ ${sum('billAmount').toFixed(2)}</td>
+                        <td class="text-end font-monospace small fw-semibold">₹ ${sum('paidAmount').toFixed(2)}</td>
+                        <td class="text-end font-monospace fw-bold text-danger">₹ ${bal.toFixed(2)}</td>
+                        <td class="text-end"><input type="number" step="0.01" min="0.01" max="${bal.toFixed(2)}" class="form-control form-control-sm text-end font-monospace fw-bold inp-inv-amt"
+                                   id="inpInv_${g.key}" data-key="${g.key}" value="${bal.toFixed(2)}" oninput="onInvoiceAmount(this)" disabled /></td>
+                    </tr>`);
+                g.bills.forEach(function (b) { renderBillRow(b, g.key); });
+            });
+
+            if (preselectInvoiceId) {
+                var $pre = $(`.chk-inv[data-key="I${preselectInvoiceId}"]`);
+                if ($pre.length) { $pre.prop('checked', true); onInvoiceCheck($pre[0]); $pre[0].closest('tr').scrollIntoView({ block: 'center' }); }
+                preselectInvoiceId = 0;
+            }
+            recalcTotals();
+        }
+
+        function renderBillRow(b, groupKey) {
+            var $tbody = $('#tblBillsBody');
+            (function () {
                 var orderDateStr = b.orderDate ? new Date(b.orderDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '--';
                 var dueDateStr = b.dueDate ? new Date(b.dueDate).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '--';
 
@@ -437,9 +498,9 @@
                     : '<span class="badge bg-light text-muted border" style="font-size:0.7rem;">Uninvoiced</span>';
 
                 var trHtml = `
-                    <tr id="rowBill_${b.labOrderId}">
+                    <tr id="rowBill_${b.labOrderId}" class="bill-child" data-group="${groupKey}">
                         <td class="text-center">
-                            <input class="form-check-input chk-bill-row" type="checkbox" data-orderid="${b.labOrderId}" data-due="${b.balanceDue}" onchange="onBillCheckChange(this)" />
+                            <input class="form-check-input chk-bill-row" type="checkbox" data-orderid="${b.labOrderId}" data-group="${groupKey}" data-due="${b.balanceDue}" onchange="onBillCheckChange(this)" />
                         </td>
                         <td>
                             <strong class="font-monospace text-primary small">${b.billNo}</strong>
@@ -463,13 +524,55 @@
                         </td>
                     </tr>`;
                 $tbody.append(trHtml);
-            });
+            })();
+        }
 
+        // ── settle by invoice ──
+        function setSettleMode(mode) {
+            settleMode = mode;
+            $('#tblOutstandingBills').toggleClass('mode-inv', mode === 'INV').toggleClass('mode-bill', mode === 'BILL');
+            $('.chk-inv').prop('checked', false); $('.inp-inv-amt').prop('disabled', true);
+            $('.inv-row').removeClass('selected-row');
+            $('.chk-bill-row').prop('checked', false).each(function () { onBillCheckChange(this); });
+            $('#chkMasterBills').prop('checked', false);
+        }
+        function toggleInvoiceBills(key, open) {
+            var $inv = $(`#rowInv_${key}`), show = open === undefined ? !$inv.hasClass('expanded') : open;
+            $inv.toggleClass('expanded', show);
+            $(`tr.bill-child[data-group="${key}"]`).toggleClass('open', show);
+        }
+
+        function onInvoiceCheck(chk) {
+            var key = $(chk).data('key'), on = chk.checked, $amt = $(`#inpInv_${key}`);
+            $(`#rowInv_${key}`).toggleClass('selected-row', on);
+            $amt.prop('disabled', !on);
+            if (!on) $amt.val(parseFloat($amt.attr('max')).toFixed(2));
+            spreadInvoice(key, on);
+        }
+        function onInvoiceAmount(inp) {
+            var max = parseFloat(inp.max) || 0, v = parseFloat(inp.value) || 0;
+            if (v > max) { inp.value = max.toFixed(2); }
+            spreadInvoice($(inp).data('key'), true);
+        }
+        // the invoice amount goes to its bills oldest first, each up to its balance
+        function spreadInvoice(key, on) {
+            var left = on ? (parseFloat($(`#inpInv_${key}`).val()) || 0) : 0;
+            $(`.chk-bill-row[data-group="${key}"]`).each(function () {
+                var id = $(this).data('orderid'), due = parseFloat($(this).data('due')) || 0;
+                var take = Math.min(due, Math.max(0, left)); left = Math.round((left - take) * 100) / 100;
+                $(this).prop('checked', on && take > 0);
+                onBillCheckChange(this);
+                $(`#inpAmt_${id}`).val((on && take > 0 ? take : due).toFixed(2));
+            });
             recalcTotals();
         }
 
         function toggleSelectAll(master) {
             var checked = $(master).is(':checked');
+            if (settleMode === 'INV') {
+                $('.chk-inv').prop('checked', checked).each(function () { onInvoiceCheck(this); });
+                return;
+            }
             $('.chk-bill-row').prop('checked', checked).each(function() {
                 onBillCheckChange(this);
             });

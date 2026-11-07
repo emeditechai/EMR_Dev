@@ -18,5 +18,6 @@ namespace EMR.Web.ApiClients
         Task<IEnumerable<OutstandingSettlementBillDto>> GetOutstandingBillsForSettlementAsync(string agentType, int agentId);
         Task<B2BSettleBillsResultDto?> SettleBillsPaymentAsync(B2BSettleBillsRequestDto request);
         Task<B2BSettlementReceiptDto?> GetSettlementReceiptAsync(string receiptNo);
+        Task<List<System.Text.Json.JsonElement>> GetInvoiceReceiptsAsync(int invoiceId);   // SQLScripts/2421
     }
 }

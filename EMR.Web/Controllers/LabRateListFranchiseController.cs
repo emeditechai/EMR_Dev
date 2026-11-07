@@ -98,6 +98,25 @@ public class LabRateListFranchiseController(
         }).ToList();
     }
 
+    /// <summary>Franchises of a branch that have no rate list there yet (active or not); the one being edited stays in the list.</summary>
+    private async Task<List<SelectListItem>> GetAvailableFranchiseListAsync(int branchId, int? keepId = null, int? excludeRateCardId = null)
+    {
+        var all = await GetActiveFranchiseListAsync(keepId);
+        try
+        {
+            var cards = await rateCardApi.GetListAsync(FranchiseRateType, branchId, null, User.GetCompanyId());
+            var taken = cards.Where(c => c.Branch_ID == branchId && c.RateCard_ID != (excludeRateCardId ?? 0) && c.B2CIdentity_ID.HasValue)
+                             .Select(c => c.B2CIdentity_ID!.Value.ToString()).ToHashSet();
+            return all.Where(f => !taken.Contains(f.Value) || f.Value == keepId?.ToString()).ToList();
+        }
+        catch { return all; }
+    }
+
+    /// <summary>For the form: the franchises that can still get a rate list in this branch.</summary>
+    [HttpGet]
+    public async Task<IActionResult> AvailableFranchises(int branchId, int? rateCardId, int? keepId) =>
+        Json((await GetAvailableFranchiseListAsync(branchId, keepId, rateCardId)).Select(f => new { value = f.Value, text = f.Text }));
+
     private async Task<List<SelectListItem>> GetActiveFranchiseListAsync(int? selectedId = null)
     {
         try
@@ -170,7 +189,7 @@ public class LabRateListFranchiseController(
 
         var branches = await GetBranchListAsync(currentBranchId);
         var sourceBranches = await GetBranchListAsync();
-        var franchises = await GetActiveFranchiseListAsync();
+        var franchises = await GetAvailableFranchiseListAsync(currentBranchId);
 
         var vm = new LabRateCardFormViewModel
         {
@@ -239,7 +258,7 @@ public class LabRateListFranchiseController(
             TempData["ErrorMessage"] = string.IsNullOrWhiteSpace(errors) ? "Please fill all required fields correctly." : errors;
             var isHO = CheckIsHOBranch();
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
-            vm.FranchiseList = new SelectList(await GetActiveFranchiseListAsync(vm.B2CIdentity_ID), "Value", "Text", vm.B2CIdentity_ID);
+            vm.FranchiseList = new SelectList(await GetAvailableFranchiseListAsync(vm.Branch_ID ?? 0, vm.B2CIdentity_ID, vm.RateCard_ID), "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceBranchList = new SelectList(await GetBranchListAsync(), "Value", "Text");
             vm.DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text");
             vm.CategoryList = new SelectList(await GetCategoryListAsync(), "Value", "Text");
@@ -274,6 +293,14 @@ public class LabRateListFranchiseController(
                 Details = details
             };
 
+            // one rate list per franchise and branch: a new one is refused when the franchise already has one here
+            if (!(vm.RateCard_ID > 0) && vm.B2CIdentity_ID.HasValue)
+            {
+                var existing = await rateCardApi.GetListAsync(FranchiseRateType, vm.Branch_ID, null, User.GetCompanyId());
+                if (existing.Any(x => x.Branch_ID == vm.Branch_ID && x.B2CIdentity_ID == vm.B2CIdentity_ID))
+                    throw new InvalidOperationException("This franchise already has a rate list for the selected branch. Edit that rate list instead.");
+            }
+
             var id = await rateCardApi.SaveAsync(req);
             TempData["SuccessMessage"] = "Franchise Rate Card saved successfully.";
             return RedirectToAction(nameof(Index));
@@ -284,7 +311,7 @@ public class LabRateListFranchiseController(
             TempData["ErrorMessage"] = ex.Message;
             var isHO = CheckIsHOBranch();
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
-            vm.FranchiseList = new SelectList(await GetActiveFranchiseListAsync(vm.B2CIdentity_ID), "Value", "Text", vm.B2CIdentity_ID);
+            vm.FranchiseList = new SelectList(await GetAvailableFranchiseListAsync(vm.Branch_ID ?? 0, vm.B2CIdentity_ID, vm.RateCard_ID), "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceBranchList = new SelectList(await GetBranchListAsync(), "Value", "Text");
             vm.DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text");
             vm.CategoryList = new SelectList(await GetCategoryListAsync(), "Value", "Text");

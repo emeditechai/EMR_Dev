@@ -208,6 +208,10 @@ namespace EMR.Api.Controllers
             }
         }
 
+        // SQLScripts/2421: the money receipts that paid an invoice's bills
+        [HttpGet("invoice/{invoiceId:int}/receipts")]
+        public async Task<IActionResult> GetInvoiceReceipts(int invoiceId) => Ok(await service.GetInvoiceReceiptsAsync(invoiceId));
+
         [HttpGet("settlement-receipt/{receiptNo}")]
         public async Task<IActionResult> GetSettlementReceipt(string receiptNo)
         {
