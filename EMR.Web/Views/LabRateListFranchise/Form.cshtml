@@ -279,7 +279,21 @@
         $('#Branch_ID').change(function() {
             var branchId = $(this).val();
             loadAllItems(branchId);
+            loadAvailableFranchises(branchId);
         });
+
+        // only franchises with no rate list yet in the chosen branch (the one being edited stays)
+        function loadAvailableFranchises(branchId) {
+            if (!branchId) return;
+            var $f = $('#B2CIdentity_ID'), keep = $f.val();
+            $.get('@Url.Action("AvailableFranchises")', { branchId: branchId, rateCardId: $('#RateCard_ID').val() || null, keepId: @(Model.RateCard_ID.HasValue ? (Model.B2CIdentity_ID?.ToString() ?? "null") : "null") }, function (list) {
+                var html = '<option value="">Select Franchise</option>';
+                list.forEach(function (f) { html += '<option value="' + f.value + '">' + $('<div>').text(f.text).html() + '</option>'; });
+                $f.html(html);
+                $f.val(list.some(function (f) { return f.value === keep; }) ? keep : '').trigger('change.select2');
+                if (!list.length) $f.next('.select2').attr('title', 'Every franchise already has a rate list in this branch');
+            });
+        }
 
         $('#chkEnableCopy').change(function() {
             if ($(this).is(':checked')) {

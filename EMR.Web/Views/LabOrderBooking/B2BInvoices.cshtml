@@ -64,6 +64,8 @@
         .iv-paybar { height: 4px; border-radius: 99px; background: #e2e8f0; overflow: hidden; margin-top: 4px; min-width: 70px; }
         .iv-paybar span { display: block; height: 100%; background: #16a34a; }
         .iv-act .btn { width: 32px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+        .iv-act .btn.dropdown-toggle { width: auto; padding: 0 .65rem; gap: .15rem; font-size: .8rem; }
+        .iv-act .dropdown-item { font-size: .85rem; }
 
         /* Generate-invoice modal: partner multi-select stays one line, a summary instead of a chip per partner;
            the chosen partners show as a slim, scrolling strip of removable chips under it */
@@ -276,22 +278,31 @@
                                 <td class="amt fw-bold @(inv.BalanceAmount > 0 ? "text-danger" : "text-muted")">₹@Math.Max(0, inv.BalanceAmount).ToString("N2")</td>
                                 <td class="text-center"><span class="iv-pill @pillCls">@pillText</span></td>
                                 <td class="text-end pe-3 iv-act text-nowrap">
-                                    <a asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:DETAILS" asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="btn btn-sm btn-outline-primary" title="View / print invoice">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    @if (inv.Status == "U" && inv.PaidAmount <= 0)
-                                    {
-                                        <button type="button" class="btn btn-sm btn-outline-danger" title="Cancel invoice" onclick="openCancelInvoice(@inv.InvoiceId, '@inv.InvoiceNo')"
-                                                asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:CANCEL" asp-permission-mode="hide">
-                                            <i class="bi bi-x-circle"></i>
+                                    @* Actions as one menu (2421): view / print, money receipts, record payment, cancel *@
+                                    <div class="dropdown">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
+                                            <i class="bi bi-three-dots-vertical me-1"></i>Actions
                                         </button>
-                                    }
-                                    @if (inv.Status != "P" && !isCancelled)
-                                    {
-                                        <a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@inv.PartnerType&agentId=@inv.PartnerId" asp-permission="LAB.LABORDERBOOKING.B2BSETTLEMENT:SETTLE" asp-permission-mode="hide" class="btn btn-sm btn-outline-success" title="Record payment (settlement)">
-                                            <i class="bi bi-wallet2"></i>
-                                        </a>
-                                    }
+                                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                            <li><a asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:DETAILS" asp-permission-mode="hide" asp-action="B2BInvoiceDetail" asp-encrypted-id="@inv.InvoiceId" class="dropdown-item">
+                                                <i class="bi bi-eye me-2 text-primary"></i>View / print invoice</a></li>
+                                            <li><button type="button" asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:DETAILS" asp-permission-mode="hide" class="dropdown-item"
+                                                        onclick="openReceipts(@inv.InvoiceId, '@inv.InvoiceNo', @inv.PaidAmount.ToString(System.Globalization.CultureInfo.InvariantCulture))">
+                                                <i class="bi bi-receipt me-2 text-success"></i>Money receipts@(inv.PaidAmount > 0 ? "" : " (none yet)")</button></li>
+                                            @if (inv.Status != "P" && !isCancelled)
+                                            {
+                                                <li><a asp-action="B2BSettlement" asp-encrypted-qs="agentType=@inv.PartnerType&agentId=@inv.PartnerId&invoiceId=@inv.InvoiceId" asp-permission="LAB.LABORDERBOOKING.B2BSETTLEMENT:SETTLE" asp-permission-mode="hide" class="dropdown-item">
+                                                    <i class="bi bi-wallet2 me-2 text-success"></i>Record payment (settlement)</a></li>
+                                            }
+                                            @if (inv.Status == "U" && inv.PaidAmount <= 0)
+                                            {
+                                                <li><hr class="dropdown-divider" /></li>
+                                                <li><button type="button" class="dropdown-item text-danger" onclick="openCancelInvoice(@inv.InvoiceId, '@inv.InvoiceNo')"
+                                                            asp-permission="LAB.LABORDERBOOKING.B2BINVOICES:CANCEL" asp-permission-mode="hide">
+                                                    <i class="bi bi-x-circle me-2"></i>Cancel invoice</button></li>
+                                            }
+                                        </ul>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -480,6 +491,25 @@
     </div>
 </div>
 
+<div class="modal fade" id="rcModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header py-2">
+                <h5 class="modal-title fw-bold"><i class="bi bi-receipt me-2 text-success"></i>Money receipts - <span class="font-monospace" id="rcNo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light"><tr><th class="ps-3">Receipt</th><th>Date</th><th>Mode</th><th>Reference</th><th class="text-end">For this invoice</th><th class="text-end">Receipt total</th><th class="text-end pe-3"></th></tr></thead>
+                    <tbody id="rcBody"></tbody>
+                    <tfoot class="table-light"><tr><td colspan="4" class="ps-3 fw-bold">Total received for this invoice</td><td class="text-end fw-bold" id="rcTotal"></td><td colspan="2"></td></tr></tfoot>
+                </table></div>
+                <div class="small text-muted px-3 py-2">A settlement receipt can pay bills of more than one invoice; "For this invoice" is the part applied here.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/sweetalert2/dist/sweetalert2.all.min.js"></script>
@@ -554,6 +584,33 @@
 
         // ── Cancel an invoice (2281) ──
         let _ciId = 0;
+        // Money receipts of an invoice (SQLScripts/2421)
+        function openReceipts(id, no) {
+            const money = v => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const esc = v => $('<div>').text(v ?? '').html();
+            $('#rcNo').text(no); $('#rcTotal').text('');
+            $('#rcBody').html('<tr><td colspan="7" class="text-center text-muted py-3">Loading…</td></tr>');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('rcModal')).show();
+            $.get('@Url.Action("B2BInvoiceReceipts")', { id: id }).done(function (r) {
+                if (!r.success) { $('#rcBody').html('<tr><td colspan="7" class="text-danger ps-3 py-3">' + esc(r.message) + '</td></tr>'); return; }
+                const list = r.receipts || [];
+                if (!list.length) { $('#rcBody').html('<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No payment received against this invoice yet.</td></tr>'); $('#rcTotal').text(money(0)); return; }
+                let total = 0;
+                $('#rcBody').html(list.map(function (x) {
+                    total += Number(x.AmountForInvoice || 0);
+                    const ref = [x.TransactionRef, x.BankName, x.ChequeNo ? 'Chq ' + x.ChequeNo : null].filter(Boolean).join(' · ');
+                    const url = '@Url.Action("PrintSettlementReceipt", "LabOrderBooking")?receiptNo=' + encodeURIComponent(x.ReceiptNo);
+                    return '<tr><td class="ps-3 font-monospace fw-semibold">' + esc(x.ReceiptNo) + '<div class="small text-muted">' + x.Bills + ' bill(s)' + (x.ReceivedBy ? ' · ' + esc(x.ReceivedBy) : '') + '</div></td>'
+                        + '<td>' + new Date(x.ReceiptDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + '</td>'
+                        + '<td>' + esc(x.PaymentMethod) + '</td><td class="small">' + esc(ref || '—') + '</td>'
+                        + '<td class="text-end fw-semibold text-success">' + money(x.AmountForInvoice) + '</td>'
+                        + '<td class="text-end">' + money(x.ReceiptTotal) + '</td>'
+                        + '<td class="text-end pe-3"><a class="btn btn-sm btn-outline-primary" target="_blank" href="' + url + '" title="Print receipt"><i class="bi bi-printer"></i></a></td></tr>';
+                }).join(''));
+                $('#rcTotal').text(money(total));
+            }).fail(function () { $('#rcBody').html('<tr><td colspan="7" class="text-danger ps-3 py-3">Could not load the receipts.</td></tr>'); });
+        }
+
         function openCancelInvoice(id, no) {
             _ciId = id;
             $('#ciNo').text(no);

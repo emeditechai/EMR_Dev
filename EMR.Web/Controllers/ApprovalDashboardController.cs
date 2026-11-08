@@ -28,7 +28,8 @@ public class ApprovalDashboardController(
     IAuditLogService auditLogService,
     IMasterApprovalService approvals,
     INotificationService notifications,
-    ILogger<ApprovalDashboardController> logger) : Controller
+    ILogger<ApprovalDashboardController> logger,
+    IFranchiseLoginService franchiseLogins) : Controller
 {
     private const string VisibleSql = @"
         r.CompanyId = @companyId AND r.Status <> 'X'
@@ -277,7 +278,10 @@ public class ApprovalDashboardController(
                 franchise.Franchise_ID = r.Entity_ID;
                 franchise.UserId = r.Requested_By;
                 await franchiseApiClient.UpdateAsync(franchise);
-                break;
+                // the approved e-mail becomes the franchise's login (made if missing, moved if changed)
+                return await franchiseLogins.EnsureAsync(r.Entity_ID, franchise.Franchise_Name, franchise.Email, franchise.Mobile_No,
+                    franchise.Parent_Branch_ID > 0 ? franchise.Parent_Branch_ID : (User.GetCurrentBranchId() ?? 1), User.GetCompanyId(),
+                    franchise.IsActive, User.GetUserId(), User.GetCurrentBranchId(), $"{Request.Scheme}://{Request.Host}");
             case ApprovalModules.Corporate:
                 var corporate = JsonSerializer.Deserialize<CorporateFormViewModel>(r.Payload)!;
                 corporate.Corporate_ID = r.Entity_ID;

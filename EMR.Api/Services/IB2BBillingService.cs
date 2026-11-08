@@ -7,6 +7,7 @@ namespace EMR.Api.Services
 {
     public interface IB2BBillingService
     {
+        Task<List<IDictionary<string, object?>>> GetInvoiceReceiptsAsync(int invoiceId);   // SQLScripts/2421
         Task<PartnerCreditStatusModel> GetPartnerCreditStatusAsync(string agentType, int agentId, int? branchId = null);
         Task<WalletTopUpResponse> TopUpWalletAsync(WalletTopUpRequest request, int userId);
         Task<IEnumerable<WalletTransactionModel>> GetWalletStatementAsync(int franchiseId, DateTime? fromDate = null, DateTime? toDate = null);

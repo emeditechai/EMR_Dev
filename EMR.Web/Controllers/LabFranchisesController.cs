@@ -21,7 +21,8 @@ public class LabFranchisesController(
     IAuditLogService auditLogService,
     IPasswordHasherService passwordHasherService,
     IMasterApprovalService approvals,
-    ILoginCredentialsMailer credentialsMailer) : Controller
+    ILoginCredentialsMailer credentialsMailer,
+    IFranchiseLoginService franchiseLogins) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(
@@ -349,6 +350,9 @@ public class LabFranchisesController(
                 // not approved yet: the record stays inactive and goes back for approval with these values
                 req.IsActive = false;
                 await franchiseApiClient.UpdateAsync(req);
+                // a login for a newly given e-mail is made disabled; approval enables and mails it
+                var pendingNote = await EnsureLoginAsync(model, companyId, active: false);
+                if (pendingNote != null) TempData["Warning"] = pendingNote;
                 req.IsActive = model.IsActive;
                 await approvals.SubmitAsync(new ApprovalSubmission
                 {
@@ -374,7 +378,8 @@ public class LabFranchisesController(
                 });
                 TempData["SuccessMessage"] = requestId == 0
                     ? "Nothing was changed, so nothing was sent for approval."
-                    : "The change was sent for approval. The franchise keeps its current details until it is approved.";
+                    : "The change was sent for approval. The franchise keeps its current details until it is approved"
+                      + (string.IsNullOrWhiteSpace(model.Email) ? "." : "; its login follows the e-mail once approved.");
                 return RedirectToAction(nameof(Index));
             }
 
@@ -385,6 +390,10 @@ public class LabFranchisesController(
                 await approvals.CloseAsync(ApprovalModules.Franchise, model.Franchise_ID, User.GetUserId(), "Approval no longer configured");
                 await ActivateLinkedLoginAsync(model.Franchise_ID);
             }
+
+            // the franchise's login follows its e-mail: made when there is none yet, moved when the e-mail changed
+            var loginNote = await EnsureLoginAsync(model, companyId, active: model.IsActive);
+            if (loginNote != null) TempData["Warning"] = loginNote;
 
             await auditLogService.LogAsync(
                 "Update Lab Franchise",
@@ -729,6 +738,11 @@ public class LabFranchisesController(
         return sent ? null
             : $"The franchise login {email} was created, but its login details could not be emailed ({reason}). Please share them with the franchise.";
     }
+
+    private Task<string?> EnsureLoginAsync(LabFranchiseWizardViewModel model, int companyId, bool active) =>
+        franchiseLogins.EnsureAsync(model.Franchise_ID, model.Franchise_Name.Trim(), model.Email, model.Mobile_No?.Trim(),
+            model.Parent_Branch_ID > 0 ? model.Parent_Branch_ID : (User.GetCurrentBranchId() ?? 1), companyId, active,
+            User.GetUserId(), User.GetCurrentBranchId(), $"{Request.Scheme}://{Request.Host}");
 
     /// <summary>A franchise that went live without an approval: its login (made disabled) is enabled.</summary>
     private async Task ActivateLinkedLoginAsync(int franchiseId)

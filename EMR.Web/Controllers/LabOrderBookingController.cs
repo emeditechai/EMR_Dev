@@ -3472,7 +3472,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> B2BSettlement(string? agentType = "F", int? agentId = null)
+        public async Task<IActionResult> B2BSettlement(string? agentType = "F", int? agentId = null, int? invoiceId = null)
         {
             var branchId = User.GetCurrentBranchId();
             if (branchId == null)
@@ -3483,6 +3483,7 @@ namespace EMR.Web.Controllers
 
             ViewBag.SelectedAgentType = agentType ?? "F";
             ViewBag.SelectedAgentId = agentId ?? 0;
+            ViewBag.SelectedInvoiceId = invoiceId ?? 0;   // opened from B2B Invoices > Record payment: that invoice is ticked
 
             try
             {
@@ -3739,6 +3740,14 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, error = ex.Message });
             }
+        }
+
+        /// <summary>SQLScripts/2421: the money receipts of an invoice (Actions > Money Receipts).</summary>
+        [HttpGet]
+        public async Task<IActionResult> B2BInvoiceReceipts(int id)
+        {
+            try { return Json(new { success = true, receipts = await b2bBillingApiClient.GetInvoiceReceiptsAsync(id) }); }
+            catch (HttpRequestException) { return Json(new { success = false, message = "The service is unreachable. Please try again." }); }
         }
 
         public sealed class CancelB2BInvoiceRequest { public int InvoiceId { get; set; } public string? Reason { get; set; } }
