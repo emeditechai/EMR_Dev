@@ -256,6 +256,16 @@ public sealed class PhleboService(
         return Camel(await con.QueryFirstOrDefaultAsync("dbo.usp_Phlebo_Summary", new { c.UserId }, commandType: CommandType.StoredProcedure));
     }
 
+    public async Task<object> CashCollectionAsync(PhleboCaller c, DateTime? from, DateTime? to)
+    {
+        using var con = db.CreateConnection();
+        using var grid = await con.QueryMultipleAsync("dbo.usp_Phlebo_CashCollection",
+            new { c.UserId, FromDate = from?.Date, ToDate = to?.Date }, commandType: CommandType.StoredProcedure);
+        var totals = Camel(await grid.ReadFirstOrDefaultAsync());
+        var payments = Camel(await grid.ReadAsync());
+        return new { totals, payments };
+    }
+
     private static string HashOtp(int visitId, string code) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{visitId}:{code.Trim()}"))).ToLowerInvariant();
 

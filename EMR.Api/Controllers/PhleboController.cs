@@ -115,6 +115,11 @@ public sealed class PhleboController(IPhleboService phlebo, ILogger<PhleboContro
     [HttpGet("summary")]
     public Task<IActionResult> Summary() => Run(async c => Ok(new { success = true, summary = await phlebo.SummaryAsync(c) }));
 
+    /// <summary>Payments taken at the door between two dates (today when none given), with totals and the cash held now.</summary>
+    [HttpGet("cash-collection")]
+    public Task<IActionResult> CashCollection([FromQuery] DateTime? from, [FromQuery] DateTime? to) =>
+        Run(async c => Ok(new { success = true, collection = await phlebo.CashCollectionAsync(c, from, to) }));
+
     // ── helpers ──────────────────────────────────────────────────────────
     private Task<IActionResult> Run(Func<PhleboCaller, Task<IActionResult>> action) => Run(requireDevice: true, action);
 

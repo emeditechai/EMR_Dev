@@ -26,4 +26,5 @@ public interface IPhleboService
     Task<object> BillChangesAsync(PhleboCaller caller, int? visitId);
     Task<object?> HandoverAsync(PhleboCaller caller, PhleboHandoverRequest request);
     Task<object?> SummaryAsync(PhleboCaller caller);
+    Task<object> CashCollectionAsync(PhleboCaller caller, DateTime? from, DateTime? to);
 }
