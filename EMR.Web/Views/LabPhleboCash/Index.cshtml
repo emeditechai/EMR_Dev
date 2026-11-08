@@ -1,0 +1,196 @@
+@{
+    ViewData["Title"] = "Phlebotomist Cash Deposit";
+}
+
+<style>
+    .pc-tile { border-radius: .8rem; color: #fff; padding: .8rem 1rem; }
+    .pc-tile .n { font-size: 1.55rem; font-weight: 800; line-height: 1.1; }
+    .pc-tile .l { font-size: .78rem; font-weight: 600; opacity: .92; }
+    .pc-held { background: linear-gradient(135deg, #c9232e 0%, #f13a43 100%); }
+    .pc-people { background: linear-gradient(135deg, #6a3fbc 0%, #9164e0 100%); }
+    .pc-deposited { background: linear-gradient(135deg, #059c6e 0%, #1fcf96 100%); }
+    .pc-zero { color: #94a3b8; }
+</style>
+
+<div class="container-fluid px-4 py-3">
+    <div class="mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">LAB</li>
+                <li class="breadcrumb-item active" aria-current="page">Phlebotomist Cash Deposit</li>
+            </ol>
+        </nav>
+        <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-cash-coin me-2"></i>Phlebotomist Cash Deposit</h4>
+        <div class="text-muted small mt-1">Record the cash a phlebotomist hands to the counter. Only cash taken at the door in the app is held; UPI and card payments are not.</div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-sm-4"><div class="pc-tile pc-held"><div class="n" id="pcHeld">₹0</div><div class="l">Cash held by phlebotomists now</div></div></div>
+        <div class="col-sm-4"><div class="pc-tile pc-people"><div class="n" id="pcPeople">0</div><div class="l">Phlebotomists holding cash</div></div></div>
+        <div class="col-sm-4"><div class="pc-tile pc-deposited"><div class="n" id="pcDeposited">₹0</div><div class="l" id="pcDepositedLabel">Deposited today</div></div></div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header bg-white fw-semibold small">Cash held</div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Phlebotomist</th><th class="text-end">Collected</th><th class="text-end">Deposited</th><th class="text-end">Cash held</th><th>Last deposit</th><th class="text-end"></th></tr>
+                </thead>
+                <tbody id="pcPhlebos"><tr><td colspan="6" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white">
+            <form id="pcFilter" class="row g-2 align-items-end" autocomplete="off">
+                <div class="col-12 fw-semibold small">Deposits taken at this branch</div>
+                <div class="col-sm-3 col-md-2">
+                    <label class="form-label small fw-semibold mb-1">From</label>
+                    <input type="date" class="form-control form-control-sm" id="pcFrom" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-3 col-md-2">
+                    <label class="form-label small fw-semibold mb-1">To</label>
+                    <input type="date" class="form-control form-control-sm" id="pcTo" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-sm-4 col-md-3">
+                    <label class="form-label small fw-semibold mb-1">Phlebotomist</label>
+                    <select class="form-select form-select-sm" id="pcWho"><option value="">All</option></select>
+                </div>
+                <div class="col-sm-2 col-md-2 d-grid">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1"></i>Show</button>
+                </div>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>Date</th><th>Phlebotomist</th><th>Reference</th><th>Received by</th><th class="text-end">Amount</th></tr>
+                </thead>
+                <tbody id="pcDeposits"><tr><td colspan="5" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pcModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" id="pcForm" autocomplete="off">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold">Record deposit</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted mb-2" id="pcModalWho"></div>
+                <div class="mb-2">
+                    <label class="form-label small fw-semibold mb-1">Amount received (₹) <span class="text-danger">*</span></label>
+                    <input type="number" class="form-control form-control-sm" id="pcAmount" min="0.01" step="0.01" />
+                    <div class="form-text">Count the cash before saving. It cannot be more than the cash held.</div>
+                </div>
+                <div>
+                    <label class="form-label small fw-semibold mb-1">Reference</label>
+                    <input type="text" class="form-control form-control-sm" id="pcReference" maxlength="100" placeholder="Receipt or slip number (optional)" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Back</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="pcSave">Save deposit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const rs = n => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const when = s => s ? new Date(s).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
+    const modal = new bootstrap.Modal(document.getElementById('pcModal'));
+    let phlebotomists = [], current = null;
+
+    async function load() {
+        const qs = new URLSearchParams({ fromDate: pcFrom.value, toDate: pcTo.value, phlebotomistId: pcWho.value });
+        try {
+            const res = await (await fetch('@Url.Action("Data")?' + qs)).json();
+            if (!res.success) { Swal.fire({ icon: 'error', text: res.message }); return; }
+            phlebotomists = res.phlebotomists;
+            renderPhlebos();
+            renderDeposits(res.deposits);
+        } catch { pcPhlebos.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Could not load. Try again.</td></tr>'; }
+    }
+
+    function renderPhlebos() {
+        const holding = phlebotomists.filter(p => p.CashHeld > 0);
+        pcHeld.textContent = rs(holding.reduce((t, p) => t + p.CashHeld, 0));
+        pcPeople.textContent = holding.length;
+        const keep = pcWho.value;
+        pcWho.innerHTML = '<option value="">All</option>' + phlebotomists.map(p => `<option value="${p.UserId}">${esc(p.Name)}</option>`).join('');
+        pcWho.value = keep;
+        if (!phlebotomists.length) { pcPhlebos.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No phlebotomists in this branch.</td></tr>'; return; }
+        pcPhlebos.innerHTML = phlebotomists.map(p => `
+            <tr data-id="${p.UserId}">
+                <td><div class="fw-semibold">${esc(p.Name)}</div><div class="small text-muted">${esc(p.PhoneNumber)}</div></td>
+                <td class="text-end">${rs(p.Collected)}</td>
+                <td class="text-end">${rs(p.Deposited)}</td>
+                <td class="text-end fw-bold ${p.CashHeld > 0 ? 'text-danger' : 'pc-zero'}">${rs(p.CashHeld)}</td>
+                <td class="small">${when(p.LastDepositAt)}</td>
+                <td class="text-end">${p.CashHeld > 0 ? '<button type="button" class="btn btn-primary btn-sm pc-do">Record deposit</button>' : ''}</td>
+            </tr>`).join('');
+    }
+
+    function renderDeposits(list) {
+        const total = list.reduce((t, d) => t + d.Amount, 0);
+        const today = new Date().toISOString().slice(0, 10);
+        pcDeposited.textContent = rs(total);
+        pcDepositedLabel.textContent = pcFrom.value === pcTo.value
+            ? (pcFrom.value === today ? 'Deposited today' : 'Deposited on ' + new Date(pcFrom.value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }))
+            : 'Deposited in the dates chosen';
+        if (!list.length) { pcDeposits.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No deposits in these dates.</td></tr>'; return; }
+        pcDeposits.innerHTML = list.map(d => `
+            <tr>
+                <td class="text-nowrap small">${when(d.DepositAt)}</td>
+                <td>${esc(d.PhlebotomistName)}</td>
+                <td class="small">${esc(d.DepositReference) || '—'}</td>
+                <td class="small">${esc(d.ReceivedBy)}</td>
+                <td class="text-end fw-semibold">${rs(d.Amount)}</td>
+            </tr>`).join('') + `<tr class="table-light"><td colspan="4" class="fw-semibold">Total</td><td class="text-end fw-bold">${rs(total)}</td></tr>`;
+    }
+
+    pcPhlebos.addEventListener('click', e => {
+        const btn = e.target.closest('.pc-do'); if (!btn) return;
+        current = phlebotomists.find(p => p.UserId === Number(btn.closest('tr').dataset.id));
+        pcModalWho.textContent = `${current.Name} · holds ${rs(current.CashHeld)}`;
+        pcAmount.value = current.CashHeld.toFixed(2); pcAmount.max = current.CashHeld;
+        pcReference.value = '';
+        modal.show();
+    });
+
+    pcForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        const amount = Number(pcAmount.value);
+        if (!(amount > 0)) { Swal.fire({ icon: 'warning', text: 'Enter the amount received.' }); return; }
+        if (amount > current.CashHeld) { Swal.fire({ icon: 'warning', text: `The deposit cannot be more than the cash held (${rs(current.CashHeld)}).` }); return; }
+        const body = new FormData();
+        body.append('phlebotomistId', current.UserId); body.append('amount', amount.toFixed(2)); body.append('reference', pcReference.value.trim());
+        body.append('__RequestVerificationToken', document.querySelector('#pcForm input[name="__RequestVerificationToken"]').value);
+        pcSave.disabled = true;
+        try {
+            const res = await (await fetch('@Url.Action("Deposit")', { method: 'POST', body })).json();
+            if (res.success) {
+                modal.hide();
+                Swal.fire({ icon: 'success', text: `${res.message} ${current.Name} now holds ${rs(res.cashHeld)}.`, timer: 2200, showConfirmButton: false });
+                await load();
+            } else Swal.fire({ icon: 'error', text: res.message });
+        } catch { Swal.fire({ icon: 'error', text: 'Could not save. Check the connection and try again.' }); }
+        finally { pcSave.disabled = false; }
+    });
+
+    pcFilter.addEventListener('submit', e => { e.preventDefault(); load(); });
+    load();
+})();
+</script>
+}
