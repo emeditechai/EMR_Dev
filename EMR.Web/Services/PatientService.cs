@@ -807,7 +807,10 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
                  ScheduleId, AppointmentTime)
             VALUES
                 (@PatientId, @BranchId, @ConsultingDoctorId, @OPDBillNo, @TokenNo,
-                 0, GETDATE(), 'Registered', 1, @CreatedBy, GETDATE(),
+                 0,
+                 -- a booking for a later day is on that day (the doctor's slots and the OPD lists go by VisitDate)
+                 CASE WHEN CAST(@VisitDate AS DATE) > CAST(GETDATE() AS DATE) THEN @VisitDate ELSE GETDATE() END,
+                 'Registered', 1, @CreatedBy, GETDATE(),
                  @ScheduleId, @AppointmentTime);
             SELECT CAST(SCOPE_IDENTITY() AS INT);",
             new
@@ -815,7 +818,8 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
                 bill.PatientId, bill.BranchId, bill.ConsultingDoctorId,
                 OPDBillNo = billNo, TokenNo = tokenNo,
                 CreatedBy = userId,
-                bill.ScheduleId, bill.AppointmentTime
+                bill.ScheduleId, bill.AppointmentTime,
+                VisitDate = bill.VisitDate == default ? DateTime.Now : bill.VisitDate
             });
 
         // 4. Parse and insert line items

@@ -32,7 +32,7 @@ public sealed class ApiCallerFilter(
         var user = http.User;
         var use = user.FindFirstValue(TokenUse.ClaimType);
 
-        if (user.Identity?.IsAuthenticated != true || use is not (TokenUse.OnBehalf or TokenUse.Service or TokenUse.Access))
+        if (user.Identity?.IsAuthenticated != true || use is not (TokenUse.OnBehalf or TokenUse.Service or TokenUse.Access or TokenUse.Patient))
         {
             if (!apiAuth.CurrentValue.IsEnforced)
             {
@@ -46,6 +46,15 @@ public sealed class ApiCallerFilter(
         }
 
         if (use is TokenUse.OnBehalf or TokenUse.Service) return;
+
+        // The patient app: only the patient's own records ([PatientOwnData] then checks the id in the route).
+        if (use is TokenUse.Patient)
+        {
+            if (context.ActionDescriptor.EndpointMetadata.Any(m => m is PatientOwnDataAttribute)) return;
+            context.Result = new ObjectResult(new { success = false, code = "FORBIDDEN", message = "This is not available in the patient app." })
+                { StatusCode = StatusCodes.Status403Forbidden };
+            return;
+        }
 
         // An outside client (api/auth token): the same permission model as the web screens.
         if (context.ActionDescriptor.EndpointMetadata.Any(m => m is PublicEndpointAttribute)) return;
@@ -83,7 +92,8 @@ public sealed class ApiCallerFilter(
 
 /// <summary>
 /// The patient portal's data is served only for the patient the token belongs to (patient_id, set by EMR.Web from the
-/// portal session), or to a signed-in staff user. A token with neither is refused, so no one can walk patient ids.
+/// portal session or by api/auth/patient-login for the app), or to a signed-in staff user. A token with neither is
+/// refused, so no one can walk patient ids.
 /// </summary>
 public sealed class PatientOwnDataAttribute : Attribute, IAuthorizationFilter
 {

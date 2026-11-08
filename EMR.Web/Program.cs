@@ -310,6 +310,9 @@ builder.Services.AddScoped<ILabCriticalApiClient,             LabCriticalApiClie
 builder.Services.AddScoped<ILabDefaultSignatoryApiClient,     LabDefaultSignatoryApiClient>();
 builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowApiClient>();
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
+builder.Services.AddScoped<IPatientDocumentService, PatientDocumentService>();   // LAB report + live stage for the patient portal and the patient app
+builder.Services.AddSingleton<IOpdBookingNotifier, OpdBookingNotifier>();   // OPD booking bill by WhatsApp + e-mail (OPD screens and the patient app)
+builder.Services.AddSingleton<ILabBookingNotifier, LabBookingNotifier>();   // LAB booking bill by WhatsApp + e-mail (patient app)
 builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
 builder.Services.AddScoped<IMembershipPointsWhatsAppService, MembershipPointsWhatsAppService>();

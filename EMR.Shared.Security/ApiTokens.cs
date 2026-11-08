@@ -27,6 +27,9 @@ public sealed class ApiAuthOptions
     public int AccessTokenMinutes { get; set; } = 15;
     public int RefreshTokenDays { get; set; } = 7;
 
+    /// <summary>api/auth/patient-login: how long a patient app stays signed in.</summary>
+    public int PatientTokenHours { get; set; } = 12;
+
     /// <summary>Wrong passwords before a temporary lockout, and its length (web and API sign-in alike).</summary>
     public int MaxFailedAttempts { get; set; } = 5;
     public int LockoutMinutes { get; set; } = 15;
@@ -46,6 +49,13 @@ public static class TokenUse
     public const string Access = "access";
     /// <summary>Short ticket between api/auth/login and api/auth/context when the user must pick a branch / role.</summary>
     public const string Login = "login";
+    /// <summary>Issued by api/auth/patient-login to the patient app; opens only [PatientOwnData] endpoints for its patient_id.</summary>
+    public const string Patient = "patient";
+    /// <summary>Short ticket from api/auth/patient-login to api/auth/patient-password/first-change.</summary>
+    public const string PatientPasswordChange = "patient_pwd";
+    /// <summary>Short ticket in a patient-app download link (EMR.Web api/patient-app/files): opens one document of one patient.</summary>
+    public const string PatientDocument = "patient_doc";
+    public const string DocumentClaim = "doc";
 
     public const string PatientIdClaim = "patient_id";
 }

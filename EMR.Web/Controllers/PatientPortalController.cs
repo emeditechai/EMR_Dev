@@ -17,8 +17,7 @@ public class PatientPortalController(
     IPatientPortalApiClient portalApiClient,
     IHttpClientFactory httpClientFactory,
     IPatientProfileService profileService,
-    ILabReportPdfService reportPdfService,
-    ILabReportingApiClient labReportingApiClient,
+    IPatientDocumentService documents,
     IPharmacySaleService pharmacySales,
     IPharmacyPurchaseService pharmacyPurchase,
     IPharmacyBillNotifier pharmacyBills,
@@ -289,8 +288,8 @@ public class PatientPortalController(
     {
         if (!await OwnsAsync("SELECT COUNT(1) FROM LabOrder WHERE LabOrderId = @Id AND PatientId = @P AND IsActive = 1", id))
             return NotFound();
-        var secret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"bill-{id}-emr"));
-        return Redirect($"/LabOrderBooking/PrintBillAnonymous?labOrderId={id}&secret={Uri.EscapeDataString(secret)}");
+        // the LAB bill print takes its own secret (LabOrderBookingController.PrintBillAnonymous)
+        return Redirect($"/LabOrderBooking/PrintBillAnonymous?labOrderId={id}&secret={Uri.EscapeDataString($"lab_print_{id}")}");
     }
 
     // GET: /PatientPortal/Prescription?opdServiceId=5&doctorId=2 - a prescription of the patient's visit
@@ -314,32 +313,8 @@ public class PatientPortalController(
 
         try
         {
-            var detail = await labReportingApiClient.GetDetailAsync(id);
-            if (detail == null) return Content("The report is not available yet.");
-            if (detail.BalanceDue > 0)
-                return Content($"Your report will be available once the bill is paid (due Rs. {detail.BalanceDue:N2}).");
-
-            var patient = await dbContext.PatientMasters.Where(p => p.PatientId == patientId).Select(p => new { p.CompanyId }).FirstOrDefaultAsync();
-            var user = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(new[]
-            {
-                new System.Security.Claims.Claim("DisplayName", "Patient Portal"),
-                new System.Security.Claims.Claim("CompanyId", (patient?.CompanyId ?? 1).ToString())
-            }, "PatientPortal"));
-
-            // the Lab Report, or the Microbiology Report when the bill has only that (type picks one)
-            var types = type is LabReportTypes.Numeric or LabReportTypes.Template
-                ? new[] { type } : new[] { LabReportTypes.Numeric, LabReportTypes.Template };
-            foreach (var t in types)
-            {
-                var rvm = await reportPdfService.BuildAsync(id, user, LabReportPrintBuilder.ScopeApproved, t);
-                if (rvm == null || rvm.IncludedTestCount == 0) continue;
-                rvm.ShowLetterhead = rvm.FranchiseHeaderRequired ?? true;
-                rvm.PrintSequence = 1;
-                var pdf = LabReportPdfDocument.Generate(rvm, reportPdfService.LoadLogo(rvm.HospitalLogoPath));
-                var name = (detail.BillNo ?? $"Report-{id}").Replace('/', '-');
-                return File(pdf, "application/pdf", $"{name}{(t == LabReportTypes.Template ? "-Micro" : "")}.pdf");
-            }
-            return Content("No test of this bill has been approved yet. Please check again later.");
+            var file = await documents.LabReportAsync(id, patientId.Value, type);
+            return file.Pdf is { } pdf ? File(pdf, "application/pdf", file.FileName) : Content(file.Message ?? "The report is not available yet.");
         }
         catch (Exception ex)
         {
@@ -356,29 +331,8 @@ public class PatientPortalController(
         var patientId = HttpContext.Session.GetInt32("PatientId");
         if (patientId is not > 0) return Unauthorized();
         var wanted = (ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => int.TryParse(x, out var v) ? v : 0).Where(v => v > 0).Distinct().Take(50).ToList();
-        if (wanted.Count == 0) return Json(Array.Empty<object>());
-
-        var con = dbContext.Database.GetDbConnection();
-        var own = (await con.QueryAsync<int>("SELECT LabOrderId FROM LabOrder WHERE PatientId = @P AND LabOrderId IN @Ids",
-            new { P = patientId.Value, Ids = wanted })).ToHashSet();
-
-        var result = new List<object>();
-        foreach (var id in wanted.Where(own.Contains))
-        {
-            var wf = System.Text.Json.JsonSerializer.SerializeToElement(await LabReportingController.BuildOrderWorkflowAsync(con, id));
-            if (!wf.TryGetProperty("success", out var ok) || !ok.GetBoolean()) continue;
-            var steps = wf.GetProperty("steps").EnumerateArray().Select(st => new
-            {
-                key = st.GetProperty("key").GetString(),
-                label = st.GetProperty("label").GetString(),
-                state = st.GetProperty("state").GetString(),
-                detail = st.GetProperty("detail").GetString(),
-                at = st.TryGetProperty("at", out var at) && at.ValueKind == System.Text.Json.JsonValueKind.String ? at.GetString() : null
-            }).ToList();
-            result.Add(new { id, cancelled = wf.GetProperty("cancelled").GetBoolean(), steps });
-        }
-        return Json(result);
+            .Select(x => int.TryParse(x, out var v) ? v : 0);
+        return Json(await documents.LabWorkflowAsync(patientId.Value, wanted));
     }
 
     private async Task<bool> OwnsAsync(string sql, int id)
