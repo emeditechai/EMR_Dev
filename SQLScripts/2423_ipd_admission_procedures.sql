@@ -173,7 +173,7 @@ BEGIN
     WHERE IsActive = 1 AND Branch_ID = @BranchId AND (Effective_To IS NULL OR Effective_To >= CAST(GETDATE() AS DATE)) ORDER BY SchemeName;
     -- 8 packages
     SELECT HospitalPackage_ID AS Id, Package_Name AS Name, Package_Type AS PackageType, TotalPackageAmount AS Amount FROM dbo.HospitalPackageMaster
-    WHERE Status = 1 AND Branch_ID = @BranchId AND (ValidTo IS NULL OR ValidTo >= GETDATE()) ORDER BY Package_Name;
+    WHERE Status = 1 AND Branch_ID = @BranchId AND (ValidTo IS NULL OR ValidTo >= GETDATE()) AND ISNULL(TotalPackageAmount, 0) > 0 ORDER BY Package_Name;
     -- 9 IPD consents
     SELECT Consent_ID AS Id, ConsentType, Language, Version, WitnessRequired FROM dbo.ConsentMaster
     WHERE Status = 1 AND Type = 'IPD' AND Branch_ID = @BranchId ORDER BY ConsentType, Language;
@@ -409,7 +409,7 @@ BEGIN
             THROW 54026, 'The consultant (treating doctor) must belong to an IPD department (Master > Doctor > departments of type IPD).', 1;
         IF NOT EXISTS (SELECT 1 FROM dbo.TariffCategoryMaster WHERE TariffCategoryId = @TariffCategoryId AND IsActive = 1 AND CompanyId = @CompanyId AND (BranchId = @BranchId OR BranchId IS NULL))
             THROW 54013, 'Choose the tariff category (rates of the stay).', 1;
-        IF @PackageId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.HospitalPackageMaster WHERE HospitalPackage_ID = @PackageId AND Branch_ID = @BranchId AND Status = 1)
+        IF @PackageId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.HospitalPackageMaster WHERE HospitalPackage_ID = @PackageId AND Branch_ID = @BranchId AND Status = 1 AND ISNULL(TotalPackageAmount, 0) > 0)
             THROW 54014, 'The package is not active in this branch.', 1;
         IF NULLIF(@DepartmentId, 0) IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @DepartmentId AND IsActive = 1 AND DeptType = 'IPD')
             THROW 54027, 'Choose an IPD department (Master > Department, type IPD).', 1;
@@ -483,6 +483,8 @@ BEGIN
         IF @blockGender = 1 AND @wGender IN (N'Male', N'Female') AND ISNULL(@gender, N'') IN (N'Male', N'Female') AND @wGender <> @gender
         BEGIN SET @msg = @wName + N' is a ' + LOWER(@wGender) + N' ward; the patient is ' + LOWER(@gender) + N'. Choose a bed in a suitable ward.'; THROW 54034, @msg, 1; END;
 
+        IF NOT EXISTS (SELECT 1 FROM dbo.fn_Ipd_BedRate(@BranchId, @BedId, @TariffCategoryId, CAST(@AdmissionAt AS DATE)))
+        BEGIN SET @msg = N'Bed ' + @bNo + N' has no rate for this tariff category (Master > IPD > Bed / Room Tariff): it cannot be given. Choose a bed with a rate or add the rate.'; THROW 54037, @msg, 1; END;
         -- minimum advance for cash patients: N days of this bed (Hospital Settings > IPD)
         IF @minDays > 0 AND @PayerType = 'CASH'
         BEGIN
@@ -701,6 +703,7 @@ BEGIN
         SELECT @oldTc = TariffCategoryId, @oldPayer = PayerType, @open = IsOpen, @admAt = AdmissionAt FROM dbo.IpdAdmission WHERE AdmissionId = @AdmissionId AND CompanyId = @CompanyId AND BranchId = @BranchId;
         IF @open IS NULL THROW 54201, 'The admission was not found in this branch.', 1;
         IF @open = 0 THROW 54202, 'The admission is closed and cannot be changed.', 1;
+        IF EXISTS (SELECT 1 FROM dbo.IpdAdmission WHERE AdmissionId = @AdmissionId AND Status = 'BILL_FINAL') THROW 54230, 'The final bill is made: cancel the bill to change the admission.', 1;
         SET @AdmissionType = UPPER(@AdmissionType); SET @AdmissionSource = UPPER(@AdmissionSource); SET @PayerType = UPPER(@PayerType);
         IF @AdmissionType NOT IN ('ELECTIVE', 'EMERGENCY', 'DAYCARE', 'MATERNITY', 'TRANSFERIN') THROW 54203, 'Choose the admission type.', 1;
         IF @AdmissionSource NOT IN ('DIRECT', 'OPD', 'EMERGENCY', 'REFERRAL') THROW 54204, 'Choose the admission source.', 1;
@@ -720,6 +723,12 @@ BEGIN
         IF NULLIF(@DepartmentId, 0) IS NOT NULL AND ISNULL(@DepartmentId, 0) <> ISNULL((SELECT DepartmentId FROM dbo.IpdAdmission WHERE AdmissionId = @AdmissionId), 0)
            AND NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @DepartmentId AND IsActive = 1 AND DeptType = 'IPD')
             THROW 54217, 'Choose an IPD department (Master > Department, type IPD).', 1;
+        IF @PackageId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.HospitalPackageMaster WHERE HospitalPackage_ID = @PackageId AND Branch_ID = @BranchId AND Status = 1 AND ISNULL(TotalPackageAmount, 0) > 0)
+            AND ISNULL(@PackageId, 0) <> ISNULL((SELECT PackageId FROM dbo.IpdAdmission WHERE AdmissionId = @AdmissionId), 0)
+            THROW 54232, 'Choose an active package of this branch that has an amount.', 1;
+        IF @TariffCategoryId <> @oldTc AND NOT EXISTS (SELECT 1 FROM dbo.IpdAdmission a CROSS APPLY dbo.fn_Ipd_BedRate(@BranchId, a.CurrentBedId, @TariffCategoryId, CAST(GETDATE() AS DATE)) r
+                                                         WHERE a.AdmissionId = @AdmissionId AND a.CurrentBedId IS NOT NULL)
+            THROW 54231, 'The patient''s bed has no rate in the new tariff category (Master > IPD > Bed / Room Tariff): add the rate first.', 1;
         IF (@TariffCategoryId <> @oldTc OR @PayerType <> @oldPayer) AND ISNULL(@CanChangeTariff, 0) = 0
             THROW 54209, 'You are not allowed to change the payer or tariff category of an admission (it re-prices the whole stay).', 1;
         IF @ExpectedDischargeAt IS NOT NULL AND @ExpectedDischargeAt <= @admAt THROW 54210, 'The expected discharge must be after the admission time.', 1;

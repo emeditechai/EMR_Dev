@@ -1,0 +1,89 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@{
+    var tab = Model.Tab;
+    string Act(string k) => tab == k ? "show active" : "";
+    var panes = new (string Key, string Kind, string Title, string Sub, string Icon, string Color)[]
+    {
+        ("procedures", "PROCEDURE", "Procedures", "Bedside and minor procedures at the Procedure Tariff rate of the patient's tariff category", "bi-scissors", "violet"),
+        ("services", "SERVICE", "Other Charges", "Hospital services (oxygen, monitor, ventilator, dressing, physiotherapy, ambulance…) and other charges", "bi-plus-square", "blue"),
+        ("visits", "DOCTOR", "Doctor Visits", "Rounds, cross-consultation and emergency visits at the doctor's consulting fee", "bi-person-workspace", "green")
+    };
+}
+@foreach (var p in panes)
+{
+    <div class="tab-pane fade @Act(p.Key)" id="tab-@p.Key" role="tabpanel">
+        <div class="reg-section">
+            <div class="reg-section-header"><div class="sec-icon @p.Color"><i class="bi @p.Icon"></i></div>
+                <div class="flex-grow-1"><h6 class="fw-bold mb-0">@p.Title</h6><small class="text-muted">@p.Sub</small></div></div>
+            <div class="ipd-charge-form" data-kind="@p.Kind"></div>
+        </div>
+        <div class="ipdx-card"><div class="table-responsive"><table class="table ipdx-table mb-0">
+            <thead><tr><th>Date</th><th>Charge</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Discount</th><th class="text-end">GST</th><th class="text-end">Net</th><th>By</th><th></th></tr></thead>
+            <tbody class="ipd-charge-rows" data-kind="@p.Kind"><tr><td colspan="9" class="text-muted small">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="px-3 py-2 small text-muted border-top"><label class="form-check-label"><input type="checkbox" class="form-check-input me-1 ipd-show-cancelled" />Show cancelled charges</label></div></div>
+    </div>
+}
+
+@* package *@
+<div class="tab-pane fade @Act("package")" id="tab-package" role="tabpanel">
+    <div class="reg-section">
+        <div class="reg-section-header"><div class="sec-icon amber"><i class="bi bi-box-seam"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Package</h6><small class="text-muted">The package amount is billed once; bed days and heads it includes are shown at ₹0 ("in package"); stay beyond the package days and other heads are billed at the tariff.</small></div></div>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-lg-6"><label class="form-label small fw-semibold" for="pkgSel">Package</label><select id="pkgSel" class="form-select"><option value="">No package</option></select></div>
+            <div class="col-12 col-lg-4"><label class="form-label small fw-semibold" for="pkgReason">Reason (when changing)</label><input id="pkgReason" class="form-control" maxlength="300" /></div>
+            <div class="col-12 col-lg-2"><button type="button" class="btn btn-warning w-100" id="pkgSave"><i class="bi bi-check2 me-1"></i>Apply</button></div>
+        </div>
+        <div class="small text-muted mt-2" id="pkgInfo"></div>
+    </div>
+    <div class="ipdx-card"><div class="table-responsive"><table class="table ipdx-table mb-0">
+        <thead><tr><th>Includes</th><th>Item</th><th class="text-end">Qty</th><th>Billing</th><th class="text-end">Value</th><th>Remarks</th></tr></thead>
+        <tbody id="pkgRows"><tr><td colspan="6" class="text-muted small">No package on this admission.</td></tr></tbody>
+    </table></div></div>
+</div>
+
+@* billing *@
+<div class="tab-pane fade @Act("billing")" id="tab-billing" role="tabpanel">
+    <div class="ipdx-kpis mb-3" id="billKpis" style="grid-template-columns:repeat(4, minmax(0, 1fr))"></div>
+    <div class="row g-3">
+        <div class="col-12 col-xl-7">
+            <div class="ipdx-card">
+                <div class="d-flex justify-content-between align-items-center px-3 pt-3"><h6 class="fw-bold mb-0"><i class="bi bi-list-columns-reverse me-1"></i>Bill by head</h6>
+                    <div class="d-flex gap-1" id="billPrints"></div></div>
+                <div class="table-responsive"><table class="table ipdx-table mb-0">
+                    <thead><tr><th>Head</th><th class="text-end">Items</th><th class="text-end">Gross</th><th class="text-end">Discount</th><th class="text-end">GST</th><th class="text-end">Net</th></tr></thead>
+                    <tbody id="billHeads"><tr><td colspan="6" class="text-muted small">Loading…</td></tr></tbody>
+                    <tfoot id="billFoot"></tfoot>
+                </table></div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-5">
+            <div class="reg-section" id="finalBox">
+                <div class="reg-section-header"><div class="sec-icon red"><i class="bi bi-receipt"></i></div>
+                    <div class="flex-grow-1"><h6 class="fw-bold mb-0">Final bill</h6><small class="text-muted">Freezes the bill, adjusts the advance and posts the accounts. Cancel it to add charges again.</small></div></div>
+                <div class="row g-2">
+                    <div class="col-12"><label class="form-label small fw-semibold" for="fbUpTo">Bill up to</label><input type="datetime-local" id="fbUpTo" class="form-control" /></div>
+                    <div class="col-5"><label class="form-label small fw-semibold" for="fbDiscType">Discount</label><select id="fbDiscType" class="form-select"><option value="">None</option><option value="P">%</option><option value="F">₹ amount</option></select></div>
+                    <div class="col-7"><label class="form-label small fw-semibold" for="fbDiscVal">Value</label><input type="number" id="fbDiscVal" class="form-control" min="0" step="0.01" value="0" /></div>
+                    <div class="col-12"><label class="form-label small fw-semibold" for="fbDiscReason">Discount reason</label><input id="fbDiscReason" class="form-control" maxlength="300" placeholder="e.g. staff family, management approval" /></div>
+                    <div class="col-12"><label class="form-label small fw-semibold" for="fbRemarks">Remarks</label><input id="fbRemarks" class="form-control" maxlength="500" /></div>
+                    <div class="col-12 d-flex gap-2"><button type="button" class="btn btn-outline-primary flex-fill" id="fbPreview"><i class="bi bi-eye me-1"></i>Preview</button>
+                        <button type="button" class="btn btn-danger flex-fill" id="fbSave"><i class="bi bi-lock-fill me-1"></i>Make final bill</button></div>
+                    <div class="col-12 small" id="fbMsg"></div>
+                </div>
+            </div>
+            <div class="reg-section d-none" id="billedBox">
+                <div class="reg-section-header"><div class="sec-icon green"><i class="bi bi-patch-check-fill"></i></div>
+                    <div class="flex-grow-1"><h6 class="fw-bold mb-0">Final bill <span class="font-monospace" id="bbNo"></span></h6><small class="text-muted" id="bbSub"></small></div></div>
+                <div id="bbBody"></div>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    <a class="btn btn-success" id="bbCollect" href="#"><i class="bi bi-cash-coin me-1"></i>Collect balance</a>
+                    <a class="btn btn-outline-primary" id="bbRefund" href="#"><i class="bi bi-arrow-return-left me-1"></i>Refund excess</a>
+                    <button type="button" class="btn btn-outline-danger" id="bbCancel"><i class="bi bi-unlock me-1"></i>Cancel bill</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

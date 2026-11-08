@@ -12,9 +12,9 @@
     var tabs = new (string Key, string Title, string Icon, string? Phase)[]
     {
         ("overview", "Overview", "bi-grid-1x2", null), ("lab", "LAB", "bi-droplet-half", "Phase 4"), ("radiology", "Radiology", "bi-radioactive", "Phase 4"),
-        ("indent", "Medicine Indent", "bi-capsule", "Phase 4"), ("consumables", "Consumables", "bi-bandaid", "Phase 4"), ("procedures", "Procedures", "bi-scissors", "Phase 5"),
-        ("ot", "OT", "bi-heart-pulse", "Phase 8"), ("services", "Other Charges", "bi-plus-square", "Phase 5"), ("visits", "Doctor Visits", "bi-person-workspace", "Phase 5"),
-        ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", "Phase 5"), ("clinical", "Clinical", "bi-journal-medical", "Phase 3"),
+        ("indent", "Medicine Indent", "bi-capsule", "Phase 4"), ("consumables", "Consumables", "bi-bandaid", "Phase 4"), ("procedures", "Procedures", "bi-scissors", null),
+        ("ot", "OT", "bi-heart-pulse", "Phase 8"), ("services", "Other Charges", "bi-plus-square", null), ("visits", "Doctor Visits", "bi-person-workspace", null),
+        ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", null), ("clinical", "Clinical", "bi-journal-medical", "Phase 3"),
         ("nursing", "Nursing", "bi-clipboard2-pulse", "Phase 3"), ("advance", "Advance & Payments", "bi-cash-coin", null), ("billing", "Billing", "bi-receipt", null),
         ("insurance", "Insurance / TPA", "bi-shield-plus", null), ("documents", "Documents & Consents", "bi-folder2-open", null), ("discharge", "Discharge", "bi-door-open", "Phase 7")
     };
@@ -24,11 +24,7 @@
         ["radiology"] = "X-ray, USG, CT, MRI, ECG and Echo requests with clinical notes and report upload.",
         ["indent"] = "Raise a ward indent to the pharmacy store, track issue and return unused medicines; issued items post to the IP bill.",
         ["consumables"] = "Ward and surgical consumables issued from the sub-store or pharmacy.",
-        ["procedures"] = "Bedside and minor procedures with performing doctor and rate from the Procedure Tariff.",
         ["ot"] = "OT booking, surgical safety checklist, anaesthesia record, surgery notes, implants and OT charges.",
-        ["services"] = "Oxygen, monitor, ventilator, nebulisation, dressing, physiotherapy, diet and other hospital services.",
-        ["visits"] = "Daily rounds, cross-consultation and emergency visits, charged by doctor and tariff category.",
-        ["package"] = "Attach a package and follow inclusions used against the limit, and the overflow.",
         ["clinical"] = "Initial assessment, progress notes, doctor orders (CPOE) with countersign of verbal orders.",
         ["nursing"] = "Vitals with NEWS2, medication administration record, intake / output, nursing notes, risk scores and handover.",
         ["discharge"] = "Discharge advice, clearance checklist, discharge summary, LAMA / DAMA, gate pass and bed release."
@@ -94,10 +90,10 @@
     </div>
     <div class="ipdx-money">
         <div class="ipdx-m"><small>Payer</small><b>@Payer(h.S("PayerType"))</b><span>@h.S("PayerName") @h.S("TariffCategoryName")</span></div>
-        <div class="ipdx-m"><small>Bill so far</small><b class="num">@h.M("BillNow").Rs()</b><span>live, if discharged now</span></div>
+        <div class="ipdx-m"><small>Bill so far</small><b class="num" id="bmBill">@h.M("BillNow").Rs()</b><span>live, if discharged now</span></div>
         <div class="ipdx-m"><small>Advance held</small><b class="num">@h.M("NetAdvance").Rs()</b><span>@Model.Advances.Count(a => a.S("Kind") == "ADVANCE") receipt(s)</span></div>
-        <div class="ipdx-m @(h.B("DepositAlert") || due > 0 ? "due" : "ok")"><small>@(due > 0 ? "Balance due" : due < 0 ? "Refundable" : "Balance")</small><b class="num">@Math.Abs(due).Rs()</b>
-            <span>@if (h.B("DepositAlert")) {<text><i class="bi bi-bell-fill"></i> collect deposit</text>} else if (due < 0) {<text>advance exceeds bill</text>} else {<text>settled to date</text>}</span></div>
+        <div class="ipdx-m @(h.B("DepositAlert") || due > 0 ? "due" : "ok")" id="bmDueBox"><small id="bmDueLbl">@(due > 0 ? "Balance due" : due < 0 ? "Refundable" : "Balance")</small><b class="num" id="bmDue">@Math.Abs(due).Rs()</b>
+            <span id="bmDueSub">@if (h.B("DepositAlert")) {<text><i class="bi bi-bell-fill"></i> collect deposit</text>} else if (due < 0) {<text>advance exceeds bill</text>} else {<text>settled to date</text>}</span></div>
     </div>
     <div class="ipdx-actions">
         @if ((bool)(ViewData["CanEstimate"] ?? false))
@@ -257,7 +253,7 @@
             <div class="ipdx-kpi"><small>Received</small><b class="num">@h.M("AdvanceTotal").Rs()</b><span>@advCount receipt@(advCount == 1 ? "" : "s")</span></div>
             <div class="ipdx-kpi"><small>Refunded</small><b class="num">@h.M("RefundTotal").Rs()</b><span>@refCount voucher@(refCount == 1 ? "" : "s")</span></div>
             <div class="ipdx-kpi accent"><small>Held</small><b class="num">@h.M("NetAdvance").Rs()</b><span>@(lastAt.HasValue ? "last on " + lastAt.Value.ToString("dd-MMM hh:mm tt") : "nothing received")</span></div>
-            <div class="ipdx-kpi"><small>Bill so far</small><b class="num">@h.M("BillNow").Rs()</b><span>@h.I("BedDays") bed day@(h.I("BedDays") == 1 ? "" : "s")</span></div>
+            <div class="ipdx-kpi"><small>Bill so far</small><b class="num" id="kBill">@h.M("BillNow").Rs()</b><span>@h.I("BedDays") bed day@(h.I("BedDays") == 1 ? "" : "s")</span></div>
             <div class="ipdx-kpi @(due > 0 ? "bad" : "good")"><small>@(due > 0 ? "Balance due" : "Refundable")</small><b class="num">@Math.Abs(due).Rs()</b><span>@(h.B("DepositAlert") ? "deposit alert" : due > 0 ? "to collect" : "advance covers the bill")</span></div>
         </div>
         <div class="ipdx-card">
@@ -270,7 +266,7 @@
                     <tr>
                         <td><div class="fw-semibold">@a2.Dt("CreatedDate", "dd-MMM-yyyy")</div><div class="small text-muted">@a2.Dt("CreatedDate", "hh:mm tt")</div></td>
                         <td class="font-monospace fw-semibold">@a2.S("DocNo")</td>
-                        <td>@if (refund) {<span class="ipdx-tag out"><i class="bi bi-arrow-up-right"></i>Refund</span>} else {<span class="ipdx-tag in"><i class="bi bi-arrow-down-left"></i>Advance</span>}</td>
+                        <td>@if (refund) {<span class="ipdx-tag out"><i class="bi bi-arrow-up-right"></i>Refund</span>} else {<span class="ipdx-tag in"><i class="bi bi-arrow-down-left"></i>@(a2.S("Kind") == "SETTLE" ? "Bill payment" : "Advance")</span>}</td>
                         <td>@a2.S("Modes")@if (!string.IsNullOrWhiteSpace(a2.S("RefNo"))) {<div class="small text-muted">Ref @a2.S("RefNo")</div>}</td>
                         <td class="text-muted">@(string.IsNullOrWhiteSpace(a2.S("Remarks")) ? "—" : a2.S("Remarks"))</td>
                         <td>@a2.S("CreatedByName")</td>
@@ -292,16 +288,8 @@
         </div>
     </div>
 
-    @* billing *@
-    <div class="tab-pane fade @(Model.Tab == "billing" ? "show active" : "")" id="tab-billing" role="tabpanel">
-        <div class="row g-3 mb-3">
-            <div class="col-6 col-lg-3"><div class="ipd-tile accent"><div class="lbl">Bill if discharged now</div><div class="val">@h.M("BillNow").Rs()</div><div class="sub">@h.I("BedDays") bed day(s), live</div></div></div>
-            <div class="col-6 col-lg-3"><div class="ipd-tile good"><div class="lbl">Advance held</div><div class="val">@h.M("NetAdvance").Rs()</div></div></div>
-            <div class="col-6 col-lg-3"><div class="ipd-tile @(due > 0 ? "bad" : "good")"><div class="lbl">@(due >= 0 ? "Balance due" : "Refundable")</div><div class="val">@Math.Abs(due).Rs()</div></div></div>
-            <div class="col-6 col-lg-3"><div class="ipd-tile"><div class="lbl">Final bill</div><div class="val" style="font-size:1rem">Phase 5</div><div class="sub">Interim / final bill, discounts, settlement</div></div></div>
-        </div>
-        <a class="btn btn-primary" asp-controller="IpdEstimation" asp-action="Patient" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-calculator me-1"></i>Open Current Billing Estimation</a>
-    </div>
+    @* billing, charges, package (Phase 5) *@
+    @await Html.PartialAsync("_Billing", Model)
 
     @* insurance *@
     <div class="tab-pane fade @(Model.Tab == "insurance" ? "show active" : "")" id="tab-insurance" role="tabpanel">
@@ -458,4 +446,6 @@
     <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdAdmission/"), estBase = Url.Content("~/IpdEstimation/"), patientName = h.S("PatientName"), uhid = h.S("PatientCode"), ipNo = h.S("IpNo"), age = h.S("AgeText"), gender = h.S("Gender"), doctor = h.S("ConsultantDoctorName"), department = h.S("DepartmentName"), opdNo = h.S("OpdBillNo"), netAdvance = h.M("NetAdvance"), canRefund = Can("REFUND"), bedsBase = Url.Content("~/IpdBeds/"), bedLabel = h.S("BedNumber"), payers = Model.Payers, attendants = Model.Attendants, mlc = Model.Mlc.Has() ? (object)Model.Mlc : null, h = new { AdmissionType = h.S("AdmissionType"), AdmissionSource = h.S("AdmissionSource"), AdmittingDoctorId = h.I("AdmittingDoctorId"), ConsultantDoctorId = h.I("ConsultantDoctorId"), DepartmentId = h.NI("DepartmentId"), ReferralDoctorId = h.NI("ReferralDoctorId"), ExpectedDischargeAt = h.S("ExpectedDischargeAt"), PackageId = h.NI("PackageId"), ProvisionalDiagnosis = h.S("ProvisionalDiagnosis"), DiagnosisCode = h.S("DiagnosisCode"), ReasonForAdmission = h.S("ReasonForAdmission"), PayerType = h.S("PayerType"), TariffCategoryId = h.I("TariffCategoryId"), Remarks = h.S("Remarks"), IsMlc = h.B("IsMlc") } }));</script>
     <script src="~/js/ipd/transfer.js" asp-append-version="true"></script>
     <script src="~/js/ipd/patient.js" asp-append-version="true"></script>
+    <script>window.IpdBill = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdBilling/"), estBase = Url.Content("~/IpdEstimation/"), status = status, open = open, packageId = h.NI("PackageId"), can = new { charge = Can("CHARGE"), cancel = Can("CHARGE_CANCEL"), rate = Can("RATE_EDIT"), discount = Can("DISCOUNT"), package = Can("PACKAGE"), finalBill = Can("FINAL_BILL"), backdate = Can("BILL_BACKDATE"), billCancel = Can("BILL_CANCEL"), advance = Can("ADVANCE"), refund = Can("REFUND"), estimate = ViewData["CanEstimate"] as bool? ?? false } }));</script>
+    <script src="~/js/ipd/billing.js" asp-append-version="true"></script>
 }

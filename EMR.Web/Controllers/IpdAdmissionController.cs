@@ -388,7 +388,7 @@ public class IpdAdmissionController(
             var model = await LoadPatientAsync(id);
             if (model is null) return NotFound();
             model.Tab = string.IsNullOrWhiteSpace(tab) ? "overview" : tab;
-            foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER" })
+            foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER", "CHARGE", "CHARGE_CANCEL", "RATE_EDIT", "DISCOUNT", "PACKAGE", "FINAL_BILL", "BILL_BACKDATE", "BILL_CANCEL" })
                 ViewData["Can" + c] = await permissionGuard.AllowsAsync(HttpContext, PatientPage, c);
             ViewData["CanEstimate"] = await permissionGuard.AllowsAsync(HttpContext, IpdEstimationController.EstimationPage, "VIEW");
             return View(model);

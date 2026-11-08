@@ -44,10 +44,10 @@
         q('beds').innerHTML = Object.values(groups).map(g => `<div class="bed-ward"><div class="bed-ward-title">${E(g.name)} <span class="ipd-pill muted">${E(g.dept || '')}</span>${g.gender && !/unisex/i.test(g.gender) ? `<span class="ipd-pill info">${E(g.gender)}</span>` : ''}</div>
             <div class="bed-grid">${g.beds.map(b => {
                 const st = b.Status === 'Current' ? 'Occupied' : b.Status, sel = state.bed && state.bed.BedId === b.BedId;
-                return `<button type="button" class="bed-tile ${E(st)} ${sel ? 'selected' : ''}" data-bed="${b.BedId}" ${b.Selectable ? '' : 'disabled'}>
+                return `<button type="button" class="bed-tile ${E(st)} ${sel ? 'selected' : ''}" data-bed="${b.BedId}" ${b.Selectable && !b.NoTariff ? '' : 'disabled'} title="${b.Selectable && b.NoTariff ? 'No rate for the patient’s tariff category: cannot be given' : ''}">
                     <div class="bn">${E(b.BedNumber)} ${b.IsIcu ? '<span class="ipd-pill alert">ICU</span>' : ''}${b.Status === 'Current' ? '<span class="ipd-pill info">current</span>' : ''}</div>
                     <div class="text-muted">${E(b.BedCategoryName)} · ${E(b.RoomNumber)}</div>
-                    <div>${b.Selectable ? (b.NoTariff ? '<span class="text-danger">No rate</span>' : Ipd.money(b.DailyRate) + '/day') : E(b.Status)}</div></button>`;
+                    <div>${b.Selectable ? (b.NoTariff ? '<span class="text-danger">No rate · not allowed</span>' : Ipd.money(b.DailyRate) + '/day') : E(b.Status)}</div></button>`;
             }).join('')}</div></div>`).join('') || '<div class="text-muted small">No free bed matches.</div>';
         q('sel').innerHTML = state.bed ? `To <b>${E(state.bed.BedNumber)}</b> · ${E(state.bed.WardName)} · ${E(state.bed.BedCategoryName)}${state.bed.NoTariff ? '' : ' · ' + Ipd.money(state.bed.DailyRate) + '/day'}` : 'Choose the new bed';
         q('save').disabled = !state.bed;

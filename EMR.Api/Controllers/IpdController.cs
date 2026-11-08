@@ -15,6 +15,10 @@ public record IpdUpdateRequest(string AdmissionType, string AdmissionSource, int
     int? DepartmentId, string? ProvisionalDiagnosis, string? DiagnosisCode, string? ReasonForAdmission, DateTime? ExpectedDischargeAt,
     int TariffCategoryId, string PayerType, int? PackageId, string? Remarks, string? Payers, string? Attendants, bool IsMlc, string? Mlc, bool CanChangeTariff);
 public record IpdReasonRequest(string? Reason);
+public record IpdChargeAddRequest(string Lines, bool CanEditRate, bool CanDiscount);
+public record IpdDoctorFeeRequest(int? FeeId, int DoctorId, string? VisitType, int? TariffCategoryId, decimal Rate, DateTime EffectiveFrom, DateTime? EffectiveTo, string? Remarks);
+public record IpdPackageRequest(int? PackageId, string? Reason);
+public record IpdFinaliseRequest(DateTime? UpTo, string? DiscountType, decimal DiscountValue, string? DiscountReason, string? Remarks, bool CanDiscount, bool CanBackdate);
 public record IpdCancelRequest(string? Reason, string? RefundMethod, string? RefundRefNo);
 public record IpdAdvanceRequest(string Payments, string? Remarks);
 public record IpdRefundRequest(decimal Amount, string Method, string? RefNo, string? Reason);
@@ -247,4 +251,69 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     // ── ICD-10 search (SQLScripts/2433) ────────────────────────────────────────────────────────────────────────
     [HttpGet("icd")]
     public Task<IActionResult> Icd([FromQuery] string? q) => Run(async c => Rows(await ipd.RowsAsync("dbo.usp_Api_Icd_Search", new { Q = q ?? "", Top = 20 })));
+
+    // ── billing (SQLScripts/2434) ───────────────────────────────────────────────────────────────────────────────
+    [HttpGet("admissions/{id:int}/charge-lookups")]
+    public Task<IActionResult> ChargeLookups(int id) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_Ipd_ChargeLookups", new { c.CompanyId, c.BranchId, AdmissionId = id }, 5)));
+
+    [HttpGet("admissions/{id:int}/charges")]
+    public Task<IActionResult> Charges(int id, [FromQuery] string? head, [FromQuery] bool includeCancelled = false) => Run(async c =>
+        Rows(await ipd.RowsAsync("dbo.usp_Api_IpdCharge_List", new { c.CompanyId, AdmissionId = id, Head = head, IncludeCancelled = includeCancelled })));
+
+    [HttpPost("admissions/{id:int}/charges")]
+    public Task<IActionResult> ChargeAdd(int id, [FromBody] IpdChargeAddRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdCharge_Add", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Lines, r.CanEditRate, r.CanDiscount })));
+
+    [HttpPost("charges/{id:long}/cancel")]
+    public Task<IActionResult> ChargeCancel(long id, [FromBody] IpdReasonRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdCharge_Cancel", new { c.CompanyId, c.BranchId, c.UserId, ChargeId = id, r.Reason })));
+
+    [HttpPost("admissions/{id:int}/package")]
+    public Task<IActionResult> SetPackage(int id, [FromBody] IpdPackageRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdBill_SetPackage", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.PackageId, r.Reason })));
+
+    [HttpGet("admissions/{id:int}/bill-preview")]
+    public Task<IActionResult> BillPreview(int id, [FromQuery] DateTime? upTo, [FromQuery] string? discountType, [FromQuery] decimal discountValue = 0) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdBill_Preview", new { c.CompanyId, AdmissionId = id, UpTo = upTo, DiscountType = discountType, DiscountValue = discountValue }, 2)));
+
+    [HttpPost("admissions/{id:int}/final-bill")]
+    public Task<IActionResult> Finalise(int id, [FromBody] IpdFinaliseRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdBill_Finalise", new
+        {
+            c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.UpTo, r.DiscountType, r.DiscountValue, r.DiscountReason, r.Remarks, r.CanDiscount, r.CanBackdate
+        })));
+
+    [HttpPost("bills/{id:int}/cancel")]
+    public Task<IActionResult> BillCancel(int id, [FromBody] IpdReasonRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdBill_Cancel", new { c.CompanyId, c.BranchId, c.UserId, BillId = id, r.Reason })));
+
+    [HttpGet("bills/{id:int}")]
+    public Task<IActionResult> BillGet(int id) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdBill_Get", new { c.CompanyId, BillId = id }, 5)));
+
+    [HttpGet("bills")]
+    public Task<IActionResult> Bills([FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, [FromQuery] string? status, [FromQuery] string? search) => Run(async c =>
+        Rows(await ipd.RowsAsync("dbo.usp_Api_IpdBill_List", new { c.CompanyId, c.BranchId, FromDate = fromDate, ToDate = toDate, Status = status, Search = search })));
+
+    // ── IPD > Doctor Visit Charges (SQLScripts/2434) ────────────────────────────────────────────────────────────
+    [HttpGet("doctor-fees/lookups")]
+    public Task<IActionResult> DoctorFeeLookups() => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdDoctorFee_Lookups", new { c.CompanyId, c.BranchId }, 2)));
+
+    [HttpGet("doctor-fees")]
+    public Task<IActionResult> DoctorFees([FromQuery] int? doctorId, [FromQuery] string? search, [FromQuery] bool includeInactive = false) => Run(async c =>
+        Rows(await ipd.RowsAsync("dbo.usp_Api_IpdDoctorFee_List", new { c.CompanyId, c.BranchId, DoctorId = doctorId, Search = search, IncludeInactive = includeInactive })));
+
+    [HttpPost("doctor-fees")]
+    public Task<IActionResult> DoctorFeeSave([FromBody] IpdDoctorFeeRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdDoctorFee_Save", new
+        {
+            c.CompanyId, c.BranchId, c.UserId, r.FeeId, r.DoctorId, r.VisitType, r.TariffCategoryId, r.Rate,
+            EffectiveFrom = r.EffectiveFrom.Date, EffectiveTo = r.EffectiveTo?.Date, r.Remarks
+        })));
+
+    [HttpPost("doctor-fees/{id:int}/remove")]
+    public Task<IActionResult> DoctorFeeRemove(int id) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdDoctorFee_Remove", new { c.CompanyId, c.BranchId, c.UserId, FeeId = id })));
 }

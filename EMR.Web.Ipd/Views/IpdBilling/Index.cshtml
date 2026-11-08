@@ -1,0 +1,26 @@
+@{
+    ViewData["Title"] = "IPD Bills";
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+@Html.AntiForgeryToken()
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-receipt-cutoff me-2 text-primary"></i>IPD Bills</h2><p>Final bills of this branch: amount, advance adjusted, balance and refunds due.</p></div>
+    <a asp-controller="IpdEstimation" asp-action="Index" class="btn btn-sm btn-light border"><i class="bi bi-calculator me-1"></i>Current Billing</a>
+</div>
+<div class="ipdx-kpis mb-3" id="kpis" style="grid-template-columns:repeat(4, minmax(0, 1fr))"></div>
+<div class="ipdx-card p-3 mb-3"><div class="row g-2 align-items-end">
+    <div class="col-6 col-lg-2"><label class="form-label small fw-semibold" for="fFrom">From</label><input type="date" id="fFrom" class="form-control form-control-sm" /></div>
+    <div class="col-6 col-lg-2"><label class="form-label small fw-semibold" for="fTo">To</label><input type="date" id="fTo" class="form-control form-control-sm" /></div>
+    <div class="col-6 col-lg-2"><label class="form-label small fw-semibold" for="fStatus">Status</label><select id="fStatus" class="form-select form-select-sm"><option value="">All</option><option value="FINAL">Final</option><option value="CANCELLED">Cancelled</option></select></div>
+    <div class="col-6 col-lg-4"><label class="form-label small fw-semibold" for="fSearch">Find</label><input id="fSearch" class="form-control form-control-sm" placeholder="Bill no., IP no., UHID, mobile or name" /></div>
+    <div class="col-12 col-lg-2"><button type="button" class="btn btn-sm btn-primary w-100" id="fLoad"><i class="bi bi-search me-1"></i>Show</button></div>
+</div></div>
+<div class="ipdx-card"><div class="table-responsive"><table class="table ipdx-table mb-0">
+    <thead><tr><th>Bill</th><th>Patient</th><th>IP No.</th><th>Consultant</th><th class="text-end">Bill amount</th><th class="text-end">Advance adjusted</th><th class="text-end">Balance / refund</th><th>Status</th><th></th></tr></thead>
+    <tbody id="rows"><tr><td colspan="9" class="text-muted small">Loading…</td></tr></tbody>
+</table></div></div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdBilling/"), adm = Url.Content("~/IpdAdmission/") }));</script>
+    <script src="~/js/ipd/bills.js" asp-append-version="true"></script>
+}

@@ -255,6 +255,7 @@ BEGIN
         WHERE a.AdmissionId = @AdmissionId AND a.CompanyId = @CompanyId AND a.BranchId = @BranchId;
         IF @open IS NULL THROW 54804, 'The admission was not found in this branch.', 1;
         IF @open = 0 THROW 54805, 'The admission is closed: the patient cannot be transferred.', 1;
+        IF EXISTS (SELECT 1 FROM dbo.IpdAdmission WHERE AdmissionId = @AdmissionId AND Status = 'BILL_FINAL') THROW 54813, 'The final bill is made: the patient cannot be transferred (cancel the bill first).', 1;
         SELECT @mv = MovementId, @fromBed = BedId, @mvFrom = FromAt FROM dbo.IpdBedMovement WITH (UPDLOCK) WHERE AdmissionId = @AdmissionId AND ToAt IS NULL;
         IF @mv IS NULL THROW 54806, 'The patient has no current bed.', 1;
         IF @fromBed = @ToBedId THROW 54807, 'Choose a different bed.', 1;
@@ -271,6 +272,8 @@ BEGIN
         DECLARE @resId INT = (SELECT ReservationId FROM dbo.IpdBedReservation WHERE BedId = @ToBedId AND Status = 'ACTIVE' AND (PatientId = @patient));
         IF @bStatus <> N'Available' AND NOT (@bStatus = N'Reserved' AND @resId IS NOT NULL)
         BEGIN SET @msg = N'Bed ' + @bNo + N' is ' + @bStatus + N'. Choose an available bed.'; THROW 54811, @msg, 1; END;
+        IF NOT EXISTS (SELECT 1 FROM dbo.IpdAdmission a CROSS APPLY dbo.fn_Ipd_BedRate(@BranchId, @ToBedId, a.TariffCategoryId, CAST(@TransferAt AS DATE)) r WHERE a.AdmissionId = @AdmissionId)
+        BEGIN SET @msg = N'Bed ' + @bNo + N' has no rate for the patient''s tariff category (Master > IPD > Bed / Room Tariff): it cannot be given.'; THROW 54814, @msg, 1; END;
         IF ISNULL((SELECT IpdBlockWardGenderMismatch FROM dbo.HospitalSettings WHERE BranchID = @BranchId), 1) = 1
            AND @wGender IN (N'Male', N'Female') AND ISNULL(@gender, N'') IN (N'Male', N'Female') AND @wGender <> @gender
         BEGIN SET @msg = @wName + N' is a ' + LOWER(@wGender) + N' ward; the patient is ' + LOWER(@gender) + N'.'; THROW 54812, @msg, 1; END;
@@ -319,8 +322,8 @@ BEGIN
         FROM dbo.IpdAdmission a WITH (UPDLOCK) JOIN dbo.PatientMaster p ON p.PatientId = a.PatientId
         JOIN dbo.IpdBedMovement m WITH (UPDLOCK) ON m.AdmissionId = a.AdmissionId AND m.ToAt IS NULL
         JOIN dbo.BedMaster b ON b.BedId = m.BedId JOIN dbo.WardMaster w ON w.WardId = b.WardId
-        WHERE a.AdmissionId IN (@AdmissionId, @OtherAdmissionId) AND a.CompanyId = @CompanyId AND a.BranchId = @BranchId AND a.IsOpen = 1;
-        IF (SELECT COUNT(*) FROM @A) <> 2 THROW 54823, 'Both patients must be admitted in this branch with a current bed.', 1;
+        WHERE a.AdmissionId IN (@AdmissionId, @OtherAdmissionId) AND a.CompanyId = @CompanyId AND a.BranchId = @BranchId AND a.IsOpen = 1 AND a.Status <> 'BILL_FINAL';
+        IF (SELECT COUNT(*) FROM @A) <> 2 THROW 54823, 'Both patients must be admitted in this branch with a current bed, and neither may have a final bill.', 1;
         IF ISNULL((SELECT IpdBlockWardGenderMismatch FROM dbo.HospitalSettings WHERE BranchID = @BranchId), 1) = 1
            AND EXISTS (SELECT 1 FROM @A x JOIN @A y ON y.Seq <> x.Seq WHERE y.WGender IN (N'Male', N'Female') AND x.Gender IN (N'Male', N'Female') AND y.WGender <> x.Gender)
             THROW 54824, 'A patient would move into a ward of the other gender.', 1;

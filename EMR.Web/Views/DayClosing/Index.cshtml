@@ -1,7 +1,7 @@
 @{
     var module = ViewData["Module"] as string ?? "OPD";
     var moduleTitle = module == "PHR" ? "Pharmacy" : module;
-    var otherModules = module switch { "OPD" => "LAB / Pharmacy", "LAB" => "OPD / Pharmacy", _ => "OPD / LAB" };
+    var otherModules = module switch { "OPD" => "LAB / Pharmacy / IPD", "LAB" => "OPD / Pharmacy / IPD", "IPD" => "OPD / LAB / Pharmacy", _ => "OPD / LAB / IPD" };
     ViewData["Title"] = moduleTitle + " Day Closing";
     var notes = new[] { 500, 200, 100, 50, 20, 10, 5, 2, 1 };
     var controller = ViewContext.RouteData.Values["controller"] as string;

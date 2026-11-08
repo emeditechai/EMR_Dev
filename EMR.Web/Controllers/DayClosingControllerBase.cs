@@ -16,7 +16,7 @@ public abstract class DayClosingControllerBase(IDayClosingService closings, INot
     : AccountsControllerBase
 {
     protected abstract string Module { get; }
-    private string ModuleTitle => Module switch { "OPD" => "OPD", "PHR" => "Pharmacy", _ => "LAB" };
+    private string ModuleTitle => Module switch { "OPD" => "OPD", "PHR" => "Pharmacy", "IPD" => "IPD", _ => "LAB" };
 
     private IActionResult NoBranch() => Json(new { success = false, message = "Select a branch first." });
 

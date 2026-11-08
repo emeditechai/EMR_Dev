@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "IPD Doctor Visit Charges";
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+@Html.AntiForgeryToken()
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-person-badge-fill me-2 text-success"></i>IPD Doctor Visit Charges</h2>
+        <p>IPD visit charge of each doctor of an IPD-type department (one charge per visit, for every visit type and tariff category). Separate from the OPD consulting fee; the Doctor Visits tab of the IPD Patient screen charges from here.</p></div>
+    <button type="button" class="btn btn-sm btn-success" id="btnNew"><i class="bi bi-plus-lg me-1"></i>Add charge</button>
+</div>
+<div class="ipdx-card p-3 mb-3"><div class="row g-2 align-items-end">
+    <div class="col-12 col-lg-4"><label class="form-label small fw-semibold" for="fDoctor">Doctor</label><select id="fDoctor" class="form-select form-select-sm"><option value="">All IPD doctors</option></select></div>
+    <div class="col-12 col-lg-4"><label class="form-label small fw-semibold" for="fSearch">Find</label><input id="fSearch" class="form-control form-control-sm" placeholder="Doctor name" /></div>
+    <div class="col-6 col-lg-2"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="fInactive" /><label class="form-check-label small" for="fInactive">Show removed</label></div></div>
+    <div class="col-6 col-lg-2"><button type="button" class="btn btn-sm btn-primary w-100" id="fLoad"><i class="bi bi-search me-1"></i>Show</button></div>
+</div>
+<div class="small text-muted mt-2" id="noFee"></div></div>
+<div class="ipdx-card"><div class="table-responsive"><table class="table ipdx-table mb-0">
+    <thead><tr><th>Doctor</th><th class="text-end">Charge</th><th>Effective</th><th>Remarks</th><th>Status</th><th>Updated</th><th></th></tr></thead>
+    <tbody id="rows"><tr><td colspan="9" class="text-muted small">Loading…</td></tr></tbody>
+</table></div></div>
+
+<div class="modal fade" id="feeModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title fw-bold" id="mTitle">Add visit charge</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><div class="row g-2">
+        <input type="hidden" id="mId" />
+        <div class="col-12"><label class="form-label small fw-semibold" for="mDoctor">Doctor <span class="text-danger">*</span></label><select id="mDoctor" class="form-select"></select><div class="form-text">Only doctors of an IPD-type department.</div></div>
+        <div class="col-6"><label class="form-label small fw-semibold" for="mRate">Charge per visit (₹) <span class="text-danger">*</span></label><input type="number" id="mRate" class="form-control" min="0.01" step="0.01" /></div>
+                <div class="col-6"><label class="form-label small fw-semibold" for="mFrom">Effective from <span class="text-danger">*</span></label><input type="date" id="mFrom" class="form-control" /></div>
+        <div class="col-6"><label class="form-label small fw-semibold" for="mTo">Effective to</label><input type="date" id="mTo" class="form-control" /><div class="form-text">Blank = until changed.</div></div>
+        <div class="col-12"><label class="form-label small fw-semibold" for="mRemarks">Remarks</label><input id="mRemarks" class="form-control" maxlength="300" /></div>
+    </div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-success" id="mSave">Save</button></div>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdDoctorFee/") }));</script>
+    <script src="~/js/ipd/doctor-fee.js" asp-append-version="true"></script>
+}

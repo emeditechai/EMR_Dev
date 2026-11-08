@@ -81,6 +81,7 @@ pick = pick || (L.tariffCategories || []).filter(t => payerCategory[p].test(t.Pa
     // ── beds ────────────────────────────────────────────────────────────────────────────────────────────
     // a bed is selectable when Available, or Reserved for the patient on the form (Bed Board > Reserve)
     function selectable(b) {
+        if (b.NoTariff) return false;   // a bed without a rate for the tariff category cannot be given
         if (b.BedStatus === 'Available') return true;
         if (b.BedStatus !== 'Reserved') return false;
         const pid = Number(document.getElementById('PatientId').value) || 0, ph = (document.getElementById('PhoneNumber').value || '').replace(/\D/g, '');
