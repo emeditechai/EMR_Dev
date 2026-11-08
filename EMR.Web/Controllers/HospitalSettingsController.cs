@@ -631,6 +631,22 @@ public class HospitalSettingsController(
             existing.PharmacyIpdGstExempt = model.PharmacyIpdGstExempt;
             existing.PharmacyBlockDischargeOnPendingIndent = model.PharmacyBlockDischargeOnPendingIndent;
             existing.PharmacyTtoBillingMode = model.PharmacyTtoBillingMode == "SALE" ? "SALE" : "IPD";
+            // IPD (SQLScripts/2422)
+            existing.IpdNumberPrefix = string.IsNullOrWhiteSpace(model.IpdNumberPrefix) ? "IP" : model.IpdNumberPrefix.Trim().ToUpperInvariant();
+            existing.IpdNumberResetYearly = model.IpdNumberResetYearly;
+            existing.IpdBedChargeMode = (model.IpdBedChargeMode is "HOURLY24" or "CHECKINOUT" ? model.IpdBedChargeMode : "CALENDAR");
+            existing.IpdDischargeGraceHour = Math.Clamp(model.IpdDischargeGraceHour, 0, 23);
+            existing.IpdHourlyGraceHours = Math.Clamp(model.IpdHourlyGraceHours, 0, 12);
+            existing.IpdDefaultTariffCategoryId = model.IpdDefaultTariffCategoryId is > 0 ? model.IpdDefaultTariffCategoryId : null;
+            existing.IpdRoomGstThreshold = Math.Max(0, model.IpdRoomGstThreshold);
+            existing.IpdMinAdvanceDays = Math.Clamp(model.IpdMinAdvanceDays, 0, 60);
+            existing.IpdDepositAlertPercent = Math.Clamp(model.IpdDepositAlertPercent, 10, 100);
+            existing.IpdEstimateValidityDays = Math.Clamp(model.IpdEstimateValidityDays, 1, 90);
+            existing.IpdDefaultDischargeHour = Math.Clamp(model.IpdDefaultDischargeHour, 0, 23);
+            existing.IpdBlockWardGenderMismatch = model.IpdBlockWardGenderMismatch;
+            existing.IpdConsentRequired = model.IpdConsentRequired;
+            existing.IpdReleaseBedTo = model.IpdReleaseBedTo == "AVAILABLE" ? "AVAILABLE" : "CLEANING";
+            existing.IpdReservationHoldHours = Math.Clamp(model.IpdReservationHoldHours, 1, 168);
             existing.PharmacyRoundOffBill = model.PharmacyRoundOffBill;
             existing.PharmacyBillPrintFormat = model.PharmacyBillPrintFormat is "A5" or "80MM" ? model.PharmacyBillPrintFormat : "A4";
             existing.PharmacyBillNotificationRequired = model.PharmacyBillNotificationRequired;
@@ -812,6 +828,12 @@ public class HospitalSettingsController(
             PharmacyIpdGstExempt = s.PharmacyIpdGstExempt,
             PharmacyBlockDischargeOnPendingIndent = s.PharmacyBlockDischargeOnPendingIndent,
             PharmacyTtoBillingMode = s.PharmacyTtoBillingMode,
+            IpdNumberPrefix = s.IpdNumberPrefix, IpdNumberResetYearly = s.IpdNumberResetYearly, IpdBedChargeMode = s.IpdBedChargeMode,
+            IpdDischargeGraceHour = s.IpdDischargeGraceHour, IpdHourlyGraceHours = s.IpdHourlyGraceHours, IpdDefaultTariffCategoryId = s.IpdDefaultTariffCategoryId,
+            IpdRoomGstThreshold = s.IpdRoomGstThreshold, IpdMinAdvanceDays = s.IpdMinAdvanceDays, IpdDepositAlertPercent = s.IpdDepositAlertPercent,
+            IpdEstimateValidityDays = s.IpdEstimateValidityDays, IpdDefaultDischargeHour = s.IpdDefaultDischargeHour,
+            IpdBlockWardGenderMismatch = s.IpdBlockWardGenderMismatch, IpdConsentRequired = s.IpdConsentRequired,
+            IpdReleaseBedTo = s.IpdReleaseBedTo, IpdReservationHoldHours = s.IpdReservationHoldHours,
             PharmacyRoundOffBill = s.PharmacyRoundOffBill,
             PharmacyBillPrintFormat = s.PharmacyBillPrintFormat,
             PharmacyBillNotificationRequired = s.PharmacyBillNotificationRequired,
@@ -948,6 +970,14 @@ public class HospitalSettingsController(
             PharmacyIpdGstExempt = m.PharmacyIpdGstExempt,
             PharmacyBlockDischargeOnPendingIndent = m.PharmacyBlockDischargeOnPendingIndent,
             PharmacyTtoBillingMode = m.PharmacyTtoBillingMode == "SALE" ? "SALE" : "IPD",
+            IpdNumberPrefix = string.IsNullOrWhiteSpace(m.IpdNumberPrefix) ? "IP" : m.IpdNumberPrefix.Trim().ToUpperInvariant(),
+            IpdNumberResetYearly = m.IpdNumberResetYearly, IpdBedChargeMode = (m.IpdBedChargeMode is "HOURLY24" or "CHECKINOUT" ? m.IpdBedChargeMode : "CALENDAR"),
+            IpdDischargeGraceHour = Math.Clamp(m.IpdDischargeGraceHour, 0, 23), IpdHourlyGraceHours = Math.Clamp(m.IpdHourlyGraceHours, 0, 12),
+            IpdDefaultTariffCategoryId = m.IpdDefaultTariffCategoryId is > 0 ? m.IpdDefaultTariffCategoryId : null, IpdRoomGstThreshold = Math.Max(0, m.IpdRoomGstThreshold),
+            IpdMinAdvanceDays = Math.Clamp(m.IpdMinAdvanceDays, 0, 60), IpdDepositAlertPercent = Math.Clamp(m.IpdDepositAlertPercent, 10, 100),
+            IpdEstimateValidityDays = Math.Clamp(m.IpdEstimateValidityDays, 1, 90), IpdDefaultDischargeHour = Math.Clamp(m.IpdDefaultDischargeHour, 0, 23),
+            IpdBlockWardGenderMismatch = m.IpdBlockWardGenderMismatch, IpdConsentRequired = m.IpdConsentRequired,
+            IpdReleaseBedTo = m.IpdReleaseBedTo == "AVAILABLE" ? "AVAILABLE" : "CLEANING", IpdReservationHoldHours = Math.Clamp(m.IpdReservationHoldHours, 1, 168),
             PharmacyRoundOffBill = m.PharmacyRoundOffBill,
             PharmacyBillPrintFormat = m.PharmacyBillPrintFormat is "A5" or "80MM" ? m.PharmacyBillPrintFormat : "A4",
             PharmacyBillNotificationRequired = m.PharmacyBillNotificationRequired,

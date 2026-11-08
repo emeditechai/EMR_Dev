@@ -383,6 +383,9 @@ body {
 .stat-yellow { background: linear-gradient(135deg, #c97d00 0%, #f0a500 100%); }
 .stat-teal   { background: linear-gradient(135deg, #0a7f8a 0%, #12b3c2 100%); }
 .stat-purple { background: linear-gradient(135deg, #6a3fbc 0%, #9164e0 100%); }
+/* used by 15 / 1 screens but never defined: their white text sat on a white card */
+.stat-cyan   { background: linear-gradient(135deg, #0369a1 0%, #0ea5e9 100%); }
+.stat-amber  { background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%); }
 
 .doctor-table-panel .table,
 .doctor-table-panel tbody,

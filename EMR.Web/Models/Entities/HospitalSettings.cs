@@ -115,6 +115,24 @@ public class HospitalSettings
     public bool PharmacyIpdGstExempt { get; set; } = true;
     public bool PharmacyBlockDischargeOnPendingIndent { get; set; } = true;
     public string PharmacyTtoBillingMode { get; set; } = "IPD";
+
+    // ── IPD (SQLScripts/2422) ──
+    public string IpdNumberPrefix { get; set; } = "IP";
+    public bool IpdNumberResetYearly { get; set; } = true;
+    public string IpdBedChargeMode { get; set; } = "CALENDAR";
+    public int IpdDischargeGraceHour { get; set; } = 12;
+    public int IpdHourlyGraceHours { get; set; } = 2;
+    public int? IpdDefaultTariffCategoryId { get; set; }
+    [Microsoft.EntityFrameworkCore.Precision(18, 2)]
+    public decimal IpdRoomGstThreshold { get; set; } = 5000m;
+    public int IpdMinAdvanceDays { get; set; } = 0;
+    public int IpdDepositAlertPercent { get; set; } = 80;
+    public int IpdEstimateValidityDays { get; set; } = 7;
+    public int IpdDefaultDischargeHour { get; set; } = 11;
+    public bool IpdBlockWardGenderMismatch { get; set; } = true;
+    public bool IpdConsentRequired { get; set; } = false;
+    public string IpdReleaseBedTo { get; set; } = "CLEANING";
+    public int IpdReservationHoldHours { get; set; } = 24;
     public bool PharmacyRoundOffBill { get; set; } = true;
     public string PharmacyBillPrintFormat { get; set; } = "A4";
     public bool PharmacyBillNotificationRequired { get; set; } = false;

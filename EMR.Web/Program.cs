@@ -261,6 +261,7 @@ builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>(
 builder.Services.AddScoped<EMR.Web.Services.IPatientPortalLoginService, EMR.Web.Services.PatientPortalLoginService>();
 builder.Services.AddScoped<EMR.Web.Services.IPatientProfileService, EMR.Web.Services.PatientProfileService>();   // Patient Master view + Patient Portal dashboard
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
+builder.Services.AddScoped<IpdApiClient>();   // IPD transactions: admission, beds, advances, live estimate (SQLScripts/2422-2424)
 builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();
 builder.Services.AddScoped<ICorporateHospitalRateApiClient, CorporateHospitalRateApiClient>();

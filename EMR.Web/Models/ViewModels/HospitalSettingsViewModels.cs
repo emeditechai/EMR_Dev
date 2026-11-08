@@ -297,6 +297,61 @@ public class HospitalSettingsViewModel
     [Display(Name = "Discharge Medicines (TTO) Billed On")]
     public string PharmacyTtoBillingMode { get; set; } = "IPD";
 
+    // ── IPD (SQLScripts/2422) ──
+    [Display(Name = "IP Number Prefix")]
+    [StringLength(10)]
+    public string IpdNumberPrefix { get; set; } = "IP";
+
+    [Display(Name = "Restart IP Number Every Financial Year")]
+    public bool IpdNumberResetYearly { get; set; } = true;
+
+    [Display(Name = "Bed Charge Cycle")]
+    public string IpdBedChargeMode { get; set; } = "CALENDAR";
+
+    [Display(Name = "Discharge Grace Hour (calendar day)")]
+    [Range(0, 23)]
+    public int IpdDischargeGraceHour { get; set; } = 12;
+
+    [Display(Name = "Grace Hours (24-hour / check-in-out cycle)")]
+    [Range(0, 12)]
+    public int IpdHourlyGraceHours { get; set; } = 2;
+
+    [Display(Name = "Default / Fallback Tariff Category")]
+    public int? IpdDefaultTariffCategoryId { get; set; }
+
+    [Display(Name = "Room Rent GST Threshold (Rs / day)")]
+    [Range(0, 1000000)]
+    public decimal IpdRoomGstThreshold { get; set; } = 5000m;
+
+    [Display(Name = "Minimum Advance (days of bed charge)")]
+    [Range(0, 60)]
+    public int IpdMinAdvanceDays { get; set; } = 0;
+
+    [Display(Name = "Deposit Alert at % of Advance Used")]
+    [Range(10, 100)]
+    public int IpdDepositAlertPercent { get; set; } = 80;
+
+    [Display(Name = "Pre-admission Estimate Valid (days)")]
+    [Range(1, 90)]
+    public int IpdEstimateValidityDays { get; set; } = 7;
+
+    [Display(Name = "Expected Discharge Hour")]
+    [Range(0, 23)]
+    public int IpdDefaultDischargeHour { get; set; } = 11;
+
+    [Display(Name = "Block Bed in a Ward of the Other Gender")]
+    public bool IpdBlockWardGenderMismatch { get; set; } = true;
+
+    [Display(Name = "General Consent Required at Admission")]
+    public bool IpdConsentRequired { get; set; } = false;
+
+    [Display(Name = "A Vacated Bed Goes To")]
+    public string IpdReleaseBedTo { get; set; } = "CLEANING";
+
+    [Display(Name = "Hold a Reserved Bed (hours after expected admission)")]
+    [Range(1, 168)]
+    public int IpdReservationHoldHours { get; set; } = 24;
+
     [Display(Name = "Round Off Pharmacy Bill")]
     public bool PharmacyRoundOffBill { get; set; } = true;
 

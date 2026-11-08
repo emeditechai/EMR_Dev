@@ -1,0 +1,31 @@
+@{ ViewData["Title"] = "IPD Admission List"; }
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div><h1 class="h3 mb-0 fw-bold"><i class="bi bi-card-list me-2 text-success"></i>Admission List</h1><small class="text-muted">Search admissions by IP no., UHID, name, mobile or bed</small></div>
+    <a asp-action="New" class="btn btn-success"><i class="bi bi-person-plus-fill me-1"></i>New Admission</a>
+</div>
+@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+<div class="reg-section"><div class="reg-section-body py-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4"><label class="form-label" for="fSearch">Search</label><input id="fSearch" class="form-control" placeholder="IP no., UHID, name, mobile, bed" /></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="fStatus">Status</label>
+            <select id="fStatus" class="form-select"><option value="OPEN">In hospital</option><option value="">All</option><option value="ADMITTED">Admitted</option><option value="DISCHARGE_ADVISED">Discharge advised</option><option value="DISCHARGED">Discharged</option><option value="CANCELLED">Cancelled</option></select></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="fPayer">Payer</label>
+            <select id="fPayer" class="form-select"><option value="">All</option><option value="CASH">Cash</option><option value="CORPORATE">Corporate</option><option value="INSURANCE">Insurance / TPA</option><option value="SCHEME">Govt. scheme</option></select></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="fFrom">Admitted from</label><input type="date" id="fFrom" class="form-control" /></div>
+        <div class="col-6 col-md-2"><label class="form-label" for="fTo">to</label><input type="date" id="fTo" class="form-control" /></div>
+    </div>
+</div></div>
+<div class="reg-section"><div class="reg-section-body p-0">
+    <div class="table-responsive"><table class="table table-hover ipd-table mb-0">
+        <thead><tr><th>IP No.</th><th>Admitted</th><th>Patient</th><th>Ward / bed</th><th>Consultant</th><th>Payer</th><th class="text-end">Day</th><th class="text-end">Bill so far</th><th class="text-end">Advance</th><th class="text-end">Balance</th><th>Status</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="11" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table></div>
+</div></div>
+<div class="d-flex justify-content-between align-items-center"><span id="count" class="small text-muted"></span>
+    <div class="btn-group"><button type="button" class="btn btn-sm btn-outline-secondary" id="prev">Previous</button><button type="button" class="btn btn-sm btn-outline-secondary" id="next">Next</button></div></div>
+@section Scripts {
+<script src="~/js/ipd.js" asp-append-version="true"></script>
+<script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdAdmission/") }));</script>
+<script src="~/js/ipd/admission-list.js" asp-append-version="true"></script>
+}

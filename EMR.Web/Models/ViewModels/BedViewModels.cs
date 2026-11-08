@@ -40,6 +40,11 @@ public class BedFormViewModel
     [Display(Name = "Building")]
     public int? BuildingId { get; set; }
 
+    /// <summary>Floor of the ward (not stored on the bed: the ward belongs to a floor). Drives the Ward list.</summary>
+    [Display(Name = "Floor")]
+    [Required(ErrorMessage = "Floor is required")]
+    public int? FloorId { get; set; }
+
     [Required(ErrorMessage = "Ward is required.")]
     [Display(Name = "Ward")]
     public int? WardId { get; set; }
@@ -80,6 +85,7 @@ public class BedFormViewModel
 
     // Dropdown SelectLists
     public IEnumerable<SelectListItem> BuildingOptions { get; set; } = new List<SelectListItem>();
+    public IEnumerable<SelectListItem> FloorOptions { get; set; } = new List<SelectListItem>();
     public IEnumerable<SelectListItem> WardOptions { get; set; } = new List<SelectListItem>();
     public IEnumerable<SelectListItem> RoomOptions { get; set; } = new List<SelectListItem>();
     public IEnumerable<SelectListItem> BedCategoryOptions { get; set; } = new List<SelectListItem>();

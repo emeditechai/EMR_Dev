@@ -1,0 +1,26 @@
+@{ ViewData["Title"] = "IPD Dashboard"; }
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div><h1 class="h3 mb-0 fw-bold"><i class="bi bi-hospital me-2 text-success"></i>Inpatient Department</h1><small class="text-muted">Census, beds and patients in the hospital now <span id="asOf"></span></small></div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a asp-controller="IpdAdmission" asp-action="New" class="btn btn-success"><i class="bi bi-person-plus-fill me-1"></i>New Admission</a>
+        <a asp-controller="IpdBeds" asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-grid-3x3-gap me-1"></i>Bed Board</a>
+        <a asp-controller="IpdAdmission" asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-card-list me-1"></i>Admission List</a>
+        <a asp-controller="IpdEstimation" asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-calculator me-1"></i>Billing Estimation</a>
+        <button type="button" class="btn btn-outline-secondary" id="refresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+</div>
+<div class="row g-3 mb-3" id="tiles"></div>
+<div class="row g-3">
+    <div class="col-12 col-xl-4"><div class="reg-section"><div class="reg-section-header"><div class="sec-icon red"><i class="bi bi-grid-3x3-gap"></i></div><h6 class="fw-bold mb-0">Beds by ward</h6></div>
+        <div class="reg-section-body" id="wards"></div></div></div>
+    <div class="col-12 col-xl-8"><div class="reg-section"><div class="reg-section-header"><div class="sec-icon green"><i class="bi bi-people"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Patients in the hospital</h6></div>
+        <input id="q" class="form-control form-control-sm" style="max-width:220px" placeholder="Filter" /></div>
+        <div class="reg-section-body p-0"><div class="table-responsive"><table class="table table-hover ipd-table mb-0">
+            <thead><tr><th>Bed</th><th>Patient</th><th>IP No.</th><th>Consultant</th><th class="text-end">Day</th><th class="text-end">Bill</th><th class="text-end">Balance</th></tr></thead><tbody id="pts"></tbody></table></div></div></div></div>
+</div>
+@section Scripts {
+<script src="~/js/ipd.js" asp-append-version="true"></script>
+<script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { patientBase = Url.Content("~/IpdAdmission/Patient/"), dataUrl = Url.Action("DashboardData", "IPD") }));</script>
+<script src="~/js/ipd/dashboard.js" asp-append-version="true"></script>
+}

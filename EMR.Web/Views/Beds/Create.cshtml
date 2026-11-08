@@ -40,6 +40,20 @@
                             <span asp-validation-for="BuildingId" class="text-danger small d-block mt-1"></span>
                         </div>
 
+                        <!-- Floor (Cascading: Building -> Floor -> Ward -> Room) -->
+                        <div class="col-md-4">
+                            <label asp-for="FloorId" class="form-label fw-semibold required-label">
+                                Floor <span class="text-danger">*</span>
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light"><i class="bi bi-layers text-muted"></i></span>
+                                <select id="floorSelect" asp-for="FloorId" asp-items="Model.FloorOptions" class="form-select" required>
+                                    <option value="">-- Select Floor --</option>
+                                </select>
+                            </div>
+                            <span asp-validation-for="FloorId" class="text-danger small d-block mt-1"></span>
+                        </div>
+
                         <!-- Ward (Cascading) -->
                         <div class="col-md-4">
                             <label asp-for="WardId" class="form-label fw-semibold required-label">
@@ -172,27 +186,27 @@
             const wardSelect = document.getElementById('wardSelect');
             const roomSelect = document.getElementById('roomSelect');
 
+            const floorSelect = document.getElementById('floorSelect');
+            const resetFloors = () => { floorSelect.innerHTML = '<option value="">-- Select Floor --</option>'; };
+            const resetWards = () => { wardSelect.innerHTML = '<option value="">-- Select Ward --</option>'; };
+            const resetRooms = () => { roomSelect.innerHTML = '<option value="">-- Select Room --</option>'; };
+
             buildingSelect.addEventListener('change', async function () {
-                const buildingId = this.value;
-                wardSelect.innerHTML = '<option value="">-- Select Ward --</option>';
-                roomSelect.innerHTML = '<option value="">-- Select Room --</option>';
-
-                if (!buildingId) return;
-
+                resetFloors(); resetWards(); resetRooms();
+                if (!this.value) return;
                 try {
-                    const res = await fetch(`/Beds/GetWardsByBuilding?buildingId=${buildingId}`);
-                    if (res.ok) {
-                        const wards = await res.json();
-                        wards.forEach(w => {
-                            const opt = document.createElement('option');
-                            opt.value = w.wardId;
-                            opt.textContent = `${w.wardName} (${w.wardCode}) - ${w.wardType}`;
-                            wardSelect.appendChild(opt);
-                        });
-                    }
-                } catch (err) {
-                    console.error('Error fetching wards:', err);
-                }
+                    const res = await fetch(`/Beds/GetFloorsByBuilding?buildingId=${this.value}`);
+                    if (res.ok) (await res.json()).forEach(f => floorSelect.appendChild(new Option(`${f.floorName} (${f.floorCode})`, f.floorId)));
+                } catch (err) { console.error('Error fetching floors:', err); }
+            });
+
+            floorSelect.addEventListener('change', async function () {
+                resetWards(); resetRooms();
+                if (!this.value) return;
+                try {
+                    const res = await fetch(`/Beds/GetWardsByFloor?floorId=${this.value}`);
+                    if (res.ok) (await res.json()).forEach(w => wardSelect.appendChild(new Option(`${w.wardName} (${w.wardCode}) - ${w.wardType}`, w.wardId)));
+                } catch (err) { console.error('Error fetching wards:', err); }
             });
 
             wardSelect.addEventListener('change', async function () {

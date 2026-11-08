@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc.Rendering;
 using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
@@ -10,6 +11,7 @@ namespace EMR.Web.Controllers;
 
 [Authorize]
 public class BedsController(
+    IRoomService roomService,
     IBedService bedService,
     IIpdMasterApiClient ipdMasterApiClient,
     IAuditLogService auditLogService) : Controller
@@ -56,11 +58,11 @@ public class BedsController(
             WardId = wardId,
             RoomId = roomId,
             BuildingOptions = await bedService.GetBuildingOptionsAsync(buildingId),
-            WardOptions = await bedService.GetWardOptionsAsync(buildingId, wardId),
             RoomOptions = await bedService.GetRoomOptionsAsync(wardId, roomId),
             BedCategoryOptions = await bedService.GetBedCategoryOptionsAsync(),
             BedStatusOptions = bedService.GetBedStatusOptions()
         };
+        await FillFloorWardAsync(model);
         return View(model);
     }
 
@@ -70,6 +72,7 @@ public class BedsController(
         var companyId = User.GetCompanyId();
         var branchId = User.GetCurrentBranchId();
         model.BedNumber = model.BedNumber.Trim().ToUpper();
+        await CheckWardFloorAsync(model);
 
         if (await bedService.BedNumberExistsAsync(model.BedNumber, companyId: companyId))
             ModelState.AddModelError(nameof(model.BedNumber), "This Bed Number already exists in the company.");
@@ -77,7 +80,7 @@ public class BedsController(
         if (!ModelState.IsValid)
         {
             model.BuildingOptions = await bedService.GetBuildingOptionsAsync(model.BuildingId);
-            model.WardOptions = await bedService.GetWardOptionsAsync(model.BuildingId, model.WardId);
+            await FillFloorWardAsync(model);
             model.RoomOptions = await bedService.GetRoomOptionsAsync(model.WardId, model.RoomId);
             model.BedCategoryOptions = await bedService.GetBedCategoryOptionsAsync(model.BedCategoryId);
             model.BedStatusOptions = bedService.GetBedStatusOptions(model.BedStatus);
@@ -115,7 +118,7 @@ public class BedsController(
         var entity = await bedService.GetByIdAsync(id);
         if (entity is null) return NotFound();
 
-        return View(new BedFormViewModel
+        var editModel = new BedFormViewModel
         {
             BedId = entity.BedId,
             CompanyId = entity.CompanyId,
@@ -132,11 +135,12 @@ public class BedsController(
             Description = entity.Description,
             IsActive = entity.IsActive,
             BuildingOptions = await bedService.GetBuildingOptionsAsync(entity.BuildingId),
-            WardOptions = await bedService.GetWardOptionsAsync(entity.BuildingId, entity.WardId),
             RoomOptions = await bedService.GetRoomOptionsAsync(entity.WardId, entity.RoomId),
             BedCategoryOptions = await bedService.GetBedCategoryOptionsAsync(entity.BedCategoryId),
             BedStatusOptions = bedService.GetBedStatusOptions(entity.BedStatus)
-        });
+        };
+        await FillFloorWardAsync(editModel);
+        return View(editModel);
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -145,6 +149,7 @@ public class BedsController(
         var companyId = User.GetCompanyId();
         var branchId = User.GetCurrentBranchId();
         model.BedNumber = model.BedNumber.Trim().ToUpper();
+        await CheckWardFloorAsync(model);
 
         if (await bedService.BedNumberExistsAsync(model.BedNumber, excludeId: model.BedId, companyId: companyId))
             ModelState.AddModelError(nameof(model.BedNumber), "This Bed Number already exists in the company.");
@@ -152,7 +157,7 @@ public class BedsController(
         if (!ModelState.IsValid)
         {
             model.BuildingOptions = await bedService.GetBuildingOptionsAsync(model.BuildingId);
-            model.WardOptions = await bedService.GetWardOptionsAsync(model.BuildingId, model.WardId);
+            await FillFloorWardAsync(model);
             model.RoomOptions = await bedService.GetRoomOptionsAsync(model.WardId, model.RoomId);
             model.BedCategoryOptions = await bedService.GetBedCategoryOptionsAsync(model.BedCategoryId);
             model.BedStatusOptions = bedService.GetBedStatusOptions(model.BedStatus);
@@ -214,4 +219,42 @@ public class BedsController(
         var rooms = await bedService.GetRoomsByWardAsync(wardId);
         return Json(rooms);
     }
+
+    /// <summary>Building -> Floor -> Ward -> Room. The bed stores its ward; the floor is the ward's floor (Master > Ward),
+    /// found when an existing bed is opened. Floors and wards come from the Room master's lookups.</summary>
+    private async Task FillFloorWardAsync(BedFormViewModel model)
+    {
+        if (model.FloorId is null && model.WardId is > 0)
+        {
+            try
+            {
+                var ward = (await ipdMasterApiClient.GetWardsAsync(companyId: User.GetCompanyId(), branchId: User.GetCurrentBranchId()))
+                    .FirstOrDefault(w => w.WardId == model.WardId);
+                model.FloorId = ward?.FloorId;
+            }
+            catch (HttpRequestException) { /* the floor stays empty; the user picks it */ }
+        }
+        model.FloorOptions = model.BuildingId is > 0
+            ? (await roomService.GetFloorsByBuildingAsync(model.BuildingId.Value))
+                .Select(f => new SelectListItem($"{f.FloorName} ({f.FloorCode})", f.FloorId.ToString(), f.FloorId == model.FloorId)).ToList()
+            : new List<SelectListItem>();
+        model.WardOptions = model.FloorId is > 0
+            ? (await roomService.GetWardsByFloorAsync(model.FloorId.Value))
+                .Select(w => new SelectListItem($"{w.WardName} ({w.WardCode}) - {w.WardType}", w.WardId.ToString(), w.WardId == model.WardId)).ToList()
+            : new List<SelectListItem>();
+    }
+
+    /// <summary>The ward must be on the chosen floor.</summary>
+    private async Task CheckWardFloorAsync(BedFormViewModel model)
+    {
+        if (model.FloorId is > 0 && model.WardId is > 0
+            && !(await roomService.GetWardsByFloorAsync(model.FloorId.Value)).Any(w => w.WardId == model.WardId))
+            ModelState.AddModelError(nameof(model.WardId), "The ward is not on the chosen floor.");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetFloorsByBuilding(int buildingId) => Json(await roomService.GetFloorsByBuildingAsync(buildingId));
+
+    [HttpGet]
+    public async Task<IActionResult> GetWardsByFloor(int floorId) => Json(await roomService.GetWardsByFloorAsync(floorId));
 }

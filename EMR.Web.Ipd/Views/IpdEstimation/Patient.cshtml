@@ -1,0 +1,81 @@
+@using EMR.Web.ApiClients
+@model System.Text.Json.JsonElement
+@{
+    var h = Model;
+    ViewData["Title"] = "Current Bill · " + h.S("IpNo");
+    bool open = h.B("IsOpen");
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold"><i class="bi bi-calculator me-2 text-primary"></i>Current Billing Estimation</h1>
+        <div class="small text-muted"><b>@h.S("PatientName")</b> · @h.S("AgeText") / @h.S("Gender") · UHID @h.S("PatientCode") · <span class="font-monospace">@h.S("IpNo")</span>
+            · @h.S("WardName") / bed <b>@h.S("BedNumber")</b> · @h.S("ConsultantDoctorName") · admitted @h.Dt("AdmissionAt")</div>
+        <div class="small mt-1"><span class="ipd-pill st-@h.S("Status")">@h.S("Status")</span> <span class="ipd-pill muted">@h.S("PayerType") @h.S("PayerName")</span> <span class="ipd-pill muted">Tariff: @h.S("TariffCategoryName")</span>
+            <span id="asOf" class="ipd-pill info"></span></div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-secondary" asp-controller="IpdAdmission" asp-action="Patient" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-person-badge me-1"></i>Patient</a>
+        <div class="btn-group">
+            <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-printer me-1"></i>Print</button>
+            <ul class="dropdown-menu dropdown-menu-end" id="printMenu">
+                <li><a class="dropdown-item" data-format="summary" target="_blank">Current estimate · summary</a></li>
+                <li><a class="dropdown-item" data-format="head" target="_blank">Current estimate · detailed by head</a></li>
+                <li><a class="dropdown-item" data-format="date" target="_blank">Current estimate · detailed by date</a></li>
+                <li><a class="dropdown-item" data-format="projection" target="_blank">Estimated till discharge</a></li>
+                <li><a class="dropdown-item" data-format="deposit" target="_blank">Deposit request letter</a></li>
+            </ul>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" id="refresh" title="Refresh now"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+</div>
+
+<div id="warn"></div>
+<div class="row g-3 mb-3" id="tiles"></div>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-7">
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon blue"><i class="bi bi-list-columns"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Summary by head</h6><small class="text-muted">Click a head to see its lines</small></div></div>
+            <div class="reg-section-body p-0"><table class="table table-hover ipd-table mb-0">
+                <thead><tr><th>Head</th><th class="text-end">Lines</th><th class="text-end">Gross</th><th class="text-end">Discount</th><th class="text-end">GST</th><th class="text-end">Net</th><th class="text-end">Patient</th><th class="text-end">Payer</th></tr></thead>
+                <tbody id="heads"></tbody><tfoot id="headsFoot"></tfoot></table></div></div>
+    </div>
+    <div class="col-12 col-xl-5">
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon green"><i class="bi bi-wallet2"></i></div><h6 class="fw-bold mb-0">Totals</h6></div>
+            <div class="reg-section-body"><dl class="kv" id="totals"></dl></div></div>
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon amber"><i class="bi bi-graph-up-arrow"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Estimated till discharge</h6><small class="text-muted">Bed and nursing at today's rate to the expected discharge</small></div></div>
+            <div class="reg-section-body">
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-8"><label class="form-label" for="projectTo">Expected discharge</label><input type="datetime-local" id="projectTo" class="form-control" @(open ? "" : "disabled") /></div>
+                    <div class="col-4"><button type="button" class="btn btn-outline-primary w-100" id="btnProject" @(open ? "" : "disabled")>Recalculate</button></div>
+                </div>
+                <dl class="kv" id="projection"></dl>
+            </div></div>
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon violet"><i class="bi bi-hourglass-split"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Ordered, not yet charged</h6><small class="text-muted">Not in the total: LAB orders, indents, OT bookings</small></div></div>
+            <div class="reg-section-body" id="ordered"></div></div>
+    </div>
+</div>
+
+<div class="reg-section" id="detailCard">
+    <div class="reg-section-header flex-wrap">
+        <div class="sec-icon blue"><i class="bi bi-list-ul"></i></div>
+        <div class="flex-grow-1"><h6 class="fw-bold mb-0">Details</h6><small class="text-muted">Every line, posted and accrued</small></div>
+        <div class="d-flex gap-2 flex-wrap">
+            <div class="btn-group btn-group-sm" role="group"><input type="radio" class="btn-check" name="grp" id="grpHead" checked /><label class="btn btn-outline-primary" for="grpHead">By head</label>
+                <input type="radio" class="btn-check" name="grp" id="grpDate" /><label class="btn btn-outline-primary" for="grpDate">By date</label></div>
+            <select id="fHead" class="form-select form-select-sm" style="width:auto"><option value="">All heads</option></select>
+            <select id="fStatus" class="form-select form-select-sm" style="width:auto"><option value="">Posted &amp; accrued</option><option value="POSTED">Posted</option><option value="ACCRUED">Accrued</option></select>
+            <input type="date" id="fFrom" class="form-control form-control-sm" style="width:auto" title="From" /><input type="date" id="fTo" class="form-control form-control-sm" style="width:auto" title="To" />
+            <input id="fSearch" class="form-control form-control-sm" style="width:160px" placeholder="Search item" />
+        </div>
+    </div>
+    <div class="reg-section-body p-0"><div class="table-responsive"><table class="table ipd-table mb-0">
+        <thead><tr><th>Date</th><th>Item</th><th>Details</th><th>Doctor</th><th class="text-end">Qty</th><th class="text-end">Rate</th><th class="text-end">Discount</th><th class="text-end">GST</th><th class="text-end">Amount</th><th>Status</th></tr></thead>
+        <tbody id="lines"></tbody></table></div></div>
+</div>
+
+@section Scripts {
+<script src="~/js/ipd.js" asp-append-version="true"></script>
+<script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdEstimation/"), expected = h.S("ExpectedDischargeAt"), open }));</script>
+<script src="~/js/ipd/estimate.js" asp-append-version="true"></script>
+}

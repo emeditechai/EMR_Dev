@@ -1,0 +1,38 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@{
+    Layout = "_IpdPrintLayout";
+    var h = Model.Header;
+    ViewData["DocTitle"] = "Admission Form / Face Sheet";
+    string Payer(string p) => p switch { "CASH" => "Cash / Self", "CORPORATE" => "Corporate", "INSURANCE" => "Insurance / TPA", "SCHEME" => "Government scheme", _ => p };
+}
+@section Scripts { <script src="~/lib/jsbarcode/dist/JsBarcode.all.min.js"></script><script>try { JsBarcode('#bc', '@h.S("IpNo")', { height: 34, width: 1.4, fontSize: 11, margin: 0 }); } catch (e) { }</script> }
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <div><div class="b" style="font-size:14px">@h.S("PatientName")</div><div>UHID <span class="mono b">@h.S("PatientCode")</span> · IP No. <span class="mono b">@h.S("IpNo")</span></div></div>
+    <svg id="bc"></svg>
+</div>
+<table class="info">
+    <tr><td class="k">Age / Sex</td><td>@h.S("AgeText") / @h.S("Gender")</td><td class="k">Mobile</td><td>@h.S("PhoneNumber")</td><td class="k">Blood group</td><td>@h.S("BloodGroup")</td></tr>
+    <tr><td class="k">Address</td><td colspan="3">@h.S("Address")</td><td class="k">Guardian</td><td>@h.S("GuardianName")</td></tr>
+    <tr><td class="k">Admitted on</td><td>@h.Dt("AdmissionAt")</td><td class="k">Type / source</td><td>@h.S("AdmissionType") / @h.S("AdmissionSource")</td><td class="k">Status</td><td>@h.S("Status")</td></tr>
+    <tr><td class="k">Ward / room</td><td>@h.S("WardName") / @h.S("RoomNumber")</td><td class="k">Bed</td><td class="b">@h.S("BedNumber") (@h.S("BedCategoryName"))</td><td class="k">Floor</td><td>@h.S("FloorName") @h.S("BuildingName")</td></tr>
+    <tr><td class="k">Admitting doctor</td><td>@h.S("AdmittingDoctorName")</td><td class="k">Consultant</td><td class="b">@h.S("ConsultantDoctorName")</td><td class="k">Department</td><td>@h.S("DepartmentName")</td></tr>
+    <tr><td class="k">Referred by</td><td>@h.S("ReferralDoctorName")</td><td class="k">Payer</td><td>@Payer(h.S("PayerType")) @h.S("PayerName")</td><td class="k">Tariff</td><td>@h.S("TariffCategoryName")</td></tr>
+    <tr><td class="k">Policy / card</td><td>@h.S("PolicyNo") @h.S("MemberId")</td><td class="k">Package</td><td>@h.S("PackageName")</td><td class="k">Expected discharge</td><td>@h.Dt("ExpectedDischargeAt")</td></tr>
+    <tr><td class="k">Provisional diagnosis</td><td colspan="3">@h.S("ProvisionalDiagnosis") @(string.IsNullOrWhiteSpace(h.S("DiagnosisCode")) ? "" : "(ICD-10 " + h.S("DiagnosisCode") + ")")</td><td class="k">MLC</td><td>@(h.B("IsMlc") ? "Yes " + h.S("MlcNo") : "No")</td></tr>
+    <tr><td class="k">Reason</td><td colspan="5">@h.S("ReasonForAdmission")</td></tr>
+    <tr><td class="k">Known allergies</td><td colspan="5" class="b">@(string.IsNullOrWhiteSpace(h.S("KnownAllergies")) ? "None known" : h.S("KnownAllergies"))</td></tr>
+</table>
+<div class="sec-h">Attendant / next of kin</div>
+<table class="grid"><thead><tr><th>Name</th><th>Relation</th><th>Mobile</th><th>ID</th></tr></thead><tbody>
+@foreach (var a in Model.Attendants) { <tr><td>@a.S("Name")</td><td>@a.S("Relation")</td><td>@a.S("Phone")</td><td>@a.S("IdTypeName") @a.S("IdNumber")</td></tr> }
+@if (Model.Attendants.Count == 0) { <tr><td colspan="4">&nbsp;</td></tr> }
+</tbody></table>
+<div class="sec-h">Advance received</div>
+<table class="grid"><thead><tr><th>Date</th><th>Receipt</th><th>Mode</th><th class="r">Amount</th></tr></thead><tbody>
+@foreach (var a in Model.Advances.Where(x => x.S("Kind") == "ADVANCE")) { <tr><td>@a.Dt("CreatedDate")</td><td class="mono">@a.S("DocNo")</td><td>@a.S("Modes")</td><td class="r">@a.M("Amount").Rs()</td></tr> }
+@if (!Model.Advances.Any(x => x.S("Kind") == "ADVANCE")) { <tr><td colspan="4">No advance</td></tr> }
+</tbody></table>
+<div class="sec-h">Declaration</div>
+<div class="note">I have been informed of the hospital's rules, the estimated cost of treatment and the room tariff. I agree to pay all charges of the stay, and I have received the cost estimate. Consent for admission and treatment was given separately.</div>
+<div class="sign"><div>Patient / attendant</div><div>Admitting staff (@h.S("CreatedByName"))</div><div>Doctor</div></div>

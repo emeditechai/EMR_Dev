@@ -1,0 +1,93 @@
+@{
+    // IPD prints (SQLScripts/2422+): the branch's Bill print template header / footer (Utility > Print Templates) when one is
+    // assigned, else a classic header from Hospital Settings - the same rule as the OPD and LAB bills. The controller
+    // (Services/IpdPrint) puts the header / footer bands and the hospital details in ViewData.
+    var hosp = ViewBag.PrintHospital as IpdPrintHospital ?? new IpdPrintHospital();
+    var bandHeader = ViewData["IpdBandHeader"];
+    var bandFooter = ViewData["IpdBandFooter"];
+    var docTitle = ViewData["DocTitle"] as string ?? "";
+    var watermark = ViewData["Watermark"] as string;
+    var printedBy = ViewBag.PrintedBy as string ?? User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name;
+    var pageSize = ViewData["PageSize"] as string ?? "A4";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>@docTitle</title>
+    <style>
+        @@page { size: @pageSize; margin: 10mm 10mm 12mm; }
+        * { box-sizing: border-box; }
+        body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; font-size: 11.5px; color: #111827; margin: 0; background: #e5e7eb; }
+        .page { background: #fff; width: 210mm; min-height: 280mm; margin: 12px auto; padding: 10mm; position: relative; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+        .toolbar { position: sticky; top: 0; z-index: 10; background: #1f2937; color: #fff; padding: 8px 16px; display: flex; gap: 8px; justify-content: center; }
+        .toolbar button { background: #2563eb; color: #fff; border: 0; border-radius: 6px; padding: 6px 16px; font-weight: 600; cursor: pointer; }
+        .toolbar button.sec { background: #4b5563; }
+        .hdr { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 8px; }
+        .hdr img { max-height: 60px; max-width: 140px; }
+        .hdr .hn { font-size: 18px; font-weight: 700; }
+        .hdr .ha { font-size: 10.5px; color: #374151; }
+        .doc-title { text-align: center; font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin: 6px 0 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        .info td { padding: 3px 6px; vertical-align: top; border: 1px solid #d1d5db; }
+        .info td.k { background: #f3f4f6; font-weight: 600; width: 16%; white-space: nowrap; }
+        .grid th, .grid td { border: 1px solid #d1d5db; padding: 4px 6px; }
+        .grid th { background: #f3f4f6; text-align: left; font-size: 10.5px; text-transform: uppercase; }
+        .r { text-align: right; } .c { text-align: center; } .b { font-weight: 700; } .mono { font-family: Consolas, monospace; }
+        .tot td { border: 1px solid #d1d5db; padding: 4px 6px; } .tot td.k { background: #f9fafb; }
+        .note { font-size: 10.5px; color: #374151; margin-top: 6px; }
+        .sign { display: flex; justify-content: space-between; margin-top: 40px; gap: 20px; }
+        .sign div { flex: 1; border-top: 1px solid #6b7280; text-align: center; padding-top: 4px; font-size: 10.5px; }
+        .foot { display: flex; justify-content: space-between; font-size: 9.5px; color: #6b7280; border-top: 1px solid #d1d5db; margin-top: 10px; padding-top: 4px; }
+        .wm { position: absolute; top: 45%; left: 0; right: 0; text-align: center; font-size: 46px; font-weight: 800; color: rgba(220, 38, 38, .09); transform: rotate(-24deg); pointer-events: none; letter-spacing: .08em; }
+        .sec-h { font-weight: 700; margin: 10px 0 4px; font-size: 12px; border-bottom: 1px solid #d1d5db; padding-bottom: 2px; }
+        @@media print { body { background: #fff; } .toolbar { display: none; } .page { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
+        @RenderSection("Styles", required: false)
+    </style>
+</head>
+<body>
+    <div class="toolbar"><button type="button" onclick="window.print()">Print</button><button type="button" class="sec" onclick="window.close()">Close</button></div>
+    <div class="page">
+        @if (!string.IsNullOrWhiteSpace(watermark)) { <div class="wm">@watermark</div> }
+        @if (!(ViewData["NoHeader"] as bool? ?? false))
+        {
+            if (bandHeader is not null)
+            {
+                <partial name="_PrintBand" model="bandHeader" />
+            }
+            else
+            {
+                <div class="hdr">
+                    <div style="display:flex;gap:10px;align-items:center">
+                        @if (!string.IsNullOrWhiteSpace(hosp.LogoPath)) { <img src="@hosp.LogoPath" alt="" /> }
+                        <div>
+                            <div class="hn">@(hosp.Name ?? "Hospital")</div>
+                            <div class="ha">@hosp.Address</div>
+                            <div class="ha">
+                                @if (!string.IsNullOrWhiteSpace(hosp.Phone)) { <span>Ph: @hosp.Phone </span> }
+                                @if (!string.IsNullOrWhiteSpace(hosp.Email)) { <span>· @hosp.Email </span> }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ha" style="text-align:right">
+                        @if (!string.IsNullOrWhiteSpace(hosp.RegistrationNo)) { <div>Regn. No.: @hosp.RegistrationNo</div> }
+                        @if (!string.IsNullOrWhiteSpace(hosp.Gstin)) { <div>GSTIN: @hosp.Gstin</div> }
+                        @if (!string.IsNullOrWhiteSpace(hosp.Nabh)) { <div>NABH: @hosp.Nabh</div> }
+                    </div>
+                </div>
+            }
+            <div class="doc-title">@docTitle</div>
+        }
+        @RenderBody()
+        @if (!(ViewData["NoFooter"] as bool? ?? false))
+        {
+            if (bandFooter is not null)
+            {
+                <partial name="_PrintBand" model="bandFooter" />
+            }
+            <div class="foot"><span>Printed by @printedBy on @DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt")</span><span>@hosp.Name</span></div>
+        }
+    </div>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

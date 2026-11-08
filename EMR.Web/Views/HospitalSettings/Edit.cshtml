@@ -1,3 +1,4 @@
+@inject EMR.Web.ApiClients.IIpdMasterApiClient IpdMasterApi
 @model EMR.Web.Models.ViewModels.HospitalSettingsViewModel
 @{
     ViewData["Title"] = "Edit Hospital Settings";
@@ -513,17 +514,108 @@
 
         @* IPD *@
         <div class="tab-pane fade module-tab-pane" id="editTabIpd" role="tabpanel">
-            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>IPD-specific parameters will be configurable here.</p>
+            @{
+                var ipdTariffs = new List<EMR.Web.Models.ViewModels.TariffCategoryListItemViewModel>();
+                try { ipdTariffs = (await IpdMasterApi.GetTariffCategoriesAsync(null, User.GetCompanyId(), Model.BranchId)).Where(t => t.IsActive).ToList(); } catch { }
+            }
+            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>In-patient rules for this branch: admission numbering, bed charge cycle, advance and estimate.</p>
             <div class="row g-3">
-                @foreach (var p in new[] { "Admission Prefix","Default Ward","Bed Booking Advance (Days)","Auto Discharge Reminder","Diet Plan Enabled","Nursing Notes","OT Module","Print Discharge Summary" })
-                {
-                    <div class="col-6 col-md-3">
-                        <div class="param-placeholder">
-                            <div class="param-label">@p</div>
-                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                        </div>
+                <div class="col-12 small fw-bold text-uppercase" style="color:#198754;letter-spacing:.05em">Admission</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdNumberPrefix" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdNumberPrefix" class="form-control text-uppercase" maxlength="10" />
+                    <div class="form-text">IP no. = prefix / branch code / FY / 000001</div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IpdNumberResetYearly">
+                        <label class="form-check-label fw-semibold small" asp-for="IpdNumberResetYearly"></label>
                     </div>
-                }
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IpdBlockWardGenderMismatch">
+                        <label class="form-check-label fw-semibold small" asp-for="IpdBlockWardGenderMismatch"></label>
+                    </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IpdConsentRequired">
+                        <label class="form-check-label fw-semibold small" asp-for="IpdConsentRequired"></label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDefaultDischargeHour" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdDefaultDischargeHour" type="number" min="0" max="23" class="form-control" />
+                    <div class="form-text">Time put on the expected discharge date (24-hour clock).</div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#198754;letter-spacing:.05em">Bed charges</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdBedChargeMode" class="form-label fw-semibold small"></label>
+                    <select asp-for="IpdBedChargeMode" class="form-select">
+                        <option value="CHECKINOUT">Check-in / Check-out time (hotel-style day)</option>
+                        <option value="CALENDAR">Calendar day (midnight census)</option>
+                        <option value="HOURLY24">Every 24 hours from admission</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDischargeGraceHour" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdDischargeGraceHour" type="number" min="0" max="23" class="form-control" />
+                    <div class="form-text">Leaving before this hour: the discharge day is not charged.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdHourlyGraceHours" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdHourlyGraceHours" type="number" min="0" max="12" class="form-control" />
+                    <div class="form-text">24-hour and check-in / check-out cycles: hours after the day ends (and before check-out at admission) that add no day.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDefaultTariffCategoryId" class="form-label fw-semibold small"></label>
+                    <select asp-for="IpdDefaultTariffCategoryId" class="form-select">
+                        <option value="">-- None --</option>
+                        @foreach (var t in ipdTariffs)
+                        {
+                            <option value="@t.TariffCategoryId" selected="@(Model.IpdDefaultTariffCategoryId == t.TariffCategoryId)">@t.Name (@t.PatientCategory)</option>
+                        }
+                    </select>
+                    <div class="form-text">Rate used when a bed has no rate for the patient's category.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdRoomGstThreshold" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdRoomGstThreshold" type="number" min="0" step="0.01" class="form-control" />
+                    <div class="form-text">GST of the bed tariff only above this daily rate (not ICU). 0 = always.</div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#198754;letter-spacing:.05em">Bed management</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdReleaseBedTo" class="form-label fw-semibold small"></label>
+                    <select asp-for="IpdReleaseBedTo" class="form-select">
+                        <option value="CLEANING">Housekeeping (Cleaning) first</option>
+                        <option value="AVAILABLE">Available straight away</option>
+                    </select>
+                    <div class="form-text">After a transfer, discharge or cancelled admission.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdReservationHoldHours" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdReservationHoldHours" type="number" min="1" max="168" class="form-control" />
+                    <div class="form-text">An unused reservation is released after this.</div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#198754;letter-spacing:.05em">Advance &amp; estimate</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdMinAdvanceDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdMinAdvanceDays" type="number" min="0" max="60" class="form-control" />
+                    <div class="form-text">Cash patients only. 0 = no minimum advance.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDepositAlertPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdDepositAlertPercent" type="number" min="10" max="100" class="form-control" />
+                    <div class="form-text">The patient's balance turns red when the bill reaches this % of the advance.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdEstimateValidityDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdEstimateValidityDays" type="number" min="1" max="90" class="form-control" />
+                </div>
             </div>
         </div>
 

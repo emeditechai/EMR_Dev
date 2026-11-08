@@ -1,0 +1,82 @@
+@{
+    ViewData["Title"] = "Bed Board";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+@Html.AntiForgeryToken()
+
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-grid-3x3-gap-fill me-2 text-success"></i>Bed Board</h2><p>Live beds of this branch: occupancy, reservations, housekeeping and transfers. <span id="asOf"></span></p></div>
+    <div class="d-flex gap-2">
+        <a asp-controller="IpdAdmission" asp-action="New" class="btn btn-sm btn-success"><i class="bi bi-person-plus-fill me-1"></i>New Admission</a>
+        <button type="button" class="btn btn-sm btn-light border" id="refresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+</div>
+
+<div class="ipdx-kpis" id="kpis" style="grid-template-columns:repeat(7, minmax(0, 1fr))"></div>
+
+<ul class="nav nav-underline mb-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#v-board" type="button"><i class="bi bi-grid-3x3-gap me-1"></i>Board</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#v-res" type="button"><i class="bi bi-calendar-check me-1"></i>Reservations <span class="badge text-bg-warning" id="resCount"></span></button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#v-hk" type="button"><i class="bi bi-bucket me-1"></i>Housekeeping <span class="badge text-bg-secondary" id="hkCount"></span></button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#v-census" type="button" id="tabCensus"><i class="bi bi-bar-chart-line me-1"></i>Census</button></li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="v-board">
+        <div class="ipdx-card p-3 mb-3">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-lg-2"><label class="form-label small fw-semibold" for="fBuilding">Building</label><select id="fBuilding" class="form-select form-select-sm"><option value="">All</option></select></div>
+                <div class="col-6 col-lg-2"><label class="form-label small fw-semibold" for="fFloor">Floor</label><select id="fFloor" class="form-select form-select-sm"><option value="">All</option></select></div>
+                <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="fWard">Ward</label><select id="fWard" class="form-select form-select-sm"><option value="">All</option></select></div>
+                <div class="col-6 col-lg-2"><label class="form-label small fw-semibold" for="fStatus">Status</label>
+                    <select id="fStatus" class="form-select form-select-sm"><option value="">All</option><option>Available</option><option>Occupied</option><option>Reserved</option><option>Cleaning</option><option>Blocked</option><option>Maintenance</option></select></div>
+                <div class="col-12 col-lg-3"><label class="form-label small fw-semibold" for="fSearch">Find</label><input id="fSearch" class="form-control form-control-sm" placeholder="Patient, IP no., UHID or bed" /></div>
+            </div>
+            <div class="bed-legend mt-2"><span><i style="background:#16a34a"></i>Available</span><span><i style="background:#dc2626"></i>Occupied</span><span><i style="background:#d97706"></i>Reserved</span><span><i style="background:#0891b2"></i>Cleaning</span><span><i style="background:#64748b"></i>Blocked / maintenance</span></div>
+        </div>
+        <div id="board"><div class="text-muted small">Loading beds…</div></div>
+    </div>
+    <div class="tab-pane fade" id="v-res"><div class="ipdx-card"><table class="table ipdx-table mb-0"><thead><tr><th>Bed</th><th>Patient</th><th>Expected admission</th><th>Held until</th><th>Doctor</th><th>Status</th><th>By</th><th></th></tr></thead><tbody id="resRows"></tbody></table></div></div>
+    <div class="tab-pane fade" id="v-hk"><div class="ipdx-card"><table class="table ipdx-table mb-0"><thead><tr><th>Bed</th><th>Why</th><th>Cleaning</th><th>Requested</th><th>Time taken / SLA</th><th>Staff</th><th>Status</th><th></th></tr></thead><tbody id="hkRows"></tbody></table></div></div>
+    <div class="tab-pane fade" id="v-census">
+        <div class="d-flex gap-2 align-items-end mb-3 flex-wrap">
+            <div><label class="form-label small fw-semibold" for="cFrom">From</label><input type="date" id="cFrom" class="form-control form-control-sm" /></div>
+            <div><label class="form-label small fw-semibold" for="cTo">To</label><input type="date" id="cTo" class="form-control form-control-sm" /></div>
+            <button type="button" class="btn btn-sm btn-primary" id="cLoad">Show</button>
+            <span class="small text-muted ms-2">Occupied = patients in a bed at midnight (now for today).</span>
+        </div>
+        <div class="ipdx-card"><div class="table-responsive"><table class="table ipdx-table mb-0"><thead><tr><th>Date</th><th>Ward</th><th class="text-end">Beds</th><th class="text-end">Occupied</th><th class="text-end">Occupancy</th><th class="text-end">Admissions</th><th class="text-end">Discharges</th><th class="text-end">Transfers in</th><th class="text-end">Transfers out</th></tr></thead><tbody id="cRows"></tbody></table></div></div>
+    </div>
+</div>
+
+@* bed panel *@
+<div class="offcanvas offcanvas-end" tabindex="-1" id="bedPanel" style="width:min(440px, 100vw)">
+    <div class="offcanvas-header border-bottom"><div><h5 class="offcanvas-title fw-bold mb-0" id="bpTitle"></h5><div class="small text-muted" id="bpSub"></div></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
+    <div class="offcanvas-body" id="bpBody"></div>
+</div>
+
+@* reserve *@
+<div class="modal fade" id="reserveModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-calendar-check me-1"></i>Reserve <span id="rvBed"></span></h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><div class="row g-2">
+        <div class="col-12 position-relative"><label class="form-label small fw-semibold" for="rvSearch">Existing patient (mobile / UHID / name)</label><input id="rvSearch" class="form-control" autocomplete="off" placeholder="Optional" /><div id="rvSug" class="sug-list list-group"></div><input type="hidden" id="rvPatientId" /></div>
+        <div class="col-7"><label class="form-label small fw-semibold" for="rvName">Patient name</label><input id="rvName" class="form-control" maxlength="200" /></div>
+        <div class="col-5"><label class="form-label small fw-semibold" for="rvPhone">Mobile</label><input id="rvPhone" class="form-control" maxlength="15" /></div>
+        <div class="col-7"><label class="form-label small fw-semibold" for="rvAt">Expected admission</label><input type="datetime-local" id="rvAt" class="form-control" /></div>
+        <div class="col-5"><label class="form-label small fw-semibold" for="rvHold">Hold (hours)</label><input type="number" id="rvHold" class="form-control" min="1" max="168" placeholder="Default" /></div>
+        <div class="col-12"><label class="form-label small fw-semibold" for="rvRemarks">Remarks</label><input id="rvRemarks" class="form-control" maxlength="300" placeholder="e.g. planned surgery, estimate given" /></div>
+    </div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-warning" id="rvSave">Reserve bed</button></div>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
+    {
+        @base = Url.Content("~/IpdBeds/"), adm = Url.Content("~/IpdAdmission/"), est = Url.Content("~/IpdEstimation/"),
+        can = new { transfer = Can("TRANSFER"), swap = Can("SWAP"), reserve = Can("RESERVE"), release = Can("RELEASE"), block = Can("BLOCK"), housekeeping = Can("HOUSEKEEPING") }
+    }));</script>
+    <script src="~/js/ipd/transfer.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/bed-board.js" asp-append-version="true"></script>
+}

@@ -393,59 +393,37 @@ else
 
         @* ── IPD Tab ── *@
         <div class="tab-pane fade module-tab-pane" id="tabIpd" role="tabpanel">
+            @{
+                var ipdItems = new (string Label, string Value)[]
+                {
+                    ("IP Number", $"{Model.IpdNumberPrefix}/<branch>/" + (Model.IpdNumberResetYearly ? "<FY>/" : "") + "000001"),
+                    ("Bed Charge Cycle", Model.IpdBedChargeMode switch { "HOURLY24" => $"Every 24 hours (grace {Model.IpdHourlyGraceHours} h)", "CHECKINOUT" => $"Check-out {(string.IsNullOrWhiteSpace(Model.CheckOutTime) ? "time not set: calendar day used" : Model.CheckOutTime)} to check-out (grace {Model.IpdHourlyGraceHours} h)", _ => $"Calendar day (discharge before {Model.IpdDischargeGraceHour}:00 not charged)" }),
+                    ("Room Rent GST", Model.IpdRoomGstThreshold > 0 ? $"Above ₹{Model.IpdRoomGstThreshold:N0} / day (not ICU)" : "Tariff GST % always"),
+                    ("Fallback Tariff", Model.IpdDefaultTariffCategoryId.HasValue ? "Set" : "None"),
+                    ("Minimum Advance", Model.IpdMinAdvanceDays > 0 ? $"{Model.IpdMinAdvanceDays} day(s) of bed charge (cash)" : "Not required"),
+                    ("Deposit Alert", $"At {Model.IpdDepositAlertPercent}% of advance used"),
+                    ("Pre-admission Estimate", $"Valid {Model.IpdEstimateValidityDays} days"),
+                    ("Expected Discharge Hour", $"{Model.IpdDefaultDischargeHour}:00"),
+                    ("Ward Gender Check", Model.IpdBlockWardGenderMismatch ? "Blocked" : "Allowed"),
+                    ("Consent at Admission", Model.IpdConsentRequired ? "Required" : "Optional"),
+                    ("Vacated Bed", Model.IpdReleaseBedTo == "AVAILABLE" ? "Available straight away" : "Housekeeping first"),
+                    ("Bed Reservation Hold", $"{Model.IpdReservationHoldHours} h after expected admission")
+                };
+            }
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#198754"><i class="bi bi-hospital me-1"></i>IPD Configuration</span>
-                <span class="coming-soon-badge">Parameters coming soon</span>
+                <span class="coming-soon-badge">@ipdItems.Length parameters</span>
             </div>
             <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Admission Prefix</div>
-                        <div class="param-value text-muted">—</div>
+                @foreach (var p in ipdItems)
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="param-card">
+                            <div class="param-label">@p.Label</div>
+                            <div class="param-value">@p.Value</div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Default Ward</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Bed Booking Advance (Days)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Auto Discharge Reminder</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Diet Plan Enabled</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Nursing Notes</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">OT Module</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Print Discharge Summary</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
+                }
             </div>
         </div>
 

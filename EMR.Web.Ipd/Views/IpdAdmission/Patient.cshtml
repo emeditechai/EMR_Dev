@@ -1,0 +1,461 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@{
+    var h = Model.Header;
+    ViewData["Title"] = "IPD Patient · " + h.S("IpNo");
+    bool open = h.B("IsOpen");
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+    var status = h.S("Status");
+    var due = h.M("BalanceDue");
+    string St(string s) => s switch { "ADMITTED" => "Admitted", "DISCHARGE_ADVISED" => "Discharge advised", "BILL_FINAL" => "Bill final", "DISCHARGED" => "Discharged", "CANCELLED" => "Cancelled", _ => s };
+    string Payer(string p) => p switch { "CASH" => "Cash", "CORPORATE" => "Corporate", "INSURANCE" => "Insurance / TPA", "SCHEME" => "Govt. scheme", _ => p };
+    var tabs = new (string Key, string Title, string Icon, string? Phase)[]
+    {
+        ("overview", "Overview", "bi-grid-1x2", null), ("lab", "LAB", "bi-droplet-half", "Phase 4"), ("radiology", "Radiology", "bi-radioactive", "Phase 4"),
+        ("indent", "Medicine Indent", "bi-capsule", "Phase 4"), ("consumables", "Consumables", "bi-bandaid", "Phase 4"), ("procedures", "Procedures", "bi-scissors", "Phase 5"),
+        ("ot", "OT", "bi-heart-pulse", "Phase 8"), ("services", "Other Charges", "bi-plus-square", "Phase 5"), ("visits", "Doctor Visits", "bi-person-workspace", "Phase 5"),
+        ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", "Phase 5"), ("clinical", "Clinical", "bi-journal-medical", "Phase 3"),
+        ("nursing", "Nursing", "bi-clipboard2-pulse", "Phase 3"), ("advance", "Advance & Payments", "bi-cash-coin", null), ("billing", "Billing", "bi-receipt", null),
+        ("insurance", "Insurance / TPA", "bi-shield-plus", null), ("documents", "Documents & Consents", "bi-folder2-open", null), ("discharge", "Discharge", "bi-door-open", "Phase 7")
+    };
+    var soonText = new Dictionary<string, string>
+    {
+        ["lab"] = "Order tests, profiles and lab packages on credit to the IP bill; sample collection at the ward; results and critical alerts here.",
+        ["radiology"] = "X-ray, USG, CT, MRI, ECG and Echo requests with clinical notes and report upload.",
+        ["indent"] = "Raise a ward indent to the pharmacy store, track issue and return unused medicines; issued items post to the IP bill.",
+        ["consumables"] = "Ward and surgical consumables issued from the sub-store or pharmacy.",
+        ["procedures"] = "Bedside and minor procedures with performing doctor and rate from the Procedure Tariff.",
+        ["ot"] = "OT booking, surgical safety checklist, anaesthesia record, surgery notes, implants and OT charges.",
+        ["services"] = "Oxygen, monitor, ventilator, nebulisation, dressing, physiotherapy, diet and other hospital services.",
+        ["visits"] = "Daily rounds, cross-consultation and emergency visits, charged by doctor and tariff category.",
+        ["package"] = "Attach a package and follow inclusions used against the limit, and the overflow.",
+        ["clinical"] = "Initial assessment, progress notes, doctor orders (CPOE) with countersign of verbal orders.",
+        ["nursing"] = "Vitals with NEWS2, medication administration record, intake / output, nursing notes, risk scores and handover.",
+        ["discharge"] = "Discharge advice, clearance checklist, discharge summary, LAMA / DAMA, gate pass and bed release."
+    };
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+    <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <style>.select2-container { width:100% !important; } .modal .select2-container { z-index:1060; }</style>
+}
+@Html.AntiForgeryToken()
+
+@* ══ patient banner (sticky) ══ *@
+@{
+    var groups = new (string Group, string[] Keys)[]
+    {
+        ("Summary", new[] { "overview" }),
+        ("Orders & charges", new[] { "lab", "radiology", "indent", "consumables", "procedures", "ot", "services", "visits", "package" }),
+        ("Clinical care", new[] { "clinical", "nursing" }),
+        ("Stay", new[] { "bed", "discharge" }),
+        ("Billing & payer", new[] { "advance", "billing", "insurance" }),
+        ("Records", new[] { "documents" })
+    };
+    var tabMap = tabs.ToDictionary(t => t.Key);
+    var initials = string.Concat(h.S("PatientName").Replace("Mr. ", "").Replace("Mrs. ", "").Replace("Ms. ", "").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => x[0])).ToUpperInvariant();
+}
+<div class="ipdx-banner">
+    <div class="ipdx-id">
+        @if (!string.IsNullOrWhiteSpace(h.S("PhotoPath")))
+        {
+            <img src="@h.S("PhotoPath")" class="ipdx-avatar" alt="" />
+        }
+        else
+        {
+            <div class="ipdx-avatar ipdx-initials">@initials</div>
+        }
+        <div class="min-w-0">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h1 class="ipdx-name">@h.S("PatientName")</h1>
+                <span class="ipd-pill st-@status">@St(status)</span>
+                @if (!string.IsNullOrWhiteSpace(h.S("KnownAllergies"))) { <span class="ipd-pill alert" title="@h.S("KnownAllergies")"><i class="bi bi-exclamation-triangle-fill"></i>Allergy: @h.S("KnownAllergies")</span> }
+                @if (h.B("IsMlc")) { <span class="ipd-pill alert"><i class="bi bi-shield-exclamation"></i>MLC @h.S("MlcNo")</span> }
+                @if (h.B("IsIcu")) { <span class="ipd-pill alert">ICU</span> }
+                @if (!string.IsNullOrWhiteSpace(h.S("PackageName"))) { <span class="ipd-pill info"><i class="bi bi-box-seam"></i>@h.S("PackageName")</span> }
+                @if (h.B("NoTariff")) { <span class="ipd-pill warn" title="Master > IPD > Bed/Room Tariff has no rate for this bed and tariff category"><i class="bi bi-exclamation-circle"></i>No bed rate</span> }
+            </div>
+            <div class="ipdx-facts">
+                <span><small>IP No.</small><b class="font-monospace">@h.S("IpNo")</b></span>
+                <span><small>UHID</small><b class="font-monospace">@h.S("PatientCode")</b></span>
+                <span><small>Age / Sex</small><b>@h.S("AgeText") / @h.S("Gender")</b></span>
+                <span><small>Mobile</small><b>@h.S("PhoneNumber")</b></span>
+                @if (!string.IsNullOrWhiteSpace(h.S("BloodGroup"))) { <span><small>Blood</small><b>@h.S("BloodGroup")</b></span> }
+                <span><small>Admitted</small><b>@h.Dt("AdmissionAt", "dd-MMM-yy hh:mm tt")</b></span>
+                <span><small>Length of stay</small><b>Day @h.I("DayCount") · @h.I("BedDays") bed day@(h.I("BedDays") == 1 ? "" : "s")</b></span>
+            </div>
+            <div class="ipdx-facts">
+                <span><small>Bed</small><b><i class="bi bi-hospital text-danger me-1"></i>@h.S("BedNumber")</b> <span class="text-muted">@h.S("WardName") · Room @h.S("RoomNumber") · @h.S("BedCategoryName")</span></span>
+                <span><small>Consultant</small><b>@h.S("ConsultantDoctorName")</b> <span class="text-muted">@h.S("DepartmentName")</span></span>
+                @if (!string.IsNullOrWhiteSpace(h.S("ProvisionalDiagnosis"))) { <span><small>Diagnosis</small><b>@h.S("ProvisionalDiagnosis")</b></span> }
+            </div>
+        </div>
+    </div>
+    <div class="ipdx-money">
+        <div class="ipdx-m"><small>Payer</small><b>@Payer(h.S("PayerType"))</b><span>@h.S("PayerName") @h.S("TariffCategoryName")</span></div>
+        <div class="ipdx-m"><small>Bill so far</small><b class="num">@h.M("BillNow").Rs()</b><span>live, if discharged now</span></div>
+        <div class="ipdx-m"><small>Advance held</small><b class="num">@h.M("NetAdvance").Rs()</b><span>@Model.Advances.Count(a => a.S("Kind") == "ADVANCE") receipt(s)</span></div>
+        <div class="ipdx-m @(h.B("DepositAlert") || due > 0 ? "due" : "ok")"><small>@(due > 0 ? "Balance due" : due < 0 ? "Refundable" : "Balance")</small><b class="num">@Math.Abs(due).Rs()</b>
+            <span>@if (h.B("DepositAlert")) {<text><i class="bi bi-bell-fill"></i> collect deposit</text>} else if (due < 0) {<text>advance exceeds bill</text>} else {<text>settled to date</text>}</span></div>
+    </div>
+    <div class="ipdx-actions">
+        @if ((bool)(ViewData["CanEstimate"] ?? false))
+        {
+            <a class="btn btn-sm btn-primary" asp-controller="IpdEstimation" asp-action="Patient" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-calculator me-1"></i>Current Bill</a>
+        }
+        @if (open && Can("ADVANCE")) { <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#advanceModal"><i class="bi bi-cash-coin me-1"></i>Collect Advance</button> }
+        @if (open && Can("TRANSFER")) { <button type="button" class="btn btn-sm btn-light border btn-transfer"><i class="bi bi-arrow-left-right me-1"></i>Transfer Bed</button> }
+        @if (open && Can("EDIT")) { <button type="button" class="btn btn-sm btn-light border" id="btnEdit"><i class="bi bi-pencil-square me-1"></i>Edit Admission</button> }
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-light border dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-printer me-1"></i>Print</button>
+            <ul class="dropdown-menu">
+                <li><a class="dropdown-item" target="_blank" asp-action="PrintFaceSheet" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-file-earmark-text me-2"></i>Admission form / face sheet</a></li>
+                <li><a class="dropdown-item" target="_blank" asp-action="PrintWristband" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-upc me-2"></i>Wristband</a></li>
+                <li><a class="dropdown-item" target="_blank" asp-controller="IpdEstimation" asp-action="Print" asp-route-id="@h.I("AdmissionId")" asp-route-format="summary"><i class="bi bi-receipt me-2"></i>Current estimate</a></li>
+            </ul>
+        </div>
+        <span class="ms-auto"></span>
+        <div class="btn-group">
+            <button type="button" class="btn btn-sm btn-light border dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-three-dots me-1"></i>More</button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                @if (open && Can("TRANSFER")) { <li><button type="button" class="dropdown-item btn-transfer"><i class="bi bi-arrow-left-right me-2"></i>Transfer bed / ICU shift</button></li> }
+                <li><a class="dropdown-item" asp-controller="IpdBeds" asp-action="Index"><i class="bi bi-grid-3x3-gap me-2"></i>Bed board</a></li>
+                <li><a class="dropdown-item" asp-action="New" asp-route-patientId="@h.I("PatientId")"><i class="bi bi-person me-2"></i>Patient admission page</a></li>
+                <li><a class="dropdown-item" asp-action="Index"><i class="bi bi-card-list me-2"></i>Admission list</a></li>
+                @if (status == "ADMITTED" && Can("CANCEL"))
+                {
+                    <li><hr class="dropdown-divider" /></li>
+                    <li><button type="button" class="dropdown-item text-danger" id="btnCancelAdm"><i class="bi bi-x-octagon me-2"></i>Cancel admission…</button></li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
+
+@if (status == "CANCELLED")
+{
+    <div class="alert alert-danger"><i class="bi bi-x-octagon-fill me-1"></i>Cancelled on @h.Dt("CancelledAt"): @h.S("CancelReason")</div>
+}
+
+<div class="ipdx-layout">
+@* ══ section menu ══ *@
+<nav class="ipdx-nav ipd-tabs" role="tablist" aria-label="Patient sections">
+    @foreach (var g in groups)
+    {
+        <div class="ipdx-nav-group">@g.Group</div>
+        foreach (var k in g.Keys)
+        {
+            var t = tabMap[k];
+            <button class="ipdx-nav-link @(t.Key == Model.Tab ? "active" : "") @(t.Phase != null ? "soon" : "")" data-bs-toggle="tab" data-bs-target="#tab-@t.Key" type="button" role="tab" data-tab="@t.Key">
+                <i class="bi @t.Icon"></i><span>@t.Title</span>@if (t.Phase != null) {<em>@t.Phase.Replace("Phase ", "P")</em>}
+            </button>
+        }
+    }
+</nav>
+
+<div class="tab-content ipdx-content">
+    @* overview *@
+    <div class="tab-pane fade @(Model.Tab == "overview" ? "show active" : "")" id="tab-overview" role="tabpanel">
+        <div class="row g-3">
+            <div class="col-12 col-xl-6">
+                <div class="reg-section"><div class="reg-section-header"><div class="sec-icon green"><i class="bi bi-clipboard2-pulse"></i></div><h6 class="fw-bold mb-0">Admission</h6></div>
+                    <div class="reg-section-body">
+                        <dl class="kv">
+                            <dt>IP No.</dt><dd class="font-monospace">@h.S("IpNo")</dd>
+                            <dt>Admitted</dt><dd>@h.Dt("AdmissionAt") · @h.S("AdmissionType").ToLowerInvariant() · from @h.S("AdmissionSource").ToLowerInvariant()</dd>
+                            <dt>Admitting doctor</dt><dd>@h.S("AdmittingDoctorName")</dd>
+                            <dt>Consultant</dt><dd>@h.S("ConsultantDoctorName")</dd>
+                            <dt>Department</dt><dd>@h.S("DepartmentName")</dd>
+                            <dt>Referred by</dt><dd>@h.S("ReferralDoctorName")</dd>
+                            <dt>Provisional diagnosis</dt><dd>@h.S("ProvisionalDiagnosis") @(string.IsNullOrWhiteSpace(h.S("DiagnosisCode")) ? "" : "(" + h.S("DiagnosisCode") + ")")</dd>
+                            <dt>Reason</dt><dd>@h.S("ReasonForAdmission")</dd>
+                            <dt>Expected discharge</dt><dd>@h.Dt("ExpectedDischargeAt")</dd>
+                            <dt>Tariff / package</dt><dd>@h.S("TariffCategoryName") @(string.IsNullOrWhiteSpace(h.S("PackageName")) ? "" : " · " + h.S("PackageName"))</dd>
+                            <dt>Pre-admission estimate</dt><dd>@h.S("EstimateNo")</dd>
+                            @if (h.B("AdvanceWaived")) { <dt>Advance waived</dt><dd class="text-danger">@h.S("AdvanceWaiveReason")</dd> }
+                            <dt>Remarks</dt><dd>@h.S("Remarks")</dd>
+                            <dt>Admitted by</dt><dd>@h.S("CreatedByName") · @h.Dt("CreatedDate")</dd>
+                        </dl>
+                    </div></div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="reg-section"><div class="reg-section-header"><div class="sec-icon amber"><i class="bi bi-people"></i></div><h6 class="fw-bold mb-0">Attendants</h6></div>
+                    <div class="reg-section-body p-0">
+                        <table class="table ipd-table mb-0"><thead><tr><th>Name</th><th>Relation</th><th>Mobile</th><th>ID</th></tr></thead><tbody>
+                        @foreach (var a in Model.Attendants)
+                        {
+                            <tr><td>@a.S("Name") @if (a.B("IsPrimary")) {<span class="ipd-pill info">Primary</span>}</td><td>@a.S("Relation")</td><td>@a.S("Phone")</td><td>@a.S("IdTypeName") @a.S("IdNumber")</td></tr>
+                        }
+                        @if (Model.Attendants.Count == 0) { <tr><td colspan="4" class="text-muted text-center py-3">No attendant recorded.</td></tr> }
+                        </tbody></table>
+                    </div></div>
+                @if (Model.Mlc.Has())
+                {
+                    var m = Model.Mlc;
+                    <div class="reg-section"><div class="reg-section-header"><div class="sec-icon red"><i class="bi bi-shield-exclamation"></i></div><h6 class="fw-bold mb-0">Medico-Legal Case</h6></div>
+                        <div class="reg-section-body"><dl class="kv">
+                            <dt>MLC No.</dt><dd>@m.S("MlcNo")</dd><dt>Nature</dt><dd>@m.S("Nature")</dd><dt>Incident</dt><dd>@m.Dt("IncidentAt") @m.S("IncidentPlace")</dd>
+                            <dt>Brought by</dt><dd>@m.S("BroughtBy") @m.S("BroughtByPhone")</dd><dt>Police station</dt><dd>@m.S("PoliceStation")</dd>
+                            <dt>Informed</dt><dd>@m.Dt("InformedAt") @m.S("OfficerName")</dd><dt>Remarks</dt><dd>@m.S("Remarks")</dd>
+                        </dl></div></div>
+                }
+                <div class="reg-section"><div class="reg-section-header"><div class="sec-icon blue"><i class="bi bi-clock-history"></i></div><h6 class="fw-bold mb-0">Activity</h6></div>
+                    <div class="reg-section-body p-0" style="max-height:320px;overflow:auto">
+                        <table class="table ipd-table mb-0"><tbody>
+                        @foreach (var l in Model.Log)
+                        {
+                            <tr><td class="text-nowrap small text-muted">@l.Dt("CreatedDate")</td><td><span class="ipd-pill muted">@l.S("Action")</span></td><td>@l.S("Remarks")</td><td class="small text-muted">@l.S("CreatedByName")</td></tr>
+                        }
+                        </tbody></table>
+                    </div></div>
+            </div>
+        </div>
+    </div>
+
+    @* placeholders of later phases *@
+    @foreach (var t in tabs.Where(t => soonText.ContainsKey(t.Key)))
+    {
+        <div class="tab-pane fade @(Model.Tab == t.Key ? "show active" : "")" id="tab-@t.Key" role="tabpanel">
+            <div class="ipd-soon"><div class="fs-3 mb-2"><i class="bi @t.Icon"></i></div><div class="fw-semibold mb-1">@t.Title comes in @t.Phase</div><div class="small">@soonText[t.Key]</div>
+                <div class="small mt-2">Charges from this tab will appear on the <a asp-controller="IpdEstimation" asp-action="Patient" asp-route-id="@h.I("AdmissionId")">current bill</a> as soon as they are posted.</div></div>
+        </div>
+    }
+
+    @* bed & transfers *@
+    <div class="tab-pane fade @(Model.Tab == "bed" ? "show active" : "")" id="tab-bed" role="tabpanel">
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon red"><i class="bi bi-hospital"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Bed history</h6><small class="text-muted">Every bed the patient used; the charge of a day follows the bed held at its end</small></div>@if (open && Can("TRANSFER")) {<button type="button" class="btn btn-sm btn-warning btn-transfer"><i class="bi bi-arrow-left-right me-1"></i>Transfer / ICU shift</button>}</div>
+            <div class="reg-section-body p-0">
+                <table class="table ipd-table mb-0"><thead><tr><th>From</th><th>To</th><th>Ward</th><th>Room</th><th>Bed</th><th>Category</th><th>Type</th><th>By</th></tr></thead><tbody>
+                @foreach (var mv in Model.Movements)
+                {
+                    <tr><td>@mv.Dt("FromAt")</td><td>@(mv.D("ToAt").HasValue ? mv.Dt("ToAt") : "now")</td><td>@mv.S("WardName")</td><td>@mv.S("RoomNumber")</td><td class="fw-semibold">@mv.S("BedNumber")</td>
+                        <td>@mv.S("BedCategoryName")</td><td><span class="ipd-pill @(mv.S("MoveType") == "ICU_IN" ? "alert" : "muted")">@mv.S("MoveType").Replace("_", " ")</span>@(string.IsNullOrWhiteSpace(mv.S("EndType")) ? "" : " → " + mv.S("EndType"))</td><td class="small text-muted">@mv.S("CreatedByName")</td></tr>
+                }
+                </tbody></table>
+            </div></div>
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon green"><i class="bi bi-calendar3"></i></div><h6 class="fw-bold mb-0">Bed charges by day (live)</h6></div>
+            <div class="reg-section-body p-0"><div id="bedDays" class="p-3 small text-muted">Loading…</div></div></div>
+    </div>
+
+    @* advance & payments *@
+    <div class="tab-pane fade @(Model.Tab == "advance" ? "show active" : "")" id="tab-advance" role="tabpanel">
+        @{
+            var advRows = Model.Advances;
+            var advCount = advRows.Count(x => x.S("Kind") == "ADVANCE");
+            var refCount = advRows.Count(x => x.S("Kind") == "REFUND");
+            var lastAt = advRows.Select(x => x.D("CreatedDate")).Where(x => x.HasValue).DefaultIfEmpty().Max();
+        }
+        <div class="ipdx-section-head">
+            <div><h2>Advance &amp; Payments</h2><p>Deposits received from the patient and refunds paid back. Every receipt is in the hospital's money-receipt series.</p></div>
+            <div class="d-flex gap-2">
+                @if (Can("REFUND") && status != "DISCHARGED") { <button type="button" class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#refundModal"><i class="bi bi-arrow-return-left me-1"></i>Refund</button> }
+                @if (open && Can("ADVANCE")) { <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#advanceModal"><i class="bi bi-plus-lg me-1"></i>Collect Advance</button> }
+            </div>
+        </div>
+        <div class="ipdx-kpis">
+            <div class="ipdx-kpi"><small>Received</small><b class="num">@h.M("AdvanceTotal").Rs()</b><span>@advCount receipt@(advCount == 1 ? "" : "s")</span></div>
+            <div class="ipdx-kpi"><small>Refunded</small><b class="num">@h.M("RefundTotal").Rs()</b><span>@refCount voucher@(refCount == 1 ? "" : "s")</span></div>
+            <div class="ipdx-kpi accent"><small>Held</small><b class="num">@h.M("NetAdvance").Rs()</b><span>@(lastAt.HasValue ? "last on " + lastAt.Value.ToString("dd-MMM hh:mm tt") : "nothing received")</span></div>
+            <div class="ipdx-kpi"><small>Bill so far</small><b class="num">@h.M("BillNow").Rs()</b><span>@h.I("BedDays") bed day@(h.I("BedDays") == 1 ? "" : "s")</span></div>
+            <div class="ipdx-kpi @(due > 0 ? "bad" : "good")"><small>@(due > 0 ? "Balance due" : "Refundable")</small><b class="num">@Math.Abs(due).Rs()</b><span>@(h.B("DepositAlert") ? "deposit alert" : due > 0 ? "to collect" : "advance covers the bill")</span></div>
+        </div>
+        <div class="ipdx-card">
+            <table class="table ipdx-table mb-0">
+                <thead><tr><th>Date &amp; time</th><th>Receipt / voucher</th><th>Type</th><th>Payment mode</th><th>Remarks</th><th>Received by</th><th class="text-end">Amount</th><th class="text-end" style="width:60px"></th></tr></thead>
+                <tbody>
+                @foreach (var a2 in advRows)
+                {
+                    var refund = a2.S("Kind") == "REFUND";
+                    <tr>
+                        <td><div class="fw-semibold">@a2.Dt("CreatedDate", "dd-MMM-yyyy")</div><div class="small text-muted">@a2.Dt("CreatedDate", "hh:mm tt")</div></td>
+                        <td class="font-monospace fw-semibold">@a2.S("DocNo")</td>
+                        <td>@if (refund) {<span class="ipdx-tag out"><i class="bi bi-arrow-up-right"></i>Refund</span>} else {<span class="ipdx-tag in"><i class="bi bi-arrow-down-left"></i>Advance</span>}</td>
+                        <td>@a2.S("Modes")@if (!string.IsNullOrWhiteSpace(a2.S("RefNo"))) {<div class="small text-muted">Ref @a2.S("RefNo")</div>}</td>
+                        <td class="text-muted">@(string.IsNullOrWhiteSpace(a2.S("Remarks")) ? "—" : a2.S("Remarks"))</td>
+                        <td>@a2.S("CreatedByName")</td>
+                        <td class="text-end num fw-semibold @(refund ? "text-danger" : "text-success")">@(refund ? "− " : "+ ")@a2.M("Amount").Rs()</td>
+                        <td class="text-end"><a class="btn btn-sm btn-light border" target="_blank" asp-action="PrintReceipt" asp-route-id="@a2.I("AdvanceId")" title="Print @(refund ? "refund voucher" : "money receipt")"><i class="bi bi-printer"></i></a></td>
+                    </tr>
+                }
+                @if (advRows.Count == 0)
+                {
+                    <tr><td colspan="8"><div class="ipdx-empty"><i class="bi bi-wallet2"></i><div>No advance taken yet.</div>
+                        @if (open && Can("ADVANCE")) {<button type="button" class="btn btn-sm btn-success mt-2" data-bs-toggle="modal" data-bs-target="#advanceModal">Collect the first advance</button>}</div></td></tr>
+                }
+                </tbody>
+                @if (advRows.Count > 0)
+                {
+                    <tfoot><tr><td colspan="6" class="text-end fw-semibold">Advance held</td><td class="text-end num fw-bold">@h.M("NetAdvance").Rs()</td><td></td></tr></tfoot>
+                }
+            </table>
+        </div>
+    </div>
+
+    @* billing *@
+    <div class="tab-pane fade @(Model.Tab == "billing" ? "show active" : "")" id="tab-billing" role="tabpanel">
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-lg-3"><div class="ipd-tile accent"><div class="lbl">Bill if discharged now</div><div class="val">@h.M("BillNow").Rs()</div><div class="sub">@h.I("BedDays") bed day(s), live</div></div></div>
+            <div class="col-6 col-lg-3"><div class="ipd-tile good"><div class="lbl">Advance held</div><div class="val">@h.M("NetAdvance").Rs()</div></div></div>
+            <div class="col-6 col-lg-3"><div class="ipd-tile @(due > 0 ? "bad" : "good")"><div class="lbl">@(due >= 0 ? "Balance due" : "Refundable")</div><div class="val">@Math.Abs(due).Rs()</div></div></div>
+            <div class="col-6 col-lg-3"><div class="ipd-tile"><div class="lbl">Final bill</div><div class="val" style="font-size:1rem">Phase 5</div><div class="sub">Interim / final bill, discounts, settlement</div></div></div>
+        </div>
+        <a class="btn btn-primary" asp-controller="IpdEstimation" asp-action="Patient" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-calculator me-1"></i>Open Current Billing Estimation</a>
+    </div>
+
+    @* insurance *@
+    <div class="tab-pane fade @(Model.Tab == "insurance" ? "show active" : "")" id="tab-insurance" role="tabpanel">
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon violet"><i class="bi bi-shield-plus"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Payer</h6><small class="text-muted">Pre-authorisation, enhancement and claims come in Phase 6</small></div></div>
+            <div class="reg-section-body p-0">
+                <table class="table ipd-table mb-0"><thead><tr><th>#</th><th>Type</th><th>Payer</th><th>Policy / card</th><th>Member</th><th>Holder</th><th>Valid to</th><th>Card</th></tr></thead><tbody>
+                @foreach (var p in Model.Payers)
+                {
+                    <tr><td>@p.I("Seq")</td><td>@Payer(p.S("PayerType"))</td><td class="fw-semibold">@p.S("PayerName")</td><td>@p.S("PolicyNo")</td><td>@p.S("MemberId") @p.S("EmployeeId")</td>
+                        <td>@p.S("CardHolderName") @(string.IsNullOrWhiteSpace(p.S("RelationToHolder")) ? "" : "(" + p.S("RelationToHolder") + ")")</td><td>@p.Dt("PolicyValidTo", "dd-MMM-yyyy")</td>
+                        <td>@if (!string.IsNullOrWhiteSpace(p.S("CardFilePath"))) {<a href="@p.S("CardFilePath")" target="_blank">View</a>}</td></tr>
+                }
+                @if (Model.Payers.Count == 0) { <tr><td colspan="8" class="text-center text-muted py-3">Cash / self-paying patient.</td></tr> }
+                </tbody></table>
+            </div></div>
+    </div>
+
+    @* documents & consents *@
+    <div class="tab-pane fade @(Model.Tab == "documents" ? "show active" : "")" id="tab-documents" role="tabpanel">
+        <div class="d-flex gap-2 mb-3 flex-wrap">
+            @if (status != "CANCELLED" && Can("CONSENT")) { <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#consentModal"><i class="bi bi-pen me-1"></i>Record Consent</button> }
+            @if (status != "CANCELLED" && Can("DOCUMENT")) { <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#docModal"><i class="bi bi-upload me-1"></i>Upload Document</button> }
+        </div>
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon blue"><i class="bi bi-pen"></i></div><h6 class="fw-bold mb-0">Consents</h6></div>
+            <div class="reg-section-body p-0">
+                <table class="table ipd-table mb-0"><thead><tr><th>Signed</th><th>Consent</th><th>Signed by</th><th>Witness</th><th>Taken by</th><th></th></tr></thead><tbody>
+                @foreach (var c in Model.Consents)
+                {
+                    <tr><td>@c.Dt("SignedAt")</td><td class="fw-semibold">@c.S("ConsentType") <span class="small text-muted">@c.S("Language") v@(c.S("Version"))</span></td>
+                        <td>@c.S("SignedByName") @(string.IsNullOrWhiteSpace(c.S("SignedByRelation")) ? "" : "(" + c.S("SignedByRelation") + ")")</td><td>@c.S("WitnessName")</td><td class="small text-muted">@c.S("CapturedByName")</td>
+                        <td><a class="btn btn-sm btn-outline-secondary" target="_blank" asp-action="PrintConsent" asp-route-id="@c.I("AdmissionConsentId")"><i class="bi bi-printer"></i></a></td></tr>
+                }
+                @if (Model.Consents.Count == 0) { <tr><td colspan="6" class="text-center text-muted py-3">No consent recorded.</td></tr> }
+                </tbody></table>
+            </div></div>
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon amber"><i class="bi bi-folder2-open"></i></div><h6 class="fw-bold mb-0">Documents</h6></div>
+            <div class="reg-section-body p-0">
+                <table class="table ipd-table mb-0"><thead><tr><th>Added</th><th>Type</th><th>Title</th><th>Remarks</th><th>By</th><th></th></tr></thead><tbody>
+                @foreach (var d in Model.Documents)
+                {
+                    <tr><td>@d.Dt("CreatedDate")</td><td>@d.S("DocType")</td><td><a href="@d.S("FilePath")" target="_blank">@(string.IsNullOrWhiteSpace(d.S("Title")) ? "Open" : d.S("Title"))</a></td><td>@d.S("Remarks")</td><td class="small text-muted">@d.S("CreatedByName")</td>
+                        <td>@if (Can("DOCUMENT_DELETE")) {<button type="button" class="btn btn-sm btn-outline-danger btn-doc-del" data-id="@d.I("DocumentId")" title="Remove"><i class="bi bi-trash"></i></button>}</td></tr>
+                }
+                @if (Model.Documents.Count == 0) { <tr><td colspan="6" class="text-center text-muted py-3">No document uploaded.</td></tr> }
+                </tbody></table>
+            </div></div>
+    </div>
+</div>
+
+</div>@* /ipdx-layout *@
+
+@* ══ modals ══ *@
+<div class="modal fade" id="advanceModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-cash-coin me-1 text-success"></i>Collect Advance · @h.S("IpNo")</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div id="advRows"></div>
+        <div class="d-flex justify-content-between align-items-center mt-2"><button type="button" class="btn btn-sm btn-outline-primary" id="btnAdvRow"><i class="bi bi-plus-lg me-1"></i>Split payment</button><b>Total: <span id="advTotal">₹0.00</span></b></div>
+        <div class="mt-3"><label class="form-label small fw-semibold" for="advRemarks">Remarks</label><input id="advRemarks" class="form-control" maxlength="300" placeholder="e.g. Day 3 deposit" /></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-success" id="btnAdvSave"><i class="bi bi-check2 me-1"></i>Save &amp; Print Receipt</button></div>
+</div></div></div>
+
+<div class="modal fade" id="refundModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-arrow-return-left me-1 text-danger"></i>Refund Advance</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div class="alert alert-info small py-2">While admitted, at most the advance less the bill so far can be refunded (held @h.M("NetAdvance").Rs(), bill @h.M("BillNow").Rs()).</div>
+        <div class="row g-2">
+            <div class="col-6"><label class="form-label small fw-semibold" for="refAmount">Amount (₹)</label><input type="number" min="0" step="0.01" id="refAmount" class="form-control" /></div>
+            <div class="col-6"><label class="form-label small fw-semibold" for="refMethod">Paid back by</label><select id="refMethod" class="form-select"></select></div>
+            <div class="col-12"><label class="form-label small fw-semibold" for="refRef">Reference</label><input id="refRef" class="form-control" maxlength="100" /></div>
+            <div class="col-12"><label class="form-label small fw-semibold" for="refReason">Reason</label><input id="refReason" class="form-control" maxlength="300" /></div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-danger" id="btnRefSave">Refund</button></div>
+</div></div></div>
+
+<div class="modal fade" id="consentModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-pen me-1"></i>Record Consent</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div class="row g-2">
+            <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="cnId">Consent form</label><select id="cnId" class="form-select"></select></div>
+            <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="cnBy">Signed by</label><input id="cnBy" class="form-control" maxlength="150" value="@h.S("PatientName")" /></div>
+            <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="cnRel">Relation</label><input id="cnRel" class="form-control" maxlength="50" value="Self" /></div>
+            <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="cnWit">Witness</label><input id="cnWit" class="form-control" maxlength="150" /></div>
+            <div class="col-12"><div id="cnPreview" class="consent-preview small text-muted">Choose a consent form to read it.</div></div>
+            <div class="col-12 col-md-6"><div class="d-flex justify-content-between"><label class="form-label small fw-semibold mb-1">Signature</label><button type="button" class="btn btn-link btn-sm p-0" id="cnClear1">Clear</button></div><canvas id="cnSig" class="sig-pad"></canvas></div>
+            <div class="col-12 col-md-6"><div class="d-flex justify-content-between"><label class="form-label small fw-semibold mb-1">Witness signature</label><button type="button" class="btn btn-link btn-sm p-0" id="cnClear2">Clear</button></div><canvas id="cnWSig" class="sig-pad"></canvas></div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="btnCnSave">Save Consent</button></div>
+</div></div></div>
+
+<div class="modal fade" id="docModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-upload me-1"></i>Upload Document</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body"><div class="row g-2">
+        <div class="col-6"><label class="form-label small fw-semibold" for="docType">Type</label><select id="docType" class="form-select"><option>ID proof</option><option>Policy / card</option><option>Referral letter</option><option>Previous reports</option><option>Police / MLC papers</option><option>Other</option></select></div>
+        <div class="col-6"><label class="form-label small fw-semibold" for="docTitle">Title</label><input id="docTitle" class="form-control" maxlength="150" /></div>
+        <div class="col-12"><label class="form-label small fw-semibold" for="docFile">File (PDF, image, Word; up to 10 MB)</label><input type="file" id="docFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" /></div>
+        <div class="col-12"><label class="form-label small fw-semibold" for="docRemarks">Remarks</label><input id="docRemarks" class="form-control" maxlength="300" /></div>
+    </div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="btnDocSave">Upload</button></div>
+</div></div></div>
+
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-pencil-square me-1"></i>Edit Admission · @h.S("IpNo")</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div class="row g-3">
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eType">Admission Type</label><select id="eType" class="form-select"><option value="ELECTIVE">Elective / Planned</option><option value="EMERGENCY">Emergency</option><option value="DAYCARE">Day Care</option><option value="MATERNITY">Maternity</option><option value="TRANSFERIN">Transfer-in</option></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eSource">Source</label><select id="eSource" class="form-select"><option value="DIRECT">Direct</option><option value="OPD">OPD consultation</option><option value="EMERGENCY">Emergency / Casualty</option><option value="REFERRAL">Referred by doctor</option></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eAdm">Admitting Doctor</label><select id="eAdm" class="form-select e-s2"></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eCon">Consultant</label><select id="eCon" class="form-select e-s2"></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eDept">Department</label><select id="eDept" class="form-select e-s2"></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eRef">Referred By</label><select id="eRef" class="form-select e-s2"></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eExp">Expected Discharge</label><input type="datetime-local" id="eExp" class="form-control" /></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="ePkg">Package</label><select id="ePkg" class="form-select e-s2"></select></div>
+            <div class="col-12 col-lg-6"><label class="form-label small fw-semibold" for="eDx">Provisional Diagnosis</label><input id="eDx" class="form-control" maxlength="500" /></div>
+            <div class="col-6 col-lg-2"><label class="form-label small fw-semibold" for="eIcd">ICD-10</label><input id="eIcd" class="form-control text-uppercase" maxlength="20" /></div>
+            <div class="col-12 col-lg-4"><label class="form-label small fw-semibold" for="eReason">Reason</label><input id="eReason" class="form-control" maxlength="500" /></div>
+            <div class="col-12"><hr class="my-1" /><div class="small fw-bold text-uppercase text-muted">Payer &amp; tariff @if (!Can("CHANGE_TARIFF")) {<span class="ipd-pill muted ms-1">changing needs the Change Tariff permission</span>}</div></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="ePayer">Payer</label><select id="ePayer" class="form-select" @(Can("CHANGE_TARIFF") ? "" : "disabled")><option value="CASH">Cash / Self</option><option value="CORPORATE">Corporate</option><option value="INSURANCE">Insurance / TPA</option><option value="SCHEME">Government Scheme</option></select></div>
+            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eTariff">Tariff Category</label><select id="eTariff" class="form-select" @(Can("CHANGE_TARIFF") ? "" : "disabled")></select></div>
+            <div class="col-6 col-lg-3 e-pf e-INSURANCE"><label class="form-label small fw-semibold" for="eIns">Insurance / TPA</label><select id="eIns" class="form-select"></select></div>
+            <div class="col-6 col-lg-3 e-pf e-CORPORATE"><label class="form-label small fw-semibold" for="eCorp">Corporate</label><select id="eCorp" class="form-select"></select></div>
+            <div class="col-6 col-lg-3 e-pf e-SCHEME"><label class="form-label small fw-semibold" for="eSch">Scheme</label><select id="eSch" class="form-select"></select></div>
+            <div class="col-6 col-lg-3 e-pf e-INSURANCE e-SCHEME"><label class="form-label small fw-semibold" for="ePol">Policy / Card No.</label><input id="ePol" class="form-control" maxlength="60" /></div>
+            <div class="col-6 col-lg-3 e-pf e-INSURANCE e-SCHEME"><label class="form-label small fw-semibold" for="eMem">Member ID</label><input id="eMem" class="form-control" maxlength="60" /></div>
+            <div class="col-6 col-lg-3 e-pf e-CORPORATE"><label class="form-label small fw-semibold" for="eEmp">Employee ID</label><input id="eEmp" class="form-control" maxlength="60" /></div>
+            <div class="col-6 col-lg-3 e-pf e-INSURANCE e-CORPORATE e-SCHEME"><label class="form-label small fw-semibold" for="eHolder">Card Holder</label><input id="eHolder" class="form-control" maxlength="150" /></div>
+            <div class="col-6 col-lg-3 e-pf e-INSURANCE e-CORPORATE e-SCHEME"><label class="form-label small fw-semibold" for="eHolderRel">Relation to Holder</label><input id="eHolderRel" class="form-control" maxlength="50" /></div>
+            <div class="col-6 col-lg-3 e-pf e-INSURANCE"><label class="form-label small fw-semibold" for="eValid">Policy Valid To</label><input type="date" id="eValid" class="form-control" /></div>
+            <div class="col-12"><hr class="my-1" /><div class="d-flex justify-content-between"><span class="small fw-bold text-uppercase text-muted">Attendants</span><button type="button" class="btn btn-sm btn-outline-primary" id="eAddAtt"><i class="bi bi-plus-lg"></i></button></div><div id="eAtts" class="mt-2"></div></div>
+            <div class="col-12"><hr class="my-1" /><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="eMlc" /><label class="form-check-label fw-semibold" for="eMlc">Medico-Legal Case</label></div></div>
+            <div class="col-12 d-none" id="eMlcBlock"><div class="row g-2">
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emNo">MLC No.</label><input id="emNo" class="form-control" maxlength="40" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emNature">Nature</label><input id="emNature" class="form-control" maxlength="40" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emAt">Incident</label><input type="datetime-local" id="emAt" class="form-control" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emPlace">Place</label><input id="emPlace" class="form-control" maxlength="200" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emBy">Brought By</label><input id="emBy" class="form-control" maxlength="150" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emByPh">Phone</label><input id="emByPh" class="form-control" maxlength="20" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emPs">Police Station</label><input id="emPs" class="form-control" maxlength="150" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emInf">Informed At</label><input type="datetime-local" id="emInf" class="form-control" /></div>
+                <div class="col-6 col-lg-3"><label class="form-label small" for="emOff">Officer</label><input id="emOff" class="form-control" maxlength="150" /></div>
+                <div class="col-12 col-lg-9"><label class="form-label small" for="emRem">Remarks</label><input id="emRem" class="form-control" maxlength="500" /></div>
+            </div></div>
+            <div class="col-12"><label class="form-label small fw-semibold" for="eRemarks">Remarks</label><input id="eRemarks" class="form-control" maxlength="1000" /></div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="btnEditSave">Save Changes</button></div>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdAdmission/"), estBase = Url.Content("~/IpdEstimation/"), patientName = h.S("PatientName"), uhid = h.S("PatientCode"), ipNo = h.S("IpNo"), age = h.S("AgeText"), gender = h.S("Gender"), doctor = h.S("ConsultantDoctorName"), department = h.S("DepartmentName"), opdNo = h.S("OpdBillNo"), netAdvance = h.M("NetAdvance"), canRefund = Can("REFUND"), bedsBase = Url.Content("~/IpdBeds/"), bedLabel = h.S("BedNumber"), payers = Model.Payers, attendants = Model.Attendants, mlc = Model.Mlc.Has() ? (object)Model.Mlc : null, h = new { AdmissionType = h.S("AdmissionType"), AdmissionSource = h.S("AdmissionSource"), AdmittingDoctorId = h.I("AdmittingDoctorId"), ConsultantDoctorId = h.I("ConsultantDoctorId"), DepartmentId = h.NI("DepartmentId"), ReferralDoctorId = h.NI("ReferralDoctorId"), ExpectedDischargeAt = h.S("ExpectedDischargeAt"), PackageId = h.NI("PackageId"), ProvisionalDiagnosis = h.S("ProvisionalDiagnosis"), DiagnosisCode = h.S("DiagnosisCode"), ReasonForAdmission = h.S("ReasonForAdmission"), PayerType = h.S("PayerType"), TariffCategoryId = h.I("TariffCategoryId"), Remarks = h.S("Remarks"), IsMlc = h.B("IsMlc") } }));</script>
+    <script src="~/js/ipd/transfer.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/patient.js" asp-append-version="true"></script>
+}

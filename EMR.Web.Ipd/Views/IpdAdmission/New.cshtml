@@ -1,0 +1,447 @@
+@{
+    ViewData["Title"] = "IPD Admission";
+    int? presetPatient = ViewBag.PatientId as int?;
+    int? presetOpd = ViewBag.OpdServiceId as int?;
+    int? presetEstimate = ViewBag.EstimateId as int?;
+    int? presetBed = ViewBag.BedId as int?;
+    bool canBackdate = ViewBag.CanBackdate as bool? ?? false;
+    bool canWaive = ViewBag.CanWaiveAdvance as bool? ?? false;
+    bool abha = ViewBag.Abha as bool? ?? false;
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+    <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <style>
+        .pt-title { flex:0 0 84px; max-width:84px; }
+        .select2-container { width:100% !important; }
+        .pay-row .form-select, .pay-row .form-control { font-size:.85rem; }
+    </style>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold"><i class="bi bi-hospital me-2 text-success"></i>IPD Admission</h1>
+        <small class="text-muted">Find the patient by mobile number (or register a new one), then admit to a bed</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-card-list me-1"></i>Admission List</a>
+        <a asp-controller="IPD" asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
+        <span class="badge text-bg-success fs-6 px-3 py-2"><i class="bi bi-hospital me-1"></i>IPD</span>
+    </div>
+</div>
+
+@Html.AntiForgeryToken()
+
+@* ── Search existing patient (as OPD / LAB) ── *@
+<div class="reg-section search-card">
+    <div class="reg-section-header">
+        <div class="sec-icon blue"><i class="bi bi-search"></i></div>
+        <div class="flex-grow-1">
+            <div class="fw-bold">Search Existing Patient</div>
+            <div class="text-muted small">Old patient: pick from the list. New patient: type the mobile number in Patient Demography below.</div>
+        </div>
+    </div>
+    <div class="reg-section-body py-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="searchType">Search By</label>
+                <select id="searchType" class="form-select">
+                    <option value="phone">Mobile No</option>
+                    <option value="code">Patient ID (UHID)</option>
+                    <option value="name">Patient Name</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-9 position-relative">
+                <label class="form-label" for="searchInput">Search</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white text-primary"><i class="bi bi-person-search"></i></span>
+                    <input type="text" id="searchInput" class="form-control" placeholder="10-digit mobile, UHID or name…" maxlength="50" autocomplete="off" />
+                    <button class="btn btn-outline-secondary" type="button" id="btnClearPatient" title="Clear the loaded patient (new patient)"><i class="bi bi-x-lg"></i></button>
+                </div>
+                <div id="topSug" class="sug-list list-group"></div>
+            </div>
+        </div>
+        <div id="patientStatus" class="mt-3 d-none"></div>
+    </div>
+</div>
+
+<form id="admForm" autocomplete="off" novalidate>
+    <input type="hidden" name="PatientId" id="PatientId" value="0" />
+    <input type="hidden" name="PatientCode" id="PatientCode" />
+    <input type="hidden" name="RequestKey" id="RequestKey" />
+    <input type="hidden" name="OpdServiceId" id="OpdServiceId" value="@presetOpd" />
+    <input type="hidden" name="PhotoPath" id="PhotoPath" />
+    <input type="hidden" name="IdentificationFilePath" id="IdentificationFilePath" />
+
+    @* ── 1. Patient demography ── *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon blue"><i class="bi bi-person-vcard-fill"></i></div>
+            <div class="flex-grow-1">
+                <h6 class="fw-bold mb-0">Patient Demography <span id="loadedBadge" class="badge text-bg-primary ms-2 font-monospace d-none"></span></h6>
+                <small class="text-muted">Same Patient Master as OPD and LAB</small>
+            </div>
+            <span class="badge text-bg-danger">* Required</span>
+        </div>
+        <div class="reg-section-body">
+            <div class="row g-3 mb-1">
+                <div class="col-12 col-sm-6 col-lg-3 position-relative">
+                    <label class="form-label req" for="PhoneNumber">Mobile Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone-fill text-primary"></i></span>
+                        <input name="PhoneNumber" id="PhoneNumber" class="form-control" maxlength="10" inputmode="numeric" placeholder="10-digit mobile" autocomplete="off" />
+                    </div>
+                    <div id="phoneSug" class="sug-list list-group"></div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="RelationId">Relation (to mobile owner)</label>
+                    <select name="RelationId" id="RelationId" class="form-select"><option value="">-- Select --</option></select>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <label class="form-label" for="profilePictureFile">Photo <span class="text-muted fw-normal">(JPG / PNG)</span></label>
+                    <div class="d-flex gap-2 align-items-center">
+                        <input type="file" name="profilePictureFile" id="profilePictureFile" class="form-control" accept=".jpg,.jpeg,.png,.gif" />
+                        <img id="photoPreview" class="rounded-circle border d-none" style="width:38px;height:38px;object-fit:cover" alt="" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="FirstName">First Name</label>
+                    <div class="input-group">
+                        <select name="Salutation" id="Salutation" class="form-select pt-title">
+                            <option value="">--</option><option>Mr.</option><option>Mrs.</option><option>Ms.</option><option>Master</option><option>Baby</option><option>Dr.</option>
+                        </select>
+                        <input name="FirstName" id="FirstName" class="form-control text-capitalize" maxlength="100" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="MiddleName">Middle Name</label>
+                    <input name="MiddleName" id="MiddleName" class="form-control text-capitalize" maxlength="100" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="LastName">Last Name</label>
+                    <input name="LastName" id="LastName" class="form-control text-capitalize" maxlength="100" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="SecondaryPhoneNumber">Alternate Number</label>
+                    <input name="SecondaryPhoneNumber" id="SecondaryPhoneNumber" class="form-control" maxlength="15" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="Gender">Gender</label>
+                    <select name="Gender" id="Gender" class="form-select"><option value="">-- Select --</option><option>Male</option><option>Female</option><option>Other</option></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="DateOfBirth">Date of Birth</label>
+                    <input type="date" name="DateOfBirth" id="DateOfBirth" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req">Age <span class="text-muted fw-normal">(Y / M / D)</span></label>
+                    <div class="d-flex gap-1">
+                        <input type="number" name="AgeYears" id="AgeYears" class="form-control px-2 text-center" min="0" max="150" placeholder="Y" />
+                        <input type="number" name="AgeMonths" id="AgeMonths" class="form-control px-2 text-center" min="0" max="12" placeholder="M" />
+                        <input type="number" name="AgeDays" id="AgeDays" class="form-control px-2 text-center" min="0" max="30" placeholder="D" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="BloodGroup">Blood Group</label>
+                    <select name="BloodGroup" id="BloodGroup" class="form-select">
+                        <option value="">--</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>Unknown</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="EmailId">E-mail</label>
+                    <input name="EmailId" id="EmailId" class="form-control text-lowercase" maxlength="150" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="GuardianName">Guardian / Relative Name</label>
+                    <input name="GuardianName" id="GuardianName" class="form-control" maxlength="200" />
+                </div>
+                <div class="col-12 col-lg-6">
+                    <label class="form-label" for="KnownAllergies">Known Allergies</label>
+                    <input name="KnownAllergies" id="KnownAllergies" class="form-control" maxlength="500" placeholder="e.g. Penicillin, sulpha drugs (shown on the patient banner)" />
+                </div>
+                <div class="col-12">
+                    <a class="small fw-semibold text-decoration-none" data-bs-toggle="collapse" href="#morePatient" role="button"><i class="bi bi-chevron-down me-1"></i>Address, identification and other details</a>
+                </div>
+            </div>
+            <div class="collapse" id="morePatient">
+                <div class="row g-3 mt-1">
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="CountryId">Country</label><select name="CountryId" id="CountryId" class="form-select s2"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="StateId">State</label><select name="StateId" id="StateId" class="form-select s2"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="DistrictId">District</label><select name="DistrictId" id="DistrictId" class="form-select s2"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="CityId">City</label><select name="CityId" id="CityId" class="form-select s2"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="AreaId">Area</label><select name="AreaId" id="AreaId" class="form-select s2"><option value="">--</option></select></div>
+                    <div class="col-12 col-lg-6"><label class="form-label" for="Address">Address</label><input name="Address" id="Address" class="form-control" maxlength="500" /></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="Pincode">Pincode</label><input name="Pincode" id="Pincode" class="form-control" maxlength="6" inputmode="numeric" /></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="IdentificationTypeId">ID Type</label><select name="IdentificationTypeId" id="IdentificationTypeId" class="form-select"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="IdentificationNumber">ID Number</label><input name="IdentificationNumber" id="IdentificationNumber" class="form-control" maxlength="100" /></div>
+                    <div class="col-12 col-lg-6"><label class="form-label" for="identificationFile">ID Document <span class="text-muted fw-normal">(PDF / JPG / PNG)</span></label><input type="file" name="identificationFile" id="identificationFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png" /><div id="idDocNote" class="form-text"></div></div>
+                    @if (abha)
+                    {
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="AbhaNumber">ABHA Number</label><input name="AbhaNumber" id="AbhaNumber" class="form-control" maxlength="17" inputmode="numeric" placeholder="14 digits" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="AbhaAddress">ABHA Address</label><input name="AbhaAddress" id="AbhaAddress" class="form-control" maxlength="100" placeholder="name@abdm" /></div>
+                    }
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="ReligionId">Religion</label><select name="ReligionId" id="ReligionId" class="form-select"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="OccupationId">Occupation</label><select name="OccupationId" id="OccupationId" class="form-select"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="MaritalStatusId">Marital Status</label><select name="MaritalStatusId" id="MaritalStatusId" class="form-select"><option value="">--</option></select></div>
+                    <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="LanguageId">Language</label><select name="LanguageId" id="LanguageId" class="form-select"><option value="">--</option></select></div>
+                    <div class="col-12"><label class="form-label" for="PatientRemarks">Patient Remarks</label><input name="PatientRemarks" id="PatientRemarks" class="form-control" maxlength="1000" /></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── 2. Admission ── *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon green"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Admission Details</h6><small class="text-muted">Doctors, diagnosis and the expected stay</small></div>
+        </div>
+        <div class="reg-section-body">
+            <div class="row g-3">
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="AdmissionAt">Admission Date &amp; Time</label>
+                    <input type="datetime-local" name="AdmissionAt" id="AdmissionAt" class="form-control" @(canBackdate ? "" : "readonly") />
+                    @if (!canBackdate) { <div class="form-text">Now. An earlier time needs the Back-date permission.</div> }
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="AdmissionType">Admission Type</label>
+                    <select name="AdmissionType" id="AdmissionType" class="form-select">
+                        <option value="ELECTIVE">Elective / Planned</option><option value="EMERGENCY">Emergency</option><option value="DAYCARE">Day Care</option>
+                        <option value="MATERNITY">Maternity</option><option value="TRANSFERIN">Transfer-in (other hospital)</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="AdmissionSource">Source</label>
+                    <select name="AdmissionSource" id="AdmissionSource" class="form-select">
+                        <option value="DIRECT">Direct</option><option value="OPD">OPD consultation</option><option value="EMERGENCY">Emergency / Casualty</option><option value="REFERRAL">Referred by doctor</option>
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="ReferralDoctorId">Referred By</label>
+                    <select name="ReferralDoctorId" id="ReferralDoctorId" class="form-select s2"><option value="">-- None --</option></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="AdmittingDoctorId">Admitting Doctor</label>
+                    <select name="AdmittingDoctorId" id="AdmittingDoctorId" class="form-select s2"><option value="">-- Select --</option></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="ConsultantDoctorId">Consultant (Treating)</label>
+                    <select name="ConsultantDoctorId" id="ConsultantDoctorId" class="form-select s2"><option value="">-- Select --</option></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="DepartmentId">Department</label>
+                    <select name="DepartmentId" id="DepartmentId" class="form-select s2"><option value="">-- Select --</option></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="ExpectedDischargeAt">Expected Discharge</label>
+                    <input type="datetime-local" name="ExpectedDischargeAt" id="ExpectedDischargeAt" class="form-control" />
+                    <div class="form-text">Used for the "estimate till discharge".</div>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <label class="form-label" for="ProvisionalDiagnosis">Provisional Diagnosis</label>
+                    <input name="ProvisionalDiagnosis" id="ProvisionalDiagnosis" class="form-control" maxlength="500" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-2">
+                    <label class="form-label" for="DiagnosisCode">ICD-10 Code</label>
+                    <input name="DiagnosisCode" id="DiagnosisCode" class="form-control text-uppercase" maxlength="20" placeholder="Type code or disease" />
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label class="form-label" for="ReasonForAdmission">Reason for Admission</label>
+                    <input name="ReasonForAdmission" id="ReasonForAdmission" class="form-control" maxlength="500" />
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="IsMlc" name="IsMlc" value="true" />
+                        <label class="form-check-label fw-semibold" for="IsMlc">Medico-Legal Case (MLC)</label>
+                    </div>
+                </div>
+                <div id="mlcBlock" class="col-12 d-none">
+                    <div class="row g-3 p-3 border border-danger-subtle rounded bg-danger-subtle bg-opacity-25">
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcNo">MLC Number</label><input id="mlcNo" class="form-control" maxlength="40" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcNature">Nature</label>
+                            <select id="mlcNature" class="form-select"><option value="">--</option><option>Road traffic accident</option><option>Assault</option><option>Burns</option><option>Poisoning</option><option>Fall</option><option>Snake / animal bite</option><option>Attempted suicide</option><option>Other</option></select></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcIncidentAt">Incident Date &amp; Time</label><input type="datetime-local" id="mlcIncidentAt" class="form-control" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcPlace">Place of Incident</label><input id="mlcPlace" class="form-control" maxlength="200" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcBroughtBy">Brought By</label><input id="mlcBroughtBy" class="form-control" maxlength="150" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcBroughtPhone">Brought By Phone</label><input id="mlcBroughtPhone" class="form-control" maxlength="20" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcPolice">Police Station</label><input id="mlcPolice" class="form-control" maxlength="150" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcInformedAt">Police Informed At</label><input type="datetime-local" id="mlcInformedAt" class="form-control" /></div>
+                        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="mlcOfficer">Officer Name</label><input id="mlcOfficer" class="form-control" maxlength="150" /></div>
+                        <div class="col-12 col-lg-9"><label class="form-label" for="mlcRemarks">Remarks / Injuries</label><input id="mlcRemarks" class="form-control" maxlength="500" /></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── 3. Payer & tariff ── *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon violet"><i class="bi bi-shield-check"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Payer &amp; Tariff</h6><small class="text-muted">Who pays, and which rates apply to the stay</small></div>
+        </div>
+        <div class="reg-section-body">
+            <div class="d-flex flex-wrap gap-3 mb-3" id="payerTypes">
+                @foreach (var (v, t, i) in new[] { ("CASH", "Cash / Self", "bi-cash"), ("CORPORATE", "Corporate", "bi-building"), ("INSURANCE", "Insurance / TPA", "bi-shield-plus"), ("SCHEME", "Government Scheme", "bi-bank") })
+                {
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="PayerType" id="pt_@v" value="@v" @(v == "CASH" ? "checked" : "") />
+                        <label class="form-check-label fw-semibold" for="pt_@v"><i class="bi @i me-1"></i>@t</label>
+                    </div>
+                }
+            </div>
+            <div class="row g-3">
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-INSURANCE d-none"><label class="form-label req" for="InsuranceTpaId">Insurance / TPA</label><select id="InsuranceTpaId" class="form-select s2"><option value="">-- Select --</option></select></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-CORPORATE d-none"><label class="form-label req" for="CorporateId">Corporate</label><select id="CorporateId" class="form-select s2"><option value="">-- Select --</option></select></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-SCHEME d-none"><label class="form-label req" for="SchemeId">Government Scheme</label><select id="SchemeId" class="form-select s2"><option value="">-- Select --</option></select></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-INSURANCE payer-SCHEME d-none"><label class="form-label" id="lblPolicy" for="PolicyNo">Policy / Card No.</label><input id="PolicyNo" class="form-control" maxlength="60" /></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-INSURANCE payer-SCHEME d-none"><label class="form-label" for="MemberId">Member / Beneficiary ID</label><input id="MemberId" class="form-control" maxlength="60" /></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-CORPORATE d-none"><label class="form-label" for="EmployeeId">Employee ID</label><input id="EmployeeId" class="form-control" maxlength="60" /></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-INSURANCE payer-CORPORATE payer-SCHEME d-none"><label class="form-label" for="CardHolderName">Card Holder / Employee Name</label><input id="CardHolderName" class="form-control" maxlength="150" /></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-INSURANCE payer-CORPORATE payer-SCHEME d-none"><label class="form-label" for="RelationToHolder">Relation to Holder</label><input id="RelationToHolder" class="form-control" maxlength="50" placeholder="Self, Spouse, Son…" /></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-INSURANCE d-none"><label class="form-label" for="PolicyValidTo">Policy Valid To</label><input type="date" id="PolicyValidTo" class="form-control" /></div>
+                <div class="col-12 col-sm-6 col-lg-3 payer-f payer-INSURANCE payer-CORPORATE payer-SCHEME d-none"><label class="form-label" for="payerCardFile">Card / Letter <span class="text-muted fw-normal">(PDF / image)</span></label><input type="file" id="payerCardFile" name="payerCardFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png" /></div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label req" for="TariffCategoryId">Tariff Category</label>
+                    <select name="TariffCategoryId" id="TariffCategoryId" class="form-select"><option value="">-- Select --</option></select>
+                    <div class="form-text">Follows the payer; change it only for a special contract.</div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="PackageId">Package</label>
+                    <select name="PackageId" id="PackageId" class="form-select s2"><option value="">-- No package --</option></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label" for="EstimateId">Pre-admission Estimate</label>
+                    <select name="EstimateId" id="EstimateId" class="form-select"><option value="">-- None --</option></select>
+                    <div class="form-text"><a asp-controller="IpdEstimation" asp-action="PreAdmissionForm" target="_blank">Make an estimate</a></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── 4. Bed ── *@
+    <div class="reg-section">
+        <div class="reg-section-header flex-wrap">
+            <div class="sec-icon red"><i class="bi bi-hospital-fill"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Bed Allocation <span class="text-danger">*</span></h6><small class="text-muted">Live beds of this branch; the daily rate is for the chosen tariff category</small></div>
+            <div class="d-flex gap-2 flex-wrap">
+                <select id="bedWard" class="form-select form-select-sm" style="width:auto"><option value="">All wards</option></select>
+                <select id="bedCat" class="form-select form-select-sm" style="width:auto"><option value="">All bed categories</option></select>
+                <div class="form-check form-switch small mt-1"><input class="form-check-input" type="checkbox" id="bedFreeOnly" checked /><label class="form-check-label" for="bedFreeOnly">Available only</label></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnBedRefresh" title="Refresh beds"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+        </div>
+        <div class="reg-section-body">
+            <input type="hidden" name="BedId" id="BedId" />
+            <div class="bed-legend mb-2"><span><i style="background:#16a34a"></i>Available</span><span><i style="background:#dc2626"></i>Occupied</span><span><i style="background:#d97706"></i>Reserved</span><span><i style="background:#64748b"></i>Cleaning / blocked</span></div>
+            <div id="bedSelected" class="alert alert-primary py-2 small d-none"></div>
+            <div id="bedBoard"><div class="text-muted small">Loading beds…</div></div>
+        </div>
+    </div>
+
+    @* ── 5. Attendant ── *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon amber"><i class="bi bi-people-fill"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Attendant / Next of Kin</h6><small class="text-muted">Person to contact; an attendant pass is printed with this name</small></div>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddAttendant"><i class="bi bi-plus-lg me-1"></i>Add another</button>
+        </div>
+        <div class="reg-section-body" id="attendants"></div>
+    </div>
+
+    @* ── 6. Consent ── *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon blue"><i class="bi bi-pen-fill"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">General Admission Consent <span id="consentReq" class="text-danger d-none">*</span></h6><small class="text-muted">From Master &gt; Consent Master; the patient's details are filled in when it is saved</small></div>
+        </div>
+        <div class="reg-section-body">
+            <div class="row g-3">
+                <div class="col-12 col-lg-4">
+                    <label class="form-label" for="ConsentId">Consent Form</label>
+                    <div class="input-group">
+                        <select name="ConsentId" id="ConsentId" class="form-select"><option value="">-- Not now --</option></select>
+                        <button type="button" class="btn btn-outline-secondary" id="btnConsentPreview" title="Read the consent"><i class="bi bi-eye"></i></button>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="ConsentSignedByName">Signed By</label><input name="ConsentSignedByName" id="ConsentSignedByName" class="form-control" maxlength="150" /></div>
+                <div class="col-12 col-sm-6 col-lg-2"><label class="form-label" for="ConsentSignedByRelation">Relation</label><input name="ConsentSignedByRelation" id="ConsentSignedByRelation" class="form-control" maxlength="50" placeholder="Self" /></div>
+                <div class="col-12 col-sm-6 col-lg-3"><label class="form-label" for="ConsentWitnessName">Witness</label><input name="ConsentWitnessName" id="ConsentWitnessName" class="form-control" maxlength="150" /></div>
+                <div class="col-12 col-md-6">
+                    <div class="d-flex justify-content-between"><label class="form-label mb-1">Signature (patient / relative)</label><button type="button" class="btn btn-link btn-sm p-0" data-clear="sigPatient">Clear</button></div>
+                    <canvas id="sigPatient" class="sig-pad"></canvas>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="d-flex justify-content-between"><label class="form-label mb-1">Witness signature</label><button type="button" class="btn btn-link btn-sm p-0" data-clear="sigWitness">Clear</button></div>
+                    <canvas id="sigWitness" class="sig-pad"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── 7. Advance ── *@
+    <div class="reg-section">
+        <div class="reg-section-header">
+            <div class="sec-icon green"><i class="bi bi-cash-coin"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Advance / Deposit</h6><small class="text-muted">Money receipt in the same series as OPD and LAB</small></div>
+            <span id="minAdvanceHint" class="ipd-pill info d-none"></span>
+        </div>
+        <div class="reg-section-body">
+            <div id="payRows"></div>
+            <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddPay"><i class="bi bi-plus-lg me-1"></i>Split payment</button>
+                <div class="fw-bold">Total advance: <span id="payTotal" class="num">₹0.00</span></div>
+            </div>
+            <div id="waiveBlock" class="mt-3 d-none">
+                <label class="form-label" for="AdvanceWaiveReason">Reason for admitting below the minimum advance</label>
+                <input name="AdvanceWaiveReason" id="AdvanceWaiveReason" class="form-control" maxlength="300" />
+            </div>
+            <div class="mt-3"><label class="form-label" for="Remarks">Admission Remarks</label><input name="Remarks" id="Remarks" class="form-control" maxlength="1000" /></div>
+        </div>
+    </div>
+
+    <div class="action-bar">
+        <span class="me-auto small text-muted"><kbd>Ctrl</kbd>+<kbd>S</kbd> admits the patient</span>
+        <button type="button" class="btn btn-outline-secondary" id="btnReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
+        <button type="submit" class="btn btn-success px-4" id="btnAdmit"><i class="bi bi-hospital me-2"></i>Admit Patient</button>
+    </div>
+</form>
+
+@* consent preview *@
+<div class="modal fade" id="consentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header"><h6 class="modal-title fw-bold" id="consentTitle">Consent</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+            <div class="modal-body"><div id="consentBody" class="consent-preview" style="max-height:none"></div></div>
+        </div>
+    </div>
+</div>
+
+@* admitted *@
+<div class="modal fade" id="doneModal" tabindex="-1" data-bs-backdrop="static" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="display-6 text-success mb-2"><i class="bi bi-check-circle-fill"></i></div>
+                <h5 class="fw-bold mb-1">Patient admitted</h5>
+                <div class="mb-1">IP No. <span class="fw-bold font-monospace" id="doneIp"></span></div>
+                <div class="mb-3 small text-muted" id="doneRcpt"></div>
+                <div class="d-flex flex-wrap gap-2 justify-content-center">
+                    <a class="btn btn-primary" id="doneOpen"><i class="bi bi-person-badge me-1"></i>Open Patient</a>
+                    <a class="btn btn-outline-secondary" id="doneFace" target="_blank"><i class="bi bi-printer me-1"></i>Admission Form</a>
+                    <a class="btn btn-outline-secondary" id="doneBand" target="_blank"><i class="bi bi-upc me-1"></i>Wristband</a>
+                    <a class="btn btn-outline-secondary d-none" id="doneReceipt" target="_blank"><i class="bi bi-receipt me-1"></i>Receipt</a>
+                    <a class="btn btn-outline-success" asp-action="New"><i class="bi bi-plus-lg me-1"></i>New Admission</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdAdmission/"), canWaive, canBackdate, presetPatient, presetEstimate, presetBed }));</script>
+    <script src="~/js/ipd/admission-new.js" asp-append-version="true"></script>
+}

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc.Rendering;
 using EMR.Web.ApiClients;
 using EMR.Web.Extensions;
 using EMR.Web.Models.Entities;
@@ -33,7 +34,7 @@ public class RoomsController(
             ViewBag.BuildingOptions = await roomService.GetBuildingOptionsAsync(buildingId);
             ViewBag.FloorOptions = await roomService.GetFloorOptionsAsync(buildingId, floorId);
             ViewBag.WardOptions = await roomService.GetWardOptionsAsync(floorId, wardId);
-            ViewBag.RoomCategoryOptions = roomService.GetRoomCategoryOptions(roomCategory);
+            ViewBag.RoomCategoryOptions = await RoomCategoryOptionsAsync(roomCategory);
             ViewBag.RoomTypeOptions = roomService.GetRoomTypeOptions(roomType);
 
             return View(list);
@@ -59,7 +60,7 @@ public class RoomsController(
             FloorOptions = await roomService.GetFloorOptionsAsync(buildingId, floorId),
             WardOptions = await roomService.GetWardOptionsAsync(floorId, wardId),
             RoomTypeOptions = roomService.GetRoomTypeOptions(),
-            RoomCategoryOptions = roomService.GetRoomCategoryOptions()
+            RoomCategoryOptions = await RoomCategoryOptionsAsync()
         };
         return View(model);
     }
@@ -80,7 +81,7 @@ public class RoomsController(
             model.FloorOptions = await roomService.GetFloorOptionsAsync(model.BuildingId, model.FloorId);
             model.WardOptions = await roomService.GetWardOptionsAsync(model.FloorId, model.WardId);
             model.RoomTypeOptions = roomService.GetRoomTypeOptions(model.RoomType);
-            model.RoomCategoryOptions = roomService.GetRoomCategoryOptions(model.RoomCategory);
+            model.RoomCategoryOptions = await RoomCategoryOptionsAsync(model.RoomCategory);
             return View(model);
         }
 
@@ -133,7 +134,7 @@ public class RoomsController(
             FloorOptions = await roomService.GetFloorOptionsAsync(entity.BuildingId, entity.FloorId),
             WardOptions = await roomService.GetWardOptionsAsync(entity.FloorId, entity.WardId),
             RoomTypeOptions = roomService.GetRoomTypeOptions(entity.RoomType),
-            RoomCategoryOptions = roomService.GetRoomCategoryOptions(entity.RoomCategory)
+            RoomCategoryOptions = await RoomCategoryOptionsAsync(entity.RoomCategory)
         });
     }
 
@@ -153,7 +154,7 @@ public class RoomsController(
             model.FloorOptions = await roomService.GetFloorOptionsAsync(model.BuildingId, model.FloorId);
             model.WardOptions = await roomService.GetWardOptionsAsync(model.FloorId, model.WardId);
             model.RoomTypeOptions = roomService.GetRoomTypeOptions(model.RoomType);
-            model.RoomCategoryOptions = roomService.GetRoomCategoryOptions(model.RoomCategory);
+            model.RoomCategoryOptions = await RoomCategoryOptionsAsync(model.RoomCategory);
             return View(model);
         }
 
@@ -210,5 +211,15 @@ public class RoomsController(
     {
         var wards = await roomService.GetWardsByFloorAsync(floorId);
         return Json(wards);
+    }
+
+    /// <summary>Room Category = the Bed Category Master (Master > IPD > Bed Category), active ones; a room's category no
+    /// longer in the master is still listed so an old room can be opened and saved.</summary>
+    private async Task<IEnumerable<SelectListItem>> RoomCategoryOptionsAsync(string? selected = null)
+    {
+        var names = (await ipdMasterApiClient.GetBedCategoriesAsync(companyId: User.GetCompanyId(), branchId: User.GetCurrentBranchId()))
+            .Where(c => c.IsActive).Select(c => c.CategoryName).OrderBy(n => n).ToList();
+        if (!string.IsNullOrWhiteSpace(selected) && !names.Contains(selected, StringComparer.OrdinalIgnoreCase)) names.Insert(0, selected);
+        return names.Select(n => new SelectListItem { Value = n, Text = n, Selected = string.Equals(n, selected, StringComparison.OrdinalIgnoreCase) }).ToList();
     }
 }
