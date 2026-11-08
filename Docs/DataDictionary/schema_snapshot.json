@@ -16394,6 +16394,201 @@
    "type": "int"
   },
   {
+   "col": "IpdNumberPrefix",
+   "def": "(N'IP')",
+   "descr": null,
+   "ident": false,
+   "len": 20,
+   "nullable": false,
+   "ord": 143,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "nvarchar"
+  },
+  {
+   "col": "IpdNumberResetYearly",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 144,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "IpdBedChargeMode",
+   "def": "('CALENDAR')",
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": false,
+   "ord": 145,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "varchar"
+  },
+  {
+   "col": "IpdDischargeGraceHour",
+   "def": "((12))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 146,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdHourlyGraceHours",
+   "def": "((2))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 147,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdDefaultTariffCategoryId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 148,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdRoomGstThreshold",
+   "def": "((5000))",
+   "descr": null,
+   "ident": false,
+   "len": 9,
+   "nullable": false,
+   "ord": 149,
+   "prec": 18,
+   "scale": 2,
+   "tbl": "HospitalSettings",
+   "type": "decimal"
+  },
+  {
+   "col": "IpdMinAdvanceDays",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 150,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdDepositAlertPercent",
+   "def": "((80))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 151,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdEstimateValidityDays",
+   "def": "((7))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 152,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdDefaultDischargeHour",
+   "def": "((11))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 153,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdBlockWardGenderMismatch",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 154,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "IpdConsentRequired",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 155,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "IpdReleaseBedTo",
+   "def": "('CLEANING')",
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": false,
+   "ord": 156,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "varchar"
+  },
+  {
+   "col": "IpdReservationHoldHours",
+   "def": "((24))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 157,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -56266,7 +56461,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-04T18:43:11",
+ "extracted_on": "2026-11-08T16:08:00",
  "fk": [
   {
    "col": "LedgerId",
@@ -57303,6 +57498,111 @@
    "rcol": "Id",
    "rtbl": "UserMaster",
    "tbl": "InvoiceSignatories"
+  },
+  {
+   "col": "PatientId",
+   "fk": "FK_IpdAdmission_Patient",
+   "rcol": "PatientId",
+   "rtbl": "PatientMaster",
+   "tbl": "IpdAdmission"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdAdmissionConsent_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdAdmissionConsent"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdAdmissionPayer_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdAdmissionPayer"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdAdvance_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdAdvance"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdAttendant_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdAttendant"
+  },
+  {
+   "col": "BedId",
+   "fk": "FK_IpdBedCleaning_Bed",
+   "rcol": "BedId",
+   "rtbl": "BedMaster",
+   "tbl": "IpdBedCleaning"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdBedMovement_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdBedMovement"
+  },
+  {
+   "col": "BedId",
+   "fk": "FK_IpdBedMovement_Bed",
+   "rcol": "BedId",
+   "rtbl": "BedMaster",
+   "tbl": "IpdBedMovement"
+  },
+  {
+   "col": "BedId",
+   "fk": "FK_IpdBedReservation_Bed",
+   "rcol": "BedId",
+   "rtbl": "BedMaster",
+   "tbl": "IpdBedReservation"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdBill_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdBill"
+  },
+  {
+   "col": "BillId",
+   "fk": "FK_IpdBillLine_Bill",
+   "rcol": "BillId",
+   "rtbl": "IpdBill",
+   "tbl": "IpdBillLine"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdCharge_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdCharge"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdDocument_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdDocument"
+  },
+  {
+   "col": "EstimateId",
+   "fk": "FK_IpdEstimateLine_Est",
+   "rcol": "EstimateId",
+   "rtbl": "IpdEstimate",
+   "tbl": "IpdEstimateLine"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdMlc_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdMlc"
   },
   {
    "col": "MaterialId",
@@ -60324,6 +60624,11 @@
    "tbl": "HospitalSettings"
   },
   {
+   "col": "Code",
+   "k": 1,
+   "tbl": "IcdCode"
+  },
+  {
    "col": "IcuId",
    "k": 1,
    "tbl": "IcuMaster"
@@ -60417,6 +60722,106 @@
    "col": "UnitId",
    "k": 1,
    "tbl": "InvUnit"
+  },
+  {
+   "col": "AdmissionId",
+   "k": 1,
+   "tbl": "IpdAdmission"
+  },
+  {
+   "col": "AdmissionConsentId",
+   "k": 1,
+   "tbl": "IpdAdmissionConsent"
+  },
+  {
+   "col": "PayerId",
+   "k": 1,
+   "tbl": "IpdAdmissionPayer"
+  },
+  {
+   "col": "AdvanceId",
+   "k": 1,
+   "tbl": "IpdAdvance"
+  },
+  {
+   "col": "AttendantId",
+   "k": 1,
+   "tbl": "IpdAttendant"
+  },
+  {
+   "col": "CleaningTaskId",
+   "k": 1,
+   "tbl": "IpdBedCleaning"
+  },
+  {
+   "col": "MovementId",
+   "k": 1,
+   "tbl": "IpdBedMovement"
+  },
+  {
+   "col": "ReservationId",
+   "k": 1,
+   "tbl": "IpdBedReservation"
+  },
+  {
+   "col": "LogId",
+   "k": 1,
+   "tbl": "IpdBedStatusLog"
+  },
+  {
+   "col": "BillId",
+   "k": 1,
+   "tbl": "IpdBill"
+  },
+  {
+   "col": "BillLineId",
+   "k": 1,
+   "tbl": "IpdBillLine"
+  },
+  {
+   "col": "ChargeId",
+   "k": 1,
+   "tbl": "IpdCharge"
+  },
+  {
+   "col": "DocumentId",
+   "k": 1,
+   "tbl": "IpdDocument"
+  },
+  {
+   "col": "EstimateId",
+   "k": 1,
+   "tbl": "IpdEstimate"
+  },
+  {
+   "col": "LineId",
+   "k": 1,
+   "tbl": "IpdEstimateLine"
+  },
+  {
+   "col": "AdmissionId",
+   "k": 1,
+   "tbl": "IpdMlc"
+  },
+  {
+   "col": "BranchId",
+   "k": 1,
+   "tbl": "IpdNumberCounter"
+  },
+  {
+   "col": "DocType",
+   "k": 2,
+   "tbl": "IpdNumberCounter"
+  },
+  {
+   "col": "FinYear",
+   "k": 3,
+   "tbl": "IpdNumberCounter"
+  },
+  {
+   "col": "LogId",
+   "k": 1,
+   "tbl": "IpdStatusLog"
   },
   {
    "col": "LotId",
@@ -61855,6 +62260,7 @@
   "HospitalServiceMaster",
   "HospitalServiceRateMaster",
   "HospitalSettings",
+  "IcdCode",
   "IcuMaster",
   "IcuTariffDetail",
   "IcuTariffMaster",
@@ -61874,6 +62280,24 @@
   "InvoicePayment",
   "InvoicePaymentLine",
   "InvoiceSignatories",
+  "IpdAdmission",
+  "IpdAdmissionConsent",
+  "IpdAdmissionPayer",
+  "IpdAdvance",
+  "IpdAttendant",
+  "IpdBedCleaning",
+  "IpdBedMovement",
+  "IpdBedReservation",
+  "IpdBedStatusLog",
+  "IpdBill",
+  "IpdBillLine",
+  "IpdCharge",
+  "IpdDocument",
+  "IpdEstimate",
+  "IpdEstimateLine",
+  "IpdMlc",
+  "IpdNumberCounter",
+  "IpdStatusLog",
   "IqcLot",
   "IqcMaterial",
   "IqcResult",
@@ -62491,6 +62915,56 @@
    "cols": "UnitCode",
    "idx": "UQ_InvUnit_Code",
    "tbl": "InvUnit"
+  },
+  {
+   "cols": "CompanyId, IpNo",
+   "idx": "UX_IpdAdmission_IpNo",
+   "tbl": "IpdAdmission"
+  },
+  {
+   "cols": "PatientId",
+   "idx": "UX_IpdAdmission_OpenPatient",
+   "tbl": "IpdAdmission"
+  },
+  {
+   "cols": "RequestKey",
+   "idx": "UX_IpdAdmission_RequestKey",
+   "tbl": "IpdAdmission"
+  },
+  {
+   "cols": "BedId",
+   "idx": "UX_IpdBedCleaning_OpenBed",
+   "tbl": "IpdBedCleaning"
+  },
+  {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdBedMovement_OpenAdm",
+   "tbl": "IpdBedMovement"
+  },
+  {
+   "cols": "BedId",
+   "idx": "UX_IpdBedMovement_OpenBed",
+   "tbl": "IpdBedMovement"
+  },
+  {
+   "cols": "BedId",
+   "idx": "UX_IpdBedReservation_ActiveBed",
+   "tbl": "IpdBedReservation"
+  },
+  {
+   "cols": "CompanyId, BillNo",
+   "idx": "UX_IpdBill_No",
+   "tbl": "IpdBill"
+  },
+  {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdBill_OneFinal",
+   "tbl": "IpdBill"
+  },
+  {
+   "cols": "CompanyId, EstimateNo",
+   "idx": "UX_IpdEstimate_No",
+   "tbl": "IpdEstimate"
   },
   {
    "cols": "MaterialId, LotNo",

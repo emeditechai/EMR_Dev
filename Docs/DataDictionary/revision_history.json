@@ -204,5 +204,13 @@
   ],
   "date": "04 Nov 2026",
   "version": "1.13"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "HospitalSettings: new column(s) IpdNumberPrefix, IpdNumberResetYearly, IpdBedChargeMode, IpdDischargeGraceHour, IpdHourlyGraceHours, IpdDefaultTariffCategoryId, IpdRoomGstThreshold, IpdMinAdvanceDays, IpdDepositAlertPercent, IpdEstimateValidityDays, IpdDefaultDischargeHour, IpdBlockWardGenderMismatch, IpdConsentRequired, IpdReleaseBedTo, IpdReservationHoldHours"
+  ],
+  "date": "08 Nov 2026",
+  "version": "1.14"
  }
 ]
