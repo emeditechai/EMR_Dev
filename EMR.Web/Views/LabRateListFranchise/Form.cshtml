@@ -105,7 +105,7 @@
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="chkEnableCopy">
                     <label class="form-check-label h6 mb-0 fw-bold text-primary" for="chkEnableCopy">
-                        <i class="bi bi-copy me-1"></i> Copy Rates from Source Branch
+                        <i class="bi bi-copy me-1"></i> Copy Rates from Source Branch / Franchise
                     </label>
                 </div>
                 <div class="row align-items-end g-3" id="divCopyFields" style="display:none;">
@@ -113,6 +113,12 @@
                         <label class="form-label small fw-semibold">Source Branch</label>
                         <select id="sourceBranch" asp-items="Model.SourceBranchList" class="form-select select2">
                             <option value="">Select Source Branch</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold">Source Franchise</label>
+                        <select id="sourceFranchise" class="form-select select2" disabled>
+                            <option value="">Select Source Branch first</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -146,7 +152,7 @@
                     </div>
                 </div>
                 <small class="text-muted mt-2 d-block" id="copyNote" style="display:none;">
-                    Note: Copying from source branch automatically populates all tests & profiles into the detail grid.
+                    Note: Copying replaces the detail grid with all tests &amp; profiles of the rate list of the source franchise in the source branch.
                 </small>
             </div>
 
@@ -295,6 +301,33 @@
             });
         }
 
+        // Create only (HO): the branches where the chosen franchise has no rate list yet
+        @if (!Model.RateCard_ID.HasValue && Model.IsHOBranch)
+        {
+        <text>
+        $('#B2CIdentity_ID').change(function () {
+            var $b = $('#Branch_ID'), keep = $b.val();
+            $.get('@Url.Action("AvailableBranches")', { franchiseId: $(this).val() || null }, function (list) {
+                var html = '<option value="">Select Branch</option>';
+                list.forEach(function (b) { html += '<option value="' + b.value + '">' + $('<div>').text(b.text).html() + '</option>'; });
+                $b.html(html);
+                $b.val(list.some(function (b) { return b.value === keep; }) ? keep : '').trigger('change.select2');
+            });
+        });
+        </text>
+        }
+
+        // copy: the franchises with a rate list in the source branch (the one being edited is left out)
+        $('#sourceBranch').change(function () {
+            var $sf = $('#sourceFranchise'), branchId = $(this).val();
+            if (!branchId) { $sf.html('<option value="">Select Source Branch first</option>').prop('disabled', true).trigger('change.select2'); return; }
+            $.get('@Url.Action("SourceFranchises")', { branchId: branchId, rateCardId: $('#RateCard_ID').val() || null }, function (list) {
+                var html = '<option value="">' + (list.length ? 'Select Source Franchise' : 'No franchise rate list in this branch') + '</option>';
+                list.forEach(function (f) { html += '<option value="' + f.value + '">' + $('<div>').text(f.text).html() + '</option>'; });
+                $sf.html(html).prop('disabled', !list.length).val('').trigger('change.select2');
+            });
+        });
+
         $('#chkEnableCopy').change(function() {
             if ($(this).is(':checked')) {
                 $('#divCopyFields').slideDown();
@@ -303,6 +336,7 @@
                 $('#divCopyFields').slideUp();
                 $('#copyNote').slideUp();
                 $('#sourceBranch').val('').trigger('change');
+                $('#sourceFranchise').html('<option value="">Select Source Branch first</option>').prop('disabled', true).trigger('change.select2');
                 $('#adjType').val('none').trigger('change');
                 $('#adjValue').val('');
             }
@@ -437,16 +471,18 @@
         $('#btnCopyRates').click(function() {
             var branchId = $('#sourceBranch').val();
             if (!branchId) { toastr.warning("Please select a source branch"); return; }
+            var sourceCardId = $('#sourceFranchise').val();
+            if (!sourceCardId) { toastr.warning("Please select a source franchise"); return; }
             
             var adjType = $('#adjType').val();
             var adjVal = parseFloat($('#adjValue').val()) || 0;
             var filterCatId = $('#cboCopyCat').val();
             var filterSubCatId = $('#cboCopySubCat').val();
 
-            $.get('@Url.Action("GetDetailsForBranch")', { branchId: branchId }, function(res) {
+            $.get('@Url.Action("GetDetailsForBranch")', { branchId: branchId, rateCardId: sourceCardId }, function(res) {
                 if (res.success) {
                     if (res.data.length === 0) {
-                        toastr.info("Source branch rate card is empty.");
+                        toastr.info("The rate list of the source franchise is empty.");
                         return;
                     }
 
@@ -486,7 +522,7 @@
                     });
                     
                     renderGrid();
-                    toastr.success("Rates copied from source branch. Please review before saving.");
+                    toastr.success("Rates copied from " + $('#sourceFranchise option:selected').text() + ". Please review before saving.");
                 } else {
                     toastr.error(res.message);
                 }

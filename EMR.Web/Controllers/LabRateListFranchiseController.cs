@@ -112,6 +112,55 @@ public class LabRateListFranchiseController(
         catch { return all; }
     }
 
+    /// <summary>
+    /// Create only (HO): branches where the franchise has no rate list yet; with no franchise chosen, branches where some
+    /// franchise still has none. The posted branch (keepId) stays in the list.
+    /// </summary>
+    private async Task<List<SelectListItem>> GetAvailableBranchListAsync(int? franchiseId, int? selectedId = null, int? keepId = null)
+    {
+        var branches = await GetBranchListAsync(selectedId);
+        if (!CheckIsHOBranch()) return branches;
+        try
+        {
+            var cards = (await rateCardApi.GetListAsync(FranchiseRateType, null, null, User.GetCompanyId()))
+                .Where(c => c.Branch_ID.HasValue && c.B2CIdentity_ID.HasValue)
+                .Select(c => (Branch: c.Branch_ID!.Value.ToString(), Franchise: c.B2CIdentity_ID!.Value.ToString()))
+                .ToHashSet();
+            var franchises = franchiseId > 0
+                ? [franchiseId.Value.ToString()]
+                : (await GetActiveFranchiseListAsync()).Select(f => f.Value).ToList();
+            return branches.Where(b => b.Value == keepId?.ToString() || franchises.Any(f => !cards.Contains((b.Value, f)))).ToList();
+        }
+        catch { return branches; }
+    }
+
+    /// <summary>For the Create form: the branches where the franchise can still get a rate list.</summary>
+    [HttpGet]
+    public async Task<IActionResult> AvailableBranches(int? franchiseId) =>
+        Json((await GetAvailableBranchListAsync(franchiseId)).Select(b => new { value = b.Value, text = b.Text }));
+
+    /// <summary>
+    /// Copy section: the franchises that have a rate list in the source branch (value = that rate list). The rate list
+    /// being edited is left out.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> SourceFranchises(int branchId, int? rateCardId)
+    {
+        try
+        {
+            var cards = await rateCardApi.GetListAsync(FranchiseRateType, branchId, null, User.GetCompanyId());
+            return Json(cards
+                .Where(c => c.Branch_ID == branchId && c.B2CIdentity_ID.HasValue && c.RateCard_ID != (rateCardId ?? 0))
+                .OrderBy(c => c.Entity_Name).ThenByDescending(c => c.Effective_From)
+                .Select(c => new
+                {
+                    value = c.RateCard_ID.ToString(),
+                    text = $"{c.Entity_Name} (from {c.Effective_From:dd MMM yyyy}, {c.ItemCount} items{(c.Status ? "" : ", inactive")})"
+                }));
+        }
+        catch { return Json(Array.Empty<object>()); }
+    }
+
     /// <summary>For the form: the franchises that can still get a rate list in this branch.</summary>
     [HttpGet]
     public async Task<IActionResult> AvailableFranchises(int branchId, int? rateCardId, int? keepId) =>
@@ -187,7 +236,7 @@ public class LabRateListFranchiseController(
         var isHO = CheckIsHOBranch();
         var currentBranchId = User.GetCurrentBranchId() ?? 1;
 
-        var branches = await GetBranchListAsync(currentBranchId);
+        var branches = await GetAvailableBranchListAsync(null, currentBranchId);
         var sourceBranches = await GetBranchListAsync();
         var franchises = await GetAvailableFranchiseListAsync(currentBranchId);
 
@@ -257,7 +306,9 @@ public class LabRateListFranchiseController(
             var errors = string.Join(" | ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage));
             TempData["ErrorMessage"] = string.IsNullOrWhiteSpace(errors) ? "Please fill all required fields correctly." : errors;
             var isHO = CheckIsHOBranch();
-            vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
+            vm.BranchList = new SelectList(vm.RateCard_ID > 0
+                ? await GetBranchListAsync(vm.Branch_ID)
+                : await GetAvailableBranchListAsync(vm.B2CIdentity_ID, vm.Branch_ID, vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.FranchiseList = new SelectList(await GetAvailableFranchiseListAsync(vm.Branch_ID ?? 0, vm.B2CIdentity_ID, vm.RateCard_ID), "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceBranchList = new SelectList(await GetBranchListAsync(), "Value", "Text");
             vm.DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text");
@@ -310,7 +361,9 @@ public class LabRateListFranchiseController(
             ModelState.AddModelError("", ex.Message);
             TempData["ErrorMessage"] = ex.Message;
             var isHO = CheckIsHOBranch();
-            vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
+            vm.BranchList = new SelectList(vm.RateCard_ID > 0
+                ? await GetBranchListAsync(vm.Branch_ID)
+                : await GetAvailableBranchListAsync(vm.B2CIdentity_ID, vm.Branch_ID, vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.FranchiseList = new SelectList(await GetAvailableFranchiseListAsync(vm.Branch_ID ?? 0, vm.B2CIdentity_ID, vm.RateCard_ID), "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceBranchList = new SelectList(await GetBranchListAsync(), "Value", "Text");
             vm.DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text");
@@ -421,13 +474,16 @@ public class LabRateListFranchiseController(
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetDetailsForBranch(int branchId)
+    public async Task<IActionResult> GetDetailsForBranch(int branchId, int? rateCardId)
     {
         try
         {
             var companyId = User.GetCompanyId();
-            var list = await rateCardApi.GetListAsync(FranchiseRateType, branchId, true, companyId);
-            var latestHeader = list.OrderByDescending(x => x.Effective_From).FirstOrDefault();
+            // with a source franchise: that franchise's rate list in the source branch (it must belong to that branch)
+            var list = await rateCardApi.GetListAsync(FranchiseRateType, branchId, rateCardId > 0 ? null : true, companyId);
+            var latestHeader = rateCardId > 0
+                ? list.FirstOrDefault(x => x.RateCard_ID == rateCardId && x.Branch_ID == branchId)
+                : list.OrderByDescending(x => x.Effective_From).FirstOrDefault();
             if (latestHeader == null)
             {
                 return Json(new { success = true, data = new List<LabRateCardDetailModel>() });

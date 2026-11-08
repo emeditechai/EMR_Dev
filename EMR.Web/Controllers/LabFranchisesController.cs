@@ -189,7 +189,7 @@ public class LabFranchisesController(
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = matrix is null
+            TempData["Success"] = matrix is null
                 ? "Lab Franchise created successfully."
                 : "Lab Franchise saved and sent for approval. It becomes active for B2B rates and billing, and its login is enabled, once approved.";
             if (loginNote != null) TempData["Warning"] = loginNote;   // the login / credentials email did not go through
@@ -220,7 +220,7 @@ public class LabFranchisesController(
             var item = await franchiseApiClient.GetByIdAsync(id);
             if (item == null)
             {
-                TempData["ErrorMessage"] = "Lab Franchise not found.";
+                TempData["Error"] = "Lab Franchise not found.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -286,7 +286,7 @@ public class LabFranchisesController(
         // a record waiting for approval cannot be changed until the approver acts (a sent-back one can)
         if (await approvals.GetOpenAsync(ApprovalModules.Franchise, id) is { Status: "P" })
         {
-            TempData["ErrorMessage"] = "This franchise is awaiting approval and cannot be edited until the approver approves it or sends it back.";
+            TempData["Error"] = "This franchise is awaiting approval and cannot be edited until the approver approves it or sends it back.";
             return RedirectToAction(nameof(Index));
         }
 
@@ -360,7 +360,7 @@ public class LabFranchisesController(
                     EntityId = model.Franchise_ID, EntityName = req.Franchise_Name, ActionType = "CREATE", RequestedActive = model.IsActive,
                     NewValues = req, UserId = User.GetUserId()
                 });
-                TempData["SuccessMessage"] = "Lab Franchise saved and sent for approval again.";
+                TempData["Success"] = "Lab Franchise saved and sent for approval again.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -376,7 +376,7 @@ public class LabFranchisesController(
                     EntityId = model.Franchise_ID, EntityName = req.Franchise_Name, ActionType = "UPDATE",
                     OldValues = old, NewValues = req, UserId = User.GetUserId()
                 });
-                TempData["SuccessMessage"] = requestId == 0
+                TempData["Success"] = requestId == 0
                     ? "Nothing was changed, so nothing was sent for approval."
                     : "The change was sent for approval. The franchise keeps its current details until it is approved"
                       + (string.IsNullOrWhiteSpace(model.Email) ? "." : "; its login follows the e-mail once approved.");
@@ -403,7 +403,7 @@ public class LabFranchisesController(
                 User.GetCurrentBranchId() ?? 1
             );
 
-            TempData["SuccessMessage"] = "Lab Franchise updated successfully.";
+            TempData["Success"] = "Lab Franchise updated successfully.";
             return RedirectToAction(nameof(Index));
         }
         catch (InvalidOperationException ex)
@@ -429,7 +429,7 @@ public class LabFranchisesController(
             var item = await franchiseApiClient.GetByIdAsync(id);
             if (item == null)
             {
-                TempData["ErrorMessage"] = "Lab Franchise not found.";
+                TempData["Error"] = "Lab Franchise not found.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -449,7 +449,7 @@ public class LabFranchisesController(
         var branchId = User.GetCurrentBranchId() ?? 1;
         if (await approvals.GetOpenAsync(ApprovalModules.Franchise, id) is { IsPendingCreate: true })
         {
-            TempData["ErrorMessage"] = "This franchise is awaiting approval. It becomes active once approved.";
+            TempData["Error"] = "This franchise is awaiting approval. It becomes active once approved.";
             return RedirectToAction(nameof(Index));
         }
         try
@@ -471,11 +471,11 @@ public class LabFranchisesController(
                 branchId
             );
 
-            TempData["SuccessMessage"] = "Active status updated successfully.";
+            TempData["Success"] = "Active status updated successfully.";
         }
         catch (Exception ex)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            TempData["Error"] = ex.Message;
         }
 
         return RedirectToAction(nameof(Index));
@@ -506,11 +506,11 @@ public class LabFranchisesController(
                 branchId
             );
 
-            TempData["SuccessMessage"] = status ? "Franchise suspended successfully." : "Franchise unsuspended successfully.";
+            TempData["Success"] = status ? "Franchise suspended successfully." : "Franchise unsuspended successfully.";
         }
         catch (Exception ex)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            TempData["Error"] = ex.Message;
         }
 
         return RedirectToAction(nameof(Index));
@@ -579,11 +579,11 @@ public class LabFranchisesController(
                 branchId
             );
 
-            TempData["SuccessMessage"] = "Lab Franchise deleted successfully.";
+            TempData["Success"] = "Lab Franchise deleted successfully.";
         }
         catch (Exception ex)
         {
-            TempData["ErrorMessage"] = ex.Message;
+            TempData["Error"] = ex.Message;
         }
 
         return RedirectToAction(nameof(Index));
