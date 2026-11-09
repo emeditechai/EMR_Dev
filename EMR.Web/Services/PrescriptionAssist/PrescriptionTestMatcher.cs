@@ -12,12 +12,15 @@ public sealed record PrescriptionSuggestion(
     string OptionKey, int InvestigationId, string TestCode, string TestName, string Kind,
     decimal Mrp, double Score, bool Preselect, string MatchedText);
 
+/// <summary>What users taught the assist (SQLScripts/2439): a text it read and the test chosen for it, confirmed / rejected so often.</summary>
+public sealed record LearnedPhrase(string Phrase, string OptionKey, int Accepted, int Rejected);
+
 public sealed record PrescriptionMatchResult(IReadOnlyList<PrescriptionSuggestion> Suggestions, IReadOnlyList<string> UnmatchedLines);
 
 public interface IPrescriptionTestMatcher
 {
     PrescriptionMatchResult Match(string ocrText, IReadOnlyList<AvailableInvestigationDto> catalogue, string catalogueKey, double minScore, double preselectScore,
-        IReadOnlyList<HandwrittenLine>? handwriting = null);
+        IReadOnlyList<HandwrittenLine>? handwriting = null, IReadOnlyList<LearnedPhrase>? learned = null);
 
     /// <summary>What a handwritten line may say: the bookable tests' names, their short forms and the lab abbreviations.</summary>
     IReadOnlyList<string> HandwritingCandidates(IReadOnlyList<AvailableInvestigationDto> catalogue);
@@ -68,7 +71,8 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
         ("calcium", "serum calcium"), ("phos", "phosphorus"), ("tibc", "total iron binding capacity"), ("ferritin", "serum ferritin"),
         ("afb", "acid fast bacilli"), ("abo", "blood group"), ("bt", "bleeding time"), ("uacr", "urine albumin creatinine ratio"),
         ("acr", "albumin creatinine ratio"), ("cea", "carcinoembryonic antigen"), ("afp", "alpha fetoprotein"),
-        ("ra", "rheumatoid factor"), ("aso", "anti streptolysin o"), ("ana", "antinuclear antibody"), ("ddimer", "d dimer"),
+        ("ra", "rheumatoid factor"), ("rf", "rheumatoid factor"), ("anticcp", "anti ccp cyclic citrullinated peptide"), ("ccp", "anti ccp cyclic citrullinated peptide"),
+        ("raf", "rheumatoid factor"), ("ecg", "electrocardiogram ecg"), ("ekg", "electrocardiogram ecg"), ("aso", "anti streptolysin o"), ("ana", "antinuclear antibody"), ("ddimer", "d dimer"),
         // radiology / imaging
         ("xr", "x ray"), ("skiagram", "x ray"), ("skiagraph", "x ray"), ("radiograph", "x ray"), ("pa", "chest pa"),
         ("ultrasound", "usg"), ("sonography", "usg"), ("ultrasonography", "usg"), ("tvs", "usg pelvis transvaginal"),
@@ -105,7 +109,7 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
 
     // Characters OCR swaps for one another (handwriting and phone photos): a swap of these costs 0.35 instead of 1.
     private static readonly HashSet<(char, char)> Confusable = BuildConfusable(
-        "ec eb b6 b8 co o0 ao fi fl ft fr il i1 l1 t1 it ij k1 kr kx s5 g9 g6 z2 uv nu hb hu rn 38 3s 7t vy");
+        "ec eb b6 b8 co o0 ao fi fl ft fr il i1 l1 t1 it ij k1 kr kx s5 g9 g6 z2 uv nu hb hu rn 38 3s 7t vy mb ep");
 
     private static HashSet<(char, char)> BuildConfusable(string pairs)
     {
@@ -202,8 +206,17 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
         return set.ToList();
     }
 
+    /// <summary>The form a text is learnt under: what is left of the reading, lower case, letters / digits / spaces (max 80).</summary>
+    public static string LearnKey(string? text)
+    {
+        var s = Regex.Replace(text ?? "", @"\(read as [^)]*\)", "", RegexOptions.IgnoreCase);
+        s = Regex.Replace(s, "^\\s*(handwriting(, unsure)?|learned)\\s*:", "", RegexOptions.IgnoreCase);
+        s = Norm(s).Trim();
+        return s.Length > 80 ? s[..80] : s;
+    }
+
     public PrescriptionMatchResult Match(string ocrText, IReadOnlyList<AvailableInvestigationDto> catalogue, string catalogueKey, double minScore, double preselectScore,
-        IReadOnlyList<HandwrittenLine>? handwriting = null)
+        IReadOnlyList<HandwrittenLine>? handwriting = null, IReadOnlyList<LearnedPhrase>? learned = null)
     {
         if ((string.IsNullOrWhiteSpace(ocrText) && (handwriting is null || handwriting.Count == 0)) || catalogue.Count == 0)
             return new PrescriptionMatchResult([], []);
@@ -218,8 +231,36 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
 
         var best = new Dictionary<string, PrescriptionSuggestion>();
         var unmatched = new List<string>();
-        foreach (var line in Lines(ocrText))
+        // tests the prescription clearly names but this lab does not offer (not on the bookable list)
+        var notOffered = new List<string>();
+        // learnt from users: texts with a net confirmation, and the tests they were confirmed as
+        var byKey = catalogue.GroupBy(OptionKey).ToDictionary(g => g.Key, g => g.First());
+        var taught = (learned ?? []).Where(l => l.Accepted - l.Rejected >= 1 && byKey.ContainsKey(l.OptionKey) && l.Phrase.Length >= 3).ToList();
+        var refused = (learned ?? []).Where(l => l.Rejected >= l.Accepted + 2).Select(l => (l.Phrase, l.OptionKey)).ToHashSet();
+        void Learnt(string text)
         {
+            var k = LearnKey(text);
+            if (k.Length < 2) return;
+            foreach (var l in taught)
+            {
+                var close = l.Phrase == k || (k.Length >= 5 && l.Phrase.Length >= 5 && OcrDistance(k, l.Phrase) <= Math.Max(1.0, 0.18 * Math.Max(k.Length, l.Phrase.Length)));
+                if (!close) continue;
+                var t = byKey[l.OptionKey];
+                var sc = Math.Min(0.95, 0.62 + 0.08 * (l.Accepted - l.Rejected)) - (l.Phrase == k ? 0 : 0.08);
+                if (!best.TryGetValue(l.OptionKey, out var have) || have.Score < sc)
+                    best[l.OptionKey] = new PrescriptionSuggestion(l.OptionKey, t.InvestigationId, t.TestCode ?? "", t.TestName ?? "",
+                        t.IsPackage ? "Package" : t.IsProfileTest ? "Profile" : "Investigation", t.MRP, Math.Round(sc, 3), sc >= preselectScore, $"learned: {text.Trim()}");
+            }
+        }
+
+        foreach (var rawLine in Lines(ocrText))
+        {
+            var line = Shorthand(rawLine);
+            if (taught.Count > 0)
+            {
+                Learnt(rawLine);
+                foreach (var w in Regex.Matches(rawLine, "[A-Za-z0-9][A-Za-z0-9/\\-]*").Select(m => m.Value).Where(w => w.Length >= 2)) Learnt(w);
+            }
             var lineHit = false;
             foreach (var phrase in Phrases(line))
             {
@@ -227,6 +268,8 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
                 var (test, score) = BestMatch(model, engine, phrase);
                 // a match through generic words only ("wine R/E" -> Stool Routine Examination) is not a real match
                 if (test is not null && score < 0.99 && !SharesDistinctiveWord(phrase, test.TestName ?? "")) score *= 0.55;
+                // "RBS" is not "PPBS": a short form naming a kind (random / fasting / post prandial ...) needs a test of that kind
+                if (test is not null && Norm(phrase).Split(' ').Any(w => Abbreviations.Any(x => x.Abbr == w) && !SameKind(w, test.TestName ?? ""))) score = 0;
                 candidates.Add((test, score, phrase));
 
                 // each abbreviation of the phrase on its own ("T3 T4 TSH"), also when OCR misread it ("LIT KIT")
@@ -236,8 +279,12 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
                     // already part of the test the whole phrase names ("CBC with ESR" -> not ESR again; "Sputum C/S" -> not Blood C/S)
                     if (wholeName is not null && (wholeName.Contains(" " + abbr + " ") || AbbreviationWords(abbr).All(w => wholeName.Contains(" " + w + " ")))) continue;
                     var (t2, s2) = BestMatch(model, engine, abbr);
-                    if (t2 is null) continue;
-                    if (!SharesDistinctiveWord(abbr, t2.TestName ?? "")) continue;   // "PFT" is not "Liver Function Test"
+                    if (t2 is null || !SharesDistinctiveWord(abbr, t2.TestName ?? "") || s2 < minScore || !SameKind(abbr, t2.TestName ?? ""))
+                    {
+                        // a test short form read (exactly, or with a small slip) that no bookable test answers
+                        if (cost <= 0.75 && abbr.Length >= 3 && !CommonWords.Contains(abbr)) notOffered.Add(NotOfferedName(abbr));
+                        continue;
+                    }
                     var adjusted = cost == 0 ? s2 : Math.Min(s2, 0.9) * (1 - 0.3 * cost);
                     candidates.Add((t2, adjusted, cost == 0 ? token : $"{token} (read as {abbr.ToUpperInvariant()})"));
                 }
@@ -262,7 +309,9 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
             // High: read clearly (score better than -4.5) and the writing, not the model's taste for the word, made it likely (lift >= 3).
             // Possible: a short abbreviation the writing clearly favours (lift >= 2.3) though read less surely - offered unticked.
             var strong = h.Score >= -4.5 && h.Lift >= 3.0;
-            var possible = !strong && h.Score >= -8.0 && h.Lift >= 2.3 && h.Best.Length <= 6;
+            var possible = !strong && h.Score >= -8.0 && h.Lift >= 3.0 && h.Best.Length <= 6;
+            // a one- or two-letter reading ("Cl", "K", "MP") is too easily a scribble or a letter of a longer word
+            if (h.Best.Count(char.IsLetterOrDigit) <= 2) { strong = false; possible = false; }
             var readings = strong ? new List<(string, double)> { (h.Best, Math.Clamp(0.95 + (h.Score + 2.5) * 0.08, 0.62, 0.95)) }
                          : possible ? new List<(string, double)> { (h.Best, 0.5) } : [];
             foreach (var (text, conf) in readings)
@@ -279,6 +328,9 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
             }
         }
 
+        // what users keep rejecting for this text is no longer offered
+        foreach (var k in best.Keys.ToList())
+            if (refused.Contains((LearnKey(best[k].MatchedText), k))) best.Remove(k);
         var suggestions = best.Values.OrderByDescending(s => s.Score).ThenBy(s => s.TestName).Take(25).ToList();
 
         // another OCR pass's misreading of a line that was matched ("Unune routine" when "Unine routine" gave Urine) is not "not matched"
@@ -290,7 +342,54 @@ public sealed class PrescriptionTestMatcher(IMemoryCache cache) : IPrescriptionT
             .Where(l => !Norm(l).Split(' ').Where(w => w.Length >= 4).Any(w => matchedWords.Any(m => OcrDistance(w, m) <= 1.4)))
             .Where(l => !Norm(l).Split(' ').Where(w => w.Length >= 3).Any(w => handStems.Contains(w[..3])))
             .Take(10).ToList();
-        return new PrescriptionMatchResult(suggestions, stillUnmatched);
+        // what was recognised as a test but is not offered here comes first: "ANTI CCP - not in your LAB test list"
+        var offeredWords = suggestions.SelectMany(s => Norm(s.TestName).Split(' ')).ToHashSet();
+        var named = notOffered.Distinct().Where(n => !Norm(n).Split(' ').All(offeredWords.Contains))
+            .Select(n => n + " - not in your LAB test list").ToList();
+        return new PrescriptionMatchResult(suggestions, named.Concat(stillUnmatched).Take(12).ToList());
+    }
+
+    // ── prescription shorthand that OCR garbles but the layout gives away ────────────────────────────────────────
+    // "CXR-PA" read as "CRP - PAX" / "ORR PAS": a short word joined to PA is a chest X-ray PA view
+    private static readonly Regex ChestPa = new(@"\b[coe][a-z0-9]{1,5}\s*[.\-—–_~]*\s*pa[xsvy]?\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // "USG W/A" read as "UR W/O", "VL w/ f": W/A (whole abdomen) after a short word is an abdominal ultrasound
+    // (the word before must look like USG - U / V - so a clinical "w/o" ("cough w/o fever") is not an ultrasound)
+    private static readonly Regex WholeAbdomen = new(@"\b(usg|[uv][a-z0-9]{0,3})\s*w{1,2}\s*([/|\\)]\s*[a-z0-9@]{0,2}|p)(?![a-z])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    // a list of tests ("Blood - CBC, CRP, LFT", "Inv: ...", two commas): its short words are abbreviations even in lower case
+    private static readonly Regex TestList = new(@"\b(blood|bld|inv|invx|investigations?|labs?|tests?|urine|serum)\b|,.*,", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ShortWord = new(@"\b[A-Za-z][A-Za-z0-9]{1,3}\b", RegexOptions.Compiled);
+
+    private static string Shorthand(string line)
+    {
+        // "anti CCP" written apart, often read "Ont cep" / "anti eeP"
+        line = Regex.Replace(line, @"\b(anti|ant|ont|anu|onti)[\s.\-]*(c[ceo]p|ccp|eep|cop)\b", "ANTICCP", RegexOptions.IgnoreCase);
+        var s = ChestPa.Replace(line, m => Regex.IsMatch(m.Value, @"^\s*(tab|cap|syp|inj|bp|mmhg|spo2?)\b", RegexOptions.IgnoreCase) ? m.Value : " CXR PA ");
+        s = WholeAbdomen.Replace(s, " USG whole abdomen ");
+        // a test list: introduced as one, or a line already naming a test by its short form ("Che. CRP." -> CBC, CRP)
+        var words = Regex.Matches(s, "[A-Za-z0-9]+").Select(m => m.Value.ToLowerInvariant()).ToList();
+        if (TestList.IsMatch(s) || words.Any(w => w.Length >= 3 && !ModifierOnly.Contains(w) && Abbreviations.Any(a => a.Abbr == w)))
+            s = ShortWord.Replace(s, m => CommonWords.Contains(m.Value.ToLowerInvariant()) ? m.Value : m.Value.ToUpperInvariant());
+        return s;
+    }
+
+    // words that make a test a different test of the same family: RBS (random) is not PPBS (post prandial) or FBS (fasting)
+    private static readonly string[] KindWords = ["random", "fasting", "prandial", "free", "total", "direct", "indirect", "glycated"];
+
+    private static bool SameKind(string abbr, string testName)
+    {
+        var words = (Abbreviations.FirstOrDefault(a => a.Abbr == abbr).Words ?? "").Split(' ');
+        var name = Norm(testName);
+        return KindWords.Where(k => words.Contains(k)).All(k => name.Contains(k));
+    }
+
+    private static string NotOfferedName(string abbr)
+    {
+        var words = Abbreviations.FirstOrDefault(a => a.Abbr == abbr).Words ?? abbr;
+        return abbr.ToUpperInvariant() switch
+        {
+            "ANTICCP" or "CCP" => "Anti-CCP",
+            _ => abbr.ToUpperInvariant() + " (" + string.Join(' ', words.Split(' ').Take(4)) + ")"
+        };
     }
 
     private static string OptionKey(AvailableInvestigationDto t) => (t.IsPackage ? "P_" : "I_") + t.InvestigationId;

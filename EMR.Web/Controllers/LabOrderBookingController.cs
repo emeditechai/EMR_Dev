@@ -2028,10 +2028,11 @@ namespace EMR.Web.Controllers
         [ValidateAntiForgeryToken]
         [RequestSizeLimit(20_000_000)]
         [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_ASSIST")]
-        public async Task<IActionResult> PrescriptionAssist(IFormFile? prescription, string? gender, int? ageInYears,
+        public async Task<IActionResult> PrescriptionAssist(IFormFile? prescription, string? gender, int? ageInYears, string? crop,
             [FromServices] Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
             [FromServices] EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine ocr,
             [FromServices] EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher matcher,
+            [FromServices] EMR.Web.ApiClients.LabRxLearningApiClient learning,
             CancellationToken ct)
         {
             var o = assistOptions.CurrentValue;
@@ -2052,11 +2053,15 @@ namespace EMR.Web.Controllers
 
                 EMR.Web.Services.PrescriptionAssist.PrescriptionReading reading;
                 await using (var stream = prescription.OpenReadStream())
-                    reading = await ocr.ReadAsync(stream, ext, matcher.HandwritingCandidates(catalogue), ct);
+                    // the area the user marked around the tests (fractions of the first page): read on its own, every word
+                    reading = await ocr.ReadAsync(stream, ext, matcher.HandwritingCandidates(catalogue), ct,
+                        EMR.Web.Services.PrescriptionAssist.PrescriptionCrop.Parse(crop));
                 var text = reading.Text;
                 var catalogueKey = $"{branchId}|{gender}|{ageInYears}|{catalogue.Count}|" +
                     string.Join(',', catalogue.Select(t => $"{(t.IsPackage ? 'P' : 'I')}{t.InvestigationId}:{t.TestName}")).GetHashCode();
-                var result = matcher.Match(text, catalogue, catalogueKey, o.MinScore, o.PreselectScore, reading.Handwriting);
+                // what users of this company confirmed / rejected before (SQLScripts/2439): the assist improves with use
+                var learned = await learning.GetAsync(User.GetCompanyId());
+                var result = matcher.Match(text, catalogue, catalogueKey, o.MinScore, o.PreselectScore, reading.Handwriting, learned);
 
                 await auditLogService.LogAsync("LAB", "LAB.PrescriptionAssist",
                     $"AI assist read a prescription: {result.Suggestions.Count} test(s) suggested, {result.UnmatchedLines.Count} line(s) not matched.");
@@ -2081,6 +2086,58 @@ namespace EMR.Web.Controllers
             {
                 logger.LogError(ex, "Prescription assist failed");
                 return Json(new { success = false, message = "The prescription could not be read. Try a clearer photo, or add the tests from the search box." });
+            }
+        }
+
+        /// <summary>
+        /// Feedback of AI Prescription Assist (SQLScripts/2439): the suggestions the user kept (confirmed) or unticked (rejected),
+        /// and a "Not matched" text the user searched and then added a test for. Learnt per company; the next readings use it.
+        /// </summary>
+        public sealed class RxLearnItem { public string? Phrase { get; set; } public string? OptionKey { get; set; } public bool Accepted { get; set; } }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_ASSIST")]
+        public async Task<IActionResult> PrescriptionLearn([FromBody] List<RxLearnItem>? items, [FromServices] EMR.Web.ApiClients.LabRxLearningApiClient learning)
+        {
+            var clean = (items ?? []).Take(60)
+                .Select(i => new { Phrase = EMR.Web.Services.PrescriptionAssist.PrescriptionTestMatcher.LearnKey(i.Phrase), i.OptionKey, i.Accepted })
+                .Where(i => i.Phrase.Length >= 2 && i.OptionKey is { Length: <= 20 } k && System.Text.RegularExpressions.Regex.IsMatch(k, @"^[IP]_\d{1,9}$"))
+                .ToList();
+            if (clean.Count == 0) return Json(new { success = true, recorded = 0 });
+            var ok = await learning.LearnAsync(User.GetCompanyId(), clean);
+            return Json(new { success = ok, recorded = ok ? clean.Count : 0 });
+        }
+
+        /// <summary>
+        /// The first page of an uploaded PDF prescription as a PNG (about 1200 px), so the user can see it and mark the area of the
+        /// tests. Rendered in memory on this server; nothing is stored.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(20_000_000)]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_ASSIST")]
+        public async Task<IActionResult> PrescriptionPreview(IFormFile? prescription, CancellationToken ct)
+        {
+            if (prescription is null || prescription.Length == 0 || prescription.Length > 20_000_000
+                || !Path.GetExtension(prescription.FileName ?? "").Equals(".pdf", StringComparison.OrdinalIgnoreCase)) return BadRequest();
+            try
+            {
+                byte[] bytes;
+                using (var ms = new MemoryStream()) { await prescription.CopyToAsync(ms, ct); bytes = ms.ToArray(); }
+                // PDFtoImage closes the stream it is given: a fresh one for each call
+                System.Drawing.SizeF size;
+                using (var s1 = new MemoryStream(bytes)) size = PDFtoImage.Conversion.GetPageSize(s1, 0);
+                var longInches = Math.Max(size.Width, size.Height) / 72.0;
+                var dpi = (int)Math.Clamp(1200 / Math.Max(longInches, 0.1), 40, 150);
+                using var outMs = new MemoryStream();
+                using (var s2 = new MemoryStream(bytes)) PDFtoImage.Conversion.SavePng(outMs, s2, 0, options: new PDFtoImage.RenderOptions(Dpi: dpi));
+                return File(outMs.ToArray(), "image/png");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogInformation(ex, "Prescription preview: the PDF could not be rendered");
+                return BadRequest();
             }
         }
 

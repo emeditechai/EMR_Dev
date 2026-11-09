@@ -6,7 +6,7 @@
     .btn-rx-ai:hover, .btn-rx-ai:focus { color:#fff; filter:brightness(1.08); }
     #rxAssistModal .rx-drop { border:2px dashed #c7d2fe; border-radius:.75rem; background:#f8faff; padding:1.25rem; text-align:center; cursor:pointer; transition:.15s; }
     #rxAssistModal .rx-drop.drag { border-color:#6366f1; background:#eef2ff; }
-    #rxAssistModal .rx-preview { max-height:220px; max-width:100%; border-radius:.5rem; border:1px solid #e2e8f0; }
+    #rxAssistModal .rx-preview { max-height:360px; max-width:100%; border-radius:.5rem; border:1px solid #e2e8f0; user-select:none; -webkit-user-drag:none; }
     #rxAssistModal .rx-row { display:flex; gap:.6rem; align-items:flex-start; padding:.55rem .65rem; border:1px solid #e2e8f0; border-radius:.6rem; }
     #rxAssistModal .rx-row + .rx-row { margin-top:.4rem; }
     #rxAssistModal .rx-row.is-added { background:#f8fafc; opacity:.75; }
@@ -37,13 +37,14 @@
                         </label>
                         <input type="file" id="rxFile" class="d-none" accept="image/jpeg,image/png,image/webp,image/bmp,image/tiff,application/pdf" />
                         <div class="text-center d-none" id="rxPreviewWrap">
-                            <img id="rxPreview" class="rx-preview" alt="Prescription preview" />
+                            <div class="small fw-semibold text-primary mb-1" id="rxCropHint"><i class="bi bi-bounding-box me-1"></i>Drag a box around the tests for the best reading</div>
+                            <div id="rxCropBox" class="d-inline-block position-relative" style="overflow:hidden;border-radius:.5rem"><img id="rxPreview" class="rx-preview" alt="Prescription preview" draggable="false" /></div>
                             <div class="small text-muted mt-1 text-truncate" id="rxFileName"></div>
                         </div>
                         <button type="button" class="btn btn-primary w-100 mt-2" id="rxRead" disabled>
                             <i class="bi bi-magic me-1"></i>Read prescription
                         </button>
-                        <div class="small text-muted mt-2"><i class="bi bi-shield-lock me-1"></i>The image is read on this server and not stored.</div>
+                        <div class="small text-muted mt-2"><i class="bi bi-shield-lock me-1"></i>The image is read on this server and not stored. Mark the tests for handwritten prescriptions.</div>
                     </div>
                     <div class="col-md-7">
                         <div id="rxIdle" class="text-muted small h-100 d-flex align-items-center justify-content-center text-center p-3 border rounded-3 bg-light">
@@ -99,6 +100,7 @@ $(function () {   // after the page's own ready handler, which defines addInvest
 
     function reset() {
         file = null; suggestions = []; fileInput.value = '';
+        if (window.RxCrop) window.RxCrop.clear();
         show('rxPreviewWrap', false); show('rxResults', false); show('rxBusy', false); show('rxError', false); show('rxIdle', true);
         $('#rxRead').prop('disabled', true); updateCount();
     }
@@ -110,8 +112,10 @@ $(function () {   // after the page's own ready handler, which defines addInvest
         if (!isPdf && !/^image\//.test(f.type)) { error('Choose a photo, scan or PDF of the prescription (JPG, PNG, WEBP, BMP, TIFF or PDF).'); return; }
         if (f.size > 8 * 1024 * 1024) { error('The image is larger than 8 MB. Use a smaller photo.'); return; }
         file = f; show('rxError', false);
+        if (window.RxCrop) window.RxCrop.clear();
         if (isPdf) {
-            // no image preview for a PDF: show a document icon instead
+            // a PDF: its first page rendered on the server (to mark the tests on); a document icon until then / if it fails
+            if (window.RxCrop) window.RxCrop.pdfPreview(f, '@Url.Action("PrescriptionPreview", "LabOrderBooking")');
             document.getElementById('rxPreview').src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="150" viewBox="0 0 120 150"><rect x="10" y="5" width="100" height="140" rx="8" fill="#fff" stroke="#c7d2fe" stroke-width="3"/><text x="60" y="88" font-family="Arial" font-size="28" font-weight="700" fill="#dc2626" text-anchor="middle">PDF</text></svg>');
             show('rxPreviewWrap', true);
         } else {
@@ -136,6 +140,7 @@ $(function () {   // after the page's own ready handler, which defines addInvest
         fd.append('prescription', file);
         fd.append('gender', $('#ddlGender').val() || '');
         fd.append('ageInYears', $('#AgeYears').val() || '');
+        if (window.RxCrop && window.RxCrop.value()) fd.append('crop', window.RxCrop.value());
         fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').first().val() || '');
         show('rxIdle', false); show('rxResults', false); show('rxError', false); show('rxBusy', true);
         $('#rxRead').prop('disabled', true);
@@ -193,9 +198,27 @@ $(function () {   // after the page's own ready handler, which defines addInvest
     $('#rxAll').on('click', e => { e.preventDefault(); $('#rxList .rx-chk:not(:disabled)').prop('checked', true); updateCount(); });
     $('#rxNone').on('click', e => { e.preventDefault(); $('#rxList .rx-chk').prop('checked', false); updateCount(); });
 
+    // learning (SQLScripts/2439): what the user keeps / unticks / links teaches the assist for next time
+    const learnUrl = '@Url.Action("PrescriptionLearn", "LabOrderBooking")';
+    function learn(items) {
+        if (!items.length) return;
+        fetch(learnUrl, { method: 'POST', body: JSON.stringify(items),
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                       'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() || '' } }).catch(() => {});
+    }
+    // a "Not matched" text searched, then a test picked in the search box within 3 minutes: that text means that test
+    let lastChip = null;
+    $('#ddlInvestigations').on('select2:select', e => {
+        if (!lastChip || Date.now() - lastChip.at > 180000) return;
+        const id = e.params && e.params.data ? e.params.data.id : null;
+        if (id) learn([{ phrase: lastChip.text, optionKey: String(id), accepted: true }]);
+        lastChip = null;
+    });
+
     // an unmatched line: search for it in the normal search box
     $('#rxUnmatched').on('click', '.rx-search', function () {
         const q = this.dataset.q;
+        lastChip = /not in your LAB test list/.test(q) ? null : { text: q, at: Date.now() };
         modal.hide();
         setTimeout(() => {
             $('#ddlInvestigations').select2('open');
@@ -208,6 +231,10 @@ $(function () {   // after the page's own ready handler, which defines addInvest
     $('#rxAdd').on('click', async function () {
         const picks = selected();
         if (!picks.length) return;
+        // kept = confirmed, unticked = rejected
+        learn(suggestions.map((s, i) => ({ s, box: $('#rxList .rx-chk[data-i="' + i + '"]') }))
+            .filter(x => x.box.length && !x.box.prop('disabled'))   // already on the bill / not bookable: no lesson
+            .map(x => ({ phrase: x.s.matchedText, optionKey: x.s.optionKey, accepted: x.box.is(':checked') })));
         $(this).prop('disabled', true);
         modal.hide();
         let added = 0;
@@ -221,3 +248,4 @@ $(function () {   // after the page's own ready handler, which defines addInvest
     });
 });
 </script>
+<script src="~/js/rx-crop.js" asp-append-version="true"></script>
