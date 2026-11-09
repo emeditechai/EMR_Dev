@@ -11,6 +11,10 @@
     </div>
 </div>
 <div class="row g-3 mb-3" id="tiles"></div>
+<div class="reg-section mb-3 d-none" id="adviceBox"><div class="reg-section-header"><div class="sec-icon amber"><i class="bi bi-clipboard2-pulse"></i></div>
+    <div class="flex-grow-1"><h6 class="fw-bold mb-0">Admission advised from OPD <span class="badge text-bg-warning" id="adviceCount"></span></h6><small class="text-muted">Patients a doctor advised to admit; admitting fills the form from the advice</small></div></div>
+    <div class="reg-section-body p-0"><div class="table-responsive"><table class="table table-hover ipd-table mb-0">
+        <thead><tr><th>Urgency</th><th>Patient</th><th>Advised by</th><th>Reason / diagnosis</th><th>Department</th><th>Expected</th><th></th></tr></thead><tbody id="adviceRows"></tbody></table></div></div></div>
 <div class="row g-3">
     <div class="col-12 col-xl-4"><div class="reg-section"><div class="reg-section-header"><div class="sec-icon red"><i class="bi bi-grid-3x3-gap"></i></div><h6 class="fw-bold mb-0">Beds by ward</h6></div>
         <div class="reg-section-body" id="wards"></div></div></div>
@@ -23,4 +27,5 @@
 <script src="~/js/ipd.js" asp-append-version="true"></script>
 <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { patientBase = Url.Content("~/IpdAdmission/Patient/"), dataUrl = Url.Action("DashboardData", "IPD") }));</script>
 <script src="~/js/ipd/dashboard.js" asp-append-version="true"></script>
+<script src="~/js/ipd/advice-list.js" asp-append-version="true"></script>
 }

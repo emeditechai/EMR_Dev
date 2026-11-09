@@ -32,7 +32,9 @@ if (!ipdDocs.length) Ipd.toast('No doctor belongs to an IPD department. Map one 
         fill('ConsultantDoctorId', ipdDocs, 'DoctorId', r => r.DoctorName + ' · ' + r.IpdDeptNames, ipdDocs.length ? '-- Select --' : '-- No doctor with an IPD department --');
         fill('ReferralDoctorId', L.referralDoctors, 'DoctorId', r => r.DoctorName + (r.IsReferralDoctor ? ' (referral)' : ''), '-- None --');
         fill('DepartmentId', L.departments, 'DeptId', 'DeptName', '-- Select --');
-        fill('TariffCategoryId', L.tariffCategories, 'TariffCategoryId', r => r.Name + ' (' + r.PatientCategory + ') · ' + (r.BedRates ? r.BedRates + ' bed rate' + (r.BedRates > 1 ? 's' : '') : 'no bed rates'), '-- Select --');
+        fill('TariffCategoryId', L.tariffCategories, 'TariffCategoryId', r => r.Name + ' (' + r.PatientCategory + ') · ' + (r.BedRates ? r.BedRates + ' bed rate' + (r.BedRates > 1 ? 's' : '') : 'no bed rates: cannot be used'), '-- Select --');
+        // a tariff category without bed rates cannot be used for an admission (no bed could be given)
+        [...document.getElementById('TariffCategoryId').options].forEach(o => { const r = (L.tariffCategories || []).find(t => String(t.TariffCategoryId) === o.value); if (r && !r.BedRates) o.disabled = true; });
         fill('InsuranceTpaId', L.insurances, 'Id', r => r.Name + (r.Type ? ' · ' + r.Type : ''), '-- Select --');
         fill('CorporateId', L.corporates, 'Id', 'Name', '-- Select --');
         fill('SchemeId', L.schemes, 'Id', 'Name', '-- Select --');
@@ -59,19 +61,31 @@ if (!ipdDocs.length) Ipd.toast('No doctor belongs to an IPD department. Map one 
     }
 
     // ── payer ───────────────────────────────────────────────────────────────────────────────────────────
-    const payerCategory = { CASH: /cash|self/i, CORPORATE: /corporate/i, INSURANCE: /insurance|tpa/i, SCHEME: /government|scheme/i };
+    // tariff categories of each payer (Master > Tariff Category > Patient Category); staff pay as cash
+    const payerCategory = { CASH: /cash|self|staff|employee/i, CORPORATE: /corporate/i, INSURANCE: /insurance|tpa/i, SCHEME: /government|scheme/i };
+    function fillTariff(p) {
+        const rows = (L.tariffCategories || []).filter(t => payerCategory[p].test(t.PatientCategory || ''))
+            .sort((a, b) => (b.BedRates ? 1 : 0) - (a.BedRates ? 1 : 0) || a.Name.localeCompare(b.Name));
+        const el = document.getElementById('TariffCategoryId'), keep = el.value;
+        el.innerHTML = '<option value="">' + (rows.length ? '-- Select --' : '-- No tariff category for this payer --') + '</option>'
+            + rows.map(r => `<option value="${r.TariffCategoryId}" ${r.BedRates ? '' : 'disabled'}>${E(r.Name)} · ${r.BedRates ? r.BedRates + ' bed rate' + (r.BedRates > 1 ? 's' : '') : 'no bed rates: cannot be used'}</option>`).join('');
+        el.value = rows.some(r => String(r.TariffCategoryId) === keep && r.BedRates) ? keep : '';
+    }
     function payerType() { return document.querySelector('input[name="PayerType"]:checked').value; }
     function payerChanged(initial) {
         const p = payerType();
         document.querySelectorAll('.payer-f').forEach(el => el.classList.toggle('d-none', !el.classList.contains('payer-' + p)));
         document.getElementById('lblPolicy').classList.toggle('req', p === 'INSURANCE');
         const tc = document.getElementById('TariffCategoryId');
+        fillTariff(p);
         let pick = null;
         if (p === 'CASH' && settings.IpdDefaultTariffCategoryId) pick = (L.tariffCategories || []).find(t => t.TariffCategoryId === settings.IpdDefaultTariffCategoryId);
         // among the categories of this payer type, the one with the most bed rates (B2C before General alphabetically, but General has the rates)
-pick = pick || (L.tariffCategories || []).filter(t => payerCategory[p].test(t.PatientCategory))
+if (pick && !pick.BedRates) pick = null;
+pick = pick || (L.tariffCategories || []).filter(t => payerCategory[p].test(t.PatientCategory) && t.BedRates)
                                           .sort((a, b) => (b.BedRates || 0) - (a.BedRates || 0) || a.Name.localeCompare(b.Name))[0];
-        if (pick) tc.value = pick.TariffCategoryId;
+        if (pick) $('#TariffCategoryId').val(pick.TariffCategoryId).trigger('change.select2');
+        else if (!initial) Ipd.toast('No tariff category of this payer has bed rates: choose one or add rates in Master › IPD › Bed / Room Tariff.', 'warning');
         loadBeds();
         updateMinAdvance();
     }
@@ -82,16 +96,28 @@ pick = pick || (L.tariffCategories || []).filter(t => payerCategory[p].test(t.Pa
     // a bed is selectable when Available, or Reserved for the patient on the form (Bed Board > Reserve)
     function selectable(b) {
         if (b.NoTariff) return false;   // a bed without a rate for the tariff category cannot be given
+        if (genderClash(b) && settings.IpdBlockWardGenderMismatch) return false;   // Hospital Settings > IPD blocks a ward of the other gender
         if (b.BedStatus === 'Available') return true;
         if (b.BedStatus !== 'Reserved') return false;
         const pid = Number(document.getElementById('PatientId').value) || 0, ph = (document.getElementById('PhoneNumber').value || '').replace(/\D/g, '');
         return (pid && b.ResPatientId === pid) || (!b.ResPatientId && ph && (b.ResPhone || '').replace(/\D/g, '') === ph);
+    }
+    function genderClash(b) {
+        const g = document.getElementById('Gender').value, wg = (b && b.WardGender) || '';
+        return !!g && /^(Male|Female)$/.test(wg) && /^(Male|Female)$/.test(g) && wg !== g;
+    }
+    function dropBedIfInvalid(why) {
+        if (selectedBed && !selectable(selectedBed)) {
+            Ipd.toast(`Bed ${selectedBed.BedNumber} ${why}: choose another bed.`, 'warning');
+            selectedBed = null; document.getElementById('BedId').value = ''; updateMinAdvance();
+        }
     }
     async function loadBeds() {
         const tc = document.getElementById('TariffCategoryId').value;
         try { beds = await Ipd.get(base + 'Beds?tariffCategoryId=' + encodeURIComponent(tc || '')); }
         catch (e) { document.getElementById('bedBoard').innerHTML = `<div class="text-danger small">${E(e.message)}</div>`; return; }
         if (selectedBed) selectedBed = beds.find(b => b.BedId === selectedBed.BedId) || null;
+        dropBedIfInvalid('has no rate for this tariff category or is no longer free');
         if (presetBed) {   // opened from the Bed Board: that bed, and its ward's department
             const pb = beds.find(b => b.BedId === presetBed);
             if (pb && selectable(pb)) {
@@ -125,14 +151,15 @@ pick = pick || (L.tariffCategories || []).filter(t => payerCategory[p].test(t.Pa
         const groups = {};
         list.forEach(b => (groups[b.WardId] = groups[b.WardId] || { name: b.WardName, type: b.WardType, gender: b.WardGender, floor: b.FloorName, beds: [] }).beds.push(b));
         const html = Object.values(groups).map(g => {
-            const freeCount = g.beds.filter(b => b.BedStatus === 'Available').length;
-            return `<div class="bed-ward"><div class="bed-ward-title">${E(g.name)} <span class="ipd-pill muted">${E(g.type || '')}</span>${g.gender && !/unisex/i.test(g.gender) ? `<span class="ipd-pill info">${E(g.gender)}</span>` : ''}<span class="ipd-pill muted">${E(g.floor || '')}</span><span class="text-success">${freeCount} free</span></div>
+            const freeCount = g.beds.filter(b => b.BedStatus === 'Available' && selectable(b)).length;
+            const noRate = g.beds.filter(b => b.BedStatus === 'Available' && b.NoTariff).length;
+            return `<div class="bed-ward"><div class="bed-ward-title">${E(g.name)} <span class="ipd-pill muted">${E(g.type || '')}</span>${g.gender && !/unisex/i.test(g.gender) ? `<span class="ipd-pill info">${E(g.gender)}</span>` : ''}<span class="ipd-pill muted">${E(g.floor || '')}</span><span class="text-success">${freeCount} free</span>${noRate ? `<span class="text-danger small ms-2">${noRate} without a rate (cannot be given)</span>` : ''}</div>
             <div class="bed-grid">${g.beds.map(b => {
                 const sel = selectedBed && selectedBed.BedId === b.BedId;
                 const tcName = $('#TariffCategoryId option:selected').text().split(' (')[0];
-                    const rate = b.NoTariff ? `<span class="text-danger" title="${E(b.RatedCategories ? 'Rates exist for: ' + b.RatedCategories : 'No rate in Master > Bed/Room Tariff')}">No ${E(tcName)} rate</span>${b.RatedCategories ? `<div class="small text-muted text-truncate">has: ${E(b.RatedCategories)}</div>` : ''}` : Ipd.money(b.DailyRate) + '/day';
+                    const rate = b.NoTariff ? `<span class="text-danger" title="${E(b.RatedCategories ? 'Rates exist for: ' + b.RatedCategories : 'No rate in Master > Bed/Room Tariff')}">No ${E(tcName)} rate · not allowed</span>${b.RatedCategories ? `<div class="small text-muted text-truncate">has: ${E(b.RatedCategories)}</div>` : ''}` : Ipd.money(b.DailyRate) + '/day';
                 const who = b.BedStatus === 'Occupied' && b.PatientName ? `<div class="text-truncate">${E(b.PatientName)}</div>`
-                        : b.BedStatus === 'Reserved' && b.ResPatientName ? `<div class="text-truncate">For ${E(b.ResPatientName)}</div>` : `<div>${rate}</div>`;
+                        : b.BedStatus === 'Reserved' && b.ResPatientName ? `<div class="text-truncate">For ${E(b.ResPatientName)}</div>` : `<div>${rate}</div>${b.BedStatus === 'Available' && !b.NoTariff && genderClash(b) && settings.IpdBlockWardGenderMismatch ? `<div class="text-danger small">${E(b.WardGender)} ward</div>` : ''}`;
                 return `<button type="button" class="bed-tile ${E(b.BedStatus)} ${sel ? 'selected' : ''}" data-bed="${b.BedId}" ${!selectable(b) && !sel ? 'disabled' : ''}
                           title="${E(b.BedCategoryName)} · Room ${E(b.RoomNumber)}${b.IsIcu ? ' · ICU' : ''}${b.IsIsolation ? ' · Isolation' : ''}">
                           <div class="bn">${E(b.BedNumber)} ${b.IsIcu ? '<span class="ipd-pill alert">ICU</span>' : ''}</div>
@@ -162,7 +189,7 @@ pick = pick || (L.tariffCategories || []).filter(t => payerCategory[p].test(t.Pa
             + (selectedBed.UsedFallback ? ' <span class="ipd-pill warn">default tariff rate</span>' : '')
             + (clash ? `<div class="mt-1"><b>${E(wg)} ward</b>: the patient is ${E(g.toLowerCase())}.</div>` : '');
     }
-    document.getElementById('Gender').addEventListener('change', showSelectedBed);
+    document.getElementById('Gender').addEventListener('change', () => { dropBedIfInvalid('is in a ward of the other gender'); renderBeds(); });
 // the admitting doctor's IPD department fills the Department when it is still empty
 $('#AdmittingDoctorId').on('change', function () {
     const d = (L.doctors || []).find(x => String(x.DoctorId) === this.value);
@@ -191,10 +218,12 @@ $('#AdmittingDoctorId').on('change', function () {
         div.className = 'row g-2 mb-2 pay-row align-items-end';
         div.innerHTML = `<div class="col-5 col-md-3"><label class="form-label">Mode</label><select class="form-select pm">${modes}</select></div>
             <div class="col-7 col-md-3"><label class="form-label">Amount (₹)</label><input type="number" min="0" step="0.01" class="form-control pa num" /></div>
-            <div class="col-10 col-md-5"><label class="form-label">Reference (UPI / card / cheque no.)</label><input class="form-control pr" maxlength="100" /></div>
+            <div class="col-10 col-md-5"><label class="form-label">Reference (UPI / card / cheque no.)</label><input class="form-control pr" maxlength="100" placeholder="Not needed for cash" /></div>
             <div class="col-2 col-md-1"><button type="button" class="btn btn-outline-danger w-100 pdel" title="Remove"><i class="bi bi-trash"></i></button></div>`;
         document.getElementById('payRows').appendChild(div);
         div.querySelector('.pa').addEventListener('input', () => { renderTotal(); });
+        const refReq = () => { const cash = div.querySelector('.pm').value === 'CASH'; div.querySelector('.pr').placeholder = cash ? 'Not needed for cash' : 'Required'; div.querySelector('.pr').disabled = cash; if (cash) div.querySelector('.pr').value = ''; };
+        div.querySelector('.pm').addEventListener('change', refReq); refReq();
         div.querySelector('.pdel').addEventListener('click', () => { if (document.querySelectorAll('.pay-row').length > 1) div.remove(); renderTotal(); });
     }
     function payRows() {
@@ -346,6 +375,7 @@ $('#AdmittingDoctorId').on('change', function () {
         showSelectedBed();
         Ipd.toast(`${p.firstName ?? ''} ${p.lastName ?? ''} (${p.patientCode}) loaded`);
         loadStatus(p.patientId);
+        dropBedIfInvalid('cannot be given to this patient');
         renderBeds();   // a bed reserved for this patient becomes selectable
     }
 
@@ -409,10 +439,22 @@ $('#AdmittingDoctorId').on('change', function () {
         for (const [id, what, ok] of need) { const val = v(id) || ''; if (!val || (ok && !ok(val))) { document.getElementById(id).focus(); return 'Enter ' + what + '.'; } }
         if (!v('DateOfBirth') && !(Number(v('AgeYears')) || Number(v('AgeMonths')) || Number(v('AgeDays')))) return 'Enter the age or date of birth.';
         if (!v('BedId')) return 'Choose a bed on the bed board.';
+        if (selectedBed && selectedBed.NoTariff) return 'The chosen bed has no rate for this tariff category: choose another bed or tariff.';
+        if (selectedBed && genderClash(selectedBed) && settings.IpdBlockWardGenderMismatch) return `Bed ${selectedBed.BedNumber} is in a ${selectedBed.WardGender.toLowerCase()} ward: choose a bed in a suitable ward.`;
+        const tcRow = (L.tariffCategories || []).find(t => String(t.TariffCategoryId) === v('TariffCategoryId'));
+        if (tcRow && !tcRow.BedRates) return 'The tariff category has no bed rates: choose another one.';
+        if (v('ExpectedDischargeAt') && v('AdmissionAt') && new Date(v('ExpectedDischargeAt')) <= new Date(canBackdate ? v('AdmissionAt') : new Date())) return 'The expected discharge must be after the admission time.';
         const p = payerType();
         if (p === 'INSURANCE' && (!v('InsuranceTpaId') || !v('PolicyNo'))) return 'Choose the insurance / TPA and enter the policy number.';
         if (p === 'CORPORATE' && !v('CorporateId')) return 'Choose the corporate.';
         if (p === 'SCHEME' && !v('SchemeId')) return 'Choose the government scheme.';
+        if ((p === 'INSURANCE' || p === 'SCHEME') && v('PolicyValidTo') && v('PolicyValidTo') < new Date().toISOString().slice(0, 10)) return 'The policy / card has expired (Valid To is in the past): check the payer details.';
+        for (const r of [...document.querySelectorAll('.pay-row')]) {
+            const amt = Number(r.querySelector('.pa').value) || 0;
+            if (r.querySelector('.pa').value && amt < 0) return 'A payment amount cannot be negative.';
+            if (amt && Math.round(amt * 100) !== amt * 100) return 'A payment amount can have at most two decimals.';
+            if (amt > 0 && r.querySelector('.pm').value !== 'CASH' && !r.querySelector('.pr').value.trim()) { r.querySelector('.pr').focus(); return 'Enter the reference (UPI / card / NEFT / cheque no.) of every non-cash payment.'; }
+        }
         if (settings.IpdConsentRequired && !v('ConsentId')) return 'The general admission consent is required.';
         if (v('ConsentId') && !v('ConsentSignedByName')) return 'Enter who signed the consent.';
         const need2 = minAdvance(), total = payTotal();
@@ -427,7 +469,8 @@ $('#AdmittingDoctorId').on('change', function () {
         const problem = check(); if (problem) { Ipd.error(problem); return; }
         const pays = payRows();
         const summary = `<div class="text-start small"><div><b>${E([v('FirstName'), v('LastName')].join(' '))}</b> · ${E(v('PhoneNumber'))}</div>
-            <div>Bed <b>${E(selectedBed.BedNumber)}</b> · ${E(selectedBed.WardName)} · ${E(Ipd.payer(payerType()))}</div>
+            <div>Bed <b>${E(selectedBed.BedNumber)}</b> · ${E(selectedBed.WardName)} · ${Ipd.money(selectedBed.DailyRate)}/day</div>
+            <div>${E(Ipd.payer(payerType()))} · ${E($('#TariffCategoryId option:selected').text().split(' · ')[0])}${v('PackageId') ? ' · package ' + E($('#PackageId option:selected').text()) : ''}</div>
             <div>Advance <b>${Ipd.money(payTotal())}</b>${pays.length > 1 ? ' (' + pays.length + ' modes)' : ''}</div></div>`;
         if (!await Ipd.confirm('Admit this patient?', summary, 'Admit')) return;
         const fd = new FormData(document.getElementById('admForm'));
@@ -462,5 +505,16 @@ $('#AdmittingDoctorId').on('change', function () {
     document.getElementById('btnReset').addEventListener('click', () => window.location.reload());
 
     Ipd.icdSuggest(document.getElementById('DiagnosisCode'), document.getElementById('ProvisionalDiagnosis'), base + 'IcdSearch');
-    loadLookups().then(() => { if (presetPatient) loadPatient(presetPatient); }).catch(e => Ipd.error(e.message));
+    // admission advised from OPD (SQLScripts/2438): source OPD, the advising doctor (if of an IPD department), department, diagnosis
+    function applyAdvice(a) {
+        if (!a) return;
+        const set = (id, val) => { if (val == null || val === '') return; const el = document.getElementById(id); if (!el) return; if ($(el).data('select2')) $(el).val(String(val)).trigger('change'); else el.value = val; };
+        set('AdmissionSource', 'OPD');
+        if (a.Urgency === 'EMERGENCY') set('AdmissionType', 'EMERGENCY');
+        if (a.DoctorId && (L.doctors || []).some(d => d.DoctorId === a.DoctorId && d.IsIpd)) { set('AdmittingDoctorId', a.DoctorId); set('ConsultantDoctorId', a.DoctorId); }
+        if (a.DepartmentId) set('DepartmentId', a.DepartmentId);
+        set('ProvisionalDiagnosis', a.Diagnosis); set('DiagnosisCode', a.DiagnosisCode); set('ReasonForAdmission', a.Reason);
+        Ipd.toast('Filled from the OPD admission advice', 'info');
+    }
+    loadLookups().then(async () => { if (presetPatient) await loadPatient(presetPatient); applyAdvice(C.presetAdvice); }).catch(e => Ipd.error(e.message));
 })();

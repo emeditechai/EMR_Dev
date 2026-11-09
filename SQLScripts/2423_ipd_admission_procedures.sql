@@ -409,6 +409,12 @@ BEGIN
             THROW 54026, 'The consultant (treating doctor) must belong to an IPD department (Master > Doctor > departments of type IPD).', 1;
         IF NOT EXISTS (SELECT 1 FROM dbo.TariffCategoryMaster WHERE TariffCategoryId = @TariffCategoryId AND IsActive = 1 AND CompanyId = @CompanyId AND (BranchId = @BranchId OR BranchId IS NULL))
             THROW 54013, 'Choose the tariff category (rates of the stay).', 1;
+        IF NOT EXISTS (SELECT 1 FROM dbo.TariffCategoryMaster WHERE TariffCategoryId = @TariffCategoryId
+                       AND CASE @PayerType WHEN 'CASH' THEN CASE WHEN PatientCategory LIKE N'%Cash%' OR PatientCategory LIKE N'%Self%' OR PatientCategory LIKE N'%Staff%' OR PatientCategory LIKE N'%Employee%' THEN 1 ELSE 0 END
+                                           WHEN 'CORPORATE' THEN CASE WHEN PatientCategory LIKE N'%Corporate%' THEN 1 ELSE 0 END
+                                           WHEN 'INSURANCE' THEN CASE WHEN PatientCategory LIKE N'%Insurance%' OR PatientCategory LIKE N'%TPA%' THEN 1 ELSE 0 END
+                                           ELSE CASE WHEN PatientCategory LIKE N'%Government%' OR PatientCategory LIKE N'%Scheme%' THEN 1 ELSE 0 END END = 1)
+            THROW 54039, 'The tariff category does not belong to the chosen payer (Master > Tariff Category > Patient Category).', 1;
         IF @PackageId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.HospitalPackageMaster WHERE HospitalPackage_ID = @PackageId AND Branch_ID = @BranchId AND Status = 1 AND ISNULL(TotalPackageAmount, 0) > 0)
             THROW 54014, 'The package is not active in this branch.', 1;
         IF NULLIF(@DepartmentId, 0) IS NOT NULL AND NOT EXISTS (SELECT 1 FROM dbo.DepartmentMaster WHERE DeptId = @DepartmentId AND IsActive = 1 AND DeptType = 'IPD')
@@ -431,6 +437,7 @@ BEGIN
         IF @PayerType = 'INSURANCE' AND NOT EXISTS (SELECT 1 FROM @P p JOIN dbo.InsuranceTPAMaster m ON m.InsuranceTPA_ID = p.InsuranceTpaId AND m.Status = 1 WHERE p.Seq = 1)
             THROW 54016, 'Choose the insurance company / TPA.', 1;
         IF @PayerType = 'INSURANCE' AND EXISTS (SELECT 1 FROM @P WHERE Seq = 1 AND PolicyNo IS NULL) THROW 54017, 'Enter the policy / card number.', 1;
+        IF EXISTS (SELECT 1 FROM @P WHERE PolicyValidTo IS NOT NULL AND PolicyValidTo < CAST(@AdmissionAt AS DATE)) THROW 54038, 'The policy / card has expired before the admission date: check the payer details.', 1;
         IF @PayerType = 'CORPORATE' AND NOT EXISTS (SELECT 1 FROM @P p JOIN dbo.CorporateMaster m ON m.Corporate_ID = p.CorporateId AND m.Status = 1 WHERE p.Seq = 1)
             THROW 54018, 'Choose the corporate.', 1;
         IF @PayerType = 'SCHEME' AND NOT EXISTS (SELECT 1 FROM @P p JOIN dbo.GovernmentSchemeMaster m ON m.Scheme_ID = p.SchemeId AND m.IsActive = 1 WHERE p.Seq = 1)
@@ -520,6 +527,10 @@ BEGIN
         VALUES (@id, @BedId, @ward, @room, @cat, @AdmissionAt, 'ADMIT', @UserId);
         EXEC dbo.usp_Ipd_SetBedStatus @BedId = @BedId, @ToStatus = N'Occupied', @Reason = N'Patient admitted', @AdmissionId = @id, @UserId = @UserId, @RefType = 'ADMIT';
         IF @resId IS NOT NULL UPDATE dbo.IpdBedReservation SET Status = 'USED', AdmissionId = @id, ModifiedBy = @UserId, ModifiedDate = @now WHERE ReservationId = @resId;
+        -- the OPD admission advice of this patient is done (SQLScripts/2438)
+        IF OBJECT_ID('dbo.IpdAdmissionAdvice', 'U') IS NOT NULL
+            EXEC sp_executesql N'UPDATE dbo.IpdAdmissionAdvice SET Status = ''ADMITTED'', AdmissionId = @a, ModifiedBy = @u, ModifiedDate = GETDATE() WHERE PatientId = @p AND BranchId = @b AND Status = ''PENDING''',
+                  N'@a INT, @u INT, @p INT, @b INT', @a = @id, @u = @UserId, @p = @PatientId, @b = @BranchId;
 
         INSERT dbo.IpdAdmissionPayer (AdmissionId, Seq, PayerType, InsuranceTpaId, CorporateId, SchemeId, PolicyNo, MemberId, CardHolderName, RelationToHolder, PolicyValidTo, EmployeeId, CardFilePath, Remarks)
         SELECT @id, ROW_NUMBER() OVER (ORDER BY Seq), PayerType, InsuranceTpaId, CorporateId, SchemeId, PolicyNo, MemberId, CardHolderName, RelationToHolder, PolicyValidTo, EmployeeId, CardFilePath, Remarks
@@ -729,6 +740,12 @@ BEGIN
         IF @TariffCategoryId <> @oldTc AND NOT EXISTS (SELECT 1 FROM dbo.IpdAdmission a CROSS APPLY dbo.fn_Ipd_BedRate(@BranchId, a.CurrentBedId, @TariffCategoryId, CAST(GETDATE() AS DATE)) r
                                                          WHERE a.AdmissionId = @AdmissionId AND a.CurrentBedId IS NOT NULL)
             THROW 54231, 'The patient''s bed has no rate in the new tariff category (Master > IPD > Bed / Room Tariff): add the rate first.', 1;
+        IF NOT EXISTS (SELECT 1 FROM dbo.TariffCategoryMaster WHERE TariffCategoryId = @TariffCategoryId
+                       AND CASE @PayerType WHEN 'CASH' THEN CASE WHEN PatientCategory LIKE N'%Cash%' OR PatientCategory LIKE N'%Self%' OR PatientCategory LIKE N'%Staff%' OR PatientCategory LIKE N'%Employee%' THEN 1 ELSE 0 END
+                                           WHEN 'CORPORATE' THEN CASE WHEN PatientCategory LIKE N'%Corporate%' THEN 1 ELSE 0 END
+                                           WHEN 'INSURANCE' THEN CASE WHEN PatientCategory LIKE N'%Insurance%' OR PatientCategory LIKE N'%TPA%' THEN 1 ELSE 0 END
+                                           ELSE CASE WHEN PatientCategory LIKE N'%Government%' OR PatientCategory LIKE N'%Scheme%' THEN 1 ELSE 0 END END = 1)
+            THROW 54233, 'The tariff category does not belong to the chosen payer (Master > Tariff Category > Patient Category).', 1;
         IF (@TariffCategoryId <> @oldTc OR @PayerType <> @oldPayer) AND ISNULL(@CanChangeTariff, 0) = 0
             THROW 54209, 'You are not allowed to change the payer or tariff category of an admission (it re-prices the whole stay).', 1;
         IF @ExpectedDischargeAt IS NOT NULL AND @ExpectedDischargeAt <= @admAt THROW 54210, 'The expected discharge must be after the admission time.', 1;

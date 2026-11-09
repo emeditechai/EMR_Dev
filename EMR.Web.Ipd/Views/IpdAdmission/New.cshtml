@@ -442,6 +442,6 @@
 @section Scripts {
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/js/ipd.js" asp-append-version="true"></script>
-    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdAdmission/"), canWaive, canBackdate, presetPatient, presetEstimate, presetBed }));</script>
+    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdAdmission/"), canWaive, canBackdate, presetPatient, presetEstimate, presetBed, presetAdvice = ViewBag.Advice }));</script>
     <script src="~/js/ipd/admission-new.js" asp-append-version="true"></script>
 }

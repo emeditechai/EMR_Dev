@@ -174,7 +174,13 @@ document.getElementById('btnCancelAdm')?.addEventListener('click', async () => {
         document.getElementById('eDept').innerHTML = opt(L.departments, 'DeptId', 'DeptName', '-- Select --');
         document.getElementById('eRef').innerHTML = opt(L.referralDoctors, 'DoctorId', r => r.DoctorName + (r.IsReferralDoctor ? ' (referral)' : ''), '-- None --');
         document.getElementById('ePkg').innerHTML = opt(L.packages, 'Id', r => r.Name + ' · ' + Ipd.money(r.Amount), '-- No package --');
-        document.getElementById('eTariff').innerHTML = opt(L.tariffCategories, 'TariffCategoryId', r => r.Name + ' (' + r.PatientCategory + ')');
+        const payerCat = { CASH: /cash|self|staff|employee/i, CORPORATE: /corporate/i, INSURANCE: /insurance|tpa/i, SCHEME: /government|scheme/i };
+        window.__ipdTariffFill = () => {   // only the tariff categories of the chosen payer
+            const p = document.getElementById('ePayer').value, el = document.getElementById('eTariff'), keep = el.value || String(H.TariffCategoryId);
+            const rows = (L.tariffCategories || []).filter(t => payerCat[p] && payerCat[p].test(t.PatientCategory || ''));
+            el.innerHTML = opt(rows, 'TariffCategoryId', r => r.Name + (r.BedRates ? '' : ' · no bed rates'), '-- Select --');
+            if (rows.some(r => String(r.TariffCategoryId) === keep)) el.value = keep;
+        };
         document.getElementById('eIns').innerHTML = opt(L.insurances, 'Id', 'Name', '-- Select --');
         document.getElementById('eCorp').innerHTML = opt(L.corporates, 'Id', 'Name', '-- Select --');
         document.getElementById('eSch').innerHTML = opt(L.schemes, 'Id', 'Name', '-- Select --');
@@ -189,13 +195,13 @@ document.getElementById('btnCancelAdm')?.addEventListener('click', async () => {
         document.getElementById('eMlc').checked = !!H.IsMlc; document.getElementById('eMlcBlock').classList.toggle('d-none', !H.IsMlc);
         if (M) { set('emNo', M.MlcNo); set('emNature', M.Nature); set('emAt', M.IncidentAt ? Ipd.local(M.IncidentAt) : ''); set('emPlace', M.IncidentPlace); set('emBy', M.BroughtBy);
                  set('emByPh', M.BroughtByPhone); set('emPs', M.PoliceStation); set('emInf', M.InformedAt ? Ipd.local(M.InformedAt) : ''); set('emOff', M.OfficerName); set('emRem', M.Remarks); }
-        ePayerUi();
+        ePayerUi(); window.__ipdTariffFill && window.__ipdTariffFill();
         const modal = document.getElementById('editModal');
         $('.e-s2').each(function () { if ($(this).data('select2')) $(this).select2('destroy'); $(this).select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $(modal) }); });
         bootstrap.Modal.getOrCreateInstance(modal).show();
     });
     Ipd.icdSuggest(document.getElementById('eIcd'), document.getElementById('eDx'), base + 'IcdSearch');
-document.getElementById('ePayer')?.addEventListener('change', ePayerUi);
+document.getElementById('ePayer')?.addEventListener('change', () => { ePayerUi(); window.__ipdTariffFill && window.__ipdTariffFill(); });
     document.getElementById('eMlc')?.addEventListener('change', e => document.getElementById('eMlcBlock').classList.toggle('d-none', !e.target.checked));
     document.getElementById('eAddAtt')?.addEventListener('click', () => eAtt(null, false));
     document.getElementById('btnEditSave')?.addEventListener('click', async e => {

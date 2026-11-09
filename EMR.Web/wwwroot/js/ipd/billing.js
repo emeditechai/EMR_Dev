@@ -234,6 +234,7 @@
         if ($('fbDiscType').value && Number($('fbDiscVal').value) > 0) { q.set('discountType', $('fbDiscType').value); q.set('discountValue', $('fbDiscVal').value); }
         return q;
     }
+    window.IpdBillRefresh = () => loadBill();   // other tabs (LAB, pharmacy) refresh the money strip after they post charges
     async function loadBill() {
         if (!$('billKpis')) return;
         try { preview = await Ipd.get(url + 'Preview?' + billQuery()); renderBill(); }

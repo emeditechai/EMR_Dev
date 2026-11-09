@@ -13,6 +13,8 @@ public interface IIpdProcService
     Task<List<IDictionary<string, object?>>> RowsAsync(string proc, object args);
     Task<IDictionary<string, object?>?> RowAsync(string proc, object args);
     Task<List<List<IDictionary<string, object?>>>> SetsAsync(string proc, object args, int count);
+    /// <summary>Runs a procedure for its effect only (result sets, if any, are discarded).</summary>
+    Task ExecAsync(string proc, object args);
 }
 
 public class IpdProcService(IDbConnectionFactory db) : IIpdProcService
@@ -36,5 +38,11 @@ public class IpdProcService(IDbConnectionFactory db) : IIpdProcService
         for (var i = 0; i < count; i++)
             sets.Add(m.IsConsumed ? new List<IDictionary<string, object?>>() : AsRows(await m.ReadAsync()));
         return sets;
+    }
+
+    public async Task ExecAsync(string proc, object args)
+    {
+        using var con = db.CreateConnection();
+        await con.ExecuteAsync(proc, args, commandType: CommandType.StoredProcedure);
     }
 }

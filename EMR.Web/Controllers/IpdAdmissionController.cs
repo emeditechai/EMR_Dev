@@ -81,9 +81,25 @@ public class IpdAdmissionController(
     //  New Admission
     // ═════════════════════════════════════════════════════════════════════════════════════════════════════════
     [HttpGet]
-    public async Task<IActionResult> New(int? patientId, int? opdServiceId, int? estimateId, int? bedId)
+    public async Task<IActionResult> New(int? patientId, int? opdServiceId, int? estimateId, int? bedId, int? adviceId)
     {
         if (User.GetCurrentBranchId() is null) return RedirectToAction("SelectBranch", "Account");
+        // admission advised from OPD (SQLScripts/2438): the form is filled from the advice
+        if (adviceId is > 0)
+        {
+            try
+            {
+                var adv = (await api.GetAsync("/advice" + IpdApiClient.Q(("status", "PENDING")))).Items().FirstOrDefault(x => x.I("AdviceId") == adviceId);
+                if (adv.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    patientId = adv.I("PatientId"); opdServiceId = adv.NI("OpdServiceId");
+                    ViewBag.Advice = new { AdviceId = adv.I("AdviceId"), DoctorId = adv.NI("DoctorId"), DepartmentId = adv.NI("DepartmentId"), Reason = adv.S("Reason"),
+                                           Diagnosis = adv.S("Diagnosis"), DiagnosisCode = adv.S("DiagnosisCode"), Urgency = adv.S("Urgency") };
+                }
+                else TempData["Error"] = "The admission advice is no longer pending.";
+            }
+            catch (HttpRequestException) { /* the form opens empty */ }
+        }
         ViewBag.PatientId = patientId is > 0 && await patientService.GetByIdAsync(patientId.Value) != null ? patientId : null;
         ViewBag.OpdServiceId = opdServiceId;
         ViewBag.BedId = bedId;   // "Admit to this bed" from the Bed Board
@@ -388,7 +404,7 @@ public class IpdAdmissionController(
             var model = await LoadPatientAsync(id);
             if (model is null) return NotFound();
             model.Tab = string.IsNullOrWhiteSpace(tab) ? "overview" : tab;
-            foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER", "CHARGE", "CHARGE_CANCEL", "RATE_EDIT", "DISCOUNT", "PACKAGE", "FINAL_BILL", "BILL_BACKDATE", "BILL_CANCEL" })
+            foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER", "CHARGE", "CHARGE_CANCEL", "RATE_EDIT", "DISCOUNT", "PACKAGE", "FINAL_BILL", "BILL_BACKDATE", "BILL_CANCEL", "LAB_ORDER", "LAB_CANCEL", "PH_ISSUE", "PH_RETURN" })
                 ViewData["Can" + c] = await permissionGuard.AllowsAsync(HttpContext, PatientPage, c);
             ViewData["CanEstimate"] = await permissionGuard.AllowsAsync(HttpContext, IpdEstimationController.EstimationPage, "VIEW");
             return View(model);

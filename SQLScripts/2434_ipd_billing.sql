@@ -416,6 +416,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM @Pay WHERE Amount <> ROUND(Amount, 2)) THROW 54102, 'A payment amount can have at most two decimals.', 1;
     UPDATE p SET MethodId = pm.PaymentMethodId FROM @Pay p JOIN dbo.PaymentMethodMaster pm ON UPPER(pm.MethodCode) = p.Method AND pm.IsActive = 1 AND UPPER(pm.MethodCode) <> 'POINTS';
     IF EXISTS (SELECT 1 FROM @Pay WHERE MethodId IS NULL) THROW 54103, 'Choose a valid payment mode for every amount entered.', 1;
+    IF EXISTS (SELECT 1 FROM @Pay WHERE Method <> 'CASH' AND Ref IS NULL) THROW 54111, 'Enter the reference (UPI / card / NEFT / cheque no.) of every non-cash payment.', 1;
     DECLARE @total DECIMAL(18,2) = (SELECT ISNULL(SUM(Amount), 0) FROM @Pay);
     IF @total <= 0 THROW 54104, 'Enter the amount.', 1;
     DECLARE @dupRef NVARCHAR(100) = (SELECT TOP 1 Ref FROM @Pay WHERE Ref IS NOT NULL GROUP BY Ref HAVING COUNT(*) > 1);

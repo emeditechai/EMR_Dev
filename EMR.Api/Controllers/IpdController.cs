@@ -17,6 +17,10 @@ public record IpdUpdateRequest(string AdmissionType, string AdmissionSource, int
 public record IpdReasonRequest(string? Reason);
 public record IpdChargeAddRequest(string Lines, bool CanEditRate, bool CanDiscount);
 public record IpdDoctorFeeRequest(int? FeeId, int DoctorId, string? VisitType, int? TariffCategoryId, decimal Rate, DateTime EffectiveFrom, DateTime? EffectiveTo, string? Remarks);
+public record IpdLabOrderRequest(string Items, int? DoctorId, string? Remarks);
+public record IpdPhIssueRequest(string Lines, string? Head, int? StoreId, int? DoctorId, string? Remarks);
+public record IpdPhReturnRequest(string Lines, string? Reason);
+public record IpdAdviceRequest(int OpdServiceId, string? Reason, string? Diagnosis, string? DiagnosisCode, string? Urgency, DateTime? ExpectedAt, int? DepartmentId, string? Remarks);
 public record IpdPackageRequest(int? PackageId, string? Reason);
 public record IpdFinaliseRequest(DateTime? UpTo, string? DiscountType, decimal DiscountValue, string? DiscountReason, string? Remarks, bool CanDiscount, bool CanBackdate);
 public record IpdCancelRequest(string? Reason, string? RefundMethod, string? RefundRefNo);
@@ -316,4 +320,76 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     [HttpPost("doctor-fees/{id:int}/remove")]
     public Task<IActionResult> DoctorFeeRemove(int id) => Run(async c =>
         Row(await ipd.RowAsync("dbo.usp_Api_IpdDoctorFee_Remove", new { c.CompanyId, c.BranchId, c.UserId, FeeId = id })));
+
+    // ── LAB / radiology orders (SQLScripts/2436) ─────────────────────────────────────────────────────────────────
+    [HttpGet("admissions/{id:int}/lab-items")]
+    public Task<IActionResult> LabItems(int id, [FromQuery] string? kind) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdLab_Items", new { c.CompanyId, c.BranchId, AdmissionId = id, Kind = kind }, 2)));
+
+    [HttpGet("admissions/{id:int}/lab-orders")]
+    public Task<IActionResult> LabOrders(int id, [FromQuery] string? kind, [FromQuery] bool includeCancelled = false) => Run(async c =>
+        Rows(await ipd.RowsAsync("dbo.usp_Api_IpdLab_List", new { c.CompanyId, AdmissionId = id, Kind = kind, IncludeCancelled = includeCancelled })));
+
+    /// <summary>The order, then (as the LAB booking screen does after a paid bill) its sample rows, token and auto-collection.</summary>
+    [HttpPost("admissions/{id:int}/lab-orders")]
+    public Task<IActionResult> LabOrder(int id, [FromBody] IpdLabOrderRequest r) => Run(async c =>
+    {
+        var row = await ipd.RowAsync("dbo.usp_Api_IpdLab_Order", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Items, r.DoctorId, r.Remarks });
+        if (row is not null && row.TryGetValue("Success", out var ok) && ok is true && row.TryGetValue("LabOrderId", out var o) && o is int labOrderId)
+        {
+            await ipd.ExecAsync("dbo.usp_CreateSampleCollectionFromLabOrder", new { LabOrderId = labOrderId, c.BranchId, c.CompanyId, CreatedBy = c.UserId });
+            var p = new Dapper.DynamicParameters();
+            p.Add("@LabOrderId", labOrderId);
+            p.Add("@TokenNo", dbType: System.Data.DbType.String, size: 50, direction: System.Data.ParameterDirection.Output);
+            await ipd.ExecAsync("dbo.usp_LAB_AssignTokenOnPayment", p);
+            row["TokenNo"] = p.Get<string?>("@TokenNo");
+            try { await ipd.ExecAsync("dbo.usp_SampleCollection_AutoCollectIfNoMandatory", new { LabOrderId = labOrderId, UserId = c.UserId }); }
+            catch { /* as on the LAB booking screen: never fails the order */ }
+        }
+        return Row(row);
+    });
+
+    [HttpPost("lab-items/{id:int}/cancel")]
+    public Task<IActionResult> LabCancel(int id, [FromBody] IpdReasonRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdLab_CancelItem", new { c.CompanyId, c.BranchId, c.UserId, LabOrderItemId = id, r.Reason })));
+
+    // ── pharmacy issue / return (SQLScripts/2437) ────────────────────────────────────────────────────────────────
+    [HttpGet("admissions/{id:int}/ph-items")]
+    public Task<IActionResult> PhItems(int id, [FromQuery] string? q, [FromQuery] int? storeId) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdPh_Items", new { c.CompanyId, c.BranchId, Q = q, StoreId = storeId }, 2)));
+
+    [HttpGet("ph-batches/{itemId:int}")]
+    public Task<IActionResult> PhBatches(int itemId, [FromQuery] int? storeId) => Run(async c =>
+        Rows(await ipd.RowsAsync("dbo.usp_Api_PhSale_Batches", new { c.CompanyId, c.BranchId, ItemId = itemId, StoreId = storeId })));
+
+    [HttpGet("admissions/{id:int}/ph-issues")]
+    public Task<IActionResult> PhIssues(int id, [FromQuery] string? head) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdPh_List", new { c.CompanyId, AdmissionId = id, Head = head }, 2)));
+
+    [HttpPost("admissions/{id:int}/ph-issues")]
+    public Task<IActionResult> PhIssue(int id, [FromBody] IpdPhIssueRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPh_Issue", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Lines, r.Head, r.StoreId, r.DoctorId, r.Remarks })));
+
+    [HttpPost("admissions/{id:int}/ph-returns")]
+    public Task<IActionResult> PhReturn(int id, [FromBody] IpdPhReturnRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPh_Return", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Lines, r.Reason })));
+
+    // ── OPD admission advice (SQLScripts/2438) ────────────────────────────────────────────────────────────────────
+    [HttpGet("advice")]
+    public Task<IActionResult> Advice([FromQuery] string? status, [FromQuery] int? opdServiceId) => Run(async c =>
+        Rows(await ipd.RowsAsync("dbo.usp_Api_IpdAdvice_List", new { c.CompanyId, c.BranchId, Status = status ?? "PENDING", OpdServiceId = opdServiceId })));
+
+    [HttpGet("advice/departments")]
+    public Task<IActionResult> AdviceDepartments() => Run(async c => Rows(await ipd.RowsAsync("dbo.usp_Api_IpdAdvice_Departments", new { c.CompanyId })));
+
+    [HttpPost("advice")]
+    public Task<IActionResult> AdviceSave([FromBody] IpdAdviceRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdAdvice_Save", new
+        {
+            c.CompanyId, c.BranchId, c.UserId, r.OpdServiceId, r.Reason, r.Diagnosis, r.DiagnosisCode, r.Urgency, r.ExpectedAt, r.DepartmentId, r.Remarks
+        })));
+
+    [HttpPost("advice/{id:int}/cancel")]
+    public Task<IActionResult> AdviceCancel(int id, [FromBody] IpdReasonRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdAdvice_Cancel", new { c.CompanyId, c.BranchId, c.UserId, AdviceId = id, r.Reason })));
 }

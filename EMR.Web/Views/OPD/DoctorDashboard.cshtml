@@ -309,6 +309,7 @@
                     <button type="button" class="btn btn-outline-info" id="btnPrintEmrRecord">
                         <i class="bi bi-printer me-1"></i>Print Consultation
                     </button>
+                    <button type="button" class="btn btn-outline-danger ms-1" id="btnAdviseAdmission" asp-permission="OPD.DOCTORDASHBOARD:ADVISE_ADMISSION"><i class="bi bi-hospital me-1"></i>Advise Admission</button>
                 </div>
                 <div class="d-flex gap-2">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -322,6 +323,8 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/opd-advice.js" asp-append-version="true"></script>
     <!-- Bootstrap Select JS -->
     <script src="~/lib/bootstrap-select/dist/js/bootstrap-select.min.js"></script>
     <!-- Quill Rich Text Editor -->

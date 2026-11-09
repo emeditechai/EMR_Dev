@@ -1,6 +1,8 @@
 @model EMR.Web.Models.ViewModels.LabRateCardFormViewModel
 @{
-    ViewData["Title"] = Model.RateCard_ID.HasValue ? "Edit Rate List (B2C)" : "Create Rate List (B2C)";
+    var rp = ViewData["RatePage"] as string ?? "MASTER.LABRATELISTB2C";   // shared with the IPD LAB Rate List
+    var rk = ViewData["RateKind"] as string ?? "B2C";
+    ViewData["Title"] = (Model.RateCard_ID.HasValue ? "Edit Rate List (" : "Create Rate List (") + rk + ")";
 }
 
 @section HeadStyles {
@@ -44,7 +46,7 @@
         <h5 class="mb-0">@ViewData["Title"]</h5>
     </div>
     <div class="card-body">
-        <form asp-permission="MASTER.LABRATELISTB2C:EDIT" asp-action="Save" asp-encrypted-id="@Model.RateCard_ID" method="post" id="frmRateCard">
+        <form asp-permission="@(rp + ":EDIT")" asp-action="Save" asp-encrypted-id="@Model.RateCard_ID" method="post" id="frmRateCard">
             <input type="hidden" asp-for="RateCard_ID" />
             <input type="hidden" asp-for="CompanyId" />
             <input type="hidden" asp-for="Rate_Type" />
@@ -166,6 +168,25 @@
                 </div>
             </div>
 
+            @if (rk == "IPD")
+            {
+                <!-- IPD: rate = Default MRP adjusted by a percentage (new items as they are added, and existing rows on Apply) -->
+                <div class="card border-primary-subtle bg-primary-subtle p-3 mb-3">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12"><h6 class="fw-bold m-0 text-primary"><i class="bi bi-percent me-1"></i>Adjust IPD Rate from the Default MRP</h6></div>
+                        <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="adjDir">Change</label>
+                            <select id="adjDir" class="form-select"><option value="UP">Increase</option><option value="DOWN">Decrease</option></select></div>
+                        <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="adjPct">Percentage (%)</label>
+                            <input type="number" id="adjPct" class="form-control text-end" min="0" max="500" step="0.01" value="0" /></div>
+                        <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="adjRound">Round to</label>
+                            <select id="adjRound" class="form-select"><option value="0.01">Paise (0.01)</option><option value="1" selected>₹1</option><option value="5">₹5</option><option value="10">₹10</option></select></div>
+                        <div class="col-6 col-md-3"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="adjOnAdd" checked /><label class="form-check-label small" for="adjOnAdd">Apply to items as they are added</label></div></div>
+                        <div class="col-12 col-md-3"><button type="button" id="btnAdjustRates" class="btn btn-primary w-100"><i class="bi bi-arrow-repeat me-1"></i>Apply to rows shown below</button></div>
+                        <div class="col-12 small text-muted" id="adjHint">IPD Rate = Default MRP + 0%. "Rows shown" follows the grid search and type filter.</div>
+                    </div>
+                </div>
+            }
+
             <!-- Details Grid Toolbar -->
             <div class="card bg-light border p-3 mb-3">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
@@ -217,7 +238,7 @@
                             <th style="width: 110px;">Code</th>
                             <th>Item Name</th>
                             <th style="width: 120px;" class="text-end">Default MRP (₹)</th>
-                            <th style="width: 150px;" class="text-end">Branch Rate (₹)</th>
+                            <th style="width: 150px;" class="text-end">@(rk == "IPD" ? "IPD Rate (₹)" : "Branch Rate (₹)")</th>
                             <th style="width: 100px;" class="text-center">Disc. Allowed</th>
                             <th style="width: 70px;" class="text-center">Active</th>
                             <th style="width: 60px;" class="text-center">Action</th>
@@ -343,7 +364,7 @@
                             Category_ID: itemCatId,
                             SubCategory_ID: itemSubCatId,
                             Default_Rate: item.Default_Rate || item.default_Rate,
-                            Rate: item.Default_Rate || item.default_Rate,
+                            Rate: ipdRate(item.Default_Rate || item.default_Rate),
                             Is_Discount_Allowed: true,
                             Status: true
                         });
@@ -456,7 +477,7 @@
                     Category_ID: itemData.Category_ID || itemData.category_ID,
                     SubCategory_ID: itemData.SubCategory_ID || itemData.subCategory_ID,
                     Default_Rate: itemData.Default_Rate || itemData.default_Rate,
-                    Rate: itemData.Default_Rate || itemData.default_Rate, // default to MRP
+                    Rate: ipdRate(itemData.Default_Rate || itemData.default_Rate), // default to MRP
                     Is_Discount_Allowed: true,
                     Status: true
                 });
@@ -482,7 +503,7 @@
                         Category_ID: item.Category_ID || item.category_ID,
                         SubCategory_ID: item.SubCategory_ID || item.subCategory_ID,
                         Default_Rate: item.Default_Rate || item.default_Rate,
-                        Rate: item.Default_Rate || item.default_Rate,
+                        Rate: ipdRate(item.Default_Rate || item.default_Rate),
                         Is_Discount_Allowed: true,
                         Status: true
                     });
@@ -588,6 +609,38 @@
             $('#cboAllItems').val('').trigger('change');
         }
     }
+
+    // IPD rate list: Default MRP adjusted by the percentage (B2C has no adjust panel: the MRP as before)
+    function ipdRate(mrp, force) {
+        var d = parseFloat(mrp) || 0;
+        if (!$('#adjPct').length || (!force && !$('#adjOnAdd').is(':checked'))) return d;
+        var p = parseFloat($('#adjPct').val()) || 0;
+        if (!p) return d;
+        var f = $('#adjDir').val() === 'DOWN' ? (1 - p / 100) : (1 + p / 100);
+        var step = parseFloat($('#adjRound').val()) || 0.01;
+        var r = Math.round((d * f) / step) * step;
+        return Math.max(0, Math.round(r * 100) / 100);
+    }
+    function adjHint() {
+        var p = parseFloat($('#adjPct').val()) || 0;
+        $('#adjHint').text('IPD Rate = Default MRP ' + ($('#adjDir').val() === 'DOWN' ? '- ' : '+ ') + p + '%' + (p ? ' (e.g. ₹1,000 → ₹' + ipdRate(1000, true).toFixed(2) + ')' : '') + '. "Rows shown" follows the grid search and type filter.');
+    }
+    $(document).on('input change', '#adjPct, #adjDir, #adjRound', adjHint);
+    $(document).on('click', '#btnAdjustRates', function () {
+        var p = parseFloat($('#adjPct').val()) || 0;
+        if ($('#adjDir').val() === 'DOWN' && p >= 100) { toastr.error('A decrease must be less than 100%.'); return; }
+        var rows = $('#tblDetails tbody tr[data-idx]');
+        if (!rows.length) { toastr.info('No rows to adjust.'); return; }
+        var n = 0;
+        rows.each(function () {
+            var it = currentDetails[parseInt($(this).data('idx'))];
+            if (!it) return;
+            var nr = ipdRate(it.Default_Rate || it.default_Rate, true);
+            if (nr > 0) { it.Rate = nr; n++; }
+        });
+        renderGrid();
+        toastr.success(n + ' IPD rate(s) set to Default MRP ' + ($('#adjDir').val() === 'DOWN' ? '- ' : '+ ') + p + '%. Save to keep them.');
+    });
 
     function renderGrid() {
         var tbody = $('#tblDetails tbody');

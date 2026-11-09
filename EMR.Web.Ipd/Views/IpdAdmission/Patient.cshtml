@@ -11,8 +11,8 @@
     string Payer(string p) => p switch { "CASH" => "Cash", "CORPORATE" => "Corporate", "INSURANCE" => "Insurance / TPA", "SCHEME" => "Govt. scheme", _ => p };
     var tabs = new (string Key, string Title, string Icon, string? Phase)[]
     {
-        ("overview", "Overview", "bi-grid-1x2", null), ("lab", "LAB", "bi-droplet-half", "Phase 4"), ("radiology", "Radiology", "bi-radioactive", "Phase 4"),
-        ("indent", "Medicine Indent", "bi-capsule", "Phase 4"), ("consumables", "Consumables", "bi-bandaid", "Phase 4"), ("procedures", "Procedures", "bi-scissors", null),
+        ("overview", "Overview", "bi-grid-1x2", null), ("lab", "LAB", "bi-droplet-half", null), ("radiology", "Radiology", "bi-radioactive", null),
+        ("indent", "Medicines", "bi-capsule", null), ("consumables", "Consumables", "bi-bandaid", null), ("procedures", "Procedures", "bi-scissors", null),
         ("ot", "OT", "bi-heart-pulse", "Phase 8"), ("services", "Other Charges", "bi-plus-square", null), ("visits", "Doctor Visits", "bi-person-workspace", null),
         ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", null), ("clinical", "Clinical", "bi-journal-medical", "Phase 3"),
         ("nursing", "Nursing", "bi-clipboard2-pulse", "Phase 3"), ("advance", "Advance & Payments", "bi-cash-coin", null), ("billing", "Billing", "bi-receipt", null),
@@ -20,10 +20,6 @@
     };
     var soonText = new Dictionary<string, string>
     {
-        ["lab"] = "Order tests, profiles and lab packages on credit to the IP bill; sample collection at the ward; results and critical alerts here.",
-        ["radiology"] = "X-ray, USG, CT, MRI, ECG and Echo requests with clinical notes and report upload.",
-        ["indent"] = "Raise a ward indent to the pharmacy store, track issue and return unused medicines; issued items post to the IP bill.",
-        ["consumables"] = "Ward and surgical consumables issued from the sub-store or pharmacy.",
         ["ot"] = "OT booking, surgical safety checklist, anaesthesia record, surgery notes, implants and OT charges.",
         ["clinical"] = "Initial assessment, progress notes, doctor orders (CPOE) with countersign of verbal orders.",
         ["nursing"] = "Vitals with NEWS2, medication administration record, intake / output, nursing notes, risk scores and handover.",
@@ -290,6 +286,8 @@
 
     @* billing, charges, package (Phase 5) *@
     @await Html.PartialAsync("_Billing", Model)
+    @await Html.PartialAsync("_Lab", Model)
+    @await Html.PartialAsync("_Pharmacy", Model)
 
     @* insurance *@
     <div class="tab-pane fade @(Model.Tab == "insurance" ? "show active" : "")" id="tab-insurance" role="tabpanel">
@@ -448,4 +446,8 @@
     <script src="~/js/ipd/patient.js" asp-append-version="true"></script>
     <script>window.IpdBill = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdBilling/"), estBase = Url.Content("~/IpdEstimation/"), status = status, open = open, packageId = h.NI("PackageId"), can = new { charge = Can("CHARGE"), cancel = Can("CHARGE_CANCEL"), rate = Can("RATE_EDIT"), discount = Can("DISCOUNT"), package = Can("PACKAGE"), finalBill = Can("FINAL_BILL"), backdate = Can("BILL_BACKDATE"), billCancel = Can("BILL_CANCEL"), advance = Can("ADVANCE"), refund = Can("REFUND"), estimate = ViewData["CanEstimate"] as bool? ?? false } }));</script>
     <script src="~/js/ipd/billing.js" asp-append-version="true"></script>
+    <script>window.IpdLab = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdLab/"), report = Url.Content("~/LabReportDispatch/PrintReportPdf"), open = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), consultant = h.I("ConsultantDoctorId"), can = new { order = Can("LAB_ORDER"), cancel = Can("LAB_CANCEL") } }));</script>
+    <script src="~/js/ipd/lab.js" asp-append-version="true"></script>
+    <script>window.IpdPh = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdPharmacy/"), open = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), consultant = h.I("ConsultantDoctorId"), can = new { issue = Can("PH_ISSUE"), ret = Can("PH_RETURN") } }));</script>
+    <script src="~/js/ipd/pharmacy.js" asp-append-version="true"></script>
 }
