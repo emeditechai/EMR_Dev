@@ -63,6 +63,13 @@
             <!-- Header Section -->
             <div class="row mb-3 g-3">
                 <div class="col-md-3">
+                    <label asp-for="B2CIdentity_ID" class="form-label">Franchise Name <span class="text-danger">*</span></label>
+                    <select asp-for="B2CIdentity_ID" asp-items="Model.FranchiseList" class="form-select select2" required>
+                        <option value="">Select Franchise</option>
+                    </select>
+                    <span asp-validation-for="B2CIdentity_ID" class="text-danger"></span>
+                </div>
+                <div class="col-md-3">
                     <label asp-for="Branch_ID" class="form-label">Branch <span class="text-danger">*</span></label>
                     <select asp-for="Branch_ID" asp-items="Model.BranchList" class="form-select select2" required>
                         @if (Model.IsHOBranch)
@@ -71,13 +78,6 @@
                         }
                     </select>
                     <span asp-validation-for="Branch_ID" class="text-danger"></span>
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="B2CIdentity_ID" class="form-label">Franchise Name <span class="text-danger">*</span></label>
-                    <select asp-for="B2CIdentity_ID" asp-items="Model.FranchiseList" class="form-select select2" required>
-                        <option value="">Select Franchise</option>
-                    </select>
-                    <span asp-validation-for="B2CIdentity_ID" class="text-danger"></span>
                 </div>
                 <div class="col-md-2">
                     <label asp-for="Effective_From" class="form-label">Effective From <span class="text-danger">*</span></label>
@@ -105,20 +105,20 @@
                 <div class="form-check mb-3">
                     <input class="form-check-input" type="checkbox" id="chkEnableCopy">
                     <label class="form-check-label h6 mb-0 fw-bold text-primary" for="chkEnableCopy">
-                        <i class="bi bi-copy me-1"></i> Copy Rates from Source Branch / Franchise
+                        <i class="bi bi-copy me-1"></i> Copy Rates from Source Franchise / Branch
                     </label>
                 </div>
                 <div class="row align-items-end g-3" id="divCopyFields" style="display:none;">
                     <div class="col-md-3">
-                        <label class="form-label small fw-semibold">Source Branch</label>
-                        <select id="sourceBranch" asp-items="Model.SourceBranchList" class="form-select select2">
-                            <option value="">Select Source Branch</option>
+                        <label class="form-label small fw-semibold">Source Franchise</label>
+                        <select id="sourceFranchise" class="form-select select2">
+                            <option value="">Select Source Franchise</option>
                         </select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label small fw-semibold">Source Franchise</label>
-                        <select id="sourceFranchise" class="form-select select2" disabled>
-                            <option value="">Select Source Branch first</option>
+                        <label class="form-label small fw-semibold">Source Branch</label>
+                        <select id="sourceBranch" class="form-select select2" disabled>
+                            <option value="">Select Source Franchise first</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -152,7 +152,7 @@
                     </div>
                 </div>
                 <small class="text-muted mt-2 d-block" id="copyNote" style="display:none;">
-                    Note: Copying replaces the detail grid with all tests &amp; profiles of the rate list of the source franchise in the source branch.
+                    Note: Copying replaces the detail grid with all tests &amp; profiles of the source franchise’s rate list in the source branch.
                 </small>
             </div>
 
@@ -282,10 +282,12 @@
     $(document).ready(function () {
         $('.select2').select2({ width: '100%' });
 
+        var franchiseFirst = @(!Model.RateCard_ID.HasValue && Model.IsHOBranch ? "true" : "false");   // Create (HO): the franchise picks the branches
+
         $('#Branch_ID').change(function() {
             var branchId = $(this).val();
             loadAllItems(branchId);
-            loadAvailableFranchises(branchId);
+            if (!franchiseFirst) loadAvailableFranchises(branchId);
         });
 
         // only franchises with no rate list yet in the chosen branch (the one being edited stays)
@@ -311,32 +313,47 @@
                 var html = '<option value="">Select Branch</option>';
                 list.forEach(function (b) { html += '<option value="' + b.value + '">' + $('<div>').text(b.text).html() + '</option>'; });
                 $b.html(html);
-                $b.val(list.some(function (b) { return b.value === keep; }) ? keep : '').trigger('change.select2');
+                var still = list.some(function (b) { return b.value === keep; });
+                $b.val(still ? keep : '').trigger(still ? 'change.select2' : 'change');
             });
         });
         </text>
         }
 
-        // copy: the franchises with a rate list in the source branch (the one being edited is left out)
-        $('#sourceBranch').change(function () {
-            var $sf = $('#sourceFranchise'), branchId = $(this).val();
-            if (!branchId) { $sf.html('<option value="">Select Source Branch first</option>').prop('disabled', true).trigger('change.select2'); return; }
-            $.get('@Url.Action("SourceFranchises")', { branchId: branchId, rateCardId: $('#RateCard_ID').val() || null }, function (list) {
-                var html = '<option value="">' + (list.length ? 'Select Source Franchise' : 'No franchise rate list in this branch') + '</option>';
-                list.forEach(function (f) { html += '<option value="' + f.value + '">' + $('<div>').text(f.text).html() + '</option>'; });
-                $sf.html(html).prop('disabled', !list.length).val('').trigger('change.select2');
+        // copy: Source Franchise (those with a rate list), then Source Branch (where it has one; value = that rate list)
+        function optionsHtml(list, first) {
+            var html = '<option value="">' + first + '</option>';
+            list.forEach(function (x) { html += '<option value="' + x.value + '">' + $('<div>').text(x.text).html() + '</option>'; });
+            return html;
+        }
+        function resetSourceBranch() {
+            $('#sourceBranch').html('<option value="">Select Source Franchise first</option>').prop('disabled', true).trigger('change.select2');
+        }
+        function loadSourceFranchises() {
+            $.get('@Url.Action("CopySourceFranchises")', { rateCardId: $('#RateCard_ID').val() || null }, function (list) {
+                $('#sourceFranchise').html(optionsHtml(list, list.length ? 'Select Source Franchise' : 'No franchise has a rate list yet'))
+                    .prop('disabled', !list.length).val('').trigger('change.select2');
+                resetSourceBranch();
+            });
+        }
+        $('#sourceFranchise').change(function () {
+            var franchiseId = $(this).val();
+            if (!franchiseId) { resetSourceBranch(); return; }
+            $.get('@Url.Action("CopySourceBranches")', { franchiseId: franchiseId, rateCardId: $('#RateCard_ID').val() || null }, function (list) {
+                $('#sourceBranch').html(optionsHtml(list, 'Select Source Branch')).prop('disabled', !list.length).val('').trigger('change.select2');
             });
         });
 
         $('#chkEnableCopy').change(function() {
             if ($(this).is(':checked')) {
+                loadSourceFranchises();
                 $('#divCopyFields').slideDown();
                 $('#copyNote').slideDown();
             } else {
                 $('#divCopyFields').slideUp();
                 $('#copyNote').slideUp();
-                $('#sourceBranch').val('').trigger('change');
-                $('#sourceFranchise').html('<option value="">Select Source Branch first</option>').prop('disabled', true).trigger('change.select2');
+                $('#sourceFranchise').val('').trigger('change.select2');
+                resetSourceBranch();
                 $('#adjType').val('none').trigger('change');
                 $('#adjValue').val('');
             }
@@ -469,17 +486,16 @@
         });
 
         $('#btnCopyRates').click(function() {
-            var branchId = $('#sourceBranch').val();
-            if (!branchId) { toastr.warning("Please select a source branch"); return; }
-            var sourceCardId = $('#sourceFranchise').val();
-            if (!sourceCardId) { toastr.warning("Please select a source franchise"); return; }
+            if (!$('#sourceFranchise').val()) { toastr.warning("Please select a source franchise"); return; }
+            var sourceCardId = $('#sourceBranch').val();
+            if (!sourceCardId) { toastr.warning("Please select a source branch"); return; }
             
             var adjType = $('#adjType').val();
             var adjVal = parseFloat($('#adjValue').val()) || 0;
             var filterCatId = $('#cboCopyCat').val();
             var filterSubCatId = $('#cboCopySubCat').val();
 
-            $.get('@Url.Action("GetDetailsForBranch")', { branchId: branchId, rateCardId: sourceCardId }, function(res) {
+            $.get('@Url.Action("GetDetailsForBranch")', { rateCardId: sourceCardId }, function(res) {
                 if (res.success) {
                     if (res.data.length === 0) {
                         toastr.info("The rate list of the source franchise is empty.");
@@ -522,7 +538,7 @@
                     });
                     
                     renderGrid();
-                    toastr.success("Rates copied from " + $('#sourceFranchise option:selected').text() + ". Please review before saving.");
+                    toastr.success("Rates copied from " + $('#sourceFranchise option:selected').text() + ", " + $('#sourceBranch option:selected').text() + ". Please review before saving.");
                 } else {
                     toastr.error(res.message);
                 }
