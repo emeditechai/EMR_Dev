@@ -155,6 +155,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<IWhatsAppTextSender,            WhatsAppTextSender>();
 builder.Services.AddScoped<IPasswordOtpService,            PasswordOtpService>();     // Forgot password by WhatsApp code (SQLScripts/2384)
 builder.Services.AddScoped<IPhleboService,                 PhleboService>();          // Phlebotomist app (SQLScripts/2373, 2374)
+builder.Services.AddScoped<IMarketingService,              MarketingService>();       // Marketing executive app (SQLScripts/2446)
 
 // Lab master bulk upload (Excel)
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.LabBulkLookups>();
