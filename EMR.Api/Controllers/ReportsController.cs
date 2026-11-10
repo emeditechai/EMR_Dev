@@ -113,6 +113,8 @@ public class ReportsController : ControllerBase
             // membership points earned / redeemed / given back / taken back / expired on B2C LAB bills (SQLScripts/2237)
             // Referral Doctor Billing: bills by referral doctor with their test lines; DoctorIds is a list (SQLScripts/2379)
             ["ref-doctor-billing"]  = ("dbo.usp_Api_LabReport_RefDoctorBilling",   new[] { "DoctorIds", "BillingType", "PaymentStatus" }, Array.Empty<string>()),
+            // Marketing Executive Business: bills by the executive of their referral doctor (SQLScripts/2443)
+            ["marketing-business"]  = ("dbo.usp_Api_LabReport_MarketingBusiness",  new[] { "ExecutiveIds", "ExecType", "BillingType" }, Array.Empty<string>()),
             ["membership-points"]   = ("dbo.usp_Api_LabReport_MembershipPoints",   new[] { "TxnType" },                            new[] { "PlanId", "CreatedBy" }),
             // B2B partner-account reports: branch-wide, not limited to the user's own records (SQLScripts/2125)
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),

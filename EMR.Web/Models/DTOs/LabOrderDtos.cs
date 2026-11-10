@@ -199,6 +199,9 @@ namespace EMR.Web.Models.DTOs
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string? ReferralDoctorName { get; set; }
+        /// <summary>Marketing executive tagged on the referral doctor (Doctor Master, SQLScripts/2442).</summary>
+        public string? MarketingExecutiveName { get; set; }
+        public string? MarketingExecutiveType { get; set; }
         public System.DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public System.DateTime CreatedDate { get; set; }

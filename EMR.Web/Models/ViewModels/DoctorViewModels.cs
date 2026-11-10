@@ -59,6 +59,13 @@ public class DoctorFormViewModel
     [Display(Name = "Joining Date")]
     public DateTime? JoiningDate { get; set; }
 
+    /// <summary>Master > General > Marketing Executive (SQLScripts/2440 / 2441): optional, an active executive.</summary>
+    [Display(Name = "Marketing Executive")]
+    public int? MarketingExecutiveId { get; set; }
+
+    /// <summary>Active executives grouped by type (OPD / LAB / IPD / MED); an inactive one already on the doctor is added, marked.</summary>
+    public List<SelectListItem> MarketingExecutiveOptions { get; set; } = new();
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 
@@ -146,6 +153,9 @@ public class DoctorListItemViewModel
     /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
     public bool HasOPDDept { get; set; }
     public bool IsReferralDoctor { get; set; }
+    /// <summary>Marketing executive tagged on the doctor (SQLScripts/2441), shown as a tag.</summary>
+    public string? MarketingExecutiveName { get; set; }
+    public string? MarketingExecutiveType { get; set; }
 }
 
 public class ConsultingFeeItemDto
@@ -188,6 +198,13 @@ public class DoctorDetailsViewModel
     public DateTime? JoiningDate { get; set; }
     public bool IsActive { get; set; }
     public bool IsReferralDoctor { get; set; }
+
+    // Marketing executive (SQLScripts/2441)
+    public string? MarketingExecutiveName { get; set; }
+    public string? MarketingExecutiveCode { get; set; }
+    public string? MarketingExecutiveType { get; set; }
+    public string? MarketingExecutivePhone { get; set; }
+    public bool MarketingExecutiveActive { get; set; }
 
     public List<string> BranchNames { get; set; } = [];
     public List<string> DepartmentNames { get; set; } = [];

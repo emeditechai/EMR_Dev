@@ -1,0 +1,83 @@
+@{
+    ViewData["Title"] = "Marketing Executive Master";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@Html.AntiForgeryToken()
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold">Marketing Executive Master</h1>
+        <small class="text-muted">Marketing executives by business line (OPD, LAB, IPD, Pharmacy) with their monthly targets</small>
+    </div>
+    @if (Can("ADD")) { <button type="button" class="btn btn-primary shadow-sm" id="btnAdd"><i class="bi bi-plus-lg me-1"></i>Add Marketing Executive</button> }
+</div>
+
+<div class="row g-3 mb-4" id="stats"></div>
+
+<div class="card shadow-sm border-0 mb-3"><div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-5"><label class="form-label small fw-semibold" for="fSearch">Search</label>
+            <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span><input id="fSearch" class="form-control" placeholder="Name, code, mobile or e-mail" /></div></div>
+        <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="fType">Type</label>
+            <select id="fType" class="form-select"><option value="">All types</option><option value="OPD">OPD</option><option value="LAB">LAB</option><option value="IPD">IPD</option><option value="MED">MED (Pharmacy)</option></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fStatus">Status</label>
+            <select id="fStatus" class="form-select"><option value="">All</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
+        <div class="col-12 col-md-2"><button type="button" class="btn btn-outline-secondary w-100" id="fReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button></div>
+    </div>
+</div></div>
+
+<div class="card shadow-sm border-0"><div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>#</th><th>Code</th><th>Name</th><th>Type</th><th>Mobile</th><th>E-mail</th><th class="text-end">Monthly Target</th><th class="text-center">Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="9" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+</div></div>
+
+<div class="modal fade" id="meModal" tabindex="-1" aria-labelledby="meTitle" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title fw-bold" id="meTitle">Add Marketing Executive</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <form id="meForm" novalidate autocomplete="off">
+    <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="meId" />
+        <div class="col-md-4"><label class="form-label fw-semibold" for="meType">Type <span class="text-danger">*</span></label>
+            <select id="meType" class="form-select" required><option value="">-- Select --</option><option value="OPD">OPD</option><option value="LAB">LAB</option><option value="IPD">IPD</option><option value="MED">MED (Pharmacy)</option></select>
+            <div class="invalid-feedback">Choose the type.</div></div>
+        <div class="col-md-8"><label class="form-label fw-semibold" for="meName">Marketing Executive Name <span class="text-danger">*</span></label>
+            <input id="meName" class="form-control" maxlength="150" required />
+            <div class="invalid-feedback">Enter the name (letters only, at least 2).</div></div>
+        <div class="col-md-4"><label class="form-label fw-semibold" for="meCode">Code <span class="text-danger">*</span></label>
+            <input id="meCode" class="form-control text-uppercase" maxlength="20" required placeholder="e.g. ME-001" />
+            <div class="invalid-feedback" id="meCodeMsg">Up to 20 letters, digits, - or _ (no spaces).</div><div class="form-text">Must be unique.</div></div>
+        <div class="col-md-4"><label class="form-label fw-semibold" for="mePhone">Phone Number <span class="text-danger">*</span></label>
+            <div class="input-group has-validation"><span class="input-group-text">+91</span><input id="mePhone" class="form-control" maxlength="10" inputmode="numeric" required placeholder="10-digit mobile" />
+            <div class="invalid-feedback">Enter a valid 10-digit mobile (starting 6-9).</div></div></div>
+        <div class="col-md-4"><label class="form-label fw-semibold" for="meEmail">E-mail ID</label>
+            <input id="meEmail" type="email" class="form-control" maxlength="150" placeholder="name@example.com" />
+            <div class="invalid-feedback" id="meEmailMsg">Enter a valid e-mail ID.</div><div class="form-text" id="meEmailHint">With an e-mail ID a login is created (sign-in = e-mail).</div></div>
+        <div class="col-md-8"><label class="form-label fw-semibold" for="meAddress">Address</label>
+            <textarea id="meAddress" class="form-control" rows="2" maxlength="500"></textarea></div>
+        <div class="col-md-4"><label class="form-label fw-semibold" for="meTarget">Monthly Total Target (₹) <span class="text-danger">*</span></label>
+            <input id="meTarget" type="number" class="form-control text-end" min="0" step="0.01" required value="0" />
+            <div class="invalid-feedback">Enter 0 or more.</div></div>
+        <div class="col-12 d-none" id="meLoginBox"><div class="border rounded-3 p-3" style="background:#f8fafc">
+            <div class="fw-semibold mb-2"><i class="bi bi-key me-1 text-primary"></i>Login <small class="text-muted fw-normal">· role Marketing · your branch (more branches can be added in User Master)</small></div>
+            <div id="meLoginInfo" class="small d-none"></div>
+            <div class="row g-2" id="meLoginNew">
+                <div class="col-md-6"><label class="form-label small fw-semibold" for="mePwd">Password <span class="text-danger">*</span></label>
+                    <input id="mePwd" type="password" class="form-control" autocomplete="new-password" maxlength="100" />
+                    <div class="invalid-feedback">At least 6 characters.</div></div>
+                <div class="col-md-6"><label class="form-label small fw-semibold" for="mePwd2">Confirm password <span class="text-danger">*</span></label>
+                    <input id="mePwd2" type="password" class="form-control" autocomplete="new-password" maxlength="100" />
+                    <div class="invalid-feedback">The passwords do not match.</div></div>
+            </div></div></div>
+        <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="meActive" checked /><label class="form-check-label" for="meActive">Active</label></div></div>
+        <div class="col-12 small text-muted d-none" id="meAudit"></div>
+    </div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-primary" id="meSave"><i class="bi bi-check2 me-1"></i>Save</button></div>
+    </form>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.MePage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/MarketingExecutives/"), can = new { add = Can("ADD"), edit = Can("EDIT"), status = Can("STATUS"), del = Can("DELETE") } }));</script>
+    <script src="~/js/masters/marketing-executive.js" asp-append-version="true"></script>
+}

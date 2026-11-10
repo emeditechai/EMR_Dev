@@ -193,6 +193,9 @@ namespace EMR.Api.Models
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string? ReferralDoctorName { get; set; }
+        /// <summary>Marketing executive tagged on the referral doctor (Doctor Master, SQLScripts/2442).</summary>
+        public string? MarketingExecutiveName { get; set; }
+        public string? MarketingExecutiveType { get; set; }
         public DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }

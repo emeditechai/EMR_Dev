@@ -262,7 +262,8 @@ builder.Services.AddScoped<EMR.Web.Services.IPatientPortalLoginService, EMR.Web.
 builder.Services.AddScoped<EMR.Web.Services.IPatientProfileService, EMR.Web.Services.PatientProfileService>();   // Patient Master view + Patient Portal dashboard
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
 builder.Services.AddScoped<IpdApiClient>();
-builder.Services.AddScoped<LabRxLearningApiClient>();   // AI Prescription Assist learning (SQLScripts/2439)   // IPD transactions: admission, beds, advances, live estimate (SQLScripts/2422-2424)
+builder.Services.AddScoped<LabRxLearningApiClient>();
+builder.Services.AddScoped<MarketingExecutiveApiClient>();   // Master > General > Marketing Executive (SQLScripts/2440)   // AI Prescription Assist learning (SQLScripts/2439)   // IPD transactions: admission, beds, advances, live estimate (SQLScripts/2422-2424)
 builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();
 builder.Services.AddScoped<ICorporateHospitalRateApiClient, CorporateHospitalRateApiClient>();

@@ -22,8 +22,73 @@ public class DoctorsController(
     IDoctorConsultingFeeService consultingFeeService,
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
-    IPasswordHasherService passwordHasherService) : Controller
+    IPasswordHasherService passwordHasherService,
+    MarketingExecutiveApiClient marketingExecutives,
+    ILogger<DoctorsController> logger) : Controller
 {
+    // ── marketing executive (Master > General > Marketing Executive, SQLScripts/2440 / 2441) ──────────────────────
+    private static readonly Dictionary<string, string> ExecutiveTypeNames = new() { ["OPD"] = "OPD", ["LAB"] = "LAB", ["IPD"] = "IPD", ["MED"] = "MED (Pharmacy)" };
+
+    private async Task<List<System.Text.Json.JsonElement>> ActiveExecutivesAsync()
+    {
+        try { return (await marketingExecutives.GetAsync(IpdApiClient.Q(("status", "ACTIVE")))).Items(); }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException) { logger.LogWarning(ex, "Marketing executives not loaded"); return []; }
+    }
+
+    private async Task<System.Text.Json.JsonElement?> DoctorExecutiveAsync(int doctorId)
+    {
+        try
+        {
+            var row = await marketingExecutives.GetAsync($"/doctor/{doctorId}");
+            return row.ValueKind == System.Text.Json.JsonValueKind.Object ? row : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException) { logger.LogWarning(ex, "Doctor's marketing executive not loaded"); return null; }
+    }
+
+    /// <summary>The choice must be an active executive, or the one the doctor already has (kept even if deactivated since).</summary>
+    private async Task ValidateMarketingExecutiveAsync(DoctorFormViewModel model, int? currentExecutiveId)
+    {
+        if (model.MarketingExecutiveId is not > 0) { model.MarketingExecutiveId = null; return; }
+        if (model.MarketingExecutiveId == currentExecutiveId) return;
+        if (!(await ActiveExecutivesAsync()).Any(x => x.I("ExecutiveId") == model.MarketingExecutiveId))
+            ModelState.AddModelError(nameof(model.MarketingExecutiveId), "Choose an active marketing executive.");
+    }
+
+    /// <summary>Saves the doctor's executive after the doctor (API + procedure); a failure is reported, the doctor stays saved.</summary>
+    private async Task<string?> SaveMarketingExecutiveAsync(int doctorId, int? executiveId)
+    {
+        try
+        {
+            var row = await marketingExecutives.PostAsync($"/doctor/{doctorId}", new { ExecutiveId = executiveId });
+            return row.B("Success") ? null : row.S("Error");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "Doctor's marketing executive not saved");
+            return "The marketing executive could not be saved (EMR API not reachable). Edit the doctor to set it again.";
+        }
+    }
+
+    /// <summary>Active executives as "Name — Type (Code)", by name; an executive already on the doctor and deactivated since is kept, marked.</summary>
+    private async Task FillMarketingExecutiveOptionsAsync(DoctorFormViewModel model)
+    {
+        static string Label(string? name, string? type, string? code, bool inactive = false) =>
+            $"{name} — {ExecutiveTypeNames.GetValueOrDefault(type ?? "", type ?? "")} ({code}){(inactive ? " · inactive" : "")}";
+        var list = (await ActiveExecutivesAsync())
+            .Select(x => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+            {
+                Value = x.I("ExecutiveId").ToString(), Text = Label(x.S("ExecutiveName"), x.S("ExecutiveType"), x.S("ExecutiveCode"))
+            }).ToList();
+        if (model.MarketingExecutiveId is > 0 && list.All(o => o.Value != model.MarketingExecutiveId.ToString()) && model.DoctorId > 0
+            && await DoctorExecutiveAsync(model.DoctorId) is { } cur && cur.NI("MarketingExecutiveId") == model.MarketingExecutiveId)
+            list.Add(new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+            {
+                Value = model.MarketingExecutiveId.ToString(),
+                Text = Label(cur.S("MarketingExecutiveName"), cur.S("MarketingExecutiveType"), cur.S("MarketingExecutiveCode"), inactive: true)
+            });
+        model.MarketingExecutiveOptions = list.OrderBy(o => o.Text, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     /// <summary>Doctor Master list, paged and filtered on the server (SQLScripts/2315).</summary>
     public async Task<IActionResult> Index([FromQuery] int? doctorId = null, [FromQuery] string? search = null, [FromQuery] string? status = null,
         [FromQuery] string? referral = null, [FromQuery] string? speciality = null, [FromQuery] string? department = null,
@@ -72,7 +137,9 @@ public class DoctorsController(
                     IsActive              = d.IsActive,
                     ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
                     HasOPDDept            = d.HasOPDDept,
-                    IsReferralDoctor      = d.IsReferralDoctor
+                    IsReferralDoctor      = d.IsReferralDoctor,
+                    MarketingExecutiveName = d.MarketingExecutiveName,
+                    MarketingExecutiveType = d.MarketingExecutiveType
                 }).ToList(),
                 TotalDoctors = result.TotalDoctors,
                 ActiveDoctors = result.ActiveDoctors,
@@ -256,6 +323,7 @@ public class DoctorsController(
 
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
+        await ValidateMarketingExecutiveAsync(model, currentExecutiveId: null);
         if (model.IsLoginRequired)
             await ValidateLoginFieldsAsync(model, existingUserId: null);
 
@@ -287,6 +355,8 @@ public class DoctorsController(
         // the doctor first: its login points at the doctor (Users.User_Type 'D', ReferenceUserID = DoctorId)
         var doctorId = await doctorService.CreateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
         doctor.DoctorId = doctorId;
+        var meError = model.MarketingExecutiveId is > 0 ? await SaveMarketingExecutiveAsync(doctorId, model.MarketingExecutiveId) : null;
+        if (meError is not null) TempData["Warning"] = meError;
         if (model.IsLoginRequired)
         {
             var loginUserId = await CreateLinkedUserAsync(model, doctor.FullName, doctorId);
@@ -327,7 +397,8 @@ public class DoctorsController(
             IsReferralDoctor = doctor.IsReferralDoctor,
             SelectedBranchIds = await doctorService.GetBranchIdsAsync(doctor.DoctorId),
             SelectedDepartmentIds = await doctorService.GetDepartmentIdsAsync(doctor.DoctorId),
-            LinkedUserId = doctor.LinkedUserId
+            LinkedUserId = doctor.LinkedUserId,
+            MarketingExecutiveId = (await DoctorExecutiveAsync(doctor.DoctorId))?.NI("MarketingExecutiveId")
         };
 
         // the doctor's login: switched on when DoctorMaster links it; a switched-off one is shown so it is re-used
@@ -380,6 +451,8 @@ public class DoctorsController(
 
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
+        var currentExecutiveId = (await DoctorExecutiveAsync(model.DoctorId))?.NI("MarketingExecutiveId");
+        await ValidateMarketingExecutiveAsync(model, currentExecutiveId);
         if (model.IsLoginRequired)
             await ValidateLoginFieldsAsync(model, existingUserId: login?.Id);
 
@@ -429,6 +502,11 @@ public class DoctorsController(
         }
 
         await doctorService.UpdateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
+        if (model.MarketingExecutiveId != currentExecutiveId)
+        {
+            var meError = await SaveMarketingExecutiveAsync(doctor.DoctorId, model.MarketingExecutiveId);
+            if (meError is not null) TempData["Warning"] = meError;
+        }
 
         await auditLogService.LogAsync("MasterData", "Doctors.Edit", $"Updated doctor: {doctor.FullName} ({doctor.EmailId})");
         TempData["Success"] = "Doctor updated successfully.";
@@ -444,6 +522,14 @@ public class DoctorsController(
 
         if (branchId.HasValue)
             model.ConsultingFees = (await consultingFeeService.GetByDoctorAsync(id, branchId.Value)).ToList();
+        if (await DoctorExecutiveAsync(id) is { } me && me.NI("MarketingExecutiveId") is > 0)
+        {
+            model.MarketingExecutiveName = me.S("MarketingExecutiveName");
+            model.MarketingExecutiveCode = me.S("MarketingExecutiveCode");
+            model.MarketingExecutiveType = me.S("MarketingExecutiveType");
+            model.MarketingExecutivePhone = me.S("MarketingExecutivePhone");
+            model.MarketingExecutiveActive = me.B("MarketingExecutiveActive");
+        }
 
         return View(model);
     }
@@ -688,6 +774,7 @@ public class DoctorsController(
 
         model.CurrentBranchId = currentBranchId.Value;
         model.CurrentBranchName = currentBranch?.BranchName ?? "Current Branch";
+        await FillMarketingExecutiveOptionsAsync(model);
 
         model.CanAssignMultipleBranches = await CanAssignMultipleBranchesAsync(currentBranchId.Value);
 

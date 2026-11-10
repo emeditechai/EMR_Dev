@@ -302,6 +302,7 @@
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
                                                 data-bs-toggle="dropdown"
+                                                data-bs-popper-config='{"strategy":"fixed"}'
                                                 aria-expanded="false">
                                             <i class="bi bi-three-dots-vertical"></i>
                                         </button>
@@ -690,6 +691,7 @@
                                 <div class="col-8">${d.collectionType === 'Home Collection' ? '<span class="badge bg-danger"><i class="bi bi-house-door-fill me-1"></i>Home</span>' : '<span class="badge bg-primary"><i class="bi bi-building me-1"></i>Lab</span>'}</div>
                                 <div class="col-4 text-muted">Referred By:</div>
                                 <div class="col-8 fw-semibold">${d.referralDoctorName ?? 'Self'}</div>
+                                ${d.marketingExecutiveName ? `<div class="col-4 text-muted">Marketing Exec.:</div><div class="col-8"><span class="badge" style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;"><i class="bi bi-person-badge me-1"></i>${d.marketingExecutiveName} · ${d.marketingExecutiveType === 'MED' ? 'MED (Pharmacy)' : (d.marketingExecutiveType || '')}</span></div>` : ''}
                                 <div class="col-4 text-muted">Branch:</div>
                                 <div class="col-8">${d.branchName ?? '—'}</div>
                                 <div class="col-4 text-muted">Booked By:</div>

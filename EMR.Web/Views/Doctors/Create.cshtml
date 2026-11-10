@@ -115,6 +115,17 @@
                 <span asp-validation-for="JoiningDate" class="text-danger small"></span>
             </div>
 
+            <div class="col-md-6">
+                <label asp-for="MarketingExecutiveId" class="form-label fw-semibold">Marketing Executive</label>
+                <div>
+                    <select asp-for="MarketingExecutiveId" asp-items="Model.MarketingExecutiveOptions" class="form-select" id="marketingExecutive">
+                        <option value="">-- None --</option>
+                    </select>
+                </div>
+                <span asp-validation-for="MarketingExecutiveId" class="text-danger small"></span>
+                <div class="form-text">Optional. Type a name, type (OPD / LAB / IPD / MED) or code to search.</div>
+            </div>
+
             <div class="col-md-12">
                 <div class="form-check form-switch">
                     <input asp-for="IsReferralDoctor" class="form-check-input" type="checkbox" role="switch" />
@@ -228,6 +239,9 @@
     <script>
         new TomSelect('#primarySpeciality', { create: false, sortField: { field: 'text', direction: 'asc' } });
         new TomSelect('#secondarySpeciality', { create: false, allowEmptyOption: true });
+        // marketing executive: search by name, type or code (Master > General > Marketing Executive)
+        new TomSelect('#marketingExecutive', { create: false, allowEmptyOption: true, maxOptions: 500, placeholder: 'Search marketing executive…',
+            sortField: [{ field: '$score' }, { field: 'text', direction: 'asc' }] });
         new TomSelect('#departmentMulti', {
             create: false,
             plugins: ['remove_button'],

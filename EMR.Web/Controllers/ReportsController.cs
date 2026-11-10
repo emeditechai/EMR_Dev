@@ -249,6 +249,7 @@ public class ReportsController : Controller
         ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy", "billingType" },
         ["membership-points"]   = new[] { "txnType", "planId", "createdBy" },
         ["ref-doctor-billing"]  = new[] { "doctorIds", "billingType", "paymentStatus" },   // SQLScripts/2379
+        ["marketing-business"]  = new[] { "executiveIds", "execType", "billingType" },     // SQLScripts/2443
         // B2B partner-account reports: branch-wide for every user of the branch
         ["b2b-partner-billing"] = new[] { "partnerType", "partner", "paymentMethod" },
         ["b2b-billing-report"]  = new[] { "partnerType", "partner", "paymentMethod" },   // SQLScripts/2340
@@ -305,6 +306,7 @@ public class ReportsController : Controller
 
     [HttpGet] public IActionResult LabBillingRegister() => LabReportPage("LabBillingRegister");
     [HttpGet] public IActionResult LabRefDoctorBilling() => LabReportPage("LabRefDoctorBilling");   // SQLScripts/2379
+    [HttpGet] public IActionResult LabMarketingBusiness() => LabReportPage("LabMarketingBusiness");   // SQLScripts/2443
     [HttpGet] public IActionResult LabOutstandingDues() => LabReportPage("LabOutstandingDues");
     [HttpGet] public IActionResult LabPatientOrders() => LabReportPage("LabPatientOrders");
     [HttpGet] public IActionResult LabCancellationRefund() => LabReportPage("LabCancellationRefund");

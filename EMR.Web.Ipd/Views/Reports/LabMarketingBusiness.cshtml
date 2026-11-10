@@ -1,0 +1,64 @@
+@{
+    // Reports > LAB > Marketing Executive Business (SQLScripts/2443): LAB bills by the marketing executive of their referral
+    // doctor. Tabs: Marketing Executive Wise · Referral Doctor Wise Patient Bill Details · Marketing Executive Wise Bill Details.
+    ViewData["Title"] = "Marketing Executive Business";
+}
+@Html.AntiForgeryToken()
+<style>
+    .mb-kpi { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:.8rem 1rem; height:100%; border-left:4px solid var(--c); }
+    .mb-kpi small { font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:700; }
+    .mb-kpi b { display:block; font-size:1.25rem; color:#0f172a; font-variant-numeric:tabular-nums; }
+    .mb-kpi span { font-size:.75rem; color:#64748b; }
+    .mb-table th { font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:#475569; background:#f8fafc; white-space:nowrap; }
+    .mb-table td { font-size:.85rem; vertical-align:middle; }
+    .mb-num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .mb-pill { font-size:.66rem; font-weight:700; padding:.15rem .45rem; border-radius:999px; }
+    .mb-exec-head { background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:.6rem .9rem; cursor:pointer; }
+    .mb-doc-row { cursor:pointer; } .mb-doc-row:hover { background:#f8fafc; }
+    .mb-sub td { background:#fbfdff; }
+    .mb-lines { font-size:.76rem; margin:0; } .mb-lines td.cx { color:#94a3b8; text-decoration:line-through; }
+    .mb-bar { height:6px; background:#e2e8f0; border-radius:4px; overflow:hidden; min-width:90px; } .mb-bar > i { display:block; height:100%; border-radius:4px; }
+    @@media print { .no-print { display:none !important; } .tab-pane { display:block !important; opacity:1 !important; } .tab-pane:not(.active) { display:none !important; } }
+</style>
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+        <h1 class="h3 fw-bold mb-0"><i class="bi bi-person-badge me-2" style="color:#c2410c"></i>Marketing Executive Business</h1>
+        <small class="text-muted">LAB bills (B2C &amp; B2B) by the LAB marketing executive tagged on the referral doctor · <span id="mbScope"></span></small>
+    </div>
+    <div class="d-flex gap-2 no-print">
+        <button type="button" class="btn btn-outline-success btn-sm" id="mbCsv"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Export (Excel / CSV)</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3 no-print"><div class="card-body py-3"><div class="row g-2 align-items-end">
+    <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="mbFrom">From</label><input type="date" id="mbFrom" class="form-control form-control-sm" /></div>
+    <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="mbTo">To</label><input type="date" id="mbTo" class="form-control form-control-sm" /></div>
+    <div class="col-12 col-md-2"><label class="form-label small fw-semibold" for="mbRange">Quick range</label>
+        <select id="mbRange" class="form-select form-select-sm"><option value="">Custom</option><option value="today">Today</option><option value="month" selected>This month</option><option value="last">Last month</option><option value="quarter">Last 3 months</option></select></div>
+    <div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="mbExec">Marketing executive</label><select id="mbExec" class="form-select form-select-sm"><option value="">All executives</option></select></div>
+    <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="mbBilling">Billing</label>
+        <select id="mbBilling" class="form-select form-select-sm"><option value="">B2C &amp; B2B</option><option value="B2C">B2C</option><option value="B2B">B2B</option></select></div>
+    <div class="col-12 col-md-8"><label class="form-label small fw-semibold" for="mbSearch">Search</label><input id="mbSearch" class="form-control form-control-sm" placeholder="Bill no, token, patient, mobile, doctor or executive" /></div>
+    <div class="col-12 col-md-4 d-flex gap-2"><button type="button" class="btn btn-sm btn-primary flex-fill" id="mbApply"><i class="bi bi-funnel me-1"></i>Show</button>
+        <button type="button" class="btn btn-sm btn-light border flex-fill" id="mbReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button></div>
+</div></div></div>
+
+<div class="row g-3 mb-3" id="mbKpis"></div>
+
+<ul class="nav nav-tabs mb-0 no-print" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tExec" type="button" role="tab"><i class="bi bi-people me-1"></i>Marketing Executive Wise</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tDoc" type="button" role="tab"><i class="bi bi-person-vcard me-1"></i>Referral Doctor Wise Patient Bill Details</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tBill" type="button" role="tab"><i class="bi bi-receipt me-1"></i>Marketing Executive Wise Bill Details</button></li>
+</ul>
+<div class="tab-content card border-0 shadow-sm border-top-0 rounded-top-0">
+    <div class="tab-pane fade show active p-0" id="tExec" role="tabpanel"><div class="table-responsive"><table class="table table-hover mb-0 mb-table" id="tblExec"></table></div></div>
+    <div class="tab-pane fade p-3" id="tDoc" role="tabpanel"><div id="docWrap"></div></div>
+    <div class="tab-pane fade p-0" id="tBill" role="tabpanel"><div class="table-responsive"><table class="table table-hover mb-0 mb-table" id="tblBill"></table></div></div>
+</div>
+
+@section Scripts {
+    <script>window.MbPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { dataUrl = Url.Action("GetLabReportData", "Reports"), billUrl = Url.Action("PrintBill", "LabOrderBooking"), branch = User.FindFirst("BranchName")?.Value ?? "" }));</script>
+    <script src="~/js/reports/marketing-business.js" asp-append-version="true"></script>
+}

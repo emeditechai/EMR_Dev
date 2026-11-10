@@ -95,6 +95,10 @@
                         <div style="min-width: 120px;" class="text-secondary small fw-semibold">Joining Date:</div>
                         <div class="text-dark small">@(Model.JoiningDate?.ToString("dd MMM yyyy") ?? "-")</div>
                     </div>
+                    <div class="col-sm-6 d-flex align-items-center">
+                        <div style="min-width: 120px;" class="text-secondary small fw-semibold">Marketing Exec.:</div>
+                        <div class="text-dark small">@if (string.IsNullOrEmpty(Model.MarketingExecutiveName)) { <text>-</text> } else { <text>@Model.MarketingExecutiveName (@Model.MarketingExecutiveCode) · @Model.MarketingExecutiveType @(string.IsNullOrEmpty(Model.MarketingExecutivePhone) ? "" : "· " + Model.MarketingExecutivePhone)</text> @if (!Model.MarketingExecutiveActive) { <span class="badge text-bg-secondary ms-1">inactive</span> } }</div>
+                    </div>
 
                     <div class="col-sm-6 d-flex align-items-center">
                         <div style="min-width: 120px;" class="text-secondary small fw-semibold">Created On:</div>
