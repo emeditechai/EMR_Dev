@@ -8698,6 +8698,240 @@
    "type": "bit"
   },
   {
+   "col": "Omitted_ID",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 8,
+   "nullable": false,
+   "ord": 1,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "bigint"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "Branch_ID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "Doctor_ID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "Doctor_IP_Hdr_ID",
+   "def": null,
+   "descr": "Doctor IP set-up whose rate applied to the item (Doctor_IP_Hdr).",
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "LabOrderId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 6,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "LabOrderItemId",
+   "def": null,
+   "descr": "Order item left out of the commission (LabOrderItem.LabOrderItemId); at most one active row per item.",
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 7,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "Item_Type",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": false,
+   "ord": 8,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "varchar"
+  },
+  {
+   "col": "Test_ID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 9,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "bigint"
+  },
+  {
+   "col": "Billed_Amount",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 9,
+   "nullable": false,
+   "ord": 10,
+   "prec": 18,
+   "scale": 2,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "decimal"
+  },
+  {
+   "col": "Commission_Rate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 9,
+   "nullable": false,
+   "ord": 11,
+   "prec": 18,
+   "scale": 2,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "decimal"
+  },
+  {
+   "col": "Commission_Amount",
+   "def": null,
+   "descr": "Commission the item would have earned at the time it was omitted.",
+   "ident": false,
+   "len": 9,
+   "nullable": false,
+   "ord": 12,
+   "prec": 18,
+   "scale": 2,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "decimal"
+  },
+  {
+   "col": "Reason",
+   "def": null,
+   "descr": "Why the item was omitted (optional).",
+   "ident": false,
+   "len": 500,
+   "nullable": true,
+   "ord": 13,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Omitted_By",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 14,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "Omitted_On",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 15,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "datetime"
+  },
+  {
+   "col": "IsActive",
+   "def": "((1))",
+   "descr": "1 = omitted now; 0 = restored (Restored_By / Restored_On), the item is pending again.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 16,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "bit"
+  },
+  {
+   "col": "Restored_By",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 17,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "int"
+  },
+  {
+   "col": "Restored_On",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 18,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "Doctor_IP_Commission_Omitted",
+   "type": "datetime"
+  },
+  {
    "col": "Run_ID",
    "def": null,
    "descr": null,
@@ -56669,7 +56903,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-11T21:39:53",
+ "extracted_on": "2026-11-12T00:17:57",
  "fk": [
   {
    "col": "LedgerId",
@@ -60689,6 +60923,11 @@
    "tbl": "Doctor_IP_Commission_Hdr"
   },
   {
+   "col": "Omitted_ID",
+   "k": 1,
+   "tbl": "Doctor_IP_Commission_Omitted"
+  },
+  {
    "col": "Run_ID",
    "k": 1,
    "tbl": "Doctor_IP_Commission_RunLog"
@@ -62662,6 +62901,7 @@
   "DoctorVisitProcessConfig",
   "Doctor_IP_Commission_Dtl",
   "Doctor_IP_Commission_Hdr",
+  "Doctor_IP_Commission_Omitted",
   "Doctor_IP_Commission_RunLog",
   "Doctor_IP_Dtl",
   "Doctor_IP_Hdr",
@@ -62999,6 +63239,10 @@
  ],
  "tdesc": [
   {
+   "d": "Lab order items left out of the Doctor IP commission before it was calculated (manual or scheduled run). Restoring an item sets IsActive = 0.",
+   "tbl": "Doctor_IP_Commission_Omitted"
+  },
+  {
    "d": "A referral doctor lead of a marketing executive (basic details only) until it joins Doctor Master at Trial.",
    "tbl": "ForecastDoctor"
   },
@@ -63254,6 +63498,11 @@
    "cols": "LabOrderItemId",
    "idx": "UX_Doctor_IP_Commission_Dtl_Item",
    "tbl": "Doctor_IP_Commission_Dtl"
+  },
+  {
+   "cols": "LabOrderItemId",
+   "idx": "UX_Doctor_IP_Commission_Omitted_Item",
+   "tbl": "Doctor_IP_Commission_Omitted"
   },
   {
    "cols": "Branch_ID, Run_Date",

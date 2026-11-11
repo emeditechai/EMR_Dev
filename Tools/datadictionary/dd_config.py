@@ -171,7 +171,7 @@ MODULES = [
                "department / category / test), the periodic computation over lab orders, and access control for the "
                "Doctor IP screens.",
          tables=["Doctor_IP_Hdr", "Doctor_IP_Dtl", "Doctor_IP_Commission_Hdr", "Doctor_IP_Commission_Dtl",
-                 "Doctor_IP_Commission_RunLog", "DoctorIpAccessSetting", "DoctorIpAccessLog"]),
+                 "Doctor_IP_Commission_RunLog", "Doctor_IP_Commission_Omitted", "DoctorIpAccessSetting", "DoctorIpAccessLog"]),
     dict(code="C11", part="C", name="Phlebotomist App & Home Collection",
          intro="Field work on a home collection booking. LabHomeVisit follows a LabOrder from assignment to lab receipt and "
                "every step is kept in LabHomeVisitEvent. A duty day is one PhleboAttendance row; GPS points build the "
@@ -501,6 +501,7 @@ CONDITIONAL = {
     ("LabRateCardDetail", "Item_ID"): ["LabInvestigationMaster", "LabInvestigationProfileHeader"],
     ("Doctor_IP_Dtl", "Test_ID"): ["LabInvestigationMaster", "LabInvestigationProfileHeader"],
     ("Doctor_IP_Commission_Dtl", "Test_ID"): ["LabInvestigationMaster", "LabInvestigationProfileHeader"],
+    ("Doctor_IP_Commission_Omitted", "Test_ID"): ["LabInvestigationMaster", "LabInvestigationProfileHeader"],
     ("ApprovalRequest", "Entity_ID"): ["LabFranchiseMaster", "CorporateMaster", "LabInvestigationProfileHeader"],
 }
 CONDITION_TEXT = {
@@ -515,6 +516,7 @@ CONDITION_TEXT = {
     ("LabRateCardDetail", "Item_ID"): "by Item_Type",
     ("Doctor_IP_Dtl", "Test_ID"): "by Item_Type",
     ("Doctor_IP_Commission_Dtl", "Test_ID"): "by Item_Type",
+    ("Doctor_IP_Commission_Omitted", "Test_ID"): "by Item_Type",
     ("ApprovalRequest", "Entity_ID"): "by Module_Code",
 }
 

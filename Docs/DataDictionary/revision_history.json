@@ -228,5 +228,14 @@
   ],
   "date": "11 Nov 2026",
   "version": "1.15"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table Doctor_IP_Commission_Omitted (18 columns, module C10)",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "12 Nov 2026",
+  "version": "1.16"
  }
 ]
