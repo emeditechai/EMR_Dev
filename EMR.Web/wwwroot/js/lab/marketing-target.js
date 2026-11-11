@@ -16,13 +16,25 @@
     async function load(fyStart) {
         try {
             const d = await Ipd.get(P.base + 'ListData' + (fyStart ? '?fyStart=' + fyStart : ''));
-            fy = d.fyStart; list = d.rows || [];
+            fy = d.fyStart; list = d.rows || []; window.__mtAll = list.length;
             $('mtFy').innerHTML = (d.years || []).map(y => `<option value="${String(y.FyStart).slice(0, 10)}"${String(y.FyStart).slice(0, 10) === fy ? ' selected' : ''}>FY ${E(y.FyLabel)}${y.IsCurrent ? ' (current)' : ''}</option>`).join('');
+            const sel = $('mtfExec'), keep = sel.value;
+            sel.length = 1; list.forEach(x => sel.add(new Option(`${x.ExecutiveName} (${x.ExecutiveCode})`, x.ExecutiveId)));
+            sel.value = list.some(x => String(x.ExecutiveId) === keep) ? keep : '';
             render();
         } catch (e) { $('mtRows').innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">${E(e.message)}</td></tr>`; }
     }
 
+    // filters (executive, frequency, status) apply to the cards and the table
+    function shown() {
+        const ex = $('mtfExec').value, fq = $('mtfFreq').value, st = $('mtfStatus').value;
+        return list.filter(r => (!ex || String(r.ExecutiveId) === ex)
+            && (!fq || (fq === 'NONE' ? !r.TargetId : r.Frequency === fq))
+            && (st === '' || (r.IsActive ? '1' : '0') === st));
+    }
+
     function render() {
+        const list = shown(), filtered = list.length !== window.__mtAll;
         const set = list.filter(r => r.TargetId), s = set.reduce((a, r) => a + Number(r.SalesTarget || 0), 0), v = set.reduce((a, r) => a + Number(r.VisitTarget || 0), 0);
         const k = (c, l, val, sub) => `<div class="col-6 col-lg-3"><div class="mt-kpi" style="--c:${c}"><small>${l}</small><b>${val}</b><span class="small text-muted">${sub}</span></div></div>`;
         $('mtKpis').innerHTML = k('#2563eb', 'LAB executives', list.length, 'active, or with a target') + k('#16a34a', 'Targets set', set.length, `${list.length - set.length} without a target`)
@@ -34,7 +46,7 @@
             <td class="small text-muted">${r.LastChanged ? Ipd.dt(r.LastChanged) + (r.ModifiedByName ? ' · ' + E(r.ModifiedByName) : '') : ''}</td>
             <td class="text-end"><button type="button" class="btn btn-sm ${P.canEdit ? 'btn-outline-primary' : 'btn-outline-secondary'}" data-id="${r.ExecutiveId}">
                 <i class="bi ${P.canEdit ? 'bi-pencil' : 'bi-eye'} me-1"></i>${P.canEdit ? (r.TargetId ? 'Change' : 'Set target') : 'View'}</button></td></tr>`).join('')
-            : '<tr><td colspan="6" class="text-center text-muted py-4">No LAB marketing executives. Add them in Master &gt; Marketing Executive Master (type LAB).</td></tr>';
+            : filtered ? '<tr><td colspan="6" class="text-center text-muted py-4">No executive matches the filters.</td></tr>' : '<tr><td colspan="6" class="text-center text-muted py-4">No LAB marketing executives. Add them in Master &gt; Marketing Executive Master (type LAB).</td></tr>';
     }
 
     async function open(execId, freq) {
@@ -78,6 +90,8 @@
 
     $('mtRows').addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) open(+b.dataset.id); });
     $('mtFy').addEventListener('change', e => load(e.target.value));
+    ['mtfExec', 'mtfFreq', 'mtfStatus'].forEach(id => $(id).addEventListener('change', render));
+    $('mtfReset').addEventListener('click', () => { ['mtfExec', 'mtfFreq', 'mtfStatus'].forEach(id => $(id).value = ''); render(); });
     $('mtFreq').addEventListener('change', e => open(cur.header.ExecutiveId, e.target.value));
     $('mtBuckets').addEventListener('input', e => { e.target.classList.remove('is-invalid'); totals(); });
     $('mtFill').addEventListener('click', () => {

@@ -29,6 +29,17 @@
 
 <div class="row g-3 mb-3" id="mtKpis"></div>
 
+<div class="card border-0 shadow-sm mb-3"><div class="card-body py-3"><div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="mtfExec">Marketing executive</label>
+        <select id="mtfExec" class="form-select form-select-sm"><option value="">All executives</option></select></div>
+    <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="mtfFreq">Frequency</label>
+        <select id="mtfFreq" class="form-select form-select-sm"><option value="">All</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option>
+            <option value="HALFYEARLY">Half-yearly</option><option value="YEARLY">Yearly</option><option value="NONE">Not set</option></select></div>
+    <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="mtfStatus">Executive status</label>
+        <select id="mtfStatus" class="form-select form-select-sm"><option value="">All</option><option value="1">Active</option><option value="0">Inactive</option></select></div>
+    <div class="col-12 col-md-2"><button type="button" class="btn btn-sm btn-light border w-100" id="mtfReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button></div>
+</div></div></div>
+
 <div class="card shadow-sm border-0"><div class="table-responsive">
     <table class="table table-hover align-middle mb-0">
         <thead class="table-light"><tr><th>Marketing executive</th><th>Frequency</th><th class="mt-num">Sales target (year)</th><th class="mt-num">Doctor visits (year)</th><th>Last changed</th><th class="text-end">Action</th></tr></thead>
