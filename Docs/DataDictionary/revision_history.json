@@ -212,5 +212,21 @@
   ],
   "date": "08 Nov 2026",
   "version": "1.14"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabRxLearning (8 columns, module not yet grouped)",
+   "DoctorMaster: new column(s) MarketingExecutiveId",
+   "LabOrder: new column(s) AdmissionId, OrderedByDoctorId, IpdRemarks, MarketingExecutiveId",
+   "PhScheduleRegister: new column(s) IpdIssueId, IpdIssueLineId",
+   "PhScheduleRegister.SaleId: now nullable",
+   "PhScheduleRegister.SaleDtlId: now nullable",
+   "Users: new column(s) Is_MarketingExecutive",
+   "New foreign key DoctorMaster.MarketingExecutiveId -> MarketingExecutive.ExecutiveId",
+   "New foreign key LabOrder.MarketingExecutiveId -> MarketingExecutive.ExecutiveId"
+  ],
+  "date": "11 Nov 2026",
+  "version": "1.15"
  }
 ]

@@ -10882,6 +10882,19 @@
    "type": "bit"
   },
   {
+   "col": "MarketingExecutiveId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 21,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorMaster",
+   "type": "int"
+  },
+  {
    "col": "PayoutProfileId",
    "def": null,
    "descr": null,
@@ -26079,6 +26092,58 @@
    "type": "nvarchar"
   },
   {
+   "col": "AdmissionId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 34,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "int"
+  },
+  {
+   "col": "OrderedByDoctorId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 35,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "int"
+  },
+  {
+   "col": "IpdRemarks",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 600,
+   "nullable": true,
+   "ord": 36,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "nvarchar"
+  },
+  {
+   "col": "MarketingExecutiveId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 37,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "int"
+  },
+  {
    "col": "LabOrderItemId",
    "def": null,
    "descr": null,
@@ -29743,6 +29808,110 @@
    "scale": 0,
    "tbl": "LabReportWhatsAppLog",
    "type": "datetime2"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabRxLearning",
+   "type": "int"
+  },
+  {
+   "col": "Phrase",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 160,
+   "nullable": false,
+   "ord": 2,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRxLearning",
+   "type": "nvarchar"
+  },
+  {
+   "col": "OptionKey",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 20,
+   "nullable": false,
+   "ord": 3,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRxLearning",
+   "type": "varchar"
+  },
+  {
+   "col": "Accepted",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabRxLearning",
+   "type": "int"
+  },
+  {
+   "col": "Rejected",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabRxLearning",
+   "type": "int"
+  },
+  {
+   "col": "FirstSeen",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 6,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabRxLearning",
+   "type": "datetime"
+  },
+  {
+   "col": "LastUsed",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 7,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabRxLearning",
+   "type": "datetime"
+  },
+  {
+   "col": "LastUserId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 8,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabRxLearning",
+   "type": "int"
   },
   {
    "col": "Rejection_ID",
@@ -46182,7 +46351,7 @@
    "descr": null,
    "ident": false,
    "len": 4,
-   "nullable": false,
+   "nullable": true,
    "ord": 4,
    "prec": 10,
    "scale": 0,
@@ -46195,7 +46364,7 @@
    "descr": null,
    "ident": false,
    "len": 4,
-   "nullable": false,
+   "nullable": true,
    "ord": 5,
    "prec": 10,
    "scale": 0,
@@ -46357,6 +46526,32 @@
    "scale": 0,
    "tbl": "PhScheduleRegister",
    "type": "bit"
+  },
+  {
+   "col": "IpdIssueId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 18,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhScheduleRegister",
+   "type": "int"
+  },
+  {
+   "col": "IpdIssueLineId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 19,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhScheduleRegister",
+   "type": "int"
   },
   {
    "col": "BranchId",
@@ -56239,6 +56434,19 @@
    "type": "int"
   },
   {
+   "col": "Is_MarketingExecutive",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 53,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "Users",
+   "type": "bit"
+  },
+  {
    "col": "VaccineId",
    "def": null,
    "descr": null,
@@ -56461,7 +56669,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-08T16:08:00",
+ "extracted_on": "2026-11-11T21:39:53",
  "fk": [
   {
    "col": "LedgerId",
@@ -57010,6 +57218,13 @@
    "tbl": "DoctorMaster"
   },
   {
+   "col": "MarketingExecutiveId",
+   "fk": "FK_DoctorMaster_MarketingExecutive",
+   "rcol": "ExecutiveId",
+   "rtbl": "MarketingExecutive",
+   "tbl": "DoctorMaster"
+  },
+  {
    "col": "PrimarySpecialityId",
    "fk": "FK_DoctorMaster_PrimarySpeciality",
    "rcol": "SpecialityId",
@@ -57197,6 +57412,62 @@
    "rcol": "BuildingId",
    "rtbl": "BuildingMaster",
    "tbl": "FloorMaster"
+  },
+  {
+   "col": "BranchId",
+   "fk": "FK_ForecastDoctor_Branch",
+   "rcol": "BranchID",
+   "rtbl": "Branchmaster",
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "col": "CompanyId",
+   "fk": "FK_ForecastDoctor_Company",
+   "rcol": "CompanyId",
+   "rtbl": "CompanyMaster",
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "col": "DoctorId",
+   "fk": "FK_ForecastDoctor_Doctor",
+   "rcol": "DoctorId",
+   "rtbl": "DoctorMaster",
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "col": "ExecutiveId",
+   "fk": "FK_ForecastDoctor_Executive",
+   "rcol": "ExecutiveId",
+   "rtbl": "MarketingExecutive",
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "col": "PrimarySpecialityId",
+   "fk": "FK_ForecastDoctor_Speciality",
+   "rcol": "SpecialityId",
+   "rtbl": "DoctorSpecialityMaster",
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "col": "ForecastDoctorId",
+   "fk": "FK_ForecastDoctorStageLog_Lead",
+   "rcol": "ForecastDoctorId",
+   "rtbl": "ForecastDoctor",
+   "tbl": "ForecastDoctorStageLog"
+  },
+  {
+   "col": "ExecutiveId",
+   "fk": "FK_ForecastDoctorVisit_Executive",
+   "rcol": "ExecutiveId",
+   "rtbl": "MarketingExecutive",
+   "tbl": "ForecastDoctorVisit"
+  },
+  {
+   "col": "ForecastDoctorId",
+   "fk": "FK_ForecastDoctorVisit_Lead",
+   "rcol": "ForecastDoctorId",
+   "rtbl": "ForecastDoctor",
+   "tbl": "ForecastDoctorVisit"
   },
   {
    "col": "Branch_ID",
@@ -57584,6 +57855,13 @@
    "tbl": "IpdCharge"
   },
   {
+   "col": "DoctorId",
+   "fk": "FK_IpdDoctorVisitFee_Doctor",
+   "rcol": "DoctorId",
+   "rtbl": "DoctorMaster",
+   "tbl": "IpdDoctorVisitFee"
+  },
+  {
    "col": "AdmissionId",
    "fk": "FK_IpdDocument_Adm",
    "rcol": "AdmissionId",
@@ -57603,6 +57881,20 @@
    "rcol": "AdmissionId",
    "rtbl": "IpdAdmission",
    "tbl": "IpdMlc"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdPhIssue_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdPhIssue"
+  },
+  {
+   "col": "IssueId",
+   "fk": "FK_IpdPhIssueLine_Issue",
+   "rcol": "IssueId",
+   "rtbl": "IpdPhIssue",
+   "tbl": "IpdPhIssueLine"
   },
   {
    "col": "MaterialId",
@@ -57892,6 +58184,13 @@
    "tbl": "LabOrder"
   },
   {
+   "col": "MarketingExecutiveId",
+   "fk": "FK_LabOrder_MarketingExecutive",
+   "rcol": "ExecutiveId",
+   "rtbl": "MarketingExecutive",
+   "tbl": "LabOrder"
+  },
+  {
    "col": "PatientId",
    "fk": "FK_LabOrder_Patient",
    "rcol": "PatientId",
@@ -58023,6 +58322,62 @@
    "rcol": "Category_ID",
    "rtbl": "LabTestCategoryMaster",
    "tbl": "LabTestSubCategoryMaster"
+  },
+  {
+   "col": "DoctorId",
+   "fk": "FK_MarketingDoctorVisit_Doctor",
+   "rcol": "DoctorId",
+   "rtbl": "DoctorMaster",
+   "tbl": "MarketingDoctorVisit"
+  },
+  {
+   "col": "ExecutiveId",
+   "fk": "FK_MarketingDoctorVisit_Executive",
+   "rcol": "ExecutiveId",
+   "rtbl": "MarketingExecutive",
+   "tbl": "MarketingDoctorVisit"
+  },
+  {
+   "col": "LoginUserId",
+   "fk": "FK_MarketingExecutive_LoginUser",
+   "rcol": "Id",
+   "rtbl": "Users",
+   "tbl": "MarketingExecutive"
+  },
+  {
+   "col": "ExecutiveId",
+   "fk": "FK_MarketingFieldDay_Executive",
+   "rcol": "ExecutiveId",
+   "rtbl": "MarketingExecutive",
+   "tbl": "MarketingFieldDay"
+  },
+  {
+   "col": "DayId",
+   "fk": "FK_MarketingLocationPoint_Day",
+   "rcol": "DayId",
+   "rtbl": "MarketingFieldDay",
+   "tbl": "MarketingLocationPoint"
+  },
+  {
+   "col": "CompanyId",
+   "fk": "FK_MarketingSettings_Company",
+   "rcol": "CompanyId",
+   "rtbl": "CompanyMaster",
+   "tbl": "MarketingSettings"
+  },
+  {
+   "col": "ExecutiveId",
+   "fk": "FK_MarketingTarget_Executive",
+   "rcol": "ExecutiveId",
+   "rtbl": "MarketingExecutive",
+   "tbl": "MarketingTarget"
+  },
+  {
+   "col": "TargetId",
+   "fk": "FK_MarketingTargetBucket_Target",
+   "rcol": "TargetId",
+   "rtbl": "MarketingTarget",
+   "tbl": "MarketingTargetBucket"
   },
   {
    "col": "PlanId",
@@ -60539,6 +60894,21 @@
    "tbl": "FloorMaster"
   },
   {
+   "col": "ForecastDoctorId",
+   "k": 1,
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "col": "LogId",
+   "k": 1,
+   "tbl": "ForecastDoctorStageLog"
+  },
+  {
+   "col": "VisitId",
+   "k": 1,
+   "tbl": "ForecastDoctorVisit"
+  },
+  {
    "col": "Scheme_ID",
    "k": 1,
    "tbl": "GovernmentSchemeMaster"
@@ -60729,6 +61099,11 @@
    "tbl": "IpdAdmission"
   },
   {
+   "col": "AdviceId",
+   "k": 1,
+   "tbl": "IpdAdmissionAdvice"
+  },
+  {
    "col": "AdmissionConsentId",
    "k": 1,
    "tbl": "IpdAdmissionConsent"
@@ -60784,6 +61159,11 @@
    "tbl": "IpdCharge"
   },
   {
+   "col": "FeeId",
+   "k": 1,
+   "tbl": "IpdDoctorVisitFee"
+  },
+  {
    "col": "DocumentId",
    "k": 1,
    "tbl": "IpdDocument"
@@ -60817,6 +61197,16 @@
    "col": "FinYear",
    "k": 3,
    "tbl": "IpdNumberCounter"
+  },
+  {
+   "col": "IssueId",
+   "k": 1,
+   "tbl": "IpdPhIssue"
+  },
+  {
+   "col": "LineId",
+   "k": 1,
+   "tbl": "IpdPhIssueLine"
   },
   {
    "col": "LogId",
@@ -61114,6 +61504,21 @@
    "tbl": "LabReportWhatsAppLog"
   },
   {
+   "col": "CompanyId",
+   "k": 1,
+   "tbl": "LabRxLearning"
+  },
+  {
+   "col": "Phrase",
+   "k": 2,
+   "tbl": "LabRxLearning"
+  },
+  {
+   "col": "OptionKey",
+   "k": 3,
+   "tbl": "LabRxLearning"
+  },
+  {
    "col": "Rejection_ID",
    "k": 1,
    "tbl": "LabSampleRejectionMaster"
@@ -61177,6 +61582,41 @@
    "col": "MaritalStatusId",
    "k": 1,
    "tbl": "MaritalStatusMaster"
+  },
+  {
+   "col": "VisitId",
+   "k": 1,
+   "tbl": "MarketingDoctorVisit"
+  },
+  {
+   "col": "ExecutiveId",
+   "k": 1,
+   "tbl": "MarketingExecutive"
+  },
+  {
+   "col": "DayId",
+   "k": 1,
+   "tbl": "MarketingFieldDay"
+  },
+  {
+   "col": "PointId",
+   "k": 1,
+   "tbl": "MarketingLocationPoint"
+  },
+  {
+   "col": "CompanyId",
+   "k": 1,
+   "tbl": "MarketingSettings"
+  },
+  {
+   "col": "TargetId",
+   "k": 1,
+   "tbl": "MarketingTarget"
+  },
+  {
+   "col": "BucketId",
+   "k": 1,
+   "tbl": "MarketingTargetBucket"
   },
   {
    "col": "CardId",
@@ -62243,6 +62683,9 @@
   "ExpenseRequestLine",
   "ExpenseRequestLineAttachment",
   "FloorMaster",
+  "ForecastDoctor",
+  "ForecastDoctorStageLog",
+  "ForecastDoctorVisit",
   "GovernmentSchemeMaster",
   "HKChecklistTemplateMaster",
   "HKCleaningMaster",
@@ -62281,6 +62724,7 @@
   "InvoicePaymentLine",
   "InvoiceSignatories",
   "IpdAdmission",
+  "IpdAdmissionAdvice",
   "IpdAdmissionConsent",
   "IpdAdmissionPayer",
   "IpdAdvance",
@@ -62292,11 +62736,14 @@
   "IpdBill",
   "IpdBillLine",
   "IpdCharge",
+  "IpdDoctorVisitFee",
   "IpdDocument",
   "IpdEstimate",
   "IpdEstimateLine",
   "IpdMlc",
   "IpdNumberCounter",
+  "IpdPhIssue",
+  "IpdPhIssueLine",
   "IpdStatusLog",
   "IqcLot",
   "IqcMaterial",
@@ -62354,6 +62801,7 @@
   "LabReportUnapproval",
   "LabReportWhatsAppLog",
   "LabReportingConditionMaster",
+  "LabRxLearning",
   "LabSampleRejectionMaster",
   "LabSampleRejectionReasonMaster",
   "LabSampleStatusLog",
@@ -62367,6 +62815,13 @@
   "LoincConcept",
   "MappingAudit",
   "MaritalStatusMaster",
+  "MarketingDoctorVisit",
+  "MarketingExecutive",
+  "MarketingFieldDay",
+  "MarketingLocationPoint",
+  "MarketingSettings",
+  "MarketingTarget",
+  "MarketingTargetBucket",
   "MembershipCard",
   "MembershipCardMember",
   "MembershipLedger",
@@ -62544,6 +62999,18 @@
  ],
  "tdesc": [
   {
+   "d": "A referral doctor lead of a marketing executive (basic details only) until it joins Doctor Master at Trial.",
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "d": "Every stage change of a lead, by the executive or by a visit.",
+   "tbl": "ForecastDoctorStageLog"
+  },
+  {
+   "d": "A visit to a lead, with the phone location and its distance from the clinic pin.",
+   "tbl": "ForecastDoctorVisit"
+  },
+  {
    "d": "Tests added or removed by a bill change request.",
    "tbl": "LabBillChangeLine"
   },
@@ -62570,6 +63037,18 @@
   {
    "d": "Every visit status change with device and server time and GPS; ClientEventId makes a retry harmless.",
    "tbl": "LabHomeVisitEvent"
+  },
+  {
+   "d": "A field day of a marketing executive: start and end with location; tracking runs while it is open.",
+   "tbl": "MarketingFieldDay"
+  },
+  {
+   "d": "GPS points recorded during a marketing field day.",
+   "tbl": "MarketingLocationPoint"
+  },
+  {
+   "d": "Marketing executive app rules, one row per company: visit radius, tracking interval, point retention.",
+   "tbl": "MarketingSettings"
   },
   {
    "d": "One duty day per phlebotomist: punch in and out with location, day status and review status.",
@@ -62862,6 +63341,16 @@
    "tbl": "FloorMaster"
   },
   {
+   "cols": "CompanyId, PhoneNumber",
+   "idx": "UX_ForecastDoctor_Phone",
+   "tbl": "ForecastDoctor"
+  },
+  {
+   "cols": "UserId, ClientEventId",
+   "idx": "UQ_ForecastDoctorVisit_Event",
+   "tbl": "ForecastDoctorVisit"
+  },
+  {
    "cols": "Code",
    "idx": "UX_HelpArticle_Code",
    "tbl": "HelpArticle"
@@ -62930,6 +63419,11 @@
    "cols": "RequestKey",
    "idx": "UX_IpdAdmission_RequestKey",
    "tbl": "IpdAdmission"
+  },
+  {
+   "cols": "PatientId",
+   "idx": "UX_IpdAdvice_Pending",
+   "tbl": "IpdAdmissionAdvice"
   },
   {
    "cols": "BedId",
@@ -63125,6 +63619,31 @@
    "cols": "LabOrderId, FinalApprovedOn",
    "idx": "UX_LabReportWhatsAppLog_Order_Final",
    "tbl": "LabReportWhatsAppLog"
+  },
+  {
+   "cols": "CompanyId, ExecutiveCode",
+   "idx": "UX_MarketingExecutive_Code",
+   "tbl": "MarketingExecutive"
+  },
+  {
+   "cols": "LoginUserId",
+   "idx": "UX_MarketingExecutive_LoginUser",
+   "tbl": "MarketingExecutive"
+  },
+  {
+   "cols": "UserId, PointTime",
+   "idx": "UQ_MarketingLocationPoint_UserTime",
+   "tbl": "MarketingLocationPoint"
+  },
+  {
+   "cols": "BranchId, ExecutiveId, FyStart",
+   "idx": "UX_MarketingTarget",
+   "tbl": "MarketingTarget"
+  },
+  {
+   "cols": "TargetId, BucketNo",
+   "idx": "UX_MarketingTargetBucket",
+   "tbl": "MarketingTargetBucket"
   },
   {
    "cols": "CompanyId, CardNo",
