@@ -11,7 +11,13 @@ cd "$ROOT" || exit 0
 git diff-tree --no-commit-id --name-only -r HEAD | grep -qE '^(SQLScripts/|Tools/datadictionary/)' || exit 0
 
 echo "data dictionary: checking the database schema ..."
-PY=$(command -v python3 || command -v python)
+# First Python that has the updater's packages (pymssql, python-docx, Pillow); set DD_PYTHON to force one.
+PY=""
+for p in "$DD_PYTHON" "$(command -v python3)" /usr/local/bin/python3 /opt/homebrew/bin/python3 \
+         /Library/Frameworks/Python.framework/Versions/Current/bin/python3 /usr/bin/python3 "$(command -v python)"; do
+    [ -n "$p" ] && [ -x "$p" ] && "$p" -c "import pymssql, docx, PIL" 2>/dev/null && { PY="$p"; break; }
+done
+[ -n "$PY" ] || { echo "data dictionary: no Python with pymssql, python-docx and Pillow found (pip install -r Tools/datadictionary/requirements.txt); not refreshed."; exit 0; }
 "$PY" Tools/datadictionary/update_data_dictionary.py --quiet || { echo "data dictionary: not refreshed (see message above)."; exit 0; }
 
 git add Docs/DataDictionary

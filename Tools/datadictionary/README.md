@@ -40,6 +40,8 @@ sh Tools/datadictionary/install_hooks.sh
 The hook runs after every commit that changes `SQLScripts/` or this folder: it reads the schema (about 15 s) and, if
 the dictionary changed, makes a follow-up commit "Docs: data dictionary refreshed (auto)". Skip it for one commit
 with `DD_SKIP=1 git commit ...`. If the database cannot be reached the commit is not affected.
+The hook uses the first Python on the machine that has the packages in `requirements.txt` (the default `python3`,
+then `/usr/local/bin/python3`, Homebrew's and others); set `DD_PYTHON=/path/to/python3` to choose one.
 
 **Order matters:** apply the SQL script to the database first, then commit it — the dictionary reflects what is in
 the database.
