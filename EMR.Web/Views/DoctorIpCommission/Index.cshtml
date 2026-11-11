@@ -104,6 +104,7 @@
                 <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
                     <div class="small text-muted">
                         Lab order tests from <strong>@Model.FromDate.ToString("dd-MMM-yyyy")</strong> to <strong>@Model.ToDate.ToString("dd-MMM-yyyy")</strong> whose commission is not yet computed.
+                        <div class="mt-1"><i class="bi bi-list-check me-1"></i>Use <strong>Select tests</strong> to leave tests out before calculating. Omitted tests earn no IP in the manual or the scheduled run until they are included again.</div>
                     </div>
                     @if (Model.PendingItems.Any() && Model.ComputeMode != "Automatic")
                     {
@@ -130,13 +131,15 @@
                                 <th class="text-center">Orders</th>
                                 <th class="text-center">Tests</th>
                                 <th class="text-end">Billed (₹)</th>
-                                <th class="text-end pe-4">Estimated Commission (₹)</th>
+                                <th class="text-end">Estimated Commission (₹)</th>
+                                <th class="text-center">Omitted</th>
+                                <th class="text-end pe-4"></th>
                             </tr>
                         </thead>
                         <tbody>
                             @if (!Model.PendingItems.Any())
                             {
-                                <tr><td colspan="8" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>Nothing pending for this period.</td></tr>
+                                <tr><td colspan="10" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>Nothing pending for this period.</td></tr>
                             }
                             else
                             {
@@ -152,7 +155,19 @@
                                         <td class="text-center">@p.Pending_Orders</td>
                                         <td class="text-center"><span class="badge bg-warning text-dark rounded-pill px-3">@p.Pending_Items</span></td>
                                         <td class="text-end">@p.Pending_Amount.ToString("N2")</td>
-                                        <td class="text-end pe-4 fw-semibold">@p.Estimated_Commission.ToString("N2")</td>
+                                        <td class="text-end fw-semibold">@p.Estimated_Commission.ToString("N2")</td>
+                                        <td class="text-center">
+                                            @if (p.Omitted_Items > 0)
+                                            {
+                                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle rounded-pill px-3" title="Billed ₹@p.Omitted_Amount.ToString("N2"), commission ₹@p.Omitted_Commission.ToString("N2") left out">@p.Omitted_Items</span>
+                                            }
+                                            else { <span class="text-muted">-</span> }
+                                        </td>
+                                        <td class="text-end pe-4">
+                                            <button type="button" class="btn btn-sm btn-outline-primary ip-select" data-doctor="@p.Doctor_ID" data-name="@p.Doctor_Name">
+                                                <i class="bi bi-list-check me-1"></i>Select tests
+                                            </button>
+                                        </td>
                                     </tr>
                                 }
                                 <tr class="table-light fw-bold">
@@ -160,7 +175,9 @@
                                     <td class="text-center">@Model.PendingItems.Sum(p => p.Pending_Orders)</td>
                                     <td class="text-center">@Model.PendingItems.Sum(p => p.Pending_Items)</td>
                                     <td class="text-end">@Model.PendingItems.Sum(p => p.Pending_Amount).ToString("N2")</td>
-                                    <td class="text-end pe-4">@Model.PendingItems.Sum(p => p.Estimated_Commission).ToString("N2")</td>
+                                    <td class="text-end">@Model.PendingItems.Sum(p => p.Estimated_Commission).ToString("N2")</td>
+                                    <td class="text-center">@Model.PendingItems.Sum(p => p.Omitted_Items)</td>
+                                    <td class="pe-4"></td>
                                 </tr>
                             }
                         </tbody>
@@ -232,3 +249,171 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="ipTestsModal" tabindex="-1" aria-labelledby="ipTestsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title fw-bold" id="ipTestsTitle"><i class="bi bi-list-check me-2"></i>Select tests</h5>
+                    <div class="small text-muted">Orders @Model.FromDate.ToString("dd-MMM-yyyy") to @Model.ToDate.ToString("dd-MMM-yyyy"). Untick a test to omit it from the IP calculation.</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="d-flex flex-wrap gap-2 align-items-center p-3 border-bottom bg-light">
+                    <input type="search" id="ipFilter" class="form-control form-control-sm" style="max-width:280px" placeholder="Filter by bill, patient or test" />
+                    <button type="button" class="btn btn-sm btn-outline-secondary ip-bulk" data-on="1"><i class="bi bi-check2-square me-1"></i>Include shown</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary ip-bulk" data-on="0"><i class="bi bi-square me-1"></i>Omit shown</button>
+                    <div class="ms-auto small" id="ipTotals"></div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-3" style="width:40px"><input type="checkbox" class="form-check-input" id="ipAll" title="Include / omit all shown" /></th>
+                                <th>Bill</th><th>Date</th><th>Patient</th><th>Test / Profile / Package</th>
+                                <th class="text-end">Billed (₹)</th><th class="text-end">Rate %</th><th class="text-end pe-3">Commission (₹)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ipTests"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer flex-wrap">
+                <input type="text" id="ipReason" class="form-control form-control-sm me-auto" style="max-width:360px" maxlength="250" placeholder="Reason for omitting (optional)" />
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" id="ipSave" asp-permission="MASTER.DOCTORIP_COMMISSION:OMIT" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save selection</button>
+                @if (Model.ComputeMode != "Automatic")
+                {
+                    <button type="button" id="ipSaveCalc" asp-permission="MASTER.DOCTORIP_COMMISSION:CALCULATE" class="btn btn-success"><i class="bi bi-calculator me-1"></i>Save &amp; calculate</button>
+                }
+            </div>
+            <form asp-action="Calculate" method="post" id="ipCalcForm" class="d-none">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="doctorId" id="ipCalcDoctor" />
+                <input type="hidden" name="fromDate" value="@from" />
+                <input type="hidden" name="toDate" value="@to" />
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(function () {
+    const from = '@from', to = '@to';
+    const modalEl = document.getElementById('ipTestsModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    const body = document.getElementById('ipTests');
+    const saveBtn = document.getElementById('ipSave');
+    const calcBtn = document.getElementById('ipSaveCalc');
+    const canOmit = !!saveBtn;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const money = n => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const day = d => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const token = () => document.querySelector('#ipCalcForm input[name="__RequestVerificationToken"]').value;
+    let doctorId = null, tests = [], changed = false;
+
+    document.querySelectorAll('.ip-select').forEach(b => b.addEventListener('click', () => open(b.dataset.doctor, b.dataset.name)));
+
+    async function open(id, name) {
+        doctorId = id; changed = false;
+        document.getElementById('ipTestsTitle').innerHTML = '<i class="bi bi-list-check me-2"></i>Select tests - ' + esc(name);
+        document.getElementById('ipFilter').value = '';
+        document.getElementById('ipReason').value = '';
+        body.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading tests...</td></tr>';
+        document.getElementById('ipTotals').textContent = '';
+        modal.show();
+        try {
+            const res = await fetch('@Url.Action("PendingTests")?' + new URLSearchParams({ doctorId: id, fromDate: from, toDate: to }));
+            if (!(res.headers.get('content-type') || '').includes('json')) { location.reload(); return; }
+            const data = await res.json();
+            if (!data.success) { body.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">' + esc(data.message) + '</td></tr>'; return; }
+            tests = data.tests.map(t => ({ ...t, include: !t.Is_Omitted }));
+            render();
+        } catch { body.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">Could not load the tests. Try again.</td></tr>'; }
+    }
+
+    function shown() {
+        const q = document.getElementById('ipFilter').value.trim().toLowerCase();
+        return tests.filter(t => !q || [t.BillNo, t.Patient_Name, t.Test_Code, t.Test_Name].some(v => String(v ?? '').toLowerCase().includes(q)));
+    }
+
+    function render() {
+        const rows = shown();
+        body.innerHTML = rows.length ? rows.map(t => `
+            <tr class="${t.include ? '' : 'table-secondary text-muted'}">
+                <td class="ps-3"><input type="checkbox" class="form-check-input ip-chk" data-id="${t.LabOrderItemId}" ${t.include ? 'checked' : ''} ${canOmit ? '' : 'disabled'}></td>
+                <td class="small font-monospace">${esc(t.BillNo)}</td>
+                <td class="small">${day(t.Order_Date)}</td>
+                <td>${esc(t.Patient_Name)}</td>
+                <td><div class="${t.include ? 'fw-semibold' : 'text-decoration-line-through'}">${esc(t.Test_Name)}</div>
+                    <div class="small text-muted">${esc(t.Test_Code || '')} · ${esc(t.Item_Type)}${t.Is_Omitted ? ' · <span class="text-secondary"><i class="bi bi-slash-circle me-1"></i>omitted' + (t.Omitted_By_Name ? ' by ' + esc(t.Omitted_By_Name) : '') + (t.Omit_Reason ? ': ' + esc(t.Omit_Reason) : '') + '</span>' : ''}</div></td>
+                <td class="text-end">${money(t.Billed_Amount)}</td>
+                <td class="text-end">${money(t.Commission_Rate)}</td>
+                <td class="text-end pe-3 fw-semibold">${t.include ? money(t.Commission_Amount) : '<span class="text-muted">0.00</span>'}</td>
+            </tr>`).join('') : '<tr><td colspan="8" class="text-center text-muted py-4">No pending tests.</td></tr>';
+        const inc = tests.filter(t => t.include), om = tests.filter(t => !t.include);
+        document.getElementById('ipTotals').innerHTML =
+            `<span class="me-3">Included <strong>${inc.length}</strong> · commission <strong>₹${money(inc.reduce((a, t) => a + t.Commission_Amount, 0))}</strong></span>` +
+            `<span class="text-muted">Omitted <strong>${om.length}</strong> · ₹${money(om.reduce((a, t) => a + t.Commission_Amount, 0))}</span>`;
+        const all = document.getElementById('ipAll');
+        all.disabled = !canOmit || !rows.length;
+        all.checked = rows.length > 0 && rows.every(t => t.include);
+        all.indeterminate = rows.some(t => t.include) && !all.checked;
+    }
+
+    body.addEventListener('change', e => {
+        const c = e.target.closest('.ip-chk'); if (!c) return;
+        const t = tests.find(x => x.LabOrderItemId == c.dataset.id); if (t) { t.include = c.checked; changed = true; render(); }
+    });
+    const setShown = on => { if (!canOmit) return; shown().forEach(t => t.include = on); changed = true; render(); };
+    document.getElementById('ipAll').addEventListener('change', e => setShown(e.target.checked));
+    document.querySelectorAll('.ip-bulk').forEach(b => b.addEventListener('click', () => setShown(b.dataset.on === '1')));
+    document.getElementById('ipFilter').addEventListener('input', render);
+
+    async function save() {
+        const omit = tests.filter(t => !t.include && !t.Is_Omitted).map(t => t.LabOrderItemId);
+        const include = tests.filter(t => t.include && t.Is_Omitted).map(t => t.LabOrderItemId);
+        if (!omit.length && !include.length) return { success: true, omitted: 0, restored: 0 };
+        const fd = new FormData();
+        fd.append('doctorId', doctorId); fd.append('fromDate', from); fd.append('toDate', to);
+        fd.append('omitIds', omit.join(',')); fd.append('includeIds', include.join(','));
+        fd.append('reason', document.getElementById('ipReason').value);
+        fd.append('__RequestVerificationToken', token());
+        const res = await fetch('@Url.Action("SaveOmitted")', { method: 'POST', body: fd });
+        if (!(res.headers.get('content-type') || '').includes('json')) { location.reload(); return null; }
+        return await res.json();
+    }
+
+    async function run(btn, thenCalculate) {
+        const old = btn.innerHTML; btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving';
+        try {
+            const r = await save();
+            if (!r) return;
+            if (!r.success) { Swal.fire({ icon: 'error', text: r.message }); return; }
+            if (thenCalculate) {
+                const included = tests.filter(t => t.include).length;
+                if (!included) { Swal.fire({ icon: 'warning', text: 'All tests are omitted, so there is nothing to calculate. The selection is saved.' }).then(() => location.reload()); return; }
+                const ok = await Swal.fire({ icon: 'question', title: 'Calculate commission?', html: `${included} test(s) will be calculated for this doctor. Computed tests are locked and will not be calculated again.`, showCancelButton: true, confirmButtonText: 'Calculate' });
+                if (!ok.isConfirmed) { if (r.omitted || r.restored) location.reload(); return; }
+                document.getElementById('ipCalcDoctor').value = doctorId;
+                document.getElementById('ipCalcForm').submit();
+                return;
+            }
+            await Swal.fire({ icon: 'success', title: 'Selection saved', text: `${r.omitted} test(s) omitted, ${r.restored} included again.`, timer: 2200, showConfirmButton: false });
+            location.reload();
+        } catch { Swal.fire({ icon: 'error', text: 'Could not save the selection. Try again.' }); }
+        finally { btn.disabled = false; btn.innerHTML = old; }
+    }
+    if (saveBtn) saveBtn.addEventListener('click', () => run(saveBtn, false));
+    if (calcBtn) calcBtn.addEventListener('click', () => run(calcBtn, true));
+
+    modalEl.addEventListener('hide.bs.modal', e => {
+        if (changed && canOmit && !confirm('Close without saving the test selection?')) e.preventDefault();
+    });
+})();
+</script>
+}

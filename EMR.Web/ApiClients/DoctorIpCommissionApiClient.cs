@@ -37,6 +37,20 @@ public class DoctorIpCommissionApiClient(IHttpClientFactory factory) : IDoctorIp
         return (await res.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<DoctorIpCommissionCalculateResultModel>>>())?.Data ?? [];
     }
 
+    public async Task<IEnumerable<DoctorIpCommissionPendingTestModel>> GetPendingTestsAsync(int branchId, int doctorId, DateTime fromDate, DateTime toDate, int? companyId)
+    {
+        var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<DoctorIpCommissionPendingTestModel>>>(
+            "api/doctor-ip-commission/pending-tests" + Qs(("branchId", branchId), ("doctorId", doctorId), ("fromDate", fromDate), ("toDate", toDate), ("companyId", companyId)));
+        return res?.Data ?? [];
+    }
+
+    public async Task<DoctorIpCommissionOmitResultModel> SetOmittedAsync(DoctorIpCommissionOmitRequestModel req)
+    {
+        var res = await Client.PostAsJsonAsync("api/doctor-ip-commission/omit", req);
+        await EnsureOk(res, "Failed to save the test selection.");
+        return (await res.Content.ReadFromJsonAsync<ApiResponse<DoctorIpCommissionOmitResultModel>>())?.Data ?? new();
+    }
+
     public async Task<IEnumerable<DoctorIpCommissionListModel>> GetListAsync(int? branchId, int? doctorId, DateTime? fromDate, DateTime? toDate, int? companyId)
     {
         var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<DoctorIpCommissionListModel>>>(

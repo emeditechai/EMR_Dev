@@ -167,6 +167,74 @@ public class DoctorIpCommissionController(
         }
     }
 
+    /// <summary>A doctor's pending tests for the period, with the omitted ones flagged (test selection before calculating).</summary>
+    [HttpGet]
+    public async Task<IActionResult> PendingTests(int doctorId, DateTime fromDate, DateTime toDate)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (!branchId.HasValue) return Json(new { success = false, message = "Select a branch first." });
+        if (fromDate == default || toDate == default || toDate.Date < fromDate.Date)
+            return Json(new { success = false, message = "Choose a valid From and To date." });
+        try
+        {
+            var tests = await apiClient.GetPendingTestsAsync(branchId.Value, doctorId, fromDate.Date, toDate.Date, User.GetCompanyId());
+            return Json(new { success = true, tests }, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = null });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The API is not reachable. Try again." });
+        }
+    }
+
+    /// <summary>
+    /// Saves the test selection: omitted tests are left out of the commission by both the manual Calculate and
+    /// the scheduled run until they are included again. Computed tests cannot change.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveOmitted(int doctorId, DateTime fromDate, DateTime toDate, string? omitIds, string? includeIds, string? reason)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (!branchId.HasValue) return Json(new { success = false, message = "Select a branch first." });
+        if (fromDate == default || toDate == default || toDate.Date < fromDate.Date)
+            return Json(new { success = false, message = "Choose a valid From and To date." });
+        static List<int> Ids(string? csv) => (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out var n) ? n : 0).Where(n => n > 0).Distinct().ToList();
+        var omit = Ids(omitIds);
+        var include = Ids(includeIds).Except(omit).ToList();
+        if (omit.Count == 0 && include.Count == 0) return Json(new { success = true, omitted = 0, restored = 0 });
+        if (reason is { Length: > 250 }) reason = reason[..250];
+
+        try
+        {
+            var result = await apiClient.SetOmittedAsync(new DoctorIpCommissionOmitRequestModel
+            {
+                BranchId = branchId.Value,
+                DoctorId = doctorId,
+                FromDate = fromDate.Date,
+                ToDate = toDate.Date,
+                CompanyId = User.GetCompanyId(),
+                UserId = User.GetUserId(),
+                OmitIds = omit,
+                IncludeIds = include,
+                Reason = reason
+            });
+            if (result.Omitted_Count > 0 || result.Restored_Count > 0)
+                await auditLogService.LogAsync("Doctor IP Commission Test Selection", "Update",
+                    $"Doctor #{doctorId}, orders {fromDate:dd-MMM-yyyy} to {toDate:dd-MMM-yyyy}: {result.Omitted_Count} test(s) omitted, {result.Restored_Count} included again" +
+                    (string.IsNullOrWhiteSpace(reason) ? "" : $" - {reason.Trim()}"), User.GetUserId(), branchId.Value);
+            return Json(new { success = true, omitted = result.Omitted_Count, restored = result.Restored_Count });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The API is not reachable. Try again." });
+        }
+    }
+
     [HttpGet]
     public async Task<IActionResult> Details(long id)
     {

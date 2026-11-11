@@ -30,6 +30,25 @@ public class DoctorIpCommissionController(IDoctorIpCommissionService service) : 
         => Ok(ApiResponse<IEnumerable<DoctorIpCommissionPendingItem>>.Ok(
             await service.GetPendingAsync(branchId, doctorId, fromDate, toDate, companyId)));
 
+    [HttpGet("pending-tests")]
+    public async Task<IActionResult> GetPendingTests([FromQuery] int branchId, [FromQuery] int doctorId,
+        [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, [FromQuery] int? companyId)
+        => Ok(ApiResponse<IEnumerable<DoctorIpCommissionPendingTest>>.Ok(
+            await service.GetPendingTestsAsync(branchId, doctorId, fromDate, toDate, companyId)));
+
+    [HttpPost("omit")]
+    public async Task<IActionResult> SetOmitted([FromBody] DoctorIpCommissionOmitRequest req)
+    {
+        try
+        {
+            return Ok(ApiResponse<DoctorIpCommissionOmitResult>.Ok(await service.SetOmittedAsync(req), "Test selection saved."));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
     [HttpPost("calculate")]
     public async Task<IActionResult> Calculate([FromBody] DoctorIpCommissionCalculateRequest req)
     {

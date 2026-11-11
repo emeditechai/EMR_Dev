@@ -23,6 +23,26 @@ public class DoctorIpCommissionService(IDbConnectionFactory db) : IDoctorIpCommi
             commandType: CommandType.StoredProcedure, commandTimeout: 120);
     }
 
+    public async Task<IEnumerable<DoctorIpCommissionPendingTest>> GetPendingTestsAsync(int branchId, int doctorId, DateTime fromDate, DateTime toDate, int? companyId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<DoctorIpCommissionPendingTest>("usp_DoctorIpCommission_GetPendingTests",
+            new { BranchId = branchId, DoctorId = doctorId, FromDate = fromDate.Date, ToDate = toDate.Date, CompanyId = companyId },
+            commandType: CommandType.StoredProcedure);
+    }
+
+    public async Task<DoctorIpCommissionOmitResult> SetOmittedAsync(DoctorIpCommissionOmitRequest req)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryFirstAsync<DoctorIpCommissionOmitResult>("usp_DoctorIpCommission_SetOmitted",
+            new
+            {
+                req.BranchId, req.DoctorId, FromDate = req.FromDate.Date, ToDate = req.ToDate.Date, req.CompanyId, req.UserId,
+                OmitIds = string.Join(",", req.OmitIds), IncludeIds = string.Join(",", req.IncludeIds), req.Reason
+            },
+            commandType: CommandType.StoredProcedure);
+    }
+
     public async Task<IEnumerable<DoctorIpCommissionListItem>> GetListAsync(int? branchId, int? doctorId, DateTime? fromDate, DateTime? toDate, int? companyId)
     {
         using var con = db.CreateConnection();
