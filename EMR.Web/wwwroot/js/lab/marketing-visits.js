@@ -1,4 +1,4 @@
-/* LAB > Doctor Visit Log (SQLScripts/2446). An executive login sees and logs its own visits only (enforced in the procedures). */
+/* LAB > Doctor Visit Log (SQLScripts/2447). An executive login sees and logs its own visits only (enforced in the procedures). */
 (function () {
     'use strict';
     const P = window.MvPage, $ = id => document.getElementById(id), E = Ipd.esc;

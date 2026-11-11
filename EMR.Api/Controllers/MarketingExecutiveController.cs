@@ -94,7 +94,7 @@ public class MarketingExecutiveController(IIpdProcService procs) : ControllerBas
         return Row(await procs.RowAsync("dbo.usp_Api_Doctor_SetMarketingExecutive", new { c.CompanyId, c.UserId, DoctorId = doctorId, r.ExecutiveId }));
     }
 
-    // ── LAB > Marketing Executive Sales Target and Doctor Visit Log (SQLScripts/2446). Branch from the web (signed-in branch). ──
+    // ── LAB > Marketing Executive Sales Target and Doctor Visit Log (SQLScripts/2447). Branch from the web (signed-in branch). ──
     [HttpGet("targets/years")]
     public async Task<IActionResult> TargetYears()
     {

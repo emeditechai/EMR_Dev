@@ -10,7 +10,7 @@ namespace EMR.Web.Controllers;
 
 /// <summary>
 /// LAB > Marketing Executive Sales Target (LAB.MARKETINGTARGETS: VIEW, EDIT) and LAB > Doctor Visit Log
-/// (LAB.MARKETINGVISITS: VIEW, ADD, DELETE) - SQLScripts/2446. Targets are per branch (the signed-in branch) and financial
+/// (LAB.MARKETINGVISITS: VIEW, ADD, DELETE) - SQLScripts/2447. Targets are per branch (the signed-in branch) and financial
 /// year, in Monthly / Quarterly / Half-yearly / Yearly buckets of sales (Rs.) and doctor visits. Reports > LAB >
 /// Marketing Executive Business takes its targets from here. Web -> EMR.Api api/marketing-executives -> procedures.
 /// </summary>

@@ -1,4 +1,4 @@
-// Reports > LAB > Marketing Executive Business. Data: GetLabReportData?report=marketing-business (SQLScripts/2443; targets 2446).
+// Reports > LAB > Marketing Executive Business. Data: GetLabReportData?report=marketing-business (SQLScripts/2443; targets 2447).
 (function () {
     'use strict';
     const P = window.MbPage || {}, $ = id => document.getElementById(id);
@@ -9,7 +9,7 @@
     const typeColor = { OPD: '#2563eb', LAB: '#7c3aed', IPD: '#0891b2', MED: '#16a34a' };
     const pill = t => t ? `<span class="mb-pill" style="background:${typeColor[t] || '#64748b'}1a;color:${typeColor[t] || '#64748b'}">${esc(t)}</span>` : '';
     let data = null, optionsLoaded = false;
-    const FREQ = { MONTHLY: 'Monthly', QUARTERLY: 'Quarterly', HALFYEARLY: 'Half-yearly', YEARLY: 'Yearly' };   // 2446
+    const FREQ = { MONTHLY: 'Monthly', QUARTERLY: 'Quarterly', HALFYEARLY: 'Half-yearly', YEARLY: 'Yearly' };   // 2447
 
     function setRange(kind) {
         const t = new Date(); let f = new Date(t), to = new Date(t);

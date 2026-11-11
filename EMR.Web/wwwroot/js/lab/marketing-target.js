@@ -1,4 +1,4 @@
-/* LAB > Marketing Executive Sales Target (SQLScripts/2446). Per branch + financial year; buckets by frequency. The same
+/* LAB > Marketing Executive Sales Target (SQLScripts/2447). Per branch + financial year; buckets by frequency. The same
    rules are checked again in usp_Api_MktTarget_Save (every bucket, 0 or more, whole visits, at least one target). */
 (function () {
     'use strict';

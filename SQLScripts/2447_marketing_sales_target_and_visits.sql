@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════════════
--- 2446  LAB > Marketing Executive Sales Target  +  LAB > Doctor Visit Log
+-- 2447  LAB > Marketing Executive Sales Target  +  LAB > Doctor Visit Log
 --   * MarketingTarget (per company / branch / LAB executive / financial year) with a frequency: MONTHLY (12 buckets),
 --     QUARTERLY (4), HALFYEARLY (2), YEARLY (1). MarketingTargetBucket holds each bucket's sales target (Rs.) and
 --     doctor-visit target (count). The financial year follows Acc_Settings.FinancialYearStartMonth (default April).
@@ -380,7 +380,7 @@ GO
 UPDATE dbo.Users SET Permission_Version = Permission_Version + 1;
 GO
 
--- ── Reports > LAB > Marketing Executive Business: targets from the Sales Target setup (2446) ──────────────────────
+-- ── Reports > LAB > Marketing Executive Business: targets from the Sales Target setup (2447) ──────────────────────
 CREATE OR ALTER PROCEDURE dbo.usp_Api_LabReport_MarketingBusiness
     @BranchId      INT,
     @FromDate      DATE,
@@ -476,7 +476,7 @@ BEGIN
       AND (@AnyEx = 1 OR 'E' + CAST(e.ExecutiveId AS VARCHAR(10)) IN (SELECT ExecKey FROM @Ex))
       AND (e.IsActive = 1 OR EXISTS (SELECT 1 FROM #R r WHERE r.ExecKey = 'E' + CAST(e.ExecutiveId AS VARCHAR(10))));
 
-    -- 2446: targets from LAB > Marketing Executive Sales Target (this branch): each bucket pro-rated by the days of the period inside it
+    -- 2447: targets from LAB > Marketing Executive Sales Target (this branch): each bucket pro-rated by the days of the period inside it
     UPDATE x SET PeriodTarget = ISNULL(t.Sales, 0), VisitTarget = ISNULL(t.Visit, 0), Frequency = t.Frequency,
                  VisitCount = (SELECT COUNT(1) FROM dbo.MarketingDoctorVisit mv WHERE mv.BranchId = @BranchId AND mv.IsDeleted = 0
                                   AND 'E' + CAST(mv.ExecutiveId AS VARCHAR(10)) = x.ExecKey AND mv.VisitDate >= @From AND mv.VisitDate < @To)
@@ -564,5 +564,5 @@ BEGIN
     DROP TABLE #R; DROP TABLE #E;
 END;
 GO
-PRINT '2446 Marketing sales target, doctor visit log, report targets - done.';
+PRINT '2447 Marketing sales target, doctor visit log, report targets - done.';
 GO
