@@ -1,0 +1,59 @@
+@{
+    // LAB > Doctor Visit Log (SQLScripts/2446): the "visits done" against the doctor-visit target
+    ViewData["Title"] = "Doctor Visit Log";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@Html.AntiForgeryToken()
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+        <h1 class="h3 fw-bold mb-0"><i class="bi bi-geo-alt me-2 text-primary"></i>Doctor Visit Log</h1>
+        <small class="text-muted">Visits of LAB marketing executives to doctors · counted against the doctor-visit target, with the visits logged in the Marketing Executive App</small>
+    </div>
+    <div class="d-flex gap-2">
+        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-bullseye me-1"></i>Sales Target</a>
+        @if (Can("ADD")) { <button type="button" class="btn btn-sm btn-primary" id="vAdd"><i class="bi bi-plus-lg me-1"></i>Log a visit</button> }
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3"><div class="card-body py-3"><div class="row g-2 align-items-end">
+    <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="vFrom">From</label><input type="date" id="vFrom" class="form-control form-control-sm" /></div>
+    <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="vTo">To</label><input type="date" id="vTo" class="form-control form-control-sm" /></div>
+    <div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="vExec">Marketing executive</label><select id="vExec" class="form-select form-select-sm"><option value="">All executives</option></select></div>
+    <div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="vSearch">Search</label><input id="vSearch" class="form-control form-control-sm" placeholder="Doctor, executive or remarks" /></div>
+    <div class="col-12 col-md-2"><button type="button" class="btn btn-sm btn-primary w-100" id="vShow"><i class="bi bi-funnel me-1"></i>Show</button></div>
+</div></div></div>
+
+<div class="row g-3 mb-3" id="vKpis"></div>
+
+<div class="card shadow-sm border-0"><div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>Date &amp; time</th><th>Executive</th><th>Doctor</th><th>Purpose / outcome</th><th>Remarks</th><th>Source</th><th class="text-end"></th></tr></thead>
+        <tbody id="vRows"><tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+</div></div>
+
+<div class="modal fade" id="vModal" tabindex="-1" aria-labelledby="vTitle" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title fw-bold" id="vTitle">Log a doctor visit</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <form id="vForm" novalidate autocomplete="off"><div class="modal-body"><div class="row g-3">
+        <div class="col-12" id="vExecBox"><label class="form-label fw-semibold" for="vfExec">Marketing executive <span class="text-danger">*</span></label>
+            <select id="vfExec" class="form-select"></select><div class="invalid-feedback">Choose the executive.</div></div>
+        <div class="col-12"><label class="form-label fw-semibold" for="vfDoc">Doctor visited <span class="text-danger">*</span></label>
+            <select id="vfDoc" class="form-select"></select><div class="invalid-feedback">Choose the doctor.</div><div class="form-text">Doctors tagged to the executive are listed first (★).</div></div>
+        <div class="col-md-6"><label class="form-label fw-semibold" for="vfDate">Date &amp; time <span class="text-danger">*</span></label>
+            <input id="vfDate" type="datetime-local" class="form-control" /><div class="invalid-feedback" id="vfDateMsg">Enter a date and time, not in the future.</div></div>
+        <div class="col-md-6"><label class="form-label fw-semibold" for="vfPurpose">Purpose <span class="text-danger">*</span></label>
+            <select id="vfPurpose" class="form-select"><option value="">-- Select --</option><option value="INTRODUCTION">Introduction</option><option value="FOLLOW_UP">Follow-up</option>
+                <option value="RELATIONSHIP">Relationship</option><option value="COLLECTION">Collection / dues</option><option value="COMPLAINT">Complaint</option><option value="OTHER">Other</option></select>
+            <div class="invalid-feedback">Choose the purpose.</div></div>
+        <div class="col-12"><label class="form-label fw-semibold" for="vfRemarks">Remarks <span class="text-danger d-none" id="vfRemReq">*</span></label>
+            <textarea id="vfRemarks" class="form-control" rows="2" maxlength="500"></textarea><div class="invalid-feedback">Enter remarks for purpose Other.</div></div>
+    </div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-primary" id="vSave"><i class="bi bi-check2 me-1"></i>Save visit</button></div></form>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.MvPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/MarketingTargets/"), canAdd = Can("ADD"), canDelete = Can("DELETE") }));</script>
+    <script src="~/js/lab/marketing-visits.js" asp-append-version="true"></script>
+}

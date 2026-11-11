@@ -10,6 +10,9 @@ public record MarketingExecutiveSaveRequest(int? ExecutiveId, string? ExecutiveT
     int? BranchId = null, string? LoginPasswordHash = null, string? LoginSalt = null);   // 2444: the executive's login (hash made by the web)
 public record MarketingExecutiveStatusRequest(bool IsActive);
 public record DoctorMarketingExecutiveRequest(int? ExecutiveId);
+public record MarketingTargetSaveRequest(int BranchId, int ExecutiveId, DateTime FyStart, string? Frequency, string? Buckets, string? Remarks);
+public record MarketingVisitSaveRequest(int BranchId, int? ExecutiveId, int DoctorId, DateTime? VisitDate, string? Purpose, string? Remarks);
+public record MarketingVisitDeleteRequest(int BranchId);
 
 /// <summary>
 /// Master > General > Marketing Executive (SQLScripts/2440). Company and user come from the token; the rules (unique code,
@@ -89,5 +92,68 @@ public class MarketingExecutiveController(IIpdProcService procs) : ControllerBas
     {
         if (Caller() is not { } c) return NoCaller();
         return Row(await procs.RowAsync("dbo.usp_Api_Doctor_SetMarketingExecutive", new { c.CompanyId, c.UserId, DoctorId = doctorId, r.ExecutiveId }));
+    }
+
+    // ── LAB > Marketing Executive Sales Target and Doctor Visit Log (SQLScripts/2446). Branch from the web (signed-in branch). ──
+    [HttpGet("targets/years")]
+    public async Task<IActionResult> TargetYears()
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(await procs.RowsAsync("dbo.usp_Api_MktTarget_Years", new { c.CompanyId })));
+    }
+
+    [HttpGet("targets")]
+    public async Task<IActionResult> Targets([FromQuery] int branchId, [FromQuery] DateTime fyStart)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(await procs.RowsAsync("dbo.usp_Api_MktTarget_List", new { c.CompanyId, BranchId = branchId, FyStart = fyStart.Date, c.UserId })));
+    }
+
+    [HttpGet("targets/{executiveId:int}")]
+    public async Task<IActionResult> Target(int executiveId, [FromQuery] int branchId, [FromQuery] DateTime fyStart, [FromQuery] string? frequency)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        try
+        {
+            var sets = await procs.SetsAsync("dbo.usp_Api_MktTarget_Get", new { c.CompanyId, BranchId = branchId, ExecutiveId = executiveId, FyStart = fyStart.Date, Frequency = frequency, c.UserId }, 2);
+            return Ok(ApiResponse<object>.Ok(new { header = sets[0].FirstOrDefault(), buckets = sets[1] }));
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number >= 50000) { return BadRequest(ApiResponse.Fail(ex.Message)); }
+    }
+
+    [HttpPost("targets")]
+    public async Task<IActionResult> SaveTarget([FromBody] MarketingTargetSaveRequest r)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Row(await procs.RowAsync("dbo.usp_Api_MktTarget_Save", new { c.CompanyId, r.BranchId, c.UserId, r.ExecutiveId, FyStart = r.FyStart.Date, r.Frequency, r.Buckets, r.Remarks }));
+    }
+
+    [HttpGet("visits")]
+    public async Task<IActionResult> Visits([FromQuery] int branchId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, [FromQuery] int? executiveId, [FromQuery] string? search)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        var sets = await procs.SetsAsync("dbo.usp_Api_MktVisit_List", new { c.CompanyId, BranchId = branchId, c.UserId, FromDate = fromDate.Date, ToDate = toDate.Date, ExecutiveId = executiveId, Search = search }, 2);
+        return Ok(ApiResponse<object>.Ok(new { visits = sets[0], executives = sets[1] }));
+    }
+
+    [HttpGet("visits/doctors")]
+    public async Task<IActionResult> VisitDoctors([FromQuery] int? executiveId)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(await procs.RowsAsync("dbo.usp_Api_MktVisit_Doctors", new { c.CompanyId, ExecutiveId = executiveId })));
+    }
+
+    [HttpPost("visits")]
+    public async Task<IActionResult> SaveVisit([FromBody] MarketingVisitSaveRequest r)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Row(await procs.RowAsync("dbo.usp_Api_MktVisit_Save", new { c.CompanyId, r.BranchId, c.UserId, r.ExecutiveId, r.DoctorId, r.VisitDate, r.Purpose, r.Remarks }));
+    }
+
+    [HttpPost("visits/{id:int}/delete")]
+    public async Task<IActionResult> DeleteVisit(int id, [FromBody] MarketingVisitDeleteRequest r)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Row(await procs.RowAsync("dbo.usp_Api_MktVisit_Delete", new { c.CompanyId, r.BranchId, c.UserId, VisitId = id }));
     }
 }
