@@ -44,15 +44,16 @@
             <td>${r.TargetId ? `<span class="badge text-bg-primary">${FREQ[r.Frequency] || E(r.Frequency)}</span> <small class="text-muted">${r.Buckets} period(s)</small>` : '<span class="badge bg-warning-subtle text-warning-emphasis border">Not set</span>'}</td>
             <td class="mt-num fw-semibold">${r.TargetId ? Ipd.money(r.SalesTarget) : '—'}</td><td class="mt-num">${r.TargetId ? Number(r.VisitTarget).toLocaleString('en-IN') : '—'}</td>
             <td class="small text-muted">${r.LastChanged ? Ipd.dt(r.LastChanged) + (r.ModifiedByName ? ' · ' + E(r.ModifiedByName) : '') : ''}</td>
-            <td class="text-end"><button type="button" class="btn btn-sm ${P.canEdit ? 'btn-outline-primary' : 'btn-outline-secondary'}" data-id="${r.ExecutiveId}">
-                <i class="bi ${P.canEdit ? 'bi-pencil' : 'bi-eye'} me-1"></i>${P.canEdit ? (r.TargetId ? 'Change' : 'Set target') : 'View'}</button></td></tr>`).join('')
+            <td class="text-end">${(() => { const can = r.TargetId ? P.canEdit : P.canAdd;   // ADD = set new, EDIT = change saved (SQLScripts/2448)
+                return `<button type="button" class="btn btn-sm ${can ? 'btn-outline-primary' : 'btn-outline-secondary'}" data-id="${r.ExecutiveId}">
+                <i class="bi ${can ? 'bi-pencil' : 'bi-eye'} me-1"></i>${can ? (r.TargetId ? 'Change' : 'Set target') : 'View'}</button>`; })()}</td></tr>`).join('')
             : filtered ? '<tr><td colspan="6" class="text-center text-muted py-4">No executive matches the filters.</td></tr>' : '<tr><td colspan="6" class="text-center text-muted py-4">No LAB marketing executives. Add them in Master &gt; Marketing Executive Master (type LAB).</td></tr>';
     }
 
     async function open(execId, freq) {
         try { cur = await Ipd.get(P.base + 'Get?' + new URLSearchParams({ executiveId: execId, fyStart: fy, frequency: freq || '' })); }
         catch (e) { return Ipd.error(e.message); }
-        const h = cur.header, edit = P.canEdit && !h.IsOwnView;
+        const h = cur.header, edit = (h.TargetId ? P.canEdit : P.canAdd) && !h.IsOwnView;
         $('mtTitle').textContent = `${h.ExecutiveName} (${h.ExecutiveCode}) · FY ${h.FyLabel}`;
         $('mtSub').textContent = `${Ipd.date(h.FyStart)} – ${Ipd.date(h.FyEnd)}` + (h.SavedFrequency ? ` · saved as ${FREQ[h.SavedFrequency]}` : ' · no target saved yet');
         document.querySelector(`#mtFreq input[value="${h.Frequency}"]`).checked = true;

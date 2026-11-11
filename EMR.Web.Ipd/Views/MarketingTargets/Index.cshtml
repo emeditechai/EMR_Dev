@@ -1,7 +1,9 @@
 @{
     // LAB > Marketing Executive Sales Target (SQLScripts/2447)
     ViewData["Title"] = "Marketing Executive Sales Target";
+    var canAdd = ViewData["CanADD"] as bool? ?? false;
     var canEdit = ViewData["CanEDIT"] as bool? ?? false;
+    var canVisits = ViewData["CanVisits"] as bool? ?? false;
 }
 @Html.AntiForgeryToken()
 <style>
@@ -23,7 +25,7 @@
     <div class="d-flex gap-2 align-items-center">
         <label class="small fw-semibold" for="mtFy">Financial year</label>
         <select id="mtFy" class="form-select form-select-sm" style="width:170px"></select>
-        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Visits")"><i class="bi bi-geo-alt me-1"></i>Doctor Visit Log</a>
+        @if (canVisits) { <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Visits")"><i class="bi bi-geo-alt me-1"></i>Doctor Visit Log</a> }
     </div>
 </div>
 
@@ -75,6 +77,6 @@
 
 @section Scripts {
     <script src="~/js/ipd.js" asp-append-version="true"></script>
-    <script>window.MtPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/MarketingTargets/"), canEdit }));</script>
+    <script>window.MtPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/MarketingTargets/"), canAdd, canEdit }));</script>
     <script src="~/js/lab/marketing-target.js" asp-append-version="true"></script>
 }

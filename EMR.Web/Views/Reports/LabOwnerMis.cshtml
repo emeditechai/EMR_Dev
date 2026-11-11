@@ -172,6 +172,7 @@
                     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDepts" type="button"><i class="bi bi-diagram-3 me-1"></i>By department</button></li>
                     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDoctors" type="button"><i class="bi bi-person-badge me-1"></i>By referring doctor</button></li>
                     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPartners" type="button"><i class="bi bi-buildings me-1"></i>By B2B partner</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabExecs" type="button"><i class="bi bi-person-workspace me-1"></i>By marketing executive</button></li>
                     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabBranches" type="button"><i class="bi bi-geo-alt me-1"></i>By branch</button></li>
                     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabItems" type="button"><i class="bi bi-box-seam me-1"></i>Material consumed</button></li>
                 </ul>
@@ -187,6 +188,7 @@
                 <div class="tab-pane fade" id="tabDepts"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="departments"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
                 <div class="tab-pane fade" id="tabDoctors"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="doctors"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
                 <div class="tab-pane fade" id="tabPartners"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="partners"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+                <div class="tab-pane fade" id="tabExecs"><div id="execStrip" class="d-flex flex-wrap gap-2 px-3 py-2 border-bottom"></div><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="executives"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
                 <div class="tab-pane fade" id="tabBranches"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="branches"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
                 <div class="tab-pane fade" id="tabItems"><div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" data-section="items"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
             </div>
@@ -476,6 +478,17 @@
             n('Bills', 'Bills'), n('Tests', 'Tests'), m('Mrp', 'MRP value'), m('Billed', 'Billed at contract'), m('MarginGiven', 'Margin given'),
             { k: '_mp', label: 'Margin %', calc: r => pct(r.MarginGiven, r.Mrp), pct: true }, m('Collected', 'Collected'), m('Due', 'Due'),
             m('Cost', 'Cost'), m('Profit', 'Gross profit'), { k: '_gm', label: 'Profit %', calc: r => pct(r.Profit, r.Billed), pct: true }] },
+        // 2449: by LAB marketing executive (executive on the bill); targets from LAB > Marketing Executive Sales Target, pro-rated
+        executives: { sort: 'Net', share: 'Net', cols: [
+            { k: 'ExecutiveCode', label: 'Code', code: true }, { k: 'Executive', label: 'Marketing executive' }, { k: 'Status', label: 'Status', badge: true },
+            n('TaggedDoctors', 'Doctors tagged'), n('Doctors', 'Doctors referring'), n('Bills', 'Bills'), n('B2CBills', 'B2C'), n('B2BBills', 'B2B'),
+            n('Patients', 'Patients'), n('Tests', 'Tests'), m('Net', 'Net revenue'),
+            { k: '_gr', label: 'Growth', calc: r => N(r.PrevNet) ? (N(r.Net) - N(r.PrevNet)) * 100 / N(r.PrevNet) : null, pct: true },
+            m('Target', 'Sales target'), { k: '_ach', label: 'Achieved', calc: r => N(r.Target) ? N(r.Net) * 100 / N(r.Target) : null, pct: true },
+            m('Collected', 'Collected'), m('Due', 'Due'), m('Cost', 'Cost'), m('Profit', 'Gross profit'),
+            { k: '_gm', label: 'Margin %', calc: r => pct(r.Profit, r.Net), pct: true },
+            { k: 'VisitTarget', label: 'Visit target', dec: 0 }, n('Visits', 'Visits done'),
+            { k: '_va', label: 'Visits achieved', calc: r => N(r.VisitTarget) ? N(r.Visits) * 100 / N(r.VisitTarget) : null, pct: true }] },
         branches: { sort: 'Net', share: 'Net', cols: [
             { k: 'Branch', label: 'Branch' }, n('Bills', 'Bills'), m('Net', 'Net revenue'), m('Collected', 'Collected'), m('Due', 'Due on period bills'),
             m('Cost', 'Cost'), m('Profit', 'Gross profit'), { k: '_gm', label: 'Margin %', calc: r => pct(r.Profit, r.Net), pct: true }] },
@@ -486,7 +499,21 @@
     };
     const val = (c, r) => c.calc ? c.calc(r) : r[c.k];
 
+    // 2449: at-a-glance strip of the By marketing executive tab
+    function renderExecStrip() {
+        const ex = data.executives || [], tagged = ex.filter(r => r.Status !== 'Not tagged'), all = sum(ex, 'Net'), t = sum(tagged, 'Net'), tg = sum(tagged, 'Target');
+        const vt = sum(tagged, 'VisitTarget'), vd = sum(tagged, 'Visits'), none = ex.find(r => r.Status === 'Not tagged');
+        const chip = (l, v, s) => `<div class="border rounded-3 px-3 py-2 bg-white"><div class="fs-9 text-uppercase fw-bold text-muted">${l}</div><div class="fw-bold">${v}</div><div class="fs-9 text-muted">${s}</div></div>`;
+        $('#execStrip').html(
+            chip('Executive business', money(t), `${pctText(pct(t, all))} of LAB net · ${tagged.filter(r => N(r.Bills)).length} of ${tagged.length} executives billing`) +
+            chip('Sales target', tg ? money(tg) : '—', tg ? `${pctText(pct(t, tg))} achieved` : 'no target set for the period') +
+            chip('Doctor visits', num(vd) + (vt ? ' / ' + num(Math.round(vt)) : ''), vt ? `${pctText(pct(vd, vt))} of visit target` : 'no visit target') +
+            chip('Collected / due', money(sum(tagged, 'Collected')), 'due ' + money(sum(tagged, 'Due'))) +
+            chip('Not tagged', money(none ? none.Net : 0), `${num(none ? none.Bills : 0)} bills without an executive`));
+    }
+
     function renderTable(sec) {
+        if (sec === 'executives') renderExecStrip();
         const def = tables[sec], $t = $(`table[data-section="${sec}"]`);
         const st = sortState[sec] || (sortState[sec] = { key: def.sort, dir: -1 });
         const q = $('#txtSearch').val().trim().toLowerCase();
@@ -564,7 +591,7 @@
     $('#btnExcel').on('click', function () {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Measure', 'Value']].concat(summaryPairs())), 'Summary');
-        [['tests', 'By test'], ['departments', 'By department'], ['doctors', 'By doctor'], ['partners', 'By partner'], ['branches', 'By branch'], ['items', 'Material consumed']]
+        [['tests', 'By test'], ['departments', 'By department'], ['doctors', 'By doctor'], ['partners', 'By partner'], ['executives', 'By marketing executive'], ['branches', 'By branch'], ['items', 'Material consumed']]
             .forEach(([sec, name]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportRows(sec)), name));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((data.trend || []).map(r => ({ Period: r.Bucket, Bills: N(r.Bills), Billed: N(r.Billed), Collected: N(r.Collected) }))), 'Trend');
         XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet((data.modes || []).map(r => ({ Mode: r.Mode, Receipts: N(r.Receipts), Amount: N(r.Amount) }))), 'Collection by mode');
@@ -583,7 +610,7 @@
         const half = Math.ceil(pairs.length / 2);
         doc.autoTable({ ...opts, startY: 62, head: [['Measure', 'Value', 'Measure', 'Value']],
             body: pairs.slice(0, half).map((p, i) => p.concat(pairs[half + i] || ['', ''])) });
-        [['tests', 'Revenue by test'], ['departments', 'Revenue by department'], ['doctors', 'Revenue by referring doctor'], ['partners', 'Revenue by B2B partner'], ['branches', 'By branch'], ['items', 'Material consumed']]
+        [['tests', 'Revenue by test'], ['departments', 'Revenue by department'], ['doctors', 'Revenue by referring doctor'], ['partners', 'Revenue by B2B partner'], ['executives', 'By marketing executive'], ['branches', 'By branch'], ['items', 'Material consumed']]
             .forEach(([sec, name]) => {
                 const rows = exportRows(sec); if (!rows.length) return;
                 const cols = Object.keys(rows[0]);

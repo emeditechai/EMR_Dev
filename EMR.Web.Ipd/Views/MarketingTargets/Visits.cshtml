@@ -10,7 +10,7 @@
         <small class="text-muted">Visits of LAB marketing executives to doctors · counted against the doctor-visit target, with the visits logged in the Marketing Executive App</small>
     </div>
     <div class="d-flex gap-2">
-        <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-bullseye me-1"></i>Sales Target</a>
+        @if (Can("Targets")) { <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Index")"><i class="bi bi-bullseye me-1"></i>Sales Target</a> }
         @if (Can("ADD")) { <button type="button" class="btn btn-sm btn-primary" id="vAdd"><i class="bi bi-plus-lg me-1"></i>Log a visit</button> }
     </div>
 </div>

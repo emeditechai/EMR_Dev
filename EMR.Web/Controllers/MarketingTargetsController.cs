@@ -48,7 +48,9 @@ public class MarketingTargetsController(MarketingExecutiveApiClient api, IAction
     [HttpGet]
     public async Task<IActionResult> Index()
     {
+        ViewData["CanADD"] = await permissionGuard.AllowsAsync(HttpContext, TargetPage, "ADD");
         ViewData["CanEDIT"] = await permissionGuard.AllowsAsync(HttpContext, TargetPage, "EDIT");
+        ViewData["CanVisits"] = await permissionGuard.AllowsAsync(HttpContext, VisitPage, "VIEW");
         return View();
     }
 
@@ -75,11 +77,24 @@ public class MarketingTargetsController(MarketingExecutiveApiClient api, IAction
     }
     public sealed class BucketBody { public int BucketNo { get; set; } public decimal SalesTarget { get; set; } public decimal VisitTarget { get; set; } }
 
+    /// <summary>New target (control ADD) or change of a saved one (control EDIT): Save is mapped to both (SQLScripts/2448),
+    /// so whether a target is saved for the executive / branch / year is read first and the right control checked.</summary>
     [HttpPost, ValidateAntiForgeryToken]
-    public Task<IActionResult> Save([FromBody] TargetBody b)
+    public async Task<IActionResult> Save([FromBody] TargetBody b)
     {
+        if (Branch <= 0) return Fail("Your branch could not be found - sign in again.");
+        bool saved;
+        try
+        {
+            var cur = await api.GetAsync($"/targets/{b.ExecutiveId}" + IpdApiClient.Q(("branchId", Branch.ToString()), ("fyStart", b.FyStart.ToString("yyyy-MM-dd"))));
+            saved = cur.TryGetProperty("header", out var h) && h.ValueKind == JsonValueKind.Object && h.TryGetProperty("TargetId", out var t) && t.ValueKind == JsonValueKind.Number;
+        }
+        catch (InvalidOperationException ex) { return Fail(ex.Message); }
+        catch (HttpRequestException) { return Fail("The EMR API is not reachable. Nothing was saved; try again in a moment."); }
+        if (!await permissionGuard.AllowsAsync(HttpContext, TargetPage, saved ? "EDIT" : "ADD"))
+            return Fail(saved ? "You are not allowed to change a saved target (Edit permission)." : "You are not allowed to set a new target (Add permission).");
         var buckets = JsonSerializer.Serialize(b.Buckets.Select(x => new { bucketNo = x.BucketNo, salesTarget = x.SalesTarget, visitTarget = x.VisitTarget }));
-        return Write(() => api.PostAsync("/targets", new { BranchId = Branch, b.ExecutiveId, b.FyStart, b.Frequency, Buckets = buckets, b.Remarks }),
+        return await Write(() => api.PostAsync("/targets", new { BranchId = Branch, b.ExecutiveId, b.FyStart, b.Frequency, Buckets = buckets, b.Remarks }),
             "MarketingTarget.Save", $"Marketing target set: executive {b.ExecutiveId}, FY from {b.FyStart:yyyy-MM-dd}, {b.Frequency}, sales {b.Buckets.Sum(x => x.SalesTarget):0.00}, visits {b.Buckets.Sum(x => x.VisitTarget):0}", "TargetId");
     }
 
@@ -88,6 +103,7 @@ public class MarketingTargetsController(MarketingExecutiveApiClient api, IAction
     public async Task<IActionResult> Visits()
     {
         foreach (var c in new[] { "ADD", "DELETE" }) ViewData["Can" + c] = await permissionGuard.AllowsAsync(HttpContext, VisitPage, c);
+        ViewData["CanTargets"] = await permissionGuard.AllowsAsync(HttpContext, TargetPage, "VIEW");
         return View();
     }
 

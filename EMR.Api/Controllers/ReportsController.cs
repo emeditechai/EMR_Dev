@@ -211,7 +211,7 @@ public class ReportsController : ControllerBase
     }
 
     private static readonly string[] OwnerMisSections =
-        { "summary", "trend", "tests", "departments", "doctors", "partners", "quality", "ageing", "modes", "branches", "items" };   // items: SQLScripts/2252
+        { "summary", "trend", "tests", "departments", "doctors", "partners", "quality", "ageing", "modes", "branches", "items", "executives" };   // items: SQLScripts/2252; executives: 2449
 
     /// <summary>LF-18 Owner MIS: revenue by test / department / doctor / partner, TAT, quality, collection and ageing.</summary>
     [HttpGet("lab/owner-mis")]
