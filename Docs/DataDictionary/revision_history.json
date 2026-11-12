@@ -250,5 +250,14 @@
   ],
   "date": "12 Nov 2026",
   "version": "1.17"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table PaymentQrConfig (14 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) ShowQrOnB2BInvoice"
+  ],
+  "date": "12 Nov 2026",
+  "version": "1.18"
  }
 ]

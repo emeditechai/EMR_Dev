@@ -16836,6 +16836,19 @@
    "type": "int"
   },
   {
+   "col": "ShowQrOnB2BInvoice",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 158,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -37974,6 +37987,188 @@
    "type": "int"
   },
   {
+   "col": "ConfigId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "int"
+  },
+  {
+   "col": "UpiId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 100,
+   "nullable": false,
+   "ord": 4,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "varchar"
+  },
+  {
+   "col": "PayeeName",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 120,
+   "nullable": false,
+   "ord": 5,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "nvarchar"
+  },
+  {
+   "col": "MerchantCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 6,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "varchar"
+  },
+  {
+   "col": "AmountMode",
+   "def": "('DUE')",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 7,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "varchar"
+  },
+  {
+   "col": "IncludeReference",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 8,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "bit"
+  },
+  {
+   "col": "Caption",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 240,
+   "nullable": true,
+   "ord": 9,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "nvarchar"
+  },
+  {
+   "col": "IsActive",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 10,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "bit"
+  },
+  {
+   "col": "CreatedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 11,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "int"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 12,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PaymentQrConfig",
+   "type": "datetime"
+  },
+  {
+   "col": "ModifiedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 13,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PaymentQrConfig",
+   "type": "int"
+  },
+  {
+   "col": "ModifiedDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 14,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PaymentQrConfig",
+   "type": "datetime"
+  },
+  {
    "col": "AdjustmentId",
    "def": null,
    "descr": null,
@@ -57748,7 +57943,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-12T15:37:00",
+ "extracted_on": "2026-11-12T18:39:39",
  "fk": [
   {
    "col": "LedgerId",
@@ -62924,6 +63119,11 @@
    "tbl": "PaymentMode"
   },
   {
+   "col": "ConfigId",
+   "k": 1,
+   "tbl": "PaymentQrConfig"
+  },
+  {
    "col": "Log_ID",
    "k": 1,
    "tbl": "PermissionAuditLog"
@@ -63983,6 +64183,7 @@
   "PaymentLineItem",
   "PaymentMethodMaster",
   "PaymentMode",
+  "PaymentQrConfig",
   "PermissionAuditLog",
   "PermissionControlVocabulary",
   "PhAdjustment",
@@ -64872,6 +65073,11 @@
    "cols": "PatientCode",
    "idx": "UQ_PatientMaster_PatientCode",
    "tbl": "PatientMaster"
+  },
+  {
+   "cols": "BranchId",
+   "idx": "UX_PaymentQrConfig_Branch",
+   "tbl": "PaymentQrConfig"
   },
   {
    "cols": "ItemId, BatchNo, Mrp",
