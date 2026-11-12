@@ -1,0 +1,164 @@
+@{
+    // LAB > B2C Bill Estimate (SQLScripts/2450): one-page billing simulator; every amount is worked out by the server
+    ViewData["Title"] = "B2C Bill Estimate";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@Html.AntiForgeryToken()
+<link rel="stylesheet" href="~/css/lab-estimate.css" asp-append-version="true" />
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+    <div>
+        <h1 class="h4 fw-bold mb-0"><i class="bi bi-calculator me-2 text-primary"></i>B2C Bill Estimate</h1>
+        <small class="text-muted">Billing simulator: same tests, rates and discounts as B2C Booking for <b>@(User.FindFirst("BranchName")?.Value ?? "this branch")</b> · no bill, payment or sample is created</small>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnList"><i class="bi bi-list-ul me-1"></i>Estimates</button>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="btnNew"><i class="bi bi-plus-lg me-1"></i>New estimate</button>
+    </div>
+</div>
+
+<div class="row g-2">
+    <div class="col-xl-8">
+        <!-- patient -->
+        <div class="es-card mb-2"><div class="es-head"><i class="bi bi-person me-1"></i>Patient</div>
+            <div class="row g-2 p-2">
+                <div class="col-md-3 position-relative"><label class="es-l" for="eMobile">Mobile <span class="text-danger">*</span></label>
+                    <div class="input-group input-group-sm has-validation"><span class="input-group-text">+91</span>
+                        <input id="eMobile" name="es-lookup-m" type="search" class="form-control" maxlength="10" inputmode="numeric" placeholder="Type mobile to find patient" autocomplete="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other" />
+                        <div class="invalid-feedback">Valid 10-digit mobile (6-9).</div></div>
+                    <div id="ePatList" class="es-drop d-none"></div></div>
+                <div class="col-3 col-md-1"><label class="es-l" for="eSal">Title</label>
+                    <select id="eSal" class="form-select form-select-sm"><option></option><option>Mr.</option><option>Mrs.</option><option>Ms.</option><option>Miss</option><option>Master</option><option>Baby</option><option>Dr.</option></select></div>
+                <div class="col-9 col-md-3"><label class="es-l" for="eName">Patient name <span class="text-danger">*</span></label>
+                    <input id="eName" class="form-control form-control-sm" maxlength="200" /><div class="invalid-feedback">Enter the name.</div></div>
+                <div class="col-6 col-md-2"><label class="es-l" for="eGender">Gender</label>
+                    <select id="eGender" class="form-select form-select-sm"><option value="">—</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+                <div class="col-6 col-md-1"><label class="es-l" for="eAge">Age (yrs)</label>
+                    <input id="eAge" type="number" min="0" max="130" class="form-control form-control-sm" /><div class="invalid-feedback">0-130</div></div>
+                <div class="col-md-2"><label class="es-l" for="eValid">Valid for</label>
+                    <select id="eValid" class="form-select form-select-sm"><option value="3">3 days</option><option value="7" selected>7 days</option><option value="15">15 days</option><option value="30">30 days</option></select></div>
+                <div class="col-md-5"><label class="es-l" for="eDoctor">Referring doctor</label><select id="eDoctor" class="form-select form-select-sm"><option value="">Self / none</option></select></div>
+                <div class="col-md-4"><label class="es-l" for="eEmail">E-mail</label><input id="eEmail" type="email" class="form-control form-control-sm" maxlength="150" /><div class="invalid-feedback">Valid e-mail.</div></div>
+                <div class="col-md-3 d-flex align-items-end"><div id="ePatTag" class="small text-muted"></div></div>
+            </div>
+        </div>
+
+        <!-- tests -->
+        <div class="es-card mb-2"><div class="es-head d-flex flex-wrap gap-2 align-items-center"><span><i class="bi bi-eyedropper me-1"></i>Tests, profiles &amp; packages</span>
+                <span class="ms-auto small text-muted" id="eTestInfo">Loading rate list…</span></div>
+            <div class="p-2 border-bottom position-relative">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input id="eTestQ" class="form-control" placeholder="Type test name or code (↑ ↓ Enter to add)" autocomplete="off" />
+                    <select id="eKind" class="form-select" style="max-width:140px"><option value="">All</option><option value="T">Tests</option><option value="R">Profiles</option><option value="P">Packages</option></select>
+                </div>
+                <div id="eTestList" class="es-drop d-none"></div>
+            </div>
+            <div class="table-responsive"><table class="table table-sm align-middle mb-0 es-table">
+                <thead><tr><th>#</th><th>Item</th><th>Type</th><th>Department / sample</th><th class="text-end">Qty</th><th class="text-end">Amount</th><th class="text-end">Discount</th><th class="text-end">Net</th><th></th></tr></thead>
+                <tbody id="eRows"><tr><td colspan="9" class="text-center text-muted py-4">Add tests to see the estimate.</td></tr></tbody>
+            </table></div>
+            <div class="p-2 border-top d-flex flex-wrap gap-2 align-items-center">
+                <span class="small fw-semibold"><i class="bi bi-plus-square me-1"></i>Misc charge</span>
+                <select id="eMisc" class="form-select form-select-sm" style="max-width:320px"><option value="">— choose —</option></select>
+                <input id="eMiscQty" type="number" min="1" max="99" value="1" class="form-control form-control-sm" style="width:70px" />
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="eMiscAdd">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- summary + discount -->
+    <div class="col-xl-4">
+        <div class="es-card es-sticky">
+            <div class="es-head"><i class="bi bi-receipt me-1"></i>Estimate</div>
+            <div class="p-2">
+                <div class="es-tot"><span>Total amount</span><b id="tGross">₹0.00</b></div>
+                <div class="es-tot small text-muted"><span>Discountable</span><span id="tElig">₹0.00</span></div>
+
+                <div id="memBox" class="es-mem mt-2 d-none"></div>
+                <div class="es-tot d-none" id="tMemRow"><span>Membership benefit</span><b class="text-danger" id="tMem">−₹0.00</b></div>
+                <div class="es-disc mt-2">
+                    <div class="d-flex align-items-center gap-2 mb-1"><span class="fw-semibold small"><i class="bi bi-tag me-1"></i>Discount</span>
+                        @if (!Can("DISCOUNT")) { <span class="small text-muted ms-auto"><i class="bi bi-lock-fill me-1"></i>No discount permission</span> }
+                    </div>
+                    @if (Can("DISCOUNT"))
+                    {
+                        <div class="btn-group btn-group-sm w-100 mb-2" role="group" id="dMode">
+                            <input type="radio" class="btn-check" name="dm" id="dmN" value="" checked><label class="btn btn-outline-secondary" for="dmN">None</label>
+                            <input type="radio" class="btn-check" name="dm" id="dmP" value="P"><label class="btn btn-outline-primary" for="dmP">%</label>
+                            <input type="radio" class="btn-check" name="dm" id="dmF" value="F"><label class="btn btn-outline-primary" for="dmF">₹</label>
+                            <input type="radio" class="btn-check" name="dm" id="dmD" value="D"><label class="btn btn-outline-primary" for="dmD">Department-wise</label>
+                        </div>
+                        <div id="dOverall" class="d-none">
+                            <div class="input-group input-group-sm"><input id="dValue" type="number" min="0" step="any" class="form-control" placeholder="Discount" />
+                                <span class="input-group-text" id="dUnit">%</span></div>
+                            <div class="d-flex gap-1 mt-1" id="dQuick">@foreach (var q in new[] { 5, 10, 15, 20, 25 }) { <button type="button" class="btn btn-xs btn-outline-secondary" data-pct="@q">@q%</button> }</div>
+                        </div>
+                        <div id="dDept" class="d-none"><table class="table table-sm mb-0 es-dept"><thead><tr><th>Head</th><th class="text-end">Eligible</th><th>Type</th><th style="width:80px">Value</th><th class="text-end">Disc.</th></tr></thead><tbody id="dRows"></tbody></table>
+                            <div class="small text-muted mt-1">A department's discount applies to its tests the rate card allows a discount on; packages have their own head.</div></div>
+                        <div id="dMsg" class="small text-danger fw-semibold mt-1 d-none"></div>
+                    }
+                </div>
+
+                <div class="es-tot mt-2"><span>Discount</span><b class="text-danger" id="tDisc">−₹0.00</b></div>
+                <div class="es-tot d-none" id="tGstRow"><span>GST (misc charges)</span><b id="tGst">₹0.00</b></div>
+                <div class="es-grand"><span>Estimated amount</span><b id="tNet">₹0.00</b></div>
+                <div class="small text-muted mt-1" id="tTat"></div>
+
+                <label class="es-l mt-2" for="eRemarks">Remarks</label>
+                <textarea id="eRemarks" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
+                @if (Can("ADD"))
+                {
+                    <button type="button" class="btn btn-primary w-100 mt-2" id="btnGen" disabled><i class="bi bi-file-earmark-check me-1"></i>Generate estimate</button>
+                }
+                else
+                {
+                    <div class="small text-muted mt-2"><i class="bi bi-lock-fill me-1"></i>Simulation only: you cannot generate estimates.</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- generated / view estimate -->
+<div class="modal fade" id="doneModal" tabindex="-1" aria-labelledby="doneTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title fw-bold" id="doneTitle">Estimate</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div id="doneInfo"></div>
+        @if (Can("SEND"))
+        {
+            <div class="border rounded-3 p-2 mt-3" id="sendBox"><div class="fw-semibold small mb-1"><i class="bi bi-whatsapp text-success me-1"></i>Send to the patient's mobile</div>
+                <div class="input-group input-group-sm has-validation"><span class="input-group-text">+91</span><input id="sendMobile" class="form-control" maxlength="10" inputmode="numeric" />
+                    <button type="button" class="btn btn-success" id="btnSend"><i class="bi bi-send me-1"></i>Send</button><div class="invalid-feedback">Valid 10-digit mobile.</div></div>
+                <div class="small text-muted mt-1">WhatsApp with the estimate PDF and a link that opens without sign-in.</div></div>
+        }
+    </div>
+    <div class="modal-footer justify-content-between">
+        <div class="d-flex gap-2"><a class="btn btn-outline-secondary btn-sm" id="btnPrint" target="_blank"><i class="bi bi-printer me-1"></i>Print</a>
+            <a class="btn btn-outline-secondary btn-sm" id="btnPdf"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a></div>
+        <button type="button" class="btn btn-primary btn-sm" id="btnAnother"><i class="bi bi-plus-lg me-1"></i>New estimate</button>
+    </div>
+</div></div></div>
+
+<!-- list -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="listPane" style="width:min(980px,100vw)" aria-labelledby="listTitle">
+    <div class="offcanvas-header border-bottom"><h5 class="offcanvas-title fw-bold" id="listTitle"><i class="bi bi-list-ul me-1"></i>Estimates</h5><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div>
+    <div class="offcanvas-body p-0">
+        <div class="row g-2 p-2 border-bottom">
+            <div class="col-6 col-md-2"><input type="date" id="lFrom" class="form-control form-control-sm" aria-label="From" /></div>
+            <div class="col-6 col-md-2"><input type="date" id="lTo" class="form-control form-control-sm" aria-label="To" /></div>
+            <div class="col-6 col-md-2"><select id="lStatus" class="form-select form-select-sm" aria-label="Status"><option value="">All</option><option value="ACTIVE">Valid</option><option value="EXPIRED">Expired</option><option value="CANCELLED">Cancelled</option></select></div>
+            <div class="col-6 col-md-4"><input id="lSearch" class="form-control form-control-sm" placeholder="Estimate no, patient, mobile" /></div>
+            <div class="col-12 col-md-2"><button type="button" class="btn btn-sm btn-primary w-100" id="lShow">Show</button></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0 es-table">
+            <thead><tr><th>Estimate</th><th>Patient</th><th class="text-end">Tests</th><th class="text-end">Amount</th><th class="text-end">Discount</th><th class="text-end">Net</th><th>Status</th><th class="text-end"></th></tr></thead>
+            <tbody id="lRows"></tbody></table></div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.EsPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/LabEstimate/"), can = new { add = Can("ADD"), discount = Can("DISCOUNT"), send = Can("SEND"), cancel = Can("CANCEL") } }));</script>
+    <script src="~/js/lab/lab-estimate.js" asp-append-version="true"></script>
+}

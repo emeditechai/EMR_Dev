@@ -1,0 +1,79 @@
+@model EMR.Web.Services.LabEstimateDoc
+@{
+    // LAB > B2C Bill Estimate print (SQLScripts/2450); also the page behind the link sent to the patient
+    Layout = null;
+    var inr = System.Globalization.CultureInfo.GetCultureInfo("en-IN");
+    string R(decimal v) => "₹" + v.ToString("N2", inr);
+    var isPublic = ViewData["Public"] as bool? ?? false;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Estimate — @Model.EstimateNo</title>
+    <style>
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body { font-family:Arial, Helvetica, sans-serif; font-size:11.5px; color:#111; background:#f1f5f9; }
+        .page { width:210mm; max-width:100%; min-height:270mm; margin:12px auto; background:#fff; padding:10mm 12mm; position:relative; }
+        .hd { display:flex; justify-content:space-between; gap:12px; border-bottom:2px solid #0f766e; padding-bottom:8px; }
+        .hd h1 { font-size:18px; color:#0f766e; } .hd .t { text-align:right; } .hd .t h2 { font-size:15px; letter-spacing:.06em; }
+        .muted { color:#64748b; } .pt { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; margin:8px 0; padding:6px 8px; background:#f8fafc; border-radius:6px; }
+        table { width:100%; border-collapse:collapse; margin-top:6px; }
+        th { background:#ccfbf1; text-align:left; font-size:10.5px; padding:5px; } td { padding:5px; border-bottom:1px solid #e2e8f0; vertical-align:top; }
+        .r { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; } .sub { font-size:9.5px; color:#64748b; }
+        .tot { width:300px; margin-left:auto; margin-top:8px; } .tot div { display:flex; justify-content:space-between; padding:2px 0; }
+        .grand { border-top:2px solid #0f766e; margin-top:4px; padding-top:4px !important; font-size:14px; font-weight:700; }
+        .note { margin-top:14px; padding:8px; background:#f8fafc; border-radius:6px; font-size:10px; color:#475569; font-style:italic; }
+        .stamp { position:absolute; top:40%; left:20%; font-size:70px; color:rgba(220,38,38,.15); transform:rotate(-20deg); font-weight:800; }
+        .bar { max-width:210mm; margin:12px auto 0; display:flex; gap:8px; justify-content:flex-end; padding:0 4px; }
+        .bar a, .bar button { font:600 13px Arial; padding:7px 14px; border-radius:8px; border:1px solid #0f766e; background:#0f766e; color:#fff; text-decoration:none; cursor:pointer; }
+        .bar a.o { background:#fff; color:#0f766e; }
+        @@media print { body { background:#fff; } .page { margin:0; width:auto; min-height:0; } .bar { display:none; } }
+        @@media (max-width:640px) { .page { padding:12px; } .hd { flex-direction:column; } .hd .t { text-align:left; } .tot { width:100%; } }
+    </style>
+</head>
+<body>
+<div class="bar"><a class="o" href="@ViewData["PdfUrl"]">Download PDF</a><button type="button" onclick="window.print()">Print</button></div>
+<div class="page">
+    @if (Model.Status == "CANCELLED") { <div class="stamp">CANCELLED</div> } else if (Model.IsExpired) { <div class="stamp">EXPIRED</div> }
+    <div class="hd">
+        <div><h1>@Model.BranchName</h1>@if (!string.IsNullOrWhiteSpace(Model.BranchAddress)) { <div class="muted">@Model.BranchAddress</div> }</div>
+        <div class="t"><h2>LAB BILL ESTIMATE</h2><div><b>No. @Model.EstimateNo</b></div><div>Date @Model.EstimateDate.ToString("dd-MMM-yyyy hh:mm tt")</div>
+            <div>Valid till <b>@Model.ValidTill.ToString("dd-MMM-yyyy")</b></div></div>
+    </div>
+    <div class="pt">
+        <div><b>Patient:</b> @Model.PatientName @(Model.AgeGender.Length > 0 ? "(" + Model.AgeGender + ")" : "") @(Model.PatientCode != null ? "· " + Model.PatientCode : "")</div>
+        <div><b>Mobile:</b> @(isPublic && Model.Mobile.Length == 10 ? "xxxxxx" + Model.Mobile[6..] : Model.Mobile)</div>
+        @if (!string.IsNullOrWhiteSpace(Model.RefDoctorName)) { <div style="width:100%"><b>Referred by:</b> @Model.RefDoctorName</div> }
+    </div>
+    <table>
+        <thead><tr><th>#</th><th>Test / profile / package / charge</th><th>Type</th><th class="r">Qty</th><th class="r">Amount</th><th class="r">Discount</th><th class="r">Net</th></tr></thead>
+        <tbody>
+        @foreach (var l in Model.Lines)
+        {
+            <tr><td>@l.LineSeq</td>
+                <td><b>@l.ItemName</b><div class="sub">@string.Join(" · ", new[] { l.ItemCode, l.GroupName, l.SampleType, l.GstPercent > 0 ? $"GST {l.GstPercent:0.##}% {R(l.GstAmount)}" : null, l.MemberRule != null ? "Membership: " + l.MemberRule : null }.Where(s => !string.IsNullOrWhiteSpace(s)))</div></td>
+                <td>@l.KindLabel</td><td class="r">@l.Qty</td><td class="r">@R(l.Amount)</td>
+                <td class="r">@(l.DiscountAmount > 0 ? "−" + R(l.DiscountAmount) : "—")</td><td class="r"><b>@R(l.LineTotal)</b></td></tr>
+        }
+        </tbody>
+    </table>
+    <div class="tot">
+        <div><span>Total amount</span><span class="r">@R(Model.GrossAmount)</span></div>
+        @if (Model.MembershipDiscount > 0) { <div><span>Membership benefit (@Model.MembershipCardNo · @Model.MembershipPlan)</span><span class="r" style="color:#b91c1c">−@R(Model.MembershipDiscount)</span></div> }
+        @if (Model.DiscountAmount > 0)
+        {
+            <div><span>@Model.DiscountLabel</span><span class="r" style="color:#b91c1c">−@R(Model.DiscountAmount)</span></div>
+            foreach (var dd in Model.DeptDiscounts) { <div class="sub" style="padding-left:10px"><span>@dd.GroupName (@(dd.DiscType == "P" ? dd.DiscValue.ToString("0.##") + "%" : R(dd.DiscValue)))</span><span class="r">−@R(dd.DiscAmount)</span></div> }
+        }
+        @if (Model.GstAmount > 0) { <div><span>GST (misc charges)</span><span class="r">@R(Model.GstAmount)</span></div> }
+        <div class="grand"><span>Estimated amount</span><span class="r">@R(Model.NetAmount)</span></div>
+    </div>
+    @if (Model.MaxTatHours is decimal tat && tat > 0) { <div style="margin-top:8px">Reports are usually ready within @tat.ToString("0.#") hour(s) of sample collection.</div> }
+    @if (!string.IsNullOrWhiteSpace(Model.Remarks)) { <div style="margin-top:6px"><b>Remarks:</b> @Model.Remarks</div> }
+    <div class="note">This is an estimate, not a bill. Rates are as on @Model.EstimateDate.ToString("dd-MMM-yyyy") and valid till @Model.ValidTill.ToString("dd-MMM-yyyy"); the final bill may differ if tests, rates or offers change. No payment has been taken.</div>
+    @if (!isPublic) { <div class="sub" style="margin-top:10px">Prepared by @(Model.CreatedByName ?? "—")</div> }
+</div>
+</body>
+</html>

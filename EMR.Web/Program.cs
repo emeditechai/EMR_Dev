@@ -263,6 +263,7 @@ builder.Services.AddScoped<EMR.Web.Services.IPatientProfileService, EMR.Web.Serv
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
 builder.Services.AddScoped<IpdApiClient>();
 builder.Services.AddScoped<LabRxLearningApiClient>();
+builder.Services.AddScoped<LabEstimateApiClient>();   // LAB > B2C Bill Estimate (SQLScripts/2450)
 builder.Services.AddScoped<MarketingExecutiveApiClient>();   // Master > General > Marketing Executive (SQLScripts/2440)   // AI Prescription Assist learning (SQLScripts/2439)   // IPD transactions: admission, beds, advances, live estimate (SQLScripts/2422-2424)
 builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();
