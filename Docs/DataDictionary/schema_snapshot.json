@@ -27236,6 +27236,19 @@
    "type": "int"
   },
   {
+   "col": "LmpDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 3,
+   "nullable": true,
+   "ord": 38,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "date"
+  },
+  {
    "col": "LabOrderItemId",
    "def": null,
    "descr": null,
@@ -57943,7 +57956,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-12T18:39:39",
+ "extracted_on": "2026-11-12T22:54:08",
  "fk": [
   {
    "col": "LedgerId",
