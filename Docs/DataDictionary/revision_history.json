@@ -237,5 +237,18 @@
   ],
   "date": "12 Nov 2026",
   "version": "1.16"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabEstimate (37 columns, module not yet grouped)",
+   "New table LabEstimateDeptDiscount (6 columns, module not yet grouped)",
+   "New table LabEstimateItem (22 columns, module not yet grouped)",
+   "New foreign key LabEstimate.PatientId -> PatientMaster.PatientId",
+   "New foreign key LabEstimateDeptDiscount.EstimateId -> LabEstimate.EstimateId",
+   "New foreign key LabEstimateItem.EstimateId -> LabEstimate.EstimateId"
+  ],
+  "date": "12 Nov 2026",
+  "version": "1.17"
  }
 ]
