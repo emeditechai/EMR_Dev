@@ -79,6 +79,10 @@ public class HospitalSettings
     /// (default No). SQLScripts/2342.</summary>
     public bool OpdCertificateNotificationRequired { get; set; } = false;
 
+    /// <summary>B2B tax invoice shows the branch's UPI payment QR (Settings > Payment QR Configuration) while a balance is due
+    /// (default No). SQLScripts/2452.</summary>
+    public bool ShowQrOnB2BInvoice { get; set; } = false;
+
     /// <summary>OPD / LAB Day Closing (SQLScripts/2275): Yes = payments are refused while the user has earlier days of that
     /// module not closed; No (default) = the user is only warned at login.</summary>
     public bool DayClosingBlockBilling { get; set; } = false;

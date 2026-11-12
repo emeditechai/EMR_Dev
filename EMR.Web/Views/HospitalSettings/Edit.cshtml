@@ -438,6 +438,20 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#4f46e5;--lp-bg:#e0e7ff;">
+                        <div class="lp-icon"><i class="bi bi-qr-code"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Show QR on B2B Invoice</div>
+                            <div class="lp-desc">Yes: the B2B tax invoice shows this branch's UPI payment QR (Settings &gt; Payment QR Configuration) in its payment details while a balance is due. No: the invoice stays as it is.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="ShowQrOnB2BInvoice">
+                                <label class="form-check-label" asp-for="ShowQrOnB2BInvoice">Print the payment QR on B2B invoices</label>
+                            </div>
+                            <span asp-validation-for="ShowQrOnB2BInvoice" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
                         <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
                         <div class="lp-body">

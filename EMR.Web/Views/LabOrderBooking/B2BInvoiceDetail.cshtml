@@ -77,6 +77,14 @@
         .totals td:last-child { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:600; }
         .totals tr.net td { background:var(--accent); color:#fff; font-weight:800; font-size:13.5px; border-bottom:0; }
         .totals tr.bal td { font-weight:800; border-top:1px solid var(--rule); }
+        /* SQLScripts/2452: UPI payment QR beside the bank details */
+        .pay-wrap { display:flex; gap:12px; align-items:flex-start; justify-content:space-between; }
+        .pay-wrap .pay-kv { flex:1; min-width:0; }
+        .pay-qr { width:132px; flex:0 0 132px; text-align:center; border:1px solid var(--rule); border-radius:6px; padding:6px 6px 5px; }
+        .pay-qr img { width:118px; height:118px; display:block; margin:0 auto; image-rendering:pixelated; }
+        .pay-qr-t { font-size:9.5px; font-weight:700; margin-top:3px; line-height:1.2; }
+        .pay-qr-a { font-size:12px; font-weight:800; }
+        .pay-qr-s { font-size:9px; color:var(--muted); word-break:break-all; line-height:1.25; }
         .terms { margin:0; padding-left:16px; color:var(--muted); font-size:11px; }
 
         /* sign-off */
@@ -286,6 +294,8 @@
                 </div>
                 <div class="box">
                     <span class="lbl">Payment details</span>
+                    @{ var payQr = ViewBag.PayQr as EMR.Web.Models.ViewModels.InvoicePayQr; }
+                    <div class="@(payQr != null ? "pay-wrap" : "")"><div class="pay-kv">
                     @if (lh.HasBank)
                     {
                         <div class="kv"><span>Account name</span><span>@lh.PayeeName</span></div>
@@ -298,6 +308,19 @@
                     {
                         <div class="tinv-line">NEFT / RTGS / cheque in favour of <b>@lh.PayeeName</b>. Please quote invoice no <b class="mono">@Model.InvoiceNo</b> with the payment.</div>
                     }
+                    </div>
+                    @* SQLScripts/2452: UPI payment QR (Hospital Settings > OPD > Show QR on B2B Invoice) *@
+                    @if (payQr != null)
+                    {
+                        <div class="pay-qr">
+                            <img src="@payQr.ImageDataUri" alt="UPI payment QR for invoice @Model.InvoiceNo" />
+                            <div class="pay-qr-t">Scan &amp; pay with any UPI app</div>
+                            @if (payQr.Amount is decimal qa) { <div class="pay-qr-a">₹ @qa.ToString("N2")</div> }
+                            <div class="pay-qr-s mono">@payQr.UpiId</div>
+                            @if (!string.IsNullOrWhiteSpace(payQr.Caption)) { <div class="pay-qr-s">@payQr.Caption</div> }
+                        </div>
+                    }
+                    </div>
                 </div>
                 <div class="box">
                     <span class="lbl">Terms &amp; conditions</span>

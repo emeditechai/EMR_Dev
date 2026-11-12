@@ -331,6 +331,16 @@ else
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#4f46e5;--lp-bg:#e0e7ff;">
+                        <div class="lp-icon"><i class="bi bi-qr-code"></i></div>
+                        <div>
+                            <div class="lp-label">Show QR on B2B Invoice</div>
+                            <div class="lp-desc">B2B tax invoice shows the branch's UPI payment QR while a balance is due.</div>
+                            <span class="lp-pill @(Model.ShowQrOnB2BInvoice ? "yes" : "no")"><i class="bi @(Model.ShowQrOnB2BInvoice ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.ShowQrOnB2BInvoice ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
                         <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
                         <div>

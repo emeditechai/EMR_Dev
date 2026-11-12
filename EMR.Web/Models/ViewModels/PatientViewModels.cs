@@ -532,3 +532,6 @@ public class PatientLabOrderHistoryItem
     public int ApprovedTestCount { get; set; }
 }
 
+
+/// <summary>The UPI payment QR printed on a B2B tax invoice (SQLScripts/2452). Amount null = the payer enters it.</summary>
+public sealed record InvoicePayQr(string ImageDataUri, string UpiId, string PayeeName, decimal? Amount, string? Caption, string? Reference);

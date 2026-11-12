@@ -3934,7 +3934,34 @@ namespace EMR.Web.Controllers
                 return RedirectToAction(nameof(B2BInvoices));
             }
             ViewBag.Letterhead = await BuildInvoiceLetterheadAsync(detail.BranchId);
+            ViewBag.PayQr = await BuildInvoicePayQrAsync(detail);
             return View(detail);
+        }
+
+        /// <summary>The UPI payment QR of the invoice (SQLScripts/2452): only when Hospital Settings (OPD tab) "Show QR on B2B
+        /// Invoice" is Yes for the invoice's branch, that branch's QR is set up and in use, the invoice is not cancelled and a
+        /// balance is due. Otherwise null and the invoice prints as before.</summary>
+        private async Task<EMR.Web.Models.ViewModels.InvoicePayQr?> BuildInvoicePayQrAsync(B2BInvoiceDetailDto detail)
+        {
+            var balance = Math.Max(0, detail.BalanceAmount);
+            if (detail.Status == "C" || balance <= 0) return null;
+            try
+            {
+                var show = await dbContext.HospitalSettings.AsNoTracking()
+                    .AnyAsync(s => s.BranchId == detail.BranchId && s.IsActive && s.ShowQrOnB2BInvoice);
+                if (!show) return null;
+                var api = HttpContext.RequestServices.GetRequiredService<EMR.Web.ApiClients.PaymentQrApiClient>();
+                var cfg = EMR.Web.Services.UpiQrConfig.From(await api.GetAsync($"/branch/{detail.BranchId}"));
+                if (cfg is not { IsActive: true }) return null;
+                var link = EMR.Web.Services.UpiQr.Link(cfg, balance, detail.InvoiceNo);
+                return new EMR.Web.Models.ViewModels.InvoicePayQr(EMR.Web.Services.UpiQr.PngDataUri(link, 6), cfg.UpiId, cfg.PayeeName,
+                    cfg.AmountMode == "DUE" ? balance : null, cfg.Caption, cfg.IncludeReference ? detail.InvoiceNo : null);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
+            {
+                logger.LogWarning(ex, "B2B invoice {InvoiceNo}: payment QR not shown", detail.InvoiceNo);
+                return null;   // the invoice still prints; only the QR is left out
+            }
         }
 
         private static readonly Dictionary<string, string> GstStates = new()

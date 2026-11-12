@@ -606,6 +606,7 @@ public class HospitalSettingsController(
             existing.IsPhlebotomistAppRequired = model.IsPhlebotomistAppRequired;
             existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
             existing.OpdCertificateNotificationRequired = model.OpdCertificateNotificationRequired;
+            existing.ShowQrOnB2BInvoice = model.ShowQrOnB2BInvoice;   // SQLScripts/2452
             existing.DayClosingBlockBilling = model.DayClosingBlockBilling;
             existing.DayClosingAllowSelfVerify = model.DayClosingAllowSelfVerify;
             existing.DayClosingLoginReminder = model.DayClosingLoginReminder;
@@ -803,6 +804,7 @@ public class HospitalSettingsController(
             IsPhlebotomistAppRequired = s.IsPhlebotomistAppRequired,
             OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = s.OpdCertificateNotificationRequired,
+            ShowQrOnB2BInvoice = s.ShowQrOnB2BInvoice,
             DayClosingBlockBilling = s.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = s.DayClosingAllowSelfVerify,
             DayClosingLoginReminder = s.DayClosingLoginReminder,
@@ -945,6 +947,7 @@ public class HospitalSettingsController(
             IsPhlebotomistAppRequired = m.IsPhlebotomistAppRequired,
             OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = m.OpdCertificateNotificationRequired,
+            ShowQrOnB2BInvoice = m.ShowQrOnB2BInvoice,
             DayClosingBlockBilling = m.DayClosingBlockBilling,
             DayClosingAllowSelfVerify = m.DayClosingAllowSelfVerify,
             DayClosingLoginReminder = m.DayClosingLoginReminder,

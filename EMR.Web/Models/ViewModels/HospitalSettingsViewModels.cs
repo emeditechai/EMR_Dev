@@ -207,6 +207,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Notification Required for Issue Certificate")]
     public bool OpdCertificateNotificationRequired { get; set; }
 
+    [Display(Name = "Show QR on B2B Invoice")]
+    public bool ShowQrOnB2BInvoice { get; set; }
+
     [Display(Name = "Block Billing Until Day Closed")]
     public bool DayClosingBlockBilling { get; set; }
 
