@@ -63,6 +63,7 @@ namespace EMR.Api.Models
         public string PatientName { get; set; } = string.Empty;
         public int? Age { get; set; }
         public string? Gender { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? Address { get; set; }

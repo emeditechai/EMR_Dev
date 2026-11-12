@@ -26,9 +26,9 @@ namespace EMR.Api.Controllers
                 var response = await labOrderService.CreateOrderAsync(request, userId);
                 return Ok(new { isSuccess = true, data = response });
             }
-            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50000 && ex.Class == 16)
+            catch (Microsoft.Data.SqlClient.SqlException ex) when ((ex.Number == 50000 && ex.Class == 16) || ex.Number is >= 56402 and <= 56404)
             {
-                // a rule of usp_CreateLabOrder (e.g. an item not on the branch's rate list - script 2199): tell the user why
+                // a rule of usp_CreateLabOrder, or of the LMP date (usp_LabOrder_SetLmp, 2453) (e.g. an item not on the branch's rate list - script 2199): tell the user why
                 return BadRequest(new { message = ex.Message });
             }
         }

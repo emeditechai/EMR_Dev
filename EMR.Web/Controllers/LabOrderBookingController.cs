@@ -276,6 +276,7 @@ namespace EMR.Web.Controllers
             {
                 ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
             }
+            if (LmpError(model) is { } lmpError) ModelState.AddModelError(nameof(model.LmpDate), lmpError);   // 2453
 
             if (!ModelState.IsValid)
             {
@@ -518,6 +519,8 @@ namespace EMR.Web.Controllers
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
                 IsBookingRequired = model.IsBookingRequired,   // 2384
+                LmpDate = string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase) ? model.LmpDate : null,   // 2453
+                PatientGender = model.Gender,
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 DueDate = dueDate,
                 IsB2B = true,
@@ -813,6 +816,19 @@ namespace EMR.Web.Controllers
                 : "One or more tests have a price of Rs 0.00 and cannot be billed. Set their rate first, or remove them.";
         }
 
+        /// <summary>2453: LMP date of a female patient - optional; not in the future, at most a year back, after the date of
+        /// birth. Any other gender: the date is dropped (the field is hidden on the form). Checked again by usp_LabOrder_SetLmp.</summary>
+        private static string? LmpError(LabOrderBookingViewModel model)
+        {
+            if (!string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase)) { model.LmpDate = null; return null; }
+            if (model.LmpDate is not DateTime lmp) return null;
+            var today = DateTime.Today;
+            if (lmp.Date > today) return "The LMP date cannot be in the future.";
+            if (lmp.Date < today.AddDays(-365)) return "The LMP date can be at most one year back.";
+            if (model.DateOfBirth is DateTime dob && lmp.Date <= dob.Date) return "The LMP date must be after the date of birth.";
+            return null;
+        }
+
         [HttpGet]
         public async Task<IActionResult> B2CBooking(int? patientId)
         {
@@ -961,6 +977,7 @@ namespace EMR.Web.Controllers
             {
                 ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
             }
+            if (LmpError(model) is { } lmpError) ModelState.AddModelError(nameof(model.LmpDate), lmpError);   // 2453
 
             if (!ModelState.IsValid)
             {
@@ -1097,6 +1114,8 @@ namespace EMR.Web.Controllers
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
                 IsBookingRequired = model.IsBookingRequired,   // 2384
+                LmpDate = string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase) ? model.LmpDate : null,   // 2453
+                PatientGender = model.Gender,
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 CreatedBy = User.GetUserId(),
                 Items = lineItems!
@@ -1205,6 +1224,7 @@ namespace EMR.Web.Controllers
             // This route does not stop on ModelState: refuse a wrong ABHA Number before anything is saved (SQLScripts/2355)
             if (ModelState[nameof(model.AbhaNumber)]?.Errors.Count > 0)
                 return Json(new { success = false, error = "ABHA Number must have 14 digits." });
+            if (LmpError(model) is { } lmpErr) return Json(new { success = false, error = lmpErr });   // 2453
             // One bill per booking (SQLScripts/2310): the key of this booking form; a retry reuses the bill it created
             Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
             bool keyClaimed = false;      // this request holds the key and has not created the bill yet
@@ -1467,6 +1487,8 @@ namespace EMR.Web.Controllers
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
                 IsBookingRequired = model.IsBookingRequired,   // 2384
+                LmpDate = string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase) ? model.LmpDate : null,   // 2453
+                PatientGender = model.Gender,
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 IsB2B = model.IsB2B,
                 B2BAgentId = model.B2BAgentId,
@@ -3059,6 +3081,7 @@ namespace EMR.Web.Controllers
                 PhoneNumber  = detail.PhoneNumber,
                 EmailId      = detail.EmailId,
                 Gender       = detail.Gender,
+                LmpDate      = detail.LmpDate,   // 2453
                 Age          = detail.Age,
                 DateOfBirth  = detail.DateOfBirth,
                 Address      = detail.Address,
@@ -3420,6 +3443,7 @@ namespace EMR.Web.Controllers
                 PhoneNumber  = detail.PhoneNumber,
                 EmailId      = detail.EmailId,
                 Gender       = detail.Gender,
+                LmpDate      = detail.LmpDate,   // 2453
                 Age          = detail.Age,
                 DateOfBirth  = detail.DateOfBirth,
                 Address      = detail.Address,

@@ -11,6 +11,8 @@ namespace EMR.Web.Models.DTOs
         public System.DateTime? BookingDate { get; set; }
         public bool IsBookingRequired { get; set; }   // 2384
         public System.DateTime? DueDate { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453
+        public string? PatientGender { get; set; }      // 2453
         public bool IsB2B { get; set; }
         public int? B2BAgentId { get; set; }
         public string? AgentType { get; set; } // 'F' or 'C'
@@ -212,6 +214,7 @@ namespace EMR.Web.Models.DTOs
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? Gender { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public System.DateTime? DateOfBirth { get; set; }
         public int? Age { get; set; }
         public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);

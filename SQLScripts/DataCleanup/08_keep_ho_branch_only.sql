@@ -9,13 +9,17 @@
 --     voucher numbers, stores, equipment (with its history), EQAS enrolments, IPD / OT / housekeeping set-up
 --     (buildings, floors, wards, rooms, beds, ICU, OT, tariffs, packages, hospital services, shifts, staff), OPD
 --     services, the branch's logs.
+--     2026-11-12 also: pharmacy stores, item reorder levels and number series; phlebotomist barcode series; IPD and
+--     certificate number counters, IPD doctor visit fees; marketing targets; approval matrices; audit notification
+--     set-up; payment-mode ledgers; payment QR; print template assignments; app / FTP settings; campaigns.
 --   Moved to the head office instead (company-wide masters that only recorded where they were created): patients,
 --     doctors' home branch, franchises' parent branch and barcode series, franchise / corporate rate lists,
 --     corporates, TPAs, government schemes, consents, procedures, anaesthesia types, tariff and bed categories,
 --     reporting conditions, discount types, clinical units, doctor sub-specialities.
 --   USERS: every user of the company with no active link to the head office is removed, with their roles, branch
 --     links, permissions, sessions and notifications; the Super Admin is always kept. Records that only name such a
---     user keep the record and lose the name (discount approver, phlebotomist, doctor login link, audit entries).
+--     user keep the record and lose the name (discount approver, phlebotomist, doctor login link, audit entries,
+--     marketing executive login). A user who still has phlebotomist field records at the head office is kept (listed).
 --
 --   Transactions must be cleared first: the script stops if any bill, payment, voucher, day closing, sample,
 --   membership card or quality record is still at a branch to remove. Run 07_clear_all_transactions.sql (for the
@@ -78,6 +82,27 @@ SELECT x.t, x.n FROM (
     UNION ALL SELECT N'QcConsumption', COUNT(1) FROM dbo.QcConsumption WHERE BranchId IN (SELECT BranchId FROM #Del) OR SampleBranchId IN (SELECT BranchId FROM #Del)
     UNION ALL SELECT N'IqcRun', COUNT(1) FROM dbo.IqcRun WHERE BranchId IN (SELECT BranchId FROM #Del)
     UNION ALL SELECT N'QcCapa', COUNT(1) FROM dbo.QcCapa WHERE BranchId IN (SELECT BranchId FROM #Del)
+    -- 2026-11-12: IPD, pharmacy, LAB field work, estimates, certificates, marketing
+    UNION ALL SELECT N'IpdAdmission', COUNT(1) FROM dbo.IpdAdmission WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'IpdEstimate', COUNT(1) FROM dbo.IpdEstimate WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'IpdBedReservation', COUNT(1) FROM dbo.IpdBedReservation WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'IpdPhIssue', COUNT(1) FROM dbo.IpdPhIssue WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhSale', COUNT(1) FROM dbo.PhSale WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhGrn', COUNT(1) FROM dbo.PhGrn WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhPurchaseOrder', COUNT(1) FROM dbo.PhPurchaseOrder WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhPurchaseIndent', COUNT(1) FROM dbo.PhPurchaseIndent WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhSupplierPayment', COUNT(1) FROM dbo.PhSupplierPayment WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhTransfer', COUNT(1) FROM dbo.PhTransfer WHERE FromBranchId IN (SELECT BranchId FROM #Del) OR ToBranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhStockLedger', COUNT(1) FROM dbo.PhStockLedger WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhStock', COUNT(1) FROM dbo.PhStock WHERE BranchId IN (SELECT BranchId FROM #Del) AND QtyOnHand <> 0
+    UNION ALL SELECT N'LabHomeVisit', COUNT(1) FROM dbo.LabHomeVisit WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhleboAttendance', COUNT(1) FROM dbo.PhleboAttendance WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PhleboCashLedger', COUNT(1) FROM dbo.PhleboCashLedger WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'LabEstimate', COUNT(1) FROM dbo.LabEstimate WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'PatientCertificate', COUNT(1) FROM dbo.PatientCertificate WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'ForecastDoctor', COUNT(1) FROM dbo.ForecastDoctor WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'MarketingDoctorVisit', COUNT(1) FROM dbo.MarketingDoctorVisit WHERE BranchId IN (SELECT BranchId FROM #Del)
+    UNION ALL SELECT N'MarketingFieldDay', COUNT(1) FROM dbo.MarketingFieldDay WHERE BranchId IN (SELECT BranchId FROM #Del)
 ) x WHERE x.n > 0;
 IF EXISTS (SELECT 1 FROM @Left)
 BEGIN
@@ -210,6 +235,38 @@ BEGIN TRY
     DELETE FROM dbo.HKLocationMaster WHERE Branch_ID IN (SELECT BranchId FROM #Del);        SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'HKLocationMaster', 'DELETE', @n, 'housekeeping locations');
     DELETE FROM dbo.ShiftMaster WHERE Branch_ID IN (SELECT BranchId FROM #Del);             SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'ShiftMaster', 'DELETE', @n, 'shifts');
 
+    -- ── 5b. 2026-11-12: pharmacy, field work, IPD numbering, marketing, approvals, notifications, app set-up ──
+    SET @A = N'Newer module set-up';
+    DELETE FROM dbo.PhStoreStock WHERE BranchId IN (SELECT BranchId FROM #Del);              -- zero-quantity rows only (stock was checked above)
+    DELETE FROM dbo.PhStock WHERE BranchId IN (SELECT BranchId FROM #Del);
+    DELETE FROM dbo.PhStore WHERE BranchId IN (SELECT BranchId FROM #Del);                   SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'PhStore', 'DELETE', @n, 'pharmacy stores');
+    DELETE FROM dbo.PhItemBranch WHERE BranchId IN (SELECT BranchId FROM #Del);              SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'PhItemBranch', 'DELETE', @n, 'item rack / reorder levels of the branch');
+    DELETE FROM dbo.PhNumberCounter WHERE SeriesId IN (SELECT SeriesId FROM dbo.PhNumberSeries WHERE BranchId IN (SELECT BranchId FROM #Del));
+    DELETE FROM dbo.PhNumberSeries WHERE BranchId IN (SELECT BranchId FROM #Del);            SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'PhNumberSeries', 'DELETE', @n, 'pharmacy number series (with counters)');
+    DELETE FROM dbo.LabPhleboBarcodePool WHERE SeriesId IN (SELECT SeriesId FROM dbo.LabPhleboBarcodeSeries WHERE BranchId IN (SELECT BranchId FROM #Del));
+    DELETE FROM dbo.LabPhleboBarcodeSeries WHERE BranchId IN (SELECT BranchId FROM #Del);    SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'LabPhleboBarcodeSeries', 'DELETE', @n, 'phlebotomist pre-printed barcode series (with barcodes)');
+    DELETE FROM dbo.IpdNumberCounter WHERE BranchId IN (SELECT BranchId FROM #Del);
+    DELETE FROM dbo.CertificateSequence WHERE BranchId IN (SELECT BranchId FROM #Del);       SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'IPD / certificate counters', 'DELETE', @n, 'IP and certificate numbers');
+    DELETE FROM dbo.IpdDoctorVisitFee WHERE BranchId IN (SELECT BranchId FROM #Del);         SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'IpdDoctorVisitFee', 'DELETE', @n, 'IPD doctor visit fees of the branch');
+    DELETE FROM dbo.MarketingTargetBucket WHERE TargetId IN (SELECT TargetId FROM dbo.MarketingTarget WHERE BranchId IN (SELECT BranchId FROM #Del));
+    DELETE FROM dbo.MarketingTarget WHERE BranchId IN (SELECT BranchId FROM #Del);           SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'MarketingTarget', 'DELETE', @n, 'marketing sales / visit targets (with buckets)');
+    DELETE FROM dbo.ApprovalRequest WHERE Branch_ID IN (SELECT BranchId FROM #Del);          SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'ApprovalRequest', 'DELETE', @n, 'approval requests of the branch');
+    DELETE FROM dbo.ApprovalMatrixApprover WHERE Matrix_ID IN (SELECT Matrix_ID FROM dbo.ApprovalMatrix WHERE Branch_ID IN (SELECT BranchId FROM #Del));
+    DELETE FROM dbo.ApprovalMatrix WHERE Branch_ID IN (SELECT BranchId FROM #Del);           SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'ApprovalMatrix', 'DELETE', @n, 'approval matrices (with approvers)');
+    DELETE FROM dbo.AuditNotifyLog WHERE BranchId IN (SELECT BranchId FROM #Del);
+    DELETE FROM dbo.AuditNotifyRecipient WHERE BranchId IN (SELECT BranchId FROM #Del);
+    DELETE FROM dbo.AuditNotifyEventSetting WHERE BranchId IN (SELECT BranchId FROM #Del);   SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'AuditNotifyEventSetting', 'DELETE', @n, 'audit notification set-up (with recipients and log)');
+    DELETE FROM dbo.Acc_PaymentModeLedger WHERE BranchId IN (SELECT BranchId FROM #Del);     SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'Acc_PaymentModeLedger', 'DELETE', @n, 'payment-mode ledgers of the branch');
+    DELETE FROM dbo.PaymentQrConfig WHERE BranchId IN (SELECT BranchId FROM #Del);           SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'PaymentQrConfig', 'DELETE', @n, 'payment QR set-up');
+    DELETE FROM dbo.PrintTemplateAssignment WHERE BranchId IN (SELECT BranchId FROM #Del);   SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'PrintTemplateAssignment', 'DELETE', @n, 'print template assignments (templates kept)');
+    DELETE FROM dbo.AppApkRelease WHERE BranchId IN (SELECT BranchId FROM #Del);
+    DELETE FROM dbo.AppFtpSettings WHERE BranchId IN (SELECT BranchId FROM #Del);
+    DELETE FROM dbo.LabFtpSettings WHERE BranchId IN (SELECT BranchId FROM #Del);            SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'App / FTP settings', 'DELETE', @n, 'app release and FTP settings of the branch');
+    DELETE FROM dbo.CampaignRecipient WHERE CampaignId IN (SELECT CampaignId FROM dbo.Campaign WHERE BranchId IN (SELECT BranchId FROM #Del));
+    DELETE FROM dbo.Campaign WHERE BranchId IN (SELECT BranchId FROM #Del);                  SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'Campaign', 'DELETE', @n, 'campaigns of the branch (with recipients)');
+    DELETE FROM dbo.LabAiSuggestionFeedback WHERE BranchId IN (SELECT BranchId FROM #Del);   SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'LabAiSuggestionFeedback', 'DELETE', @n, 'test suggestion feedback of the branch');
+    DELETE FROM dbo.CertificateNotificationLog WHERE BranchId IN (SELECT BranchId FROM #Del);
+
     -- ── 6. branch settings, numbering, access ───────────────────────────────
     SET @A = N'Branch settings & access';
     DELETE FROM dbo.HospitalSettings WHERE BranchID IN (SELECT BranchId FROM #Del);         SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'HospitalSettings', 'DELETE', @n, 'Hospital Settings');
@@ -237,13 +294,34 @@ BEGIN TRY
         INSERT INTO #DelUsers SELECT u.Id FROM dbo.Users u
         WHERE ISNULL(u.IsSuperAdmin, 0) = 0
           AND (u.CompanyId = @CompanyId OR u.CompanyId IS NULL)
-          AND NOT EXISTS (SELECT 1 FROM dbo.UserBranches ub WHERE ub.UserId = u.Id AND ub.BranchID = @Ho AND ISNULL(ub.IsActive, 1) = 1);
+          AND NOT EXISTS (SELECT 1 FROM dbo.UserBranches ub WHERE ub.UserId = u.Id AND ub.BranchID = @Ho AND ISNULL(ub.IsActive, 1) = 1)
+          -- 2026-11-12: field records still at the head office keep their phlebotomist
+          AND NOT EXISTS (SELECT 1 FROM dbo.PhleboAttendance x WHERE x.UserId = u.Id)
+          AND NOT EXISTS (SELECT 1 FROM dbo.PhleboCashLedger x WHERE x.UserId = u.Id)
+          AND NOT EXISTS (SELECT 1 FROM dbo.PhleboHandover x WHERE x.PhlebotomistId = u.Id);
+        SELECT @n = COUNT(1) FROM dbo.Users u
+        WHERE ISNULL(u.IsSuperAdmin, 0) = 0 AND (u.CompanyId = @CompanyId OR u.CompanyId IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM dbo.UserBranches ub WHERE ub.UserId = u.Id AND ub.BranchID = @Ho AND ISNULL(ub.IsActive, 1) = 1)
+          AND u.Id NOT IN (SELECT UserId FROM #DelUsers);
+        IF @n > 0 INSERT INTO @Report VALUES (@A, 'Users', 'KEPT', @n, 'no head-office link, but phlebotomist field records at the head office still name them');
         INSERT INTO @Users SELECT u.Id, u.Username, u.FullName, ISNULL(u.User_Type, '') FROM dbo.Users u INNER JOIN #DelUsers d ON d.UserId = u.Id;
 
         UPDATE dbo.AuditLogs SET UserId = NULL WHERE UserId IN (SELECT UserId FROM #DelUsers);                     SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'AuditLogs', 'UPDATE', @n, 'audit entries kept without the user');
         UPDATE dbo.PaymentHeader SET DiscountApprovedBy = NULL WHERE DiscountApprovedBy IN (SELECT UserId FROM #DelUsers); SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'PaymentHeader', 'UPDATE', @n, 'discount approver removed from bills');
         UPDATE dbo.LabOrder SET PhlebotomistId = NULL WHERE PhlebotomistId IN (SELECT UserId FROM #DelUsers);     SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'LabOrder', 'UPDATE', @n, 'phlebotomist removed from bills');
-        UPDATE dbo.DoctorMaster SET LinkedUserId = NULL WHERE LinkedUserId IN (SELECT UserId FROM #DelUsers);     SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'DoctorMaster', 'UPDATE', @n, 'doctors'' login link removed');
+        UPDATE dbo.DoctorMaster SET LinkedUserId = NULL WHERE LinkedUserId IN (SELECT UserId FROM #DelUsers);
+        -- 2026-11-12: newer modules
+        UPDATE dbo.MarketingExecutive SET LoginUserId = NULL WHERE LoginUserId IN (SELECT UserId FROM #DelUsers); SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'MarketingExecutive', 'UPDATE', @n, 'marketing executives kept without their login');
+        UPDATE dbo.LabHomeVisit SET PhlebotomistId = NULL WHERE PhlebotomistId IN (SELECT UserId FROM #DelUsers);
+        UPDATE dbo.LabPhleboBarcodePool SET PhlebotomistId = NULL WHERE PhlebotomistId IN (SELECT UserId FROM #DelUsers);
+        DELETE FROM dbo.PhleboLocationPoint WHERE UserId IN (SELECT UserId FROM #DelUsers);
+        DELETE FROM dbo.MarketingLocationPoint WHERE UserId IN (SELECT UserId FROM #DelUsers);
+        DELETE FROM dbo.PhleboDevice WHERE UserId IN (SELECT UserId FROM #DelUsers);                              SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'PhleboDevice', 'DELETE', @n, 'approved phones');
+        DELETE FROM dbo.UserPhleboArea WHERE UserId IN (SELECT UserId FROM #DelUsers);
+        DELETE FROM dbo.UserPasswordResetOtp WHERE UserId IN (SELECT UserId FROM #DelUsers);
+        DELETE FROM dbo.UserPasswordResetToken WHERE UserId IN (SELECT UserId FROM #DelUsers);
+        DELETE FROM dbo.ApprovalMatrixApprover WHERE UserId IN (SELECT UserId FROM #DelUsers);                    SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'ApprovalMatrixApprover', 'DELETE', @n, 'approval matrix approvers');
+        DELETE FROM dbo.AuditNotifyRecipient WHERE UserId IN (SELECT UserId FROM #DelUsers);     SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'DoctorMaster', 'UPDATE', @n, 'doctors'' login link removed');
         UPDATE dbo.HKStaffMaster SET Supervisor_ID = NULL WHERE Supervisor_ID IN (SELECT UserId FROM #DelUsers);
         DELETE FROM dbo.HKStaffMaster WHERE Staff_ID IN (SELECT UserId FROM #DelUsers);                           SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'HKStaffMaster', 'DELETE', @n, 'housekeeping staff records of these users');
         DELETE FROM dbo.LabApprovalFlowApprover WHERE UserId IN (SELECT UserId FROM #DelUsers);                   SET @n = @@ROWCOUNT; INSERT INTO @Report VALUES (@A, 'LabApprovalFlowApprover', 'DELETE', @n, 'report approvers');

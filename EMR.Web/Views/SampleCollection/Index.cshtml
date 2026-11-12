@@ -414,6 +414,7 @@
                                         </div>
                                         <div class="fs-9 text-muted mt-1">
                                             <span id="lblPatientAgeGender">—</span>
+                                            <span id="lblPatientLmp" class="d-none fw-semibold" style="color:#be185d"></span>
                                             <span class="mx-1">•</span>
                                             <i class="bi bi-telephone me-1"></i><span id="lblPatientPhone">—</span>
                                         </div>
@@ -993,6 +994,9 @@
                 $('#lblPatientCode').text(detail.patientCode || '—');
                 const ageGender = (detail.age ? detail.age + ' Yrs' : '') + (detail.gender ? ' / ' + detail.gender : '');
                 $('#lblPatientAgeGender').text(ageGender || '—');
+                // 2453: LMP date of a female patient's bill
+                $('#lblPatientLmp').toggleClass('d-none', !detail.lmpDate)
+                    .text(detail.lmpDate ? ' · LMP ' + new Date(detail.lmpDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
                 $('#lblPatientPhone').text(detail.phoneNumber || 'No phone');
 
                 const initials = (detail.patientName || 'PT')

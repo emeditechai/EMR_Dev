@@ -390,7 +390,7 @@
                 </div>
                 <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
-                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
+                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control" data-date-entry
                            max="@DateTime.Today.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
                 </div>
@@ -924,6 +924,7 @@
     </div>
 
 @section Scripts {
+    <script src="~/js/date-entry.js" asp-append-version="true"></script>
     <partial name="_IdDocumentPreview" />
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
     <script src="~/lib/select2/dist/js/select2.min.js"></script>

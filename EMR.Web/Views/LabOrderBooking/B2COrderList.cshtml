@@ -666,6 +666,7 @@
                                 <div class="col-8 fw-bold">${d.patientName ?? '—'}</div>
                                 <div class="col-4 text-muted">Gender / Age:</div>
                                 <div class="col-8">${d.gender ?? '—'}${d.formattedAge ? ', ' + d.formattedAge : (d.dateOfBirth ? ', ' + formatAgePattern(d.dateOfBirth, d.age) : (d.age ? ', ' + d.age + ' yrs' : ''))}</div>
+                                ${d.lmpDate ? `<div class="col-4 text-muted">LMP Date:</div><div class="col-8 fw-semibold" style="color:#be185d">${new Date(d.lmpDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>` : ''}
                                 <div class="col-4 text-muted">Phone:</div>
                                 <div class="col-8">${d.phoneNumber ?? '—'}</div>
                                 <div class="col-4 text-muted">Email:</div>

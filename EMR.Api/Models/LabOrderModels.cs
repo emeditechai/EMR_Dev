@@ -12,6 +12,8 @@ namespace EMR.Api.Models
         public DateTime? BookingDate { get; set; }
         public bool IsBookingRequired { get; set; }   // 2384: booking number BK<Branch><FY><seq>
         public DateTime? DueDate { get; set; }
+        public DateTime? LmpDate { get; set; }        // 2453: last menstrual period (stored for a Female patient only)
+        public string? PatientGender { get; set; }    // 2453: the gender on the booking form
         public bool IsB2B { get; set; }
         public int? B2BAgentId { get; set; }
         public string? AgentType { get; set; } // 'F' or 'C'
@@ -206,6 +208,7 @@ namespace EMR.Api.Models
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? Gender { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public DateTime? DateOfBirth { get; set; }
         public int? Age { get; set; }
         public string? Address { get; set; }

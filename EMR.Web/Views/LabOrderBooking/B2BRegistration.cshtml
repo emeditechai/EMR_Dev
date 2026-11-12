@@ -471,6 +471,7 @@
                                 <div class="text-muted small">Patient</div>
                                 <div class="fw-bold">${data.patientName || '—'}</div>
                                 <div class="text-muted small">${data.patientCode || '—'} &bull; ${data.gender || ''} &bull; ${data.age || ''} yrs</div>
+                                ${data.lmpDate ? `<div class="small fw-semibold" style="color:#be185d">LMP ${new Date(data.lmpDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>` : ''}
                             </div>
                         </div>
                         <div class="col-md-3">

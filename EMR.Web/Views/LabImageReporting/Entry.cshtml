@@ -331,6 +331,7 @@
                     </div>
                     <div class="text-muted fs-9 mt-0.5 d-flex align-items-center gap-2 flex-wrap">
                         <span><i class="bi bi-gender-ambiguous me-0.5"></i>@(d.Age.HasValue ? $"{d.Age}Y / " : "")@(d.Gender ?? "—")</span>
+                        @if (d.LmpDate.HasValue) { <span class="fw-semibold" style="color:#be185d" title="Last menstrual period"><i class="bi bi-calendar-heart me-0.5"></i>LMP @d.LmpDate.Value.ToString("dd-MMM-yyyy")</span> }   @* 2453 *@
                         <span><i class="bi bi-telephone me-0.5"></i>@(d.PhoneNumber ?? "—")</span>
                     </div>
                 </div>

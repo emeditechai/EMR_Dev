@@ -28,6 +28,7 @@ public class PrintBillViewModel
     public string? PhoneNumber { get; set; }
     public string? EmailId { get; set; }
     public string? Gender { get; set; }
+    public DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
     public int? Age { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);

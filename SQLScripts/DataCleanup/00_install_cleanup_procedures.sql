@@ -25,6 +25,22 @@
 --                                       (2026-10-13: also misc charges, critical value calls, BOM consumption, doctor IP
 --                                       commission, membership points of the bills, and every LAB / OPD ledger kind:
 --                                       GST, discount, membership discount, round-off, receipt, refund; doctor settlements)
+--   cleanup.usp_ClearIpdTransactions   (2026-11-12) IPD admissions with logs, attendants, consents, payers, MLC, documents,
+--                                       charges, bills, advances / refunds (module IPD payments), ward pharmacy issues,
+--                                       estimates, bed reservations / cleaning tasks, admission advice; IPD ledger vouchers;
+--                                       beds go back to Available.
+--   cleanup.usp_ClearPharmacy          (2026-11-12) Pharmacy sales (Rx links, clinical alerts, schedule register, refill
+--                                       reminders, loyalty wallet), sale returns, indents, POs, GRNs, purchase returns,
+--                                       supplier payments, debit notes, adjustments, batch corrections, stock counts, store
+--                                       issues, branch transfers, PHR payments / cancellations, stock, stock ledger, batches
+--                                       no longer used, PH_* ledger vouchers. Items and all pharmacy masters kept.
+--   cleanup.usp_ClearMarketing         (2026-11-12) Doctor Visit Log, Marketing Executive App leads / visits / stage
+--                                       history, field days and GPS points. Executives, targets and doctors kept.
+--   LAB also clears (2026-11-12): home collection visits and events, phlebotomist attendance / GPS / travel / documents /
+--                                       cash ledger / hand-overs, bill change requests and revisions, external report
+--                                       documents, reflex suggestions, tests omitted from doctor IP, B2C bill estimates;
+--                                       phlebotomist pre-printed barcodes go back to available.
+--   OPD also clears (2026-11-12): certificates issued (with send log), vaccinations.
 --   cleanup.usp_ClearMembership        Membership cards, members, points ledger, redeem OTPs, WhatsApp log, card-fee
 --                                       payments (module MEM) and MEM_* ledger vouchers.
 --   cleanup.usp_ClearAccounts          OPD / LAB Day Closing; petty cash floats, expenses (bill scans), closings; manual
@@ -258,7 +274,7 @@ BEGIN
     EXEC cleanup.usp_DeleteLedger @A, N'ledger vouchers (LAB bill, GST, discount, round-off, receipt, cancel, refund; B2B bill / wallet / settlement; points earned)';
 
     -- messages and audit entries of these bills
-    DELETE w FROM dbo.WhatsAppLog w WHERE w.ModuleCode IN ('LAB', 'LABREPORT')
+    DELETE w FROM dbo.WhatsAppLog w WHERE (w.ModuleCode LIKE 'LAB%' OR w.ModuleCode LIKE 'PHLEBO%')
       AND (w.ModuleRefId IN (SELECT LabOrderId FROM #O) OR w.BranchId IN (SELECT BranchId FROM #B));  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'WhatsAppLog', 'DELETE', @n, 'LAB WhatsApp messages';
     IF @ClearAuditLogs = 1
     BEGIN
@@ -279,6 +295,56 @@ BEGIN
     DELETE x FROM dbo.Doctor_IP_Commission_RunLog x WHERE x.Branch_ID IN (SELECT BranchId FROM #B);  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Doctor_IP_Commission_RunLog', 'DELETE', @n, 'doctor IP commission run log';
     DELETE x FROM dbo.UserNotification x WHERE x.RefModule = 'LAB' AND x.RefId IN (SELECT LabOrderId FROM #O);
                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'UserNotification', 'DELETE', @n, 'bell notifications about these bills';
+
+    -- 2026-11-12: home collection visits and phlebotomist field work, bill change requests, external documents,
+    -- reflex suggestions, tests omitted from doctor IP, LAB bill estimates
+    CREATE TABLE #HV (VisitId INT PRIMARY KEY);
+    INSERT INTO #HV SELECT v.VisitId FROM dbo.LabHomeVisit v WHERE v.LabOrderId IN (SELECT LabOrderId FROM #O) OR v.BranchId IN (SELECT BranchId FROM #B);
+    CREATE TABLE #Att (AttendanceId BIGINT PRIMARY KEY);
+    INSERT INTO #Att SELECT a.AttendanceId FROM dbo.PhleboAttendance a WHERE a.BranchId IN (SELECT BranchId FROM #B);
+    IF OBJECT_ID('tempdb..#CleanupFiles') IS NOT NULL
+        INSERT INTO #CleanupFiles (Area, FilePath)
+        SELECT @A, v.FilePath FROM (
+            SELECT d.FilePath FROM dbo.LabExternalDocument d WHERE d.LabOrderId IN (SELECT LabOrderId FROM #O)
+            UNION ALL SELECT d.FilePath FROM dbo.PhleboDocument d
+            WHERE d.VisitId IN (SELECT VisitId FROM #HV) OR d.AttendanceId IN (SELECT AttendanceId FROM #Att) OR d.BranchId IN (SELECT BranchId FROM #B)) v
+        WHERE NULLIF(LTRIM(RTRIM(v.FilePath)), '') IS NOT NULL;
+    CREATE TABLE #BC (BillChangeId INT PRIMARY KEY);
+    INSERT INTO #BC SELECT c.BillChangeId FROM dbo.LabBillChangeRequest c WHERE c.LabOrderId IN (SELECT LabOrderId FROM #O) OR c.BranchId IN (SELECT BranchId FROM #B);
+    DELETE x FROM dbo.ApprovalRequest x WHERE x.Request_ID IN (SELECT c.ApprovalRequestId FROM dbo.LabBillChangeRequest c INNER JOIN #BC b ON b.BillChangeId = c.BillChangeId);
+                                                                                                       SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'ApprovalRequest', 'DELETE', @n, 'approval requests of bill changes';
+    DELETE x FROM dbo.LabBillRevision x WHERE x.LabOrderId IN (SELECT LabOrderId FROM #O) OR x.BillChangeId IN (SELECT BillChangeId FROM #BC);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabBillRevision', 'DELETE', @n, 'bill revisions (snapshots before a change)';
+    DELETE x FROM dbo.LabBillChangeLine x INNER JOIN #BC b ON b.BillChangeId = x.BillChangeId;       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabBillChangeLine', 'DELETE', @n, 'bill change lines';
+    DELETE x FROM dbo.LabBillChangeRequest x INNER JOIN #BC b ON b.BillChangeId = x.BillChangeId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabBillChangeRequest', 'DELETE', @n, 'Bill Change Approval requests';
+    DELETE x FROM dbo.PhleboHandoverLine x WHERE x.VisitId IN (SELECT VisitId FROM #HV)
+       OR x.HandoverId IN (SELECT h.HandoverId FROM dbo.PhleboHandover h WHERE h.BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhleboHandoverLine', 'DELETE', @n, 'sample hand-over lines';
+    DELETE x FROM dbo.PhleboHandover x WHERE x.BranchId IN (SELECT BranchId FROM #B);                SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhleboHandover', 'DELETE', @n, 'sample hand-overs to the lab';
+    DELETE x FROM dbo.PhleboDocument x WHERE x.VisitId IN (SELECT VisitId FROM #HV) OR x.AttendanceId IN (SELECT AttendanceId FROM #Att) OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhleboDocument', 'DELETE', @n, 'phlebotomist photos / documents (files listed below)';
+    DELETE x FROM dbo.PhleboTravelLeg x WHERE x.AttendanceId IN (SELECT AttendanceId FROM #Att) OR x.ToVisitId IN (SELECT VisitId FROM #HV);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhleboTravelLeg', 'DELETE', @n, 'travel legs (km)';
+    DELETE x FROM dbo.PhleboLocationPoint x INNER JOIN #Att a ON a.AttendanceId = x.AttendanceId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhleboLocationPoint', 'DELETE', @n, 'phlebotomist GPS points';
+    DELETE x FROM dbo.PhleboAttendance x INNER JOIN #Att a ON a.AttendanceId = x.AttendanceId;       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhleboAttendance', 'DELETE', @n, 'phlebotomist punch-in / duty days';
+    DELETE x FROM dbo.PhleboCashLedger x WHERE x.LabOrderId IN (SELECT LabOrderId FROM #O) OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhleboCashLedger', 'DELETE', @n, 'cash collected by phlebotomists / deposits';
+    DELETE x FROM dbo.LabHomeVisitEvent x INNER JOIN #HV v ON v.VisitId = x.VisitId;                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabHomeVisitEvent', 'DELETE', @n, 'home visit status events';
+    UPDATE x SET x.ParentVisitId = NULL FROM dbo.LabHomeVisit x INNER JOIN #HV v ON v.VisitId = x.VisitId WHERE x.ParentVisitId IS NOT NULL;
+    DELETE x FROM dbo.LabHomeVisit x INNER JOIN #HV v ON v.VisitId = x.VisitId;                      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabHomeVisit', 'DELETE', @n, 'home collection visits';
+    UPDATE bp SET bp.Status = 1, bp.LabOrderId = NULL, bp.SamplecollectionID = NULL, bp.UsedBy = NULL, bp.UsedDate = NULL
+    FROM dbo.LabPhleboBarcodePool bp WHERE bp.LabOrderId IN (SELECT LabOrderId FROM #O) AND bp.Status = 2;
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabPhleboBarcodePool', 'UPDATE', @n, 'phlebotomist pre-printed barcodes used by these bills made available again';
+    DELETE x FROM dbo.LabExternalDocument x WHERE x.LabOrderId IN (SELECT LabOrderId FROM #O);       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabExternalDocument', 'DELETE', @n, 'external report documents (files listed below)';
+    DELETE x FROM dbo.LabReflexRecommendation x WHERE x.LabOrderId IN (SELECT LabOrderId FROM #O) OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabReflexRecommendation', 'DELETE', @n, 'reflex test suggestions';
+    DELETE x FROM dbo.Doctor_IP_Commission_Omitted x WHERE x.LabOrderId IN (SELECT LabOrderId FROM #O) OR x.Branch_ID IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Doctor_IP_Commission_Omitted', 'DELETE', @n, 'tests omitted from doctor IP commission';
+    DELETE x FROM dbo.BillingSubmission x WHERE x.ModuleCode = 'LAB' AND x.ModuleRefId IN (SELECT LabOrderId FROM #O);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'BillingSubmission', 'DELETE', @n, 'double-submit guards of these bills';
+    DELETE x FROM dbo.LabEstimateDeptDiscount x WHERE x.EstimateId IN (SELECT e.EstimateId FROM dbo.LabEstimate e WHERE e.BranchId IN (SELECT BranchId FROM #B));
+    DELETE x FROM dbo.LabEstimateItem x WHERE x.EstimateId IN (SELECT e.EstimateId FROM dbo.LabEstimate e WHERE e.BranchId IN (SELECT BranchId FROM #B));
+    DELETE x FROM dbo.LabEstimate x WHERE x.BranchId IN (SELECT BranchId FROM #B);                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabEstimate', 'DELETE', @n, 'B2C bill estimates (with lines and department discounts)';
 
     -- the bills
     DELETE x FROM dbo.LabOrderMiscCharge x INNER JOIN #O o ON o.LabOrderId = x.LabOrderId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'LabOrderMiscCharge', 'DELETE', @n, 'misc charges on the bills';
@@ -362,6 +428,24 @@ BEGIN
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuditLogs', 'DELETE', @n, 'OPD audit entries of these bills';
     END
 
+    -- 2026-11-12: certificates and vaccinations given at the branch; IPD admission advice of these visits
+    CREATE TABLE #Cert (CertificateId INT PRIMARY KEY);
+    INSERT INTO #Cert SELECT c.CertificateId FROM dbo.PatientCertificate c
+    WHERE c.BranchId IN (SELECT BranchId FROM #B) OR c.OPDServiceId IN (SELECT OPDServiceId FROM #S) OR c.FeeOPDServiceId IN (SELECT OPDServiceId FROM #S);
+    DELETE x FROM dbo.CertificateNotificationLog x WHERE x.CertificateId IN (SELECT CertificateId FROM #Cert) OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CertificateNotificationLog', 'DELETE', @n, 'certificates sent to patients';
+    DELETE x FROM dbo.PatientVaccination x WHERE x.BranchId IN (SELECT BranchId FROM #B) OR x.CertificateId IN (SELECT CertificateId FROM #Cert);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PatientVaccination', 'DELETE', @n, 'vaccinations recorded';
+    UPDATE x SET x.ReissueOfId = NULL FROM dbo.PatientCertificate x INNER JOIN #Cert c ON c.CertificateId = x.CertificateId WHERE x.ReissueOfId IS NOT NULL;
+    DELETE x FROM dbo.PatientCertificate x INNER JOIN #Cert c ON c.CertificateId = x.CertificateId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PatientCertificate', 'DELETE', @n, 'OPD > Certificates issued';
+    UPDATE x SET x.OpdServiceId = NULL FROM dbo.IpdAdmissionAdvice x WHERE x.OpdServiceId IN (SELECT OPDServiceId FROM #S);
+                                                                                                        SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'IpdAdmissionAdvice', 'UPDATE', @n, 'admission advice kept without the OPD visit link (cleared by IPD)';
+    UPDATE x SET x.OpdServiceId = NULL FROM dbo.IpdAdmission x WHERE x.OpdServiceId IN (SELECT OPDServiceId FROM #S);
+                                                                                                        SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'IpdAdmission', 'UPDATE', @n, 'admissions kept without the OPD visit link (cleared by IPD)';
+    DELETE x FROM dbo.BillingSubmission x WHERE x.ModuleCode = 'OPD' AND x.ModuleRefId IN (SELECT OPDServiceId FROM #S);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'BillingSubmission', 'DELETE', @n, 'double-submit guards of these bills';
+    DELETE w FROM dbo.WhatsAppLog w WHERE w.ModuleCode = 'CERT' AND w.BranchId IN (SELECT BranchId FROM #B);
+
     DELETE s FROM dbo.PatientOPDService s INNER JOIN #S x ON x.OPDServiceId = s.OPDServiceId;         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PatientOPDService', 'DELETE', @n, 'OPD bookings / bills';
 END;
 GO
@@ -417,10 +501,23 @@ BEGIN
        OR EXISTS (SELECT 1 FROM dbo.EmrPatientConsultation x WHERE x.PatientId = pt.PatientId)
        OR EXISTS (SELECT 1 FROM dbo.tbl_VideoConsultation x WHERE x.PatientId = pt.PatientId)
        OR EXISTS (SELECT 1 FROM dbo.MembershipCard x WHERE x.PrimaryPatientId = pt.PatientId)
-       OR EXISTS (SELECT 1 FROM dbo.MembershipCardMember x WHERE x.PatientId = pt.PatientId);
+       OR EXISTS (SELECT 1 FROM dbo.MembershipCardMember x WHERE x.PatientId = pt.PatientId)
+       -- 2026-11-12: IPD, pharmacy, LAB estimates / home visits, certificates, vaccinations
+       OR EXISTS (SELECT 1 FROM dbo.IpdAdmission x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.IpdEstimate x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.IpdBedReservation x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.IpdAdmissionAdvice x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.PhSale x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.PhLoyaltyLedger x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.PhRefillReminder x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.LabEstimate x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.LabHomeVisit x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.LabReflexRecommendation x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.PatientCertificate x WHERE x.PatientId = pt.PatientId)
+       OR EXISTS (SELECT 1 FROM dbo.PatientVaccination x WHERE x.PatientId = pt.PatientId);
     DELETE pt FROM #Pt pt INNER JOIN #Keep k ON k.PatientId = pt.PatientId;
     SELECT @n = COUNT(1) FROM #Keep;
-    IF @n > 0 EXEC cleanup.usp_Report @A, 'PatientMaster', 'KEPT', @n, 'still have bills / bookings / a membership card (of another branch, or not cleared)';
+    IF @n > 0 EXEC cleanup.usp_Report @A, 'PatientMaster', 'KEPT', @n, 'still have bills / bookings / admissions / pharmacy sales / a membership card (of another branch, or not cleared)';
 
     IF OBJECT_ID('tempdb..#CleanupFiles') IS NOT NULL
         INSERT INTO #CleanupFiles (Area, FilePath)
@@ -454,7 +551,16 @@ BEGIN
        OR EXISTS (SELECT 1 FROM dbo.EmrPatientConsultation x WHERE x.DoctorId = d.DoctorId)
        OR EXISTS (SELECT 1 FROM dbo.tbl_VideoConsultation x WHERE x.DoctorId = d.DoctorId)
        OR EXISTS (SELECT 1 FROM dbo.DoctorDisbursal x WHERE x.DoctorId = d.DoctorId)
-       OR EXISTS (SELECT 1 FROM dbo.DoctorBillingAdjustment x WHERE x.DoctorId = d.DoctorId);
+       OR EXISTS (SELECT 1 FROM dbo.DoctorBillingAdjustment x WHERE x.DoctorId = d.DoctorId)
+       -- 2026-11-12: IPD, pharmacy, certificates, marketing visits
+       OR EXISTS (SELECT 1 FROM dbo.IpdAdmission x WHERE d.DoctorId IN (x.ReferralDoctorId, x.AdmittingDoctorId, x.ConsultantDoctorId))
+       OR EXISTS (SELECT 1 FROM dbo.IpdCharge x WHERE x.DoctorId = d.DoctorId)
+       OR EXISTS (SELECT 1 FROM dbo.IpdPhIssue x WHERE x.DoctorId = d.DoctorId)
+       OR EXISTS (SELECT 1 FROM dbo.IpdEstimate x WHERE x.DoctorId = d.DoctorId)
+       OR EXISTS (SELECT 1 FROM dbo.IpdAdmissionAdvice x WHERE x.DoctorId = d.DoctorId)
+       OR EXISTS (SELECT 1 FROM dbo.PhSale x WHERE x.DoctorId = d.DoctorId)
+       OR EXISTS (SELECT 1 FROM dbo.PatientCertificate x WHERE x.DoctorId = d.DoctorId)
+       OR EXISTS (SELECT 1 FROM dbo.MarketingDoctorVisit x WHERE x.DoctorId = d.DoctorId);
     DELETE d FROM #D d INNER JOIN #Keep k ON k.DoctorId = d.DoctorId;
     SELECT @n = COUNT(1) FROM #Keep;
     IF @n > 0 EXEC cleanup.usp_Report @A, 'DoctorMaster', 'KEPT', @n, 'still referred to by LAB / OPD transactions of another company or not cleared';
@@ -470,6 +576,9 @@ BEGIN
     DELETE x FROM dbo.DoctorConsultingFeeMap x INNER JOIN #D d ON d.DoctorId = x.DoctorId;            SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorConsultingFeeMap', 'DELETE', @n, 'consulting fees';
     DELETE x FROM dbo.DoctorDepartmentMap x INNER JOIN #D d ON d.DoctorId = x.DoctorId;               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorDepartmentMap', 'DELETE', @n, 'departments';
     DELETE x FROM dbo.DoctorBranchMap x INNER JOIN #D d ON d.DoctorId = x.DoctorId;                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorBranchMap', 'DELETE', @n, 'branches';
+    DELETE x FROM dbo.IpdDoctorVisitFee x INNER JOIN #D d ON d.DoctorId = x.DoctorId;                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdDoctorVisitFee', 'DELETE', @n, 'IPD visit fees';
+    DELETE x FROM dbo.CertificateDoctorProfile x INNER JOIN #D d ON d.DoctorId = x.DoctorId;          SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CertificateDoctorProfile', 'DELETE', @n, 'certificate signature profiles';
+    UPDATE x SET x.DoctorId = NULL FROM dbo.ForecastDoctor x INNER JOIN #D d ON d.DoctorId = x.DoctorId; SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'ForecastDoctor', 'UPDATE', @n, 'marketing leads kept without the promoted doctor';
     UPDATE cu SET cu.ConsultantInChargeDoctorId = NULL FROM dbo.ClinicalUnitMaster cu INNER JOIN #D d ON d.DoctorId = cu.ConsultantInChargeDoctorId;
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'ClinicalUnitMaster', 'UPDATE', @n, 'consultant in charge cleared (clinical unit kept)';
     SELECT @n = COUNT(1) FROM dbo.DoctorMaster dm INNER JOIN #D d ON d.DoctorId = dm.DoctorId WHERE dm.LinkedUserId IS NOT NULL;
@@ -544,6 +653,29 @@ BEGIN
     DELETE x FROM dbo.UserNotification x
     WHERE @All = 1 OR x.BranchId IN (SELECT BranchId FROM #B) OR (@BranchId IS NULL AND x.BranchId IS NULL AND x.CompanyId = @CompanyId);
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'UserNotification', 'DELETE', @n, 'bell notifications';
+    -- 2026-11-12
+    DELETE x FROM dbo.AuditNotifyLog x WHERE @All = 1 OR x.BranchId IN (SELECT BranchId FROM #B) OR (@BranchId IS NULL AND x.BranchId IS NULL AND x.CompanyId = @CompanyId);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuditNotifyLog', 'DELETE', @n, 'audit notification messages sent';
+    DELETE x FROM dbo.CertificateNotificationLog x WHERE @All = 1 OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CertificateNotificationLog', 'DELETE', @n, 'certificate send log';
+    DELETE x FROM dbo.CampaignRecipient x WHERE x.CampaignId IN (SELECT c.CampaignId FROM dbo.Campaign c
+        WHERE @All = 1 OR c.BranchId IN (SELECT BranchId FROM #B) OR (@BranchId IS NULL AND c.BranchId IS NULL AND c.CompanyId = @CompanyId));
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CampaignRecipient', 'DELETE', @n, 'campaign recipients / send results';
+    DELETE x FROM dbo.Campaign x WHERE @All = 1 OR x.BranchId IN (SELECT BranchId FROM #B) OR (@BranchId IS NULL AND x.BranchId IS NULL AND x.CompanyId = @CompanyId);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Campaign', 'DELETE', @n, 'campaigns sent (templates and opt-outs kept)';
+    DELETE x FROM dbo.ApprovalRequest x WHERE x.Status <> 'P'
+      AND (@All = 1 OR x.Branch_ID IN (SELECT BranchId FROM #B) OR (@BranchId IS NULL AND x.Branch_ID IS NULL AND x.CompanyId = @CompanyId));
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'ApprovalRequest', 'DELETE', @n, 'decided approval requests (pending ones kept)';
+    IF @BranchId IS NULL
+    BEGIN
+        DELETE x FROM dbo.HelpAskLog x WHERE @All = 1 OR x.CompanyId = @CompanyId;                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'HelpAskLog', 'DELETE', @n, 'Help Assistant questions (learned answers kept)';
+        DELETE x FROM dbo.HelpFeedback x WHERE @All = 1 OR x.CompanyId = @CompanyId;                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'HelpFeedback', 'DELETE', @n, 'Help feedback';
+        DELETE x FROM dbo.HelpSignalLog x WHERE @All = 1 OR x.CompanyId = @CompanyId;                SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'HelpSignalLog', 'DELETE', @n, 'Help usage signals';
+        DELETE x FROM dbo.UserPasswordResetOtp x WHERE x.UserId IN (SELECT u.Id FROM dbo.Users u WHERE @All = 1 OR u.CompanyId = @CompanyId);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'UserPasswordResetOtp', 'DELETE', @n, 'password reset OTPs';
+        DELETE x FROM dbo.UserPasswordResetToken x WHERE x.UserId IN (SELECT u.Id FROM dbo.Users u WHERE @All = 1 OR u.CompanyId = @CompanyId);
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'UserPasswordResetToken', 'DELETE', @n, 'password reset links';
+    END
     DELETE x FROM dbo.AuthorizationDecisionLog x WHERE @All = 1 OR x.Branch_ID IN (SELECT BranchId FROM #B);
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuthorizationDecisionLog', 'DELETE', @n, 'page permission decisions (audit mode)';
     DELETE x FROM dbo.DoctorIpAccessLog x WHERE @All = 1 OR (@BranchId IS NULL AND x.CompanyId = @CompanyId);
@@ -602,6 +734,27 @@ BEGIN
     WHERE NOT EXISTS (SELECT 1 FROM dbo.Acc_LedgerTransaction t
                       WHERE t.BranchId = s.BranchId AND t.VoucherTypeId = s.VoucherTypeId AND t.FinancialYear = s.FinancialYear);
                                                                                                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Acc_VoucherSequence', 'RESET', @n, 'accounts voucher numbers';
+
+    -- 2026-11-12: IPD numbers, pharmacy document numbers, certificate numbers, PHR / IPD / LAB bill-change cancellations
+    DELETE s FROM dbo.IpdNumberCounter s INNER JOIN #B b ON b.BranchId = s.BranchId
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.IpdAdmission x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.IpdBill x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.IpdEstimate x WHERE x.BranchId = s.BranchId);              SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdNumberCounter', 'RESET', @n, 'IP numbers, IPD bills, estimates';
+    UPDATE c SET c.LastNo = 0 FROM dbo.PhNumberCounter c INNER JOIN dbo.PhNumberSeries s ON s.SeriesId = c.SeriesId INNER JOIN #B b ON b.BranchId = s.BranchId
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.PhSale x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhGrn x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhPurchaseOrder x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhPurchaseIndent x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhStockLedger x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhSupplierPayment x WHERE x.BranchId = s.BranchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.IpdPhIssue x WHERE x.BranchId = s.BranchId);               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhNumberCounter', 'RESET', @n, 'pharmacy sale, return, GRN, PO, indent, issue ... numbers';
+    DELETE s FROM dbo.CertificateSequence s INNER JOIN #B b ON b.BranchId = s.BranchId
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.PatientCertificate x WHERE x.BranchId = s.BranchId);     SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CertificateSequence', 'RESET', @n, 'certificate numbers';
+    UPDATE s SET s.LastSeq = 0 FROM dbo.CancellationSequence s INNER JOIN #B b ON b.BranchId = s.BranchId
+    WHERE (s.ModuleCode = 'PHR' AND NOT EXISTS (SELECT 1 FROM dbo.PhSale x WHERE x.BranchId = s.BranchId))
+       OR (s.ModuleCode = 'IPD' AND NOT EXISTS (SELECT 1 FROM dbo.IpdAdmission x WHERE x.BranchId = s.BranchId))
+       OR (s.ModuleCode = 'LABBK' AND NOT EXISTS (SELECT 1 FROM dbo.LabBillChangeRequest x WHERE x.BranchId = s.BranchId));
+                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'CancellationSequence (PHR / IPD / LABBK)', 'RESET', @n, 'pharmacy / IPD cancellation and LAB bill-change numbers';
 
     -- patient codes
     UPDATE s SET s.LastSeq = 0 FROM dbo.PatientCodeCounter s INNER JOIN #B b ON b.BranchId = s.BranchId
@@ -774,6 +927,280 @@ END;
 GO
 
 -- ============================================================================
+-- IPD transactions (2026-11-12): admissions and everything that hangs off them - status / bed movement logs,
+-- attendants, consents, payers, MLC, documents (files listed), charges, bills, advances / refunds (payments of module
+-- IPD), pharmacy issues to the ward (with their schedule register lines), estimates, bed reservations, bed cleaning
+-- tasks, admission advice from OPD; IPD ledger vouchers. Beds left Occupied / Reserved / Cleaning by these records go
+-- back to Available. Kept: IPD masters (buildings, wards, rooms, beds, tariffs, packages, doctor visit fees).
+-- Run with PHARMACY too (07 does): a ward issue took stock from pharmacy.
+-- ============================================================================
+CREATE OR ALTER PROCEDURE cleanup.usp_ClearIpdTransactions
+    @CompanyId      INT = NULL,
+    @BranchId       INT = NULL,
+    @ClearAuditLogs BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC cleanup.usp_Guard;
+    DECLARE @n INT, @A NVARCHAR(40) = N'IPD transactions';
+    CREATE TABLE #B (BranchId INT PRIMARY KEY, CompanyId INT);
+    INSERT INTO #B SELECT BranchId, CompanyId FROM cleanup.ufn_ScopeBranches(@CompanyId, @BranchId);
+
+    CREATE TABLE #Ad (AdmissionId INT PRIMARY KEY);
+    INSERT INTO #Ad SELECT a.AdmissionId FROM dbo.IpdAdmission a INNER JOIN #B b ON b.BranchId = a.BranchId;
+
+    IF OBJECT_ID('tempdb..#CleanupFiles') IS NOT NULL
+        INSERT INTO #CleanupFiles (Area, FilePath)
+        SELECT @A, d.FilePath FROM dbo.IpdDocument d INNER JOIN #Ad a ON a.AdmissionId = d.AdmissionId WHERE NULLIF(LTRIM(RTRIM(d.FilePath)), '') IS NOT NULL;
+
+    -- ward pharmacy issues / returns (stock is cleared by PHARMACY)
+    CREATE TABLE #Iss (IssueId INT PRIMARY KEY);
+    INSERT INTO #Iss SELECT i.IssueId FROM dbo.IpdPhIssue i WHERE i.BranchId IN (SELECT BranchId FROM #B) OR i.AdmissionId IN (SELECT AdmissionId FROM #Ad);
+    DELETE x FROM dbo.PhScheduleRegister x INNER JOIN #Iss i ON i.IssueId = x.IpdIssueId;            SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhScheduleRegister', 'DELETE', @n, 'schedule H / H1 / X register lines of ward issues';
+    DELETE x FROM dbo.IpdPhIssueLine x INNER JOIN #Iss i ON i.IssueId = x.IssueId;                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdPhIssueLine', 'DELETE', @n, 'ward issue / return lines';
+    DELETE x FROM dbo.IpdPhIssue x INNER JOIN #Iss i ON i.IssueId = x.IssueId;                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdPhIssue', 'DELETE', @n, 'pharmacy issues / returns to the ward';
+
+    -- bills, charges
+    CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);
+    INSERT INTO #L SELECT DISTINCT v.TxnId FROM dbo.IpdBill b CROSS APPLY (VALUES (b.SalesTxnId), (b.AdjustTxnId)) v(TxnId)
+    WHERE b.AdmissionId IN (SELECT AdmissionId FROM #Ad) AND v.TxnId IS NOT NULL
+      AND v.TxnId IN (SELECT TransactionId FROM dbo.Acc_LedgerTransaction);
+    DELETE x FROM dbo.IpdBillLine x WHERE x.BillId IN (SELECT b.BillId FROM dbo.IpdBill b INNER JOIN #Ad a ON a.AdmissionId = b.AdmissionId);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBillLine', 'DELETE', @n, 'final bill lines';
+    DELETE x FROM dbo.IpdBill x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBill', 'DELETE', @n, 'IPD interim / final bills';
+    UPDATE x SET x.ReversalOfChargeId = NULL FROM dbo.IpdCharge x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId WHERE x.ReversalOfChargeId IS NOT NULL;
+    DELETE x FROM dbo.IpdCharge x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdCharge', 'DELETE', @n, 'charges (bed, doctor visits, services, LAB / pharmacy posted to the admission)';
+
+    -- advances, refunds and settlement (payments of module IPD)
+    CREATE TABLE #P (PaymentHeaderId INT PRIMARY KEY);
+    INSERT INTO #P SELECT ph.PaymentHeaderId FROM dbo.PaymentHeader ph
+    WHERE ph.ModuleCode = 'IPD' AND (ph.ModuleRefId IN (SELECT AdmissionId FROM #Ad) OR ph.BranchId IN (SELECT BranchId FROM #B));
+    DELETE x FROM dbo.IpdAdvance x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;                SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdAdvance', 'DELETE', @n, 'advances / refunds';
+    DELETE d FROM dbo.PaymentDetail d INNER JOIN #P p ON p.PaymentHeaderId = d.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentDetail', 'DELETE', @n, 'IPD money receipts';
+    DELETE l FROM dbo.PaymentLineItem l INNER JOIN #P p ON p.PaymentHeaderId = l.PaymentHeaderId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentLineItem', 'DELETE', @n, 'IPD payment lines';
+    DELETE h FROM dbo.PaymentHeader h INNER JOIN #P p ON p.PaymentHeaderId = h.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentHeader', 'DELETE', @n, 'IPD payment headers';
+    CREATE TABLE #C (CancellationId INT PRIMARY KEY);
+    INSERT INTO #C SELECT bc.CancellationId FROM dbo.BillCancellation bc WHERE bc.ModuleCode = 'IPD' AND bc.ModuleRefId IN (SELECT AdmissionId FROM #Ad);
+    DELETE r FROM dbo.BillRefund r INNER JOIN #C c ON c.CancellationId = r.CancellationId;           SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'BillRefund', 'DELETE', @n, 'IPD refunds';
+    DELETE i FROM dbo.BillCancellationItem i INNER JOIN #C c ON c.CancellationId = i.CancellationId; SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'BillCancellationItem', 'DELETE', @n, 'IPD cancelled lines';
+    DELETE bc FROM dbo.BillCancellation bc INNER JOIN #C c ON c.CancellationId = bc.CancellationId;  SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'BillCancellation', 'DELETE', @n, 'IPD cancellations';
+
+    -- the admission's own records
+    DELETE x FROM dbo.IpdDocument x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;              SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdDocument', 'DELETE', @n, 'admission documents (files listed below)';
+    DELETE x FROM dbo.IpdMlc x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdMlc', 'DELETE', @n, 'medico-legal case details';
+    DELETE x FROM dbo.IpdAttendant x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdAttendant', 'DELETE', @n, 'attendants';
+    DELETE x FROM dbo.IpdAdmissionConsent x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdAdmissionConsent', 'DELETE', @n, 'consents';
+    DELETE x FROM dbo.IpdAdmissionPayer x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdAdmissionPayer', 'DELETE', @n, 'payer / TPA details';
+    DELETE x FROM dbo.IpdBedMovement x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBedMovement', 'DELETE', @n, 'bed allotment / transfer history';
+    DELETE x FROM dbo.IpdStatusLog x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdStatusLog', 'DELETE', @n, 'admission status history';
+    DELETE x FROM dbo.IpdBedStatusLog x
+    WHERE x.AdmissionId IN (SELECT AdmissionId FROM #Ad) OR x.BedId IN (SELECT BedId FROM dbo.BedMaster WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBedStatusLog', 'DELETE', @n, 'bed status history';
+    DELETE x FROM dbo.IpdBedCleaning x WHERE x.BranchId IN (SELECT BranchId FROM #B) OR x.AdmissionId IN (SELECT AdmissionId FROM #Ad);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBedCleaning', 'DELETE', @n, 'bed cleaning tasks';
+    DELETE x FROM dbo.IpdBedReservation x WHERE x.BranchId IN (SELECT BranchId FROM #B) OR x.AdmissionId IN (SELECT AdmissionId FROM #Ad);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBedReservation', 'DELETE', @n, 'bed reservations';
+    DELETE x FROM dbo.IpdEstimateLine x WHERE x.EstimateId IN (SELECT e.EstimateId FROM dbo.IpdEstimate e WHERE e.BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdEstimateLine', 'DELETE', @n, 'IPD estimate lines';
+    DELETE x FROM dbo.IpdEstimate x WHERE x.BranchId IN (SELECT BranchId FROM #B);                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdEstimate', 'DELETE', @n, 'IPD estimates';
+    DELETE x FROM dbo.IpdAdmissionAdvice x WHERE x.BranchId IN (SELECT BranchId FROM #B) OR x.AdmissionId IN (SELECT AdmissionId FROM #Ad);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdAdmissionAdvice', 'DELETE', @n, 'admission advice from OPD';
+    UPDATE x SET x.AdmissionId = NULL FROM dbo.LabOrder x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;
+                                                                                                       SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'LabOrder', 'UPDATE', @n, 'LAB orders of these admissions kept without the admission link (cleared by LAB)';
+
+    -- ledger: advances, refunds, final bill / settlement, ward issues
+    INSERT INTO #L SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
+    WHERE t.BranchId IN (SELECT BranchId FROM #B) AND t.ReferenceType LIKE 'IPD[_]%' AND t.TransactionId NOT IN (SELECT TransactionId FROM #L);
+    EXEC cleanup.usp_DeleteLedger @A, N'ledger vouchers (IPD advance, refund, bill, settlement, ward issue)';
+
+    DELETE w FROM dbo.WhatsAppLog w WHERE w.ModuleCode LIKE 'IPD%' AND (w.ModuleRefId IN (SELECT AdmissionId FROM #Ad) OR w.BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'WhatsAppLog', 'DELETE', @n, 'IPD WhatsApp messages';
+    DELETE x FROM dbo.UserNotification x WHERE x.RefModule = 'IPD' AND x.RefId IN (SELECT AdmissionId FROM #Ad);
+                                                                                                       SET @n = @@ROWCOUNT; IF @n > 0 EXEC cleanup.usp_Report @A, 'UserNotification', 'DELETE', @n, 'bell notifications about these admissions';
+    IF @ClearAuditLogs = 1
+    BEGIN
+        DELETE a FROM dbo.AuditLogs a WHERE a.ModuleCode = 'IPD' AND a.ReferenceId IN (SELECT AdmissionId FROM #Ad);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuditLogs', 'DELETE', @n, 'IPD audit entries of these admissions';
+    END
+    DELETE x FROM dbo.BillingSubmission x WHERE x.ModuleCode = 'IPD' AND x.ModuleRefId IN (SELECT AdmissionId FROM #Ad);
+
+    DELETE x FROM dbo.IpdAdmission x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdAdmission', 'DELETE', @n, 'admissions';
+
+    -- beds: nothing occupies / reserves / waits for cleaning any more
+    UPDATE b SET b.BedStatus = 'Available', b.ModifiedDate = GETDATE() FROM dbo.BedMaster b
+    WHERE b.BranchId IN (SELECT BranchId FROM #B) AND b.BedStatus IN ('Occupied', 'Reserved', 'Cleaning')
+      AND NOT EXISTS (SELECT 1 FROM dbo.IpdBedMovement m WHERE m.BedId = b.BedId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.IpdBedReservation r WHERE r.BedId = b.BedId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.IpdBedCleaning c WHERE c.BedId = b.BedId);  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'BedMaster', 'UPDATE', @n, 'beds set back to Available (were Occupied / Reserved / Cleaning)';
+END;
+GO
+
+-- ============================================================================
+-- Pharmacy transactions (2026-11-12): sales (with Rx links, clinical alerts, schedule register, refill reminders,
+-- loyalty points), sale returns, purchase indents / orders / GRNs / returns, supplier payments and debit notes, stock
+-- adjustments, batch corrections, stock counts, store issues, branch transfers (either branch in scope), payments of
+-- module PHR with their cancellations / refunds, stock (branch and store) and the stock ledger, PH_* ledger vouchers.
+-- Batches nothing refers to any more are removed (the company's whole stock restarts from opening stock / GRNs).
+-- Kept: items, generics, manufacturers, categories, HSN, UOM, suppliers, customers, schemes, price rules, stores,
+-- number series (counters restart under SEQUENCES), reorder levels, drug interactions, Rx-generic map.
+-- ============================================================================
+CREATE OR ALTER PROCEDURE cleanup.usp_ClearPharmacy
+    @CompanyId      INT = NULL,
+    @BranchId       INT = NULL,
+    @ClearAuditLogs BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC cleanup.usp_Guard;
+    DECLARE @n INT, @A NVARCHAR(40) = N'Pharmacy transactions';
+    DECLARE @WholeCompany BIT = CASE WHEN @BranchId IS NULL THEN 1 ELSE 0 END;
+    CREATE TABLE #B (BranchId INT PRIMARY KEY, CompanyId INT);
+    INSERT INTO #B SELECT BranchId, CompanyId FROM cleanup.ufn_ScopeBranches(@CompanyId, @BranchId);
+
+    IF EXISTS (SELECT 1 FROM dbo.IpdPhIssue i WHERE i.BranchId IN (SELECT BranchId FROM #B))
+        THROW 50140, 'Ward pharmacy issues of IPD are still recorded at these branches: run PHARMACY together with IPD (07 does).', 1;
+
+    -- sales and returns
+    CREATE TABLE #S (SaleId INT PRIMARY KEY);
+    INSERT INTO #S SELECT s.SaleId FROM dbo.PhSale s INNER JOIN #B b ON b.BranchId = s.BranchId;
+    CREATE TABLE #R (ReturnId INT PRIMARY KEY);
+    INSERT INTO #R SELECT r.ReturnId FROM dbo.PhSaleReturn r WHERE r.BranchId IN (SELECT BranchId FROM #B) OR r.SaleId IN (SELECT SaleId FROM #S);
+    DELETE x FROM dbo.PhRefillReminder x WHERE x.SaleId IN (SELECT SaleId FROM #S) OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhRefillReminder', 'DELETE', @n, 'refill reminders';
+    DELETE x FROM dbo.PhLoyaltyLedger x WHERE x.SaleId IN (SELECT SaleId FROM #S) OR x.ReturnId IN (SELECT ReturnId FROM #R) OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhLoyaltyLedger', 'DELETE', @n, 'loyalty wallet entries (earned, redeemed, expired, adjusted)';
+    IF @WholeCompany = 1
+    BEGIN
+        DELETE x FROM dbo.PhLoyaltyOtp x WHERE x.CompanyId IN (SELECT CompanyId FROM #B);           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhLoyaltyOtp', 'DELETE', @n, 'loyalty redeem OTPs';
+    END
+    DELETE x FROM dbo.PhSaleClinicalAlert x INNER JOIN #S s ON s.SaleId = x.SaleId;                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSaleClinicalAlert', 'DELETE', @n, 'interaction / allergy alerts and override reasons';
+    DELETE x FROM dbo.PhSaleRx x INNER JOIN #S s ON s.SaleId = x.SaleId;                             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSaleRx', 'DELETE', @n, 'OPD prescription links';
+    DELETE x FROM dbo.PhScheduleRegister x WHERE x.SaleId IN (SELECT SaleId FROM #S) OR (x.BranchId IN (SELECT BranchId FROM #B) AND x.IpdIssueId IS NULL);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhScheduleRegister', 'DELETE', @n, 'schedule H / H1 / X register';
+    DELETE x FROM dbo.PhSaleReturnDtl x INNER JOIN #R r ON r.ReturnId = x.ReturnId;                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSaleReturnDtl', 'DELETE', @n, 'sale return lines';
+    DELETE x FROM dbo.PhSaleReturn x INNER JOIN #R r ON r.ReturnId = x.ReturnId;                     SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSaleReturn', 'DELETE', @n, 'sale returns';
+    DELETE x FROM dbo.PhSaleDtl x INNER JOIN #S s ON s.SaleId = x.SaleId;                            SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSaleDtl', 'DELETE', @n, 'sale lines';
+
+    -- payments of module PHR (collection, credit settlement, refunds) and cancellations
+    CREATE TABLE #P (PaymentHeaderId INT PRIMARY KEY);
+    INSERT INTO #P SELECT ph.PaymentHeaderId FROM dbo.PaymentHeader ph
+    WHERE ph.ModuleCode = 'PHR' AND (ph.ModuleRefId IN (SELECT SaleId FROM #S) OR ph.BranchId IN (SELECT BranchId FROM #B));
+    DELETE d FROM dbo.PaymentDetail d INNER JOIN #P p ON p.PaymentHeaderId = d.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentDetail', 'DELETE', @n, 'pharmacy money receipts';
+    DELETE l FROM dbo.PaymentLineItem l INNER JOIN #P p ON p.PaymentHeaderId = l.PaymentHeaderId;    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentLineItem', 'DELETE', @n, 'pharmacy payment lines';
+    DELETE h FROM dbo.PaymentHeader h INNER JOIN #P p ON p.PaymentHeaderId = h.PaymentHeaderId;      SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PaymentHeader', 'DELETE', @n, 'pharmacy payment headers';
+    CREATE TABLE #C (CancellationId INT PRIMARY KEY);
+    INSERT INTO #C SELECT bc.CancellationId FROM dbo.BillCancellation bc WHERE bc.ModuleCode = 'PHR' AND bc.ModuleRefId IN (SELECT SaleId FROM #S);
+    DELETE r FROM dbo.BillRefund r INNER JOIN #C c ON c.CancellationId = r.CancellationId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'BillRefund', 'DELETE', @n, 'pharmacy refunds';
+    DELETE i FROM dbo.BillCancellationItem i INNER JOIN #C c ON c.CancellationId = i.CancellationId; SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'BillCancellationItem', 'DELETE', @n, 'pharmacy cancelled lines';
+    DELETE bc FROM dbo.BillCancellation bc INNER JOIN #C c ON c.CancellationId = bc.CancellationId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'BillCancellation', 'DELETE', @n, 'pharmacy bill cancellations';
+    DELETE x FROM dbo.BillingSubmission x WHERE x.ModuleCode = 'PHR' AND x.ModuleRefId IN (SELECT SaleId FROM #S);
+    DELETE x FROM dbo.PhSale x INNER JOIN #S s ON s.SaleId = x.SaleId;                               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSale', 'DELETE', @n, 'pharmacy sale bills';
+
+    -- purchase: supplier payments and debit notes, returns, GRNs, orders, indents
+    DELETE x FROM dbo.PhDebitNoteAdjust x WHERE x.BranchId IN (SELECT BranchId FROM #B);             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhDebitNoteAdjust', 'DELETE', @n, 'debit note adjustments';
+    DELETE x FROM dbo.PhSupplierPaymentAlloc x WHERE x.PaymentId IN (SELECT PaymentId FROM dbo.PhSupplierPayment WHERE BranchId IN (SELECT BranchId FROM #B))
+                                                  OR x.GrnId IN (SELECT GrnId FROM dbo.PhGrn WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSupplierPaymentAlloc', 'DELETE', @n, 'supplier payment allocations';
+    DELETE x FROM dbo.PhSupplierPayment x WHERE x.BranchId IN (SELECT BranchId FROM #B);             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhSupplierPayment', 'DELETE', @n, 'supplier payments';
+    DELETE x FROM dbo.PhPurchaseReturnDtl x WHERE x.ReturnId IN (SELECT ReturnId FROM dbo.PhPurchaseReturn WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhPurchaseReturnDtl', 'DELETE', @n, 'purchase return lines';
+    DELETE x FROM dbo.PhPurchaseReturn x WHERE x.BranchId IN (SELECT BranchId FROM #B);              SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhPurchaseReturn', 'DELETE', @n, 'purchase returns';
+    DELETE x FROM dbo.PhGrnDtl x WHERE x.GrnId IN (SELECT GrnId FROM dbo.PhGrn WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhGrnDtl', 'DELETE', @n, 'GRN lines';
+    DELETE x FROM dbo.PhGrn x WHERE x.BranchId IN (SELECT BranchId FROM #B);                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhGrn', 'DELETE', @n, 'goods receipts (GRN)';
+    DELETE x FROM dbo.PhPurchaseOrderDtl x WHERE x.PoId IN (SELECT PoId FROM dbo.PhPurchaseOrder WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhPurchaseOrderDtl', 'DELETE', @n, 'purchase order lines';
+    DELETE x FROM dbo.PhPurchaseOrder x WHERE x.BranchId IN (SELECT BranchId FROM #B);               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhPurchaseOrder', 'DELETE', @n, 'purchase orders';
+    DELETE x FROM dbo.PhPurchaseIndentDtl x WHERE x.IndentId IN (SELECT IndentId FROM dbo.PhPurchaseIndent WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhPurchaseIndentDtl', 'DELETE', @n, 'purchase indent lines';
+    DELETE x FROM dbo.PhPurchaseIndent x WHERE x.BranchId IN (SELECT BranchId FROM #B);              SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhPurchaseIndent', 'DELETE', @n, 'purchase indents';
+    DELETE x FROM dbo.ApprovalRequest x WHERE x.Module_Code LIKE 'PHARMACY.%' AND x.Branch_ID IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'ApprovalRequest', 'DELETE', @n, 'approval requests of pharmacy documents';
+
+    -- inventory documents
+    UPDATE x SET x.AdjustmentId = NULL FROM dbo.PhStockCount x WHERE x.BranchId IN (SELECT BranchId FROM #B) AND x.AdjustmentId IS NOT NULL;
+    UPDATE x SET x.StockCountId = NULL FROM dbo.PhAdjustment x WHERE x.BranchId IN (SELECT BranchId FROM #B) AND x.StockCountId IS NOT NULL;
+    DELETE x FROM dbo.PhStockCountDtl x WHERE x.StockCountId IN (SELECT StockCountId FROM dbo.PhStockCount WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhStockCountDtl', 'DELETE', @n, 'stock count lines';
+    DELETE x FROM dbo.PhStockCount x WHERE x.BranchId IN (SELECT BranchId FROM #B);                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhStockCount', 'DELETE', @n, 'physical stock counts';
+    DELETE x FROM dbo.PhAdjustmentDtl x WHERE x.AdjustmentId IN (SELECT AdjustmentId FROM dbo.PhAdjustment WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhAdjustmentDtl', 'DELETE', @n, 'stock adjustment / expiry / breakage lines';
+    DELETE x FROM dbo.PhAdjustment x WHERE x.BranchId IN (SELECT BranchId FROM #B);                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhAdjustment', 'DELETE', @n, 'stock adjustments';
+    DELETE x FROM dbo.PhBatchCorrection x WHERE x.BranchId IN (SELECT BranchId FROM #B);             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhBatchCorrection', 'DELETE', @n, 'batch / expiry / MRP corrections';
+    DELETE x FROM dbo.PhStoreIssueDtl x WHERE x.IssueId IN (SELECT IssueId FROM dbo.PhStoreIssue WHERE BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhStoreIssueDtl', 'DELETE', @n, 'store-to-store issue lines';
+    DELETE x FROM dbo.PhStoreIssue x WHERE x.BranchId IN (SELECT BranchId FROM #B);                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhStoreIssue', 'DELETE', @n, 'store-to-store issues';
+    DELETE x FROM dbo.PhTransferDtl x WHERE x.TransferId IN (SELECT TransferId FROM dbo.PhTransfer WHERE FromBranchId IN (SELECT BranchId FROM #B) OR ToBranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhTransferDtl', 'DELETE', @n, 'branch transfer lines';
+    DELETE x FROM dbo.PhTransfer x WHERE x.FromBranchId IN (SELECT BranchId FROM #B) OR x.ToBranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhTransfer', 'DELETE', @n, 'branch transfers (either branch in scope)';
+
+    -- stock
+    DELETE x FROM dbo.PhStockLedger x WHERE x.BranchId IN (SELECT BranchId FROM #B);                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhStockLedger', 'DELETE', @n, 'stock ledger (every movement)';
+    DELETE x FROM dbo.PhStoreStock x WHERE x.BranchId IN (SELECT BranchId FROM #B);                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhStoreStock', 'DELETE', @n, 'stock by store';
+    DELETE x FROM dbo.PhStock x WHERE x.BranchId IN (SELECT BranchId FROM #B);                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhStock', 'DELETE', @n, 'stock on hand';
+    DELETE x FROM dbo.PhBatch x
+    WHERE x.CompanyId IN (SELECT CompanyId FROM #B)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhStock s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhStoreStock s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhStockLedger s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhGrnDtl s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhSaleDtl s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhPurchaseReturnDtl s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhAdjustmentDtl s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhStockCountDtl s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhTransferDtl s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.PhBatchCorrection s WHERE s.BatchId = x.BatchId)
+      AND NOT EXISTS (SELECT 1 FROM dbo.IpdPhIssueLine s WHERE s.BatchId = x.BatchId);           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhBatch', 'DELETE', @n, 'batches no other branch uses any more';
+
+    -- ledger: sale, receipt, refund, sale return, GRN, purchase return, supplier payment, adjustments
+    CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);
+    INSERT INTO #L SELECT t.TransactionId FROM dbo.Acc_LedgerTransaction t
+    WHERE t.BranchId IN (SELECT BranchId FROM #B) AND t.ReferenceType LIKE 'PH[_]%';
+    EXEC cleanup.usp_DeleteLedger @A, N'ledger vouchers (pharmacy sale, receipt, refund, sale return, GRN, purchase return, supplier payment, adjustment)';
+
+    DELETE w FROM dbo.WhatsAppLog w WHERE w.ModuleCode LIKE 'PH%' AND (w.ModuleRefId IN (SELECT SaleId FROM #S) OR w.BranchId IN (SELECT BranchId FROM #B));
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'WhatsAppLog', 'DELETE', @n, 'pharmacy WhatsApp messages';
+    IF @ClearAuditLogs = 1
+    BEGIN
+        DELETE a FROM dbo.AuditLogs a WHERE a.ModuleCode IN ('PHR', 'PHARMACY', 'MED') AND a.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'AuditLogs', 'DELETE', @n, 'pharmacy audit entries';
+    END
+END;
+GO
+
+-- ============================================================================
+-- Marketing field data (2026-11-12): doctor visit log, Marketing Executive App leads (forecast doctors) with their
+-- visits and stage history, field days and GPS points. Kept: marketing executives, their logins, sales / visit targets,
+-- doctors (a lead promoted to Doctor Master stays a doctor), marketing settings.
+-- ============================================================================
+CREATE OR ALTER PROCEDURE cleanup.usp_ClearMarketing
+    @CompanyId INT = NULL,
+    @BranchId  INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    EXEC cleanup.usp_Guard;
+    DECLARE @n INT, @A NVARCHAR(40) = N'Marketing field data';
+    CREATE TABLE #B (BranchId INT PRIMARY KEY, CompanyId INT);
+    INSERT INTO #B SELECT BranchId, CompanyId FROM cleanup.ufn_ScopeBranches(@CompanyId, @BranchId);
+
+    DELETE x FROM dbo.MarketingDoctorVisit x WHERE x.BranchId IN (SELECT BranchId FROM #B);         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MarketingDoctorVisit', 'DELETE', @n, 'Doctor Visit Log';
+    CREATE TABLE #FD (ForecastDoctorId INT PRIMARY KEY);
+    INSERT INTO #FD SELECT f.ForecastDoctorId FROM dbo.ForecastDoctor f WHERE f.BranchId IN (SELECT BranchId FROM #B);
+    DELETE x FROM dbo.ForecastDoctorVisit x WHERE x.ForecastDoctorId IN (SELECT ForecastDoctorId FROM #FD) OR x.BranchId IN (SELECT BranchId FROM #B);
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'ForecastDoctorVisit', 'DELETE', @n, 'app visits (GPS-checked)';
+    DELETE x FROM dbo.ForecastDoctorStageLog x INNER JOIN #FD f ON f.ForecastDoctorId = x.ForecastDoctorId;
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'ForecastDoctorStageLog', 'DELETE', @n, 'lead stage history';
+    DELETE x FROM dbo.ForecastDoctor x INNER JOIN #FD f ON f.ForecastDoctorId = x.ForecastDoctorId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'ForecastDoctor', 'DELETE', @n, 'app leads (promoted doctors stay in Doctor Master)';
+    CREATE TABLE #Day (DayId BIGINT PRIMARY KEY);
+    INSERT INTO #Day SELECT d.DayId FROM dbo.MarketingFieldDay d WHERE d.BranchId IN (SELECT BranchId FROM #B);
+    DELETE x FROM dbo.MarketingLocationPoint x INNER JOIN #Day d ON d.DayId = x.DayId;               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MarketingLocationPoint', 'DELETE', @n, 'GPS points of field days';
+    DELETE x FROM dbo.MarketingFieldDay x INNER JOIN #Day d ON d.DayId = x.DayId;                    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'MarketingFieldDay', 'DELETE', @n, 'field days (start / end of duty)';
+END;
+GO
+
+-- ============================================================================
 -- Every ledger voucher still left on the branches in scope (any kind). Only run together with LAB, OPD, MEMBERSHIP
 -- and ACCOUNTS, so no document is left without its voucher. A franchise wallet top-up voucher stays unless the whole
 -- company is cleared (the top-up itself belongs to the franchise, not a branch). Ledger masters and their opening
@@ -804,7 +1231,7 @@ GO
 -- (@Execute = 1 with the confirmation text) or rolls everything back (dry run - the default), then reports.
 -- ============================================================================
 CREATE OR ALTER PROCEDURE cleanup.usp_Run
-    @Areas          NVARCHAR(400),            -- LAB, OPD, MEMBERSHIP, ACCOUNTS, QUALITY, LEDGER, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES
+    @Areas          NVARCHAR(400),            -- IPD, LAB, OPD, PHARMACY, MARKETING, MEMBERSHIP, ACCOUNTS, QUALITY, LEDGER, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES
     @CompanyId      INT           = NULL,
     @BranchId       INT           = NULL,
     @AllCompanies   BIT           = 0,        -- required to run without a company / branch
@@ -820,12 +1247,15 @@ BEGIN
     -- ── what to run ──
     DECLARE @a TABLE (Area VARCHAR(20) PRIMARY KEY);
     INSERT INTO @a SELECT DISTINCT UPPER(LTRIM(RTRIM(value))) FROM STRING_SPLIT(@Areas, ',') WHERE LTRIM(RTRIM(value)) <> '';
-    IF EXISTS (SELECT 1 FROM @a WHERE Area NOT IN ('LAB', 'OPD', 'MEMBERSHIP', 'ACCOUNTS', 'QUALITY', 'LEDGER', 'RATELISTS', 'PATIENTS', 'DOCTORS', 'FRANCHISES', 'LOGS', 'SEQUENCES'))
-        THROW 50110, 'Unknown area. Use LAB, OPD, MEMBERSHIP, ACCOUNTS, QUALITY, LEDGER, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES.', 1;
+    IF EXISTS (SELECT 1 FROM @a WHERE Area NOT IN ('IPD', 'LAB', 'OPD', 'PHARMACY', 'MARKETING', 'MEMBERSHIP', 'ACCOUNTS', 'QUALITY', 'LEDGER', 'RATELISTS', 'PATIENTS', 'DOCTORS', 'FRANCHISES', 'LOGS', 'SEQUENCES'))
+        THROW 50110, 'Unknown area. Use IPD, LAB, OPD, PHARMACY, MARKETING, MEMBERSHIP, ACCOUNTS, QUALITY, LEDGER, RATELISTS, PATIENTS, DOCTORS, FRANCHISES, LOGS, SEQUENCES.', 1;
     IF NOT EXISTS (SELECT 1 FROM @a) THROW 50111, 'Nothing to clear: @Areas is empty.', 1;
     IF EXISTS (SELECT 1 FROM @a WHERE Area = 'LEDGER')
-       AND (SELECT COUNT(1) FROM @a WHERE Area IN ('LAB', 'OPD', 'MEMBERSHIP', 'ACCOUNTS')) < 4
-        THROW 50118, 'LEDGER removes every voucher of the branch: run it only together with LAB, OPD, MEMBERSHIP and ACCOUNTS.', 1;
+       AND (SELECT COUNT(1) FROM @a WHERE Area IN ('IPD', 'LAB', 'OPD', 'PHARMACY', 'MEMBERSHIP', 'ACCOUNTS')) < 6
+        THROW 50118, 'LEDGER removes every voucher of the branch: run it only together with IPD, LAB, OPD, PHARMACY, MEMBERSHIP and ACCOUNTS.', 1;
+    IF EXISTS (SELECT 1 FROM @a WHERE Area = 'PHARMACY') AND NOT EXISTS (SELECT 1 FROM @a WHERE Area = 'IPD')
+       AND EXISTS (SELECT 1 FROM dbo.IpdPhIssue)
+        THROW 50119, 'PHARMACY clears the stock that IPD ward issues took: run it together with IPD.', 1;
 
     -- ── scope ──
     IF @CompanyId IS NULL AND @BranchId IS NULL AND ISNULL(@AllCompanies, 0) = 0
@@ -866,8 +1296,12 @@ BEGIN
         BEGIN TRANSACTION;
 
         -- dependency order: transactions first, then what they referred to, number series last
+        -- (IPD first: its charges, ward issues and LAB orders point at LAB, pharmacy and OPD records)
+        IF EXISTS (SELECT 1 FROM @a WHERE Area = 'IPD')        EXEC cleanup.usp_ClearIpdTransactions @CompanyId, @BranchId, @ClearAuditLogs;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'LAB')        EXEC cleanup.usp_ClearLabTransactions @CompanyId, @BranchId, @ClearAuditLogs;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'OPD')        EXEC cleanup.usp_ClearOpdTransactions @CompanyId, @BranchId, @ClearAuditLogs;
+        IF EXISTS (SELECT 1 FROM @a WHERE Area = 'PHARMACY')   EXEC cleanup.usp_ClearPharmacy @CompanyId, @BranchId, @ClearAuditLogs;
+        IF EXISTS (SELECT 1 FROM @a WHERE Area = 'MARKETING')  EXEC cleanup.usp_ClearMarketing @CompanyId, @BranchId;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'MEMBERSHIP') EXEC cleanup.usp_ClearMembership @CompanyId, @BranchId;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'ACCOUNTS')   EXEC cleanup.usp_ClearAccounts @CompanyId, @BranchId;
         IF EXISTS (SELECT 1 FROM @a WHERE Area = 'QUALITY')    EXEC cleanup.usp_ClearQuality @CompanyId, @BranchId;

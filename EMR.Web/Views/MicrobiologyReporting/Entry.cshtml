@@ -30,6 +30,7 @@
         <div class="card-body py-2 px-3 d-flex flex-wrap gap-4 fs-8">
             <div><div class="text-muted fs-9">Patient</div><div class="fw-semibold">@d.PatientName <span class="text-muted">(@d.PatientCode)</span></div></div>
             <div><div class="text-muted fs-9">Age / Gender</div><div class="fw-semibold">@(d.Age?.ToString() ?? "-") / @(d.Gender ?? "-")</div></div>
+            @if (d.LmpDate.HasValue) { <div><div class="text-muted fs-9">LMP Date</div><div class="fw-semibold" style="color:#be185d">@d.LmpDate.Value.ToString("dd-MMM-yyyy")</div></div> }   @* 2453 *@
             <div><div class="text-muted fs-9">Bill No</div><div class="fw-semibold">@(d.BillNo ?? "-")</div></div>
             <div><div class="text-muted fs-9">Token</div><div class="fw-semibold">@(d.TokenNo ?? "-")</div></div>
             <div><div class="text-muted fs-9">Booked</div><div class="fw-semibold">@((d.BookingDateTime ?? d.OrderDate).ToString("dd-MMM-yyyy hh:mm tt"))</div></div>

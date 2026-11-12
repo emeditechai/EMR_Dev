@@ -10,17 +10,35 @@
 --                 debits (top-ups too when the whole company is cleared), membership points of these bills
 --     OPD         OPD bookings / bills, services, payments, cancellation & refund, consultations (EMR), video
 --                 consultations, vitals, token history, doctor disbursal / adjustments / settlements
+--                 (2026-11-12) home collection visits, phlebotomist attendance / GPS / travel / documents / cash /
+--                 hand-overs, bill change requests, external report documents, reflex suggestions, tests omitted from
+--                 doctor IP, B2C bill estimates; phlebotomist pre-printed barcodes made available again
+--     IPD         (2026-11-12) admissions with every record hanging off them: charges, interim / final bills, advances and
+--                 refunds, ward pharmacy issues, documents, MLC, attendants, consents, payers, bed movements and status
+--                 logs, estimates, bed reservations / cleaning tasks, admission advice; beds back to Available
+--     PHARMACY    (2026-11-12) sales and returns (Rx links, clinical alerts, schedule register, refill reminders, loyalty
+--                 wallet), indents, purchase orders, GRNs, purchase returns, supplier payments, debit notes, stock
+--                 adjustments, batch corrections, stock counts, store issues, branch transfers, stock and stock ledger,
+--                 batches no longer used, pharmacy payments / cancellations / refunds
+--     MARKETING   (2026-11-12) Doctor Visit Log, Marketing Executive App leads / visits, field days and GPS points
+--     OPD (more)  (2026-11-12) certificates issued and their send log, vaccinations
 --     MEMBERSHIP  membership cards, members, points, redeem OTPs, card-fee payments
 --     ACCOUNTS    OPD / LAB Day Closing, petty cash floats / expenses / closings, manual vouchers, bill scans
 --     QUALITY     BOM consumption, IQC runs, EQAS cycles, CAPA, equipment breakdowns / calibrations / maintenance
 --     LEDGER      every ledger voucher still left on the branch (books restart from the ledger opening balances)
 --     LOGS        activity / audit entries (security history kept), e-mail / WhatsApp logs, bell notifications,
---                 permission decisions, Doctor IP access log
+--                 permission decisions, Doctor IP access log; (2026-11-12) audit notification log, certificate send log,
+--                 campaigns sent, decided approval requests (pending kept), Help Assistant questions / feedback,
+--                 password reset OTPs and links
 --     PATIENTS    (optional) Patient Master - only patients nothing refers to any more
---     SEQUENCES   bill, token, receipt, cancellation, barcode, voucher and patient-code numbers restart at 1
+--     SEQUENCES   bill, token, receipt, cancellation, barcode, voucher and patient-code numbers restart at 1;
+--                 (2026-11-12) IP numbers, pharmacy document numbers, certificate numbers
 --   Kept: company, branches, users, roles, permissions, menus, all masters (tests, profiles, rate lists, doctors,
 --   franchises, services, departments, ledgers, expense heads, petty cash counters, equipment, IQC / EQAS set-up,
---   BOM, inventory items), Hospital Settings and every other setting, licence data.
+--   BOM, inventory items; pharmacy items, generics, manufacturers, suppliers, customers, schemes, stores, number series;
+--   IPD buildings, wards, rooms, beds, tariffs, packages, visit fees; marketing executives and targets; certificate,
+--   vaccine, print and campaign templates; approval matrices), Hospital Settings and every other setting, licence data,
+--   Help Assistant learned answers and test-suggestion learning.
 --   Doctor commission SET-UP is not touched (see 06_clear_opd_doctor_commission.sql for that).
 --
 --   HOW TO RUN
@@ -48,8 +66,10 @@ DECLARE @Confirm NVARCHAR(200) = N'';    -- with @Execute = 1: 'CLEAR ' + the da
 
 IF OBJECT_ID('cleanup.usp_ClearAccounts', 'P') IS NULL
     THROW 50130, 'Run the current 00_install_cleanup_procedures.sql first: this script needs its ACCOUNTS / MEMBERSHIP / QUALITY / LEDGER areas.', 1;
+IF OBJECT_ID('cleanup.usp_ClearPharmacy', 'P') IS NULL OR OBJECT_ID('cleanup.usp_ClearIpdTransactions', 'P') IS NULL
+    THROW 50131, 'Run the current 00_install_cleanup_procedures.sql again (2026-11-12): this script needs its IPD / PHARMACY / MARKETING areas.', 1;
 
-DECLARE @Areas NVARCHAR(400) = CONCAT(N'LAB,OPD,MEMBERSHIP,ACCOUNTS,QUALITY,LEDGER,',
+DECLARE @Areas NVARCHAR(400) = CONCAT(N'IPD,LAB,OPD,PHARMACY,MARKETING,MEMBERSHIP,ACCOUNTS,QUALITY,LEDGER,',
                                       CASE WHEN @ClearPatients = 1 THEN N'PATIENTS,' END,
                                       CASE WHEN @ClearLogs = 1 THEN N'LOGS,' END,
                                       N'SEQUENCES');

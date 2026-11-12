@@ -401,7 +401,7 @@
                 </div>
                 <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
-                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
+                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control" data-date-entry
                            max="@DateTime.Today.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
                 </div>
@@ -641,35 +641,41 @@
             <div class="sec-icon green"><i class="bi bi-clipboard2-pulse-fill"></i></div>
             <div class="flex-grow-1">
                 <h6 class="fw-bold mb-0">Other Information</h6>
-                <small class="text-muted">Occupation, marital status &amp; medical notes</small>
+                <small class="text-muted">Occupation, marital status, LMP date &amp; medical notes</small>
             </div>
             <i class="bi bi-chevron-down sec-chevron"></i>
         </div>
         <div id="secOtherInfo" class="collapse">
         <div class="reg-section-body">
 
-            @* ── Row 1: Occupation | Marital Status | Language ── *@
+            @* ── Row 1: Occupation | Marital Status | Language | LMP Date (Female only) ── *@
             <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-4">
+                <div class="col-12 col-sm-6 col-md">
                     <label asp-for="OccupationId" class="form-label fw-semibold small">Occupation</label>
                     <select asp-for="OccupationId" id="ddlOccupation" class="form-select s2-search"
                             asp-items="Model.OccupationOptions">
                         <option value="">-- Select Occupation --</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-6 col-md-4">
+                <div class="col-12 col-sm-6 col-md">
                     <label asp-for="MaritalStatusId" class="form-label fw-semibold small">Marital Status</label>
                     <select asp-for="MaritalStatusId" id="ddlMaritalStatus" class="form-select s2-search"
                             asp-items="Model.MaritalStatusOptions">
                         <option value="">-- Select Status --</option>
                     </select>
                 </div>
-                <div class="col-12 col-sm-6 col-md-4">
+                <div class="col-12 col-sm-6 col-md">
                     <label asp-for="LanguageId" class="form-label fw-semibold small">Language</label>
                     <select asp-for="LanguageId" id="ddlLanguage" class="form-select s2-search"
                             asp-items="Model.LanguageOptions">
                         <option value="">-- Select Language --</option>
                     </select>
+                </div>
+                <div class="col-12 col-sm-6 col-md d-none" id="lmpWrap">   @* 2453: shown only when Gender is Female *@
+                    <label asp-for="LmpDate" class="form-label fw-semibold small">LMP Date <span class="text-muted fw-normal">(last menstrual period)</span></label>
+                    <input asp-for="LmpDate" id="LmpDate" type="date" class="form-control" data-date-entry />
+                    <div class="invalid-feedback" id="lmpMsg">Not in the future, at most a year back.</div>
+                    <span asp-validation-for="LmpDate" class="text-danger small"></span>
                 </div>
             </div>
 
@@ -1144,10 +1150,12 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/date-entry.js" asp-append-version="true"></script>
     <partial name="_IdDocumentPreview" />
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/leaflet/dist/leaflet.js"></script>
     <script src="~/js/lab-compliance-docs.js" asp-append-version="true"></script>
+    <script src="~/js/lab/lmp-field.js" asp-append-version="true"></script>
     <script>
         $(document).ready(function () {
             // Collection Type Change Toggle

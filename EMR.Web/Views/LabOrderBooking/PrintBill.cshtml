@@ -535,7 +535,7 @@
             </tr>
             <tr>
                 <td class="lbl">Age / Gender</td>
-                <td>@(string.IsNullOrWhiteSpace(genderAge) ? "—" : genderAge)</td>
+                <td>@(string.IsNullOrWhiteSpace(genderAge) ? "—" : genderAge)@if (Model.LmpDate.HasValue) {<text> &nbsp;·&nbsp; <b>LMP</b> @Model.LmpDate.Value.ToString("dd-MMM-yyyy")</text>}</td>
                 <td class="lbl">Billed By</td>
                 <td>@(Model.BranchName ?? "—")</td>
             </tr>

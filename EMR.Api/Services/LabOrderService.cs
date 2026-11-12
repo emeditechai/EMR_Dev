@@ -66,6 +66,12 @@ namespace EMR.Api.Services
             p.Add("@BillNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
             p.Add("@TokenNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
 
+            // 2453: the LMP date is checked before the bill exists, so a wrong date never leaves a half-saved bill
+            if (request.LmpDate.HasValue)
+                await connection.ExecuteAsync("dbo.usp_LabOrder_SetLmp",
+                    new { PatientId = request.PatientId, Gender = request.PatientGender, LmpDate = request.LmpDate.Value.Date, ValidateOnly = true },
+                    commandType: CommandType.StoredProcedure);
+
             await connection.ExecuteAsync("dbo.usp_CreateLabOrder", p, commandType: CommandType.StoredProcedure);
 
             int labOrderId = p.Get<int>("@LabOrderId");
@@ -83,6 +89,12 @@ namespace EMR.Api.Services
                 await connection.ExecuteAsync("dbo.usp_LabOrder_SetBooking", bp, commandType: CommandType.StoredProcedure);
                 bookingNo = bp.Get<string?>("@BookingNo");
             }
+
+            // 2453: LMP date of a female patient's bill (the procedure stores nothing for anyone else)
+            if (request.LmpDate.HasValue)
+                await connection.ExecuteAsync("dbo.usp_LabOrder_SetLmp",
+                    new { LabOrderId = labOrderId, Gender = request.PatientGender, LmpDate = request.LmpDate.Value.Date, ValidateOnly = false, UserId = userId },
+                    commandType: CommandType.StoredProcedure);
 
             if (request.DueDate.HasValue)
             {

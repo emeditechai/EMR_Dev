@@ -506,20 +506,30 @@
                     </select>
                     <span asp-validation-for="Gender" class="text-danger small"></span>
                 </div>
-                <div class="col-12 col-sm-6 col-lg-3">
-                    <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
-                    <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
-                        <option value="">-- Select --</option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="Unknown">Unknown</option>
-                    </select>
+                <div class="col-12 col-sm-6 col-lg-3">   @* 2453: Blood Group, and LMP Date beside it for a Female patient (the column splits in two) *@
+                    <div class="row g-2">
+                        <div class="col">
+                            <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
+                            <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
+                                <option value="">-- Select --</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                        </div>
+                        <div class="col d-none" id="lmpWrap">
+                            <label asp-for="LmpDate" class="form-label fw-semibold small" title="Last menstrual period">LMP Date</label>
+                            <input asp-for="LmpDate" id="LmpDate" type="date" class="form-control" title="Last menstrual period" data-date-entry />
+                            <div class="invalid-feedback" id="lmpMsg">Not in the future, at most a year back.</div>
+                            <span asp-validation-for="LmpDate" class="text-danger small"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -556,7 +566,7 @@
                 </div>
                 <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
-                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
+                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control" data-date-entry
                            max="@DateTime.Today.ToString("yyyy-MM-dd")" />
                     <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
                 </div>
@@ -1160,11 +1170,13 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/date-entry.js" asp-append-version="true"></script>
     <partial name="_IdDocumentPreview" />
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/leaflet/dist/leaflet.js"></script>
     <script src="~/js/lab-compliance-docs.js" asp-append-version="true"></script>
+    <script src="~/js/lab/lmp-field.js" asp-append-version="true"></script>
     <script>
         const opdBase = '@Url.Content("~/OPD/")';
         var lineItems = [];

@@ -166,6 +166,11 @@ namespace EMR.Web.Models.ViewModels
         /// <summary>2384: "Is Booking Req" - on: the booking date & time from the screen and a booking number; off: as before (billing time).</summary>
         public bool IsBookingRequired { get; set; }
 
+        /// <summary>2453: last menstrual period - asked only when Gender is Female; stored on the bill.</summary>
+        [DataType(DataType.Date)]
+        [Display(Name = "LMP Date")]
+        public DateTime? LmpDate { get; set; }
+
         // ── Section 2: LAB Order Filters ─────────────────────────────────────────
         [Display(Name = "Department")]
         public int? DepartmentId { get; set; }
