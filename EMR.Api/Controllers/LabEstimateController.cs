@@ -14,7 +14,7 @@ public record LabEstimateCancelRequest(int BranchId, string? Reason);
 public record LabEstimateSentRequest(int BranchId, string? SentTo);
 
 /// <summary>
-/// LAB > B2C Bill Estimate (SQLScripts/2450). Every price and discount is worked out by usp_LabEstimate_Compute from the
+/// LAB > B2C Bill Estimate (SQLScripts/2451). Every price and discount is worked out by usp_LabEstimate_Compute from the
 /// branch's B2C rate list; the caller sends item ids, quantities and the discount asked for. Company and user come from the token.
 /// </summary>
 [ApiController]

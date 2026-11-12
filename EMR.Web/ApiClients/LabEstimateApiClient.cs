@@ -4,7 +4,7 @@ using EMR.Web.ApiClients.Models;
 
 namespace EMR.Web.ApiClients;
 
-/// <summary>EMR.Api api/lab-estimates (SQLScripts/2450). Rows as the procedures return them; a failed call throws with the API's message.</summary>
+/// <summary>EMR.Api api/lab-estimates (SQLScripts/2451). Rows as the procedures return them; a failed call throws with the API's message.</summary>
 public class LabEstimateApiClient(IHttpClientFactory factory)
 {
     private HttpClient Client => factory.CreateClient("EmrApi");

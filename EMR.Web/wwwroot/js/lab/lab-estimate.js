@@ -1,4 +1,4 @@
-/* LAB > B2C Bill Estimate (SQLScripts/2450). The screen only picks items and the discount asked for; every rate, discount,
+/* LAB > B2C Bill Estimate (SQLScripts/2451). The screen only picks items and the discount asked for; every rate, discount,
    GST and total comes from the server (LabEstimate/Calc -> usp_LabEstimate_Compute), and Generate works it out again. */
 (function () {
     'use strict';

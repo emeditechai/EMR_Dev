@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 /// <summary>
-/// LAB > B2C Bill Estimate (SQLScripts/2450): a billing simulator on one page - the B2C booking's tests / profiles /
+/// LAB > B2C Bill Estimate (SQLScripts/2451): a billing simulator on one page - the B2C booking's tests / profiles /
 /// packages (the branch's B2C rate list), misc charges and discounts (overall % / ₹, or department-wise), worked out by
 /// the server (usp_LabEstimate_Compute). Generate saves an estimate (no bill, payment or sample); it can be printed,
 /// downloaded as PDF and sent to the patient's WhatsApp with a link that opens without sign-in.

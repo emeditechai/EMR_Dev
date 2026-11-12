@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════════════
--- 2450  LAB > B2C Bill Estimate (billing simulator)
+-- 2451  LAB > B2C Bill Estimate (billing simulator)
 --   An estimate of a B2C LAB bill: same tests / profiles / packages (the branch's B2C rate list, fn_LabBookableItems) and
 --   misc charges (LabMiscChargeMaster, GST on top after discount) as LAB > B2C Booking, with the same discounts:
 --     * overall % or ₹ on the discountable amount (tests the B2C rate card allows a discount on + discountable misc
@@ -510,5 +510,5 @@ CLOSE k; DEALLOCATE k;
 GO
 UPDATE dbo.Users SET Permission_Version = Permission_Version + 1;
 GO
-PRINT '2450 LAB B2C bill estimate - done.';
+PRINT '2451 LAB B2C bill estimate - done.';
 GO

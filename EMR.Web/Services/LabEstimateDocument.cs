@@ -6,7 +6,7 @@ using QuestPDF.Infrastructure;
 
 namespace EMR.Web.Services;
 
-/// <summary>A saved LAB B2C bill estimate (SQLScripts/2450) as the print page and the PDF show it.</summary>
+/// <summary>A saved LAB B2C bill estimate (SQLScripts/2451) as the print page and the PDF show it.</summary>
 public sealed class LabEstimateDoc
 {
     public int EstimateId { get; init; }
