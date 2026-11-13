@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.DecryptConnectionStrings();
 
 // ── Services ─────────────────────────────────────────────────────────────────
 // ── Authentication: every call carries a token (see EMR.Api/Security/ApiCallerFilter) ──

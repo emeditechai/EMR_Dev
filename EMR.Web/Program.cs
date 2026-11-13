@@ -11,6 +11,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.DecryptConnectionStrings();
 
 // Add services to the container.
 builder.Services.AddControllersWithViews(options =>
