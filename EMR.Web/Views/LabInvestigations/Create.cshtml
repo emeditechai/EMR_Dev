@@ -225,6 +225,15 @@
                         </div>
                     </div>
 
+                    <!-- Is LMP Date Required -->
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold d-block">Is LMP Date Required?</label>
+                        <div class="form-check form-switch mt-2">
+                            <input asp-for="Is_LMP_Date_Required" class="form-check-input" type="checkbox" role="switch" />
+                            <label asp-for="Is_LMP_Date_Required" class="form-check-label">@(Model.Is_LMP_Date_Required ? "Yes" : "No")</label>
+                        </div>
+                    </div>
+
                     <!-- Sample Quantity & Quantity Unit -->
                     <div class="col-md-5">
                         <label class="form-label fw-semibold">Sample Quantity & Unit</label>
@@ -294,10 +303,12 @@
 @section Scripts {
     <script>
         (function () {
-            var t = document.getElementById('Has_External_Document');
-            if (!t) return;
-            var l = document.querySelector('label.form-check-label[for="Has_External_Document"]');
-            t.addEventListener('change', function () { if (l) l.textContent = t.checked ? 'Yes' : 'No'; });
+            ['Has_External_Document', 'Is_LMP_Date_Required'].forEach(function (id) {
+                var t = document.getElementById(id);
+                if (!t) return;
+                var l = document.querySelector('label.form-check-label[for="' + id + '"]');
+                t.addEventListener('change', function () { if (l) l.textContent = t.checked ? 'Yes' : 'No'; });
+            });
         })();
     </script>
     <partial name="_ValidationScriptsPartial" />

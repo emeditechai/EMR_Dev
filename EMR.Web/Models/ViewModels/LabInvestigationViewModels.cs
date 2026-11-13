@@ -110,6 +110,9 @@ public class LabInvestigationFormViewModel
     [Display(Name = "Has External Document")]
     public bool Has_External_Document { get; set; } = false;
 
+    [Display(Name = "Is LMP Date Required")]
+    public bool Is_LMP_Date_Required { get; set; } = false;
+
     [Display(Name = "Sample Quantity")]
     [Range(0, 10000, ErrorMessage = "Sample Quantity must be non-negative.")]
     public decimal? Sample_Quantity { get; set; }
