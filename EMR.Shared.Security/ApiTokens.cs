@@ -47,6 +47,8 @@ public static class TokenUse
     public const string Service = "service";
     /// <summary>Issued by api/auth to an outside client; each call must pass the endpoint permission map.</summary>
     public const string Access = "access";
+    /// <summary>Issued by api/auth/web-token to EMR.Web for one signed-in user's session (AccessTokenMinutes). Trusted like obo.</summary>
+    public const string WebAccess = "web";
     /// <summary>Short ticket between api/auth/login and api/auth/context when the user must pick a branch / role.</summary>
     public const string Login = "login";
     /// <summary>Issued by api/auth/patient-login to the patient app; opens only [PatientOwnData] endpoints for its patient_id.</summary>

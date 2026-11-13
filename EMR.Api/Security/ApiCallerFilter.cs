@@ -32,7 +32,7 @@ public sealed class ApiCallerFilter(
         var user = http.User;
         var use = user.FindFirstValue(TokenUse.ClaimType);
 
-        if (user.Identity?.IsAuthenticated != true || use is not (TokenUse.OnBehalf or TokenUse.Service or TokenUse.Access or TokenUse.Patient))
+        if (user.Identity?.IsAuthenticated != true || use is not (TokenUse.OnBehalf or TokenUse.WebAccess or TokenUse.Service or TokenUse.Access or TokenUse.Patient))
         {
             if (!apiAuth.CurrentValue.IsEnforced)
             {
@@ -45,7 +45,7 @@ public sealed class ApiCallerFilter(
             return;
         }
 
-        if (use is TokenUse.OnBehalf or TokenUse.Service) return;
+        if (use is TokenUse.OnBehalf or TokenUse.WebAccess or TokenUse.Service) return;
 
         // The patient app: only the patient's own records ([PatientOwnData] then checks the id in the route).
         if (use is TokenUse.Patient)

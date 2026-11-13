@@ -271,6 +271,7 @@ public class AccountController(
     public async Task<IActionResult> Logout()
     {
         await auditLogService.LogAsync("Auth", "Logout", "User logged out.");
+        EMR.Web.ApiClients.EmrApiTokenHandler.Forget(HttpContext.Session);
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return RedirectToAction(nameof(Login));
     }
@@ -285,6 +286,7 @@ public class AccountController(
 
     public async Task<IActionResult> SessionTimeoutLogout()
     {
+        EMR.Web.ApiClients.EmrApiTokenHandler.Forget(HttpContext.Session);
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         TempData["Warning"] = "Session expired due to inactivity. Please login again.";
         return RedirectToAction(nameof(Login));

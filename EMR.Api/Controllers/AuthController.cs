@@ -188,6 +188,50 @@ public sealed class AuthController(
         return Ok(new { success = true });
     }
 
+    /// <summary>
+    /// EMR.Web exchanges a short on-behalf token for an access token for the user's web session (ApiAuth:AccessTokenMinutes).
+    /// The user, branch mapping and role are checked again here, so a deactivated user or a removed mapping gets no new token.
+    /// </summary>
+    [HttpPost("web-token")]
+    [Authorize, PublicEndpoint]
+    public async Task<IActionResult> WebToken()
+    {
+        if (User.FindFirstValue(TokenUse.ClaimType) != TokenUse.OnBehalf
+            || !int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            || !int.TryParse(User.FindFirstValue("BranchId"), out var branchId))
+            return Forbid();
+
+        using var con = db.CreateConnection();
+        var user = await LoadUserAsync(con, userId);
+        if (user is null || !user.IsActive || user.IsLockedOut)
+            return StatusCode(403, Fail("ACCOUNT_INACTIVE", "User is inactive or locked out. Contact administrator."));
+
+        var branch = await con.QuerySingleOrDefaultAsync<BranchRow>(
+            @"SELECT b.BranchID AS BranchId, b.BranchName, b.CompanyId
+              FROM dbo.UserBranches ub INNER JOIN dbo.Branchmaster b ON b.BranchID = ub.BranchID
+              WHERE ub.UserId = @u AND ub.BranchID = @b AND ub.IsActive = 1 AND b.IsActive = 1", new { u = userId, b = branchId });
+        if (branch is null) return StatusCode(403, Fail("BRANCH_NOT_ALLOWED", "This branch is not mapped to the user."));
+
+        var role = User.FindFirstValue("ActiveRole");
+        if (!user.IsSuperAdmin)
+        {
+            var holds = role is { Length: > 0 } && await con.ExecuteScalarAsync<int>(
+                @"SELECT COUNT(1) FROM dbo.Userroles ur INNER JOIN dbo.roles r ON r.Id = ur.RoleId
+                  WHERE ur.UserId = @u AND ur.IsActive = 1 AND (ur.Branch_ID IS NULL OR ur.Branch_ID = @b) AND r.Name = @role",
+                new { u = userId, b = branchId, role }) > 0;
+            if (!holds) return StatusCode(403, Fail("ROLE_NOT_ALLOWED", "The user does not hold this role in this branch."));
+        }
+
+        var minutes = options.CurrentValue.AccessTokenMinutes;
+        return Ok(new
+        {
+            success = true,
+            tokenType = "Bearer",
+            accessToken = tokens.CreateToken(UserClaims(user, branch, role), TokenUse.WebAccess, TimeSpan.FromMinutes(minutes)),
+            expiresIn = minutes * 60
+        });
+    }
+
     // ── the signed-in user ───────────────────────────────────────────────
     [HttpGet("me")]
     [Authorize, PublicEndpoint]
@@ -417,6 +461,19 @@ public sealed class AuthController(
     private object TokenResponse(UserRow user, BranchRow branch, string? role, string refreshToken)
     {
         var o = options.CurrentValue;
+        return new
+        {
+            success = true,
+            tokenType = "Bearer",
+            accessToken = tokens.CreateToken(UserClaims(user, branch, role), TokenUse.Access, TimeSpan.FromMinutes(o.AccessTokenMinutes)),
+            expiresIn = o.AccessTokenMinutes * 60,
+            refreshToken,
+            user = new { id = user.Id, name = user.FullName ?? user.Username, branchId = branch.BranchId, branchName = branch.BranchName, activeRole = role }
+        };
+    }
+
+    private static List<Claim> UserClaims(UserRow user, BranchRow branch, string? role)
+    {
         var claims = new List<Claim>
         {
             new("sub", user.Id.ToString()),
@@ -428,15 +485,7 @@ public sealed class AuthController(
             new("IsSuperAdmin", user.IsSuperAdmin ? "true" : "false")
         };
         if (role is { Length: > 0 }) claims.Add(new Claim("ActiveRole", role));
-        return new
-        {
-            success = true,
-            tokenType = "Bearer",
-            accessToken = tokens.CreateToken(claims, TokenUse.Access, TimeSpan.FromMinutes(o.AccessTokenMinutes)),
-            expiresIn = o.AccessTokenMinutes * 60,
-            refreshToken,
-            user = new { id = user.Id, name = user.FullName ?? user.Username, branchId = branch.BranchId, branchName = branch.BranchName, activeRole = role }
-        };
+        return claims;
     }
 
     private bool IsAccessToken(out int userId)
