@@ -8,6 +8,22 @@
     <AssemblyName>ConnStringEncryptor</AssemblyName>
     <RootNamespace>ConnStringEncryptor</RootNamespace>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <Version>1.0.0</Version>
+    <Product>EMR Connection String Encryptor</Product>
+    <Company>eMediTech</Company>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <!-- A signed single-file host breaks inside a macOS .app bundle; publish as a folder and sign the bundle instead -->
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('osx'))">
+    <PublishSingleFile>false</PublishSingleFile>
   </PropertyGroup>
 
   <ItemGroup>
