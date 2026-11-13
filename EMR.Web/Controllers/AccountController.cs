@@ -277,6 +277,12 @@ public class AccountController(
 
     [HttpGet]
     [Authorize]
+    /// <summary>Idle sign-out (IdleSessionPolicy): the page calls this every few minutes while the user is actually
+    /// working (typing a long form sends no other request), so the server's idle clock moves; signedIn = false tells the
+    /// page the server already ended the session.</summary>
+    [HttpGet, AllowAnonymous]   // answers signedIn = false after the server ended the session (instead of a login redirect)
+    public IActionResult KeepAlive() => Json(new { signedIn = User.Identity?.IsAuthenticated == true });
+
     public async Task<IActionResult> SessionTimeoutLogout()
     {
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

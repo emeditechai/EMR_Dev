@@ -187,7 +187,22 @@
             var menu   = el.querySelector('.dropdown-submenu-menu');
             if (!toggle || !menu) return;
 
+            var scrollParent = el.closest('.emr-menu-scroll');
             function positionSubmenu() {
+                // inside a scrolling menu the flyout is placed on the page, next to its row (a scroll box would cut it off)
+                if (scrollParent) {
+                    var r = el.getBoundingClientRect();
+                    var vw0 = window.innerWidth || document.documentElement.clientWidth;
+                    var vh0 = window.innerHeight || document.documentElement.clientHeight;
+                    menu.classList.add('is-fixed');
+                    menu.classList.remove('open-left');
+                    var w = menu.offsetWidth, h = menu.offsetHeight;
+                    var left = r.right + 2;
+                    if (left + w > vw0 - 8) { left = Math.max(8, r.left - w - 2); menu.classList.add('open-left'); }
+                    var top = Math.min(r.top, Math.max(8, vh0 - h - 15));
+                    menu.style.left = left + 'px'; menu.style.top = top + 'px'; menu.style.right = 'auto';
+                    return;
+                }
                 menu.style.top = '0px';
                 // open to the left when the flyout would run past the right edge (menus near the end of the bar)
                 menu.classList.remove('open-left');
@@ -210,7 +225,12 @@
             el.addEventListener('mouseleave', function () {
                 menu.classList.remove('show', 'open-left');
                 menu.style.top = '0px';
+                if (scrollParent) { menu.classList.remove('is-fixed'); menu.style.left = ''; menu.style.right = ''; }
             });
+            // scrolling the menu moves the row away from its flyout: close it
+            if (scrollParent) scrollParent.addEventListener('scroll', function () {
+                if (menu.classList.contains('show')) { menu.classList.remove('show', 'open-left', 'is-fixed'); menu.style.top = '0px'; menu.style.left = ''; }
+            }, { passive: true });
 
             // Mobile / click fallback
             toggle.addEventListener('click', function (e) {
@@ -222,6 +242,28 @@
                     menu.classList.add('show');
                     positionSubmenu();
                 }
+            });
+        });
+
+        // A top menu with more than 10 entries: show the first 10 rows (dividers between them included) and scroll the rest;
+        // never taller than the window below the menu bar.
+        document.querySelectorAll('.emr-main-menu .dropdown-menu.emr-menu-scroll').forEach(function (ul) {
+            var toggle = ul.previousElementSibling;
+            if (!toggle) return;
+            toggle.addEventListener('shown.bs.dropdown', function () {
+                ul.style.maxHeight = '';
+                var rows = Array.prototype.filter.call(ul.children, function (li) { return li.tagName === 'LI'; });
+                var count = 0, height = 0;
+                for (var i = 0; i < rows.length; i++) {
+                    var isItem = !rows[i].querySelector('.dropdown-divider');
+                    if (isItem && count === 10) break;
+                    height += rows[i].getBoundingClientRect().height;
+                    if (isItem) count++;
+                }
+                var cs = getComputedStyle(ul);
+                height += parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+                var room = (window.innerHeight || document.documentElement.clientHeight) - ul.getBoundingClientRect().top - 12;
+                ul.style.maxHeight = Math.max(160, Math.min(height, room)) + 'px';
             });
         });
 
@@ -272,8 +314,9 @@
     {
         <script>
             (function () {
-                // Idle sign-out after 60 minutes without activity in ANY tab of this login (activity is shared via localStorage).
-                var idleLimitMs = 60 * 60 * 1000;
+                // Idle sign-out after N minutes (Security:IdleTimeoutMinutes, default 60) without activity in ANY tab of this
+                // login (activity is shared via localStorage). The server enforces the same limit (IdleSessionPolicy).
+                var idleLimitMs = @(EMR.Web.Services.IdleSessionPolicy.IdleMinutes) * 60 * 1000;
                 var activityKey = '__emr_last_activity';
                 var lastActivityAt = Date.now();
                 var idleExceeded = false;
@@ -305,9 +348,54 @@
                 }
 
                 markActivity(Date.now());   // opening a page is activity
+                // the limit reached: sign out by itself (before, it waited for the next click, so an untouched screen stayed signed in)
                 setInterval(function () {
                     idleExceeded = (Date.now() - sharedLastActivity()) >= idleLimitMs;
+                    if (idleExceeded && !redirecting) { redirecting = true; window.location.href = logoutUrl; }
                 }, 1000);
+
+                // Requests the user did not trigger (bell poll, auto-refresh, timers) are marked as background, so the server
+                // does not count them as activity: a request with no click / key in the last few seconds is background.
+                var lastInputAt = Date.now();
+                ['click', 'keydown', 'mousedown', 'touchstart', 'submit'].forEach(function (evt) {
+                    document.addEventListener(evt, function () { lastInputAt = Date.now(); }, true);
+                });
+                function isBackground() { return Date.now() - lastInputAt > 4000; }
+                var BG = '@(EMR.Web.Services.IdleSessionPolicy.BackgroundHeader)';
+                if (window.fetch) {
+                    var nativeFetch = window.fetch;
+                    window.fetch = function (input, init) {
+                        if (isBackground()) {
+                            try {
+                                init = Object.assign({}, init || {});
+                                var h = new Headers(init.headers || (input && input.headers) || {});
+                                h.set(BG, '1');
+                                init.headers = h;
+                            } catch (e) { }
+                        }
+                        return nativeFetch.call(this, input, init);
+                    };
+                }
+                // while the user works without server requests (a long form), tell the server every 5 minutes (not marked background)
+                var lastPingAt = Date.now(), keepAliveUrl = '@Url.Action("KeepAlive", "Account")';
+                setInterval(function () {
+                    if (redirecting || lastInputAt <= lastPingAt || Date.now() - lastPingAt < 5 * 60 * 1000) return;
+                    lastPingAt = Date.now();
+                    var x = new XMLHttpRequest();
+                    x.open('GET', keepAliveUrl, true);
+                    x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                    x.onload = function () {
+                        try { if (JSON.parse(x.responseText).signedIn === false && !redirecting) { redirecting = true; window.location.href = logoutUrl; } } catch (e) { }
+                    };
+                    nativeSendFor(x);
+                }, 30000);
+                function nativeSendFor(x) { (window.__emrNativeSend || XMLHttpRequest.prototype.send).call(x); }
+                var nativeSend = XMLHttpRequest.prototype.send;
+                window.__emrNativeSend = nativeSend;
+                XMLHttpRequest.prototype.send = function () {
+                    if (isBackground()) { try { this.setRequestHeader(BG, '1'); } catch (e) { } }
+                    return nativeSend.apply(this, arguments);
+                };
 
                 ['click', 'keydown', 'mousedown', 'touchstart'].forEach(function (evt) {
                     document.addEventListener(evt, handleInteraction, true);

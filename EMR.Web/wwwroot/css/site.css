@@ -987,6 +987,20 @@ body {
   position: relative;
 }
 
+/* a top menu with more than 10 entries shows 10 and scrolls (height set by _Layout's script from the first 10 rows) */
+.emr-main-menu .dropdown-menu.emr-menu-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+.emr-main-menu .dropdown-menu.emr-menu-scroll::-webkit-scrollbar { width: 6px; }
+.emr-main-menu .dropdown-menu.emr-menu-scroll::-webkit-scrollbar-track { background: #f8fafc; border-radius: 6px; }
+.emr-main-menu .dropdown-menu.emr-menu-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
+.emr-main-menu .dropdown-menu.emr-menu-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+/* a flyout of a scrolling menu is placed on the page (fixed), so the scroll box does not cut it off */
+.dropdown-submenu-menu.is-fixed { position: fixed; margin: 0; }
+
 .dropdown-submenu-toggle {
   display: flex;
   align-items: center;

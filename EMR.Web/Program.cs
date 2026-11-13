@@ -354,8 +354,13 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/AccessDenied";
         options.SlidingExpiration = true;
-        options.ExpireTimeSpan = TimeSpan.FromHours(1); // Auto logout if idle for 1 hour
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(Math.Max(60, EMR.Web.Services.IdleSessionPolicy.IdleMinutes)); // the cookie outlives the idle limit; IdleSessionPolicy decides
+        // idle sign-out enforced by the server: background requests (bell poll, hub, auto-refresh) do not count as
+        // activity, so they can no longer keep an idle session alive (IdleSessionPolicy, Security:IdleTimeoutMinutes)
+        options.Events.OnValidatePrincipal = EMR.Web.Services.IdleSessionPolicy.ValidateAsync;
+        options.Events.OnSigningIn = ctx => { ctx.Properties.Items[EMR.Web.Services.IdleSessionPolicy.ActivityKey] = DateTimeOffset.UtcNow.UtcTicks.ToString(); return Task.CompletedTask; };
     });
+EMR.Web.Services.IdleSessionPolicy.Configure(builder.Configuration);
 
 builder.Services.AddAuthorization();
 

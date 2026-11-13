@@ -17,7 +17,8 @@
             <a class="nav-link dropdown-toggle" href="#" id="@navId" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                 <i class="@nav.Icon"></i>@nav.Title
             </a>
-            <ul class="dropdown-menu dropdown-menu-@nav.Code.ToLowerInvariant()" aria-labelledby="@navId">
+            @* more than 10 entries: the menu shows 10 and scrolls (sized in _Layout's script) *@
+            <ul class="dropdown-menu dropdown-menu-@nav.Code.ToLowerInvariant()@(nav.Children!.Count > 10 ? " emr-menu-scroll" : "")" aria-labelledby="@navId">
                 @RenderChildren(nav.Children!)
             </ul>
         </li>
