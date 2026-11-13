@@ -267,5 +267,14 @@
   ],
   "date": "12 Nov 2026",
   "version": "1.19"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "LabInvestigationMaster: new column(s) Is_LMP_Date_Required",
+   "MS_Description changed on LabInvestigationMaster"
+  ],
+  "date": "13 Nov 2026",
+  "version": "1.20"
  }
 ]

@@ -26144,6 +26144,19 @@
    "type": "bit"
   },
   {
+   "col": "Is_LMP_Date_Required",
+   "def": "((0))",
+   "descr": "1 = the LMP date (last menstrual period) is required when this test is booked.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 39,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabInvestigationMaster",
+   "type": "bit"
+  },
+  {
    "col": "Detail_ID",
    "def": null,
    "descr": null,
@@ -57956,7 +57969,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-12T22:54:08",
+ "extracted_on": "2026-11-13T08:35:10",
  "fk": [
   {
    "col": "LedgerId",
