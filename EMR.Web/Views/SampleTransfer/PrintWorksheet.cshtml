@@ -647,23 +647,6 @@
         <span>Page 1 of 1</span>
     </div>
 
-    <script>
-        function closeWorksheetWindow() {
-            try {
-                if (window.parent && window.parent.$ && window.parent.$('#modalPrintWorksheet').length) {
-                    window.parent.$('#modalPrintWorksheet').modal('hide');
-                    return;
-                }
-            } catch (e) { }
-            window.close();
-        }
-
-        // Trigger print after rendering
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-            }, 400);
-        };
-    </script>
+    <script src="~/js/views/SampleTransfer/PrintWorksheet.js" asp-append-version="true"></script>
 </body>
 </html>

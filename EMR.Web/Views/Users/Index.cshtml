@@ -16,22 +16,7 @@
     var avatarColors = new[] { "#2563eb", "#7c3aed", "#0d9488", "#d97706", "#db2777", "#0891b2" };
 }
 
-<style>
-    .um-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .85rem; object-fit: cover; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
-    .um-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
-    .um-sub { font-size: .76rem; color: #64748b; }
-    .um-role { font-size: .7rem; font-weight: 600; border: 1px solid transparent; }
-    .um-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .1rem .55rem; margin: 0 .2rem .2rem 0; white-space: nowrap; }
-    .um-table thead th { background: #f8fafc; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-    .um-table tbody tr { transition: background .12s; }
-    .um-table tbody tr.um-inactive td { opacity: .62; }
-    .um-table tbody tr.um-inactive td:last-child { opacity: 1; }
-    .um-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
-    .um-kpi .um-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
-    .um-kpi .um-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
-    .um-pager .page-link { min-width: 2.25rem; text-align: center; }
-    .um-loading { opacity: .55; pointer-events: none; transition: opacity .15s; }
-</style>
+<link rel="stylesheet" href="~/css/views/Users/Index.css" asp-append-version="true" />
 
 <div class="container-fluid px-4 py-3">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -396,51 +381,6 @@
 </form>
 
 @section Scripts {
-    <script>
-        // User Master > Unlock (locked after too many wrong passwords): confirm with a reason, then post
-        document.querySelectorAll('.um-unlock').forEach(btn => btn.addEventListener('click', async () => {
-            const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-            const r = await Swal.fire({
-                title: 'Unlock user?',
-                html: '<div class="small text-start"><b>' + esc(btn.dataset.name) + '</b> is locked after ' + esc(btn.dataset.tries) +
-                      ' wrong passwords until ' + esc(btn.dataset.until) + '. Confirm the identity of the user before unlocking.</div>',
-                icon: 'warning',
-                input: 'text',
-                inputLabel: 'Reason (recorded in the audit log)',
-                inputPlaceholder: 'e.g. identity verified by phone',
-                inputAttributes: { maxlength: 300 },
-                inputValidator: v => (!v || v.trim().length < 3) ? 'Enter a reason (at least 3 characters).' : undefined,
-                showCancelButton: true,
-                confirmButtonText: '<i class="bi bi-unlock me-1"></i>Unlock',
-                confirmButtonColor: '#d97706'
-            });
-            if (!r.isConfirmed) return;
-            const f = document.getElementById('umUnlockForm');
-            f.elements['id'].value = btn.dataset.id;
-            f.elements['reason'].value = r.value.trim();
-            f.submit();
-        }));
-    </script>
-    <script>
-        (function () {
-            // filters run on the server: the drop-downs submit at once, the search after a short pause (from page 1)
-            const form = document.getElementById('umFilter');
-            const search = document.getElementById('umSearch');
-            const table = document.getElementById('umTable');
-            let timer = null;
-            function submit() { if (table) table.classList.add('um-loading'); form.submit(); }
-            ['umType', 'umStatus', 'umRole'].forEach(id => document.getElementById(id).addEventListener('change', submit));
-            search.addEventListener('input', () => {
-                clearTimeout(timer);
-                const v = search.value.trim();
-                if (v.length === 1) return;          // wait for at least two characters (or an empty box)
-                timer = setTimeout(submit, 550);
-            });
-            search.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); submit(); } });
-            // keep the caret at the end of the search box after the page reloads
-            if (search.value) { search.focus(); const n = search.value.length; search.setSelectionRange(n, n); }
-            const size = document.getElementById('umPageSize');
-            if (size) size.addEventListener('change', () => { if (table) table.classList.add('um-loading'); location.href = size.value; });
-        })();
-    </script>
+    <script src="~/js/views/Users/Index.js" asp-append-version="true"></script>
+    <script src="~/js/views/Users/Index-2.js" asp-append-version="true"></script>
 }

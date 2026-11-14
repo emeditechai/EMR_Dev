@@ -1,0 +1,152 @@
+/* moved from Views/OPD/PatientRegistration.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        /* patient grid: title select sits inside the First Name field at a fixed width */
+        .pt-row .pt-title { flex: 0 0 88px; max-width: 88px; padding-left: .55rem; padding-right: 1.6rem; background-position: right .45rem center; }
+        .pt-row .form-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* ── Select2 overrides to match Bootstrap form-select height & font ── */
+        .select2-container--bootstrap-5 .select2-selection {
+            min-height: calc(1.5em + 0.75rem + 2px);
+            font-size: 0.9rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+            line-height: 1.5;
+            padding-top: 0.375rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+            height: calc(1.5em + 0.75rem + 2px);
+        }
+        .select2-container { width: 100% !important; }
+
+        /* ── Section card styling ── */
+        .reg-section {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+        .reg-section-header {
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+            padding: 1rem 1.4rem;
+            border-bottom: 1px solid #e9ecef;
+            background: #f8f9fc;
+        }
+        .reg-section-header .sec-icon {
+            width: 42px; height: 42px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+        .reg-section-header .sec-icon.blue  { background: #e8f0fe; color: #1967d2; }
+        .reg-section-header .sec-icon.green { background: #e6f4ea; color: #137333; }
+        .reg-section-header .sec-icon.red   { background: #fce8e6; color: #c5221f; }
+        .reg-section-body { padding: 1.4rem; }
+
+        /* ── Identification sub-block ── */
+        .id-block {
+            background: #f8f9fc;
+            border: 1px dashed #ced4da;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin-top: .25rem;
+        }
+
+        /* ── Service sub-block ── */
+        .service-block {
+            background: #f8f9fc;
+            border: 1px solid #e0e7ef;
+            border-radius: 8px;
+            padding: 1rem 1.2rem;
+            margin-top: .25rem;
+        }
+        .charges-display {
+            background: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            color: #2e7d32;
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: .5px;
+        }
+        /* ── Search panel ── */
+        .search-panel {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.1rem 1.4rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+        .search-panel .search-label-strip {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: .75rem;
+        }
+        /* ── Phone suggestion dropdown ── */
+        #phoneSearchDropdown .list-group-item { outline: none; }
+        #phoneSearchDropdown .list-group-item:hover,
+        #phoneSearchDropdown .list-group-item.kbd-active {
+            background: #e8f0fe;
+            border-left: 3px solid #1967d2;
+        }
+
+        /* ── From Roster lock ── */
+        .roster-locked {
+            pointer-events: none;
+            opacity: 0.82;
+            background: #f5f3ff !important;
+            border-color: #c4b5fd !important;
+        }
+        .roster-lock-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: linear-gradient(135deg,#667eea,#764ba2);
+            color: #fff; border-radius: 20px;
+            padding: 2px 9px; font-size: .7rem; font-weight: 700;
+            margin-left: 6px;
+        }
+        .roster-frozen-bar {
+            display: flex; align-items: center; gap: 8px;
+            background: linear-gradient(90deg,#f0f4ff,#faf5ff);
+            border: 1px solid #c4b5fd;
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: .82rem; color: #4f46e5; font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+
+        /* ── Collapsible section headers ── */
+        .reg-section-header.collapsed-toggle {
+            cursor: pointer;
+            user-select: none;
+        }
+        .reg-section-header.collapsed-toggle:hover { background: #f0f3fa; }
+        .sec-chevron {
+            font-size: 1rem;
+            color: #6c757d;
+            transition: transform .25s ease;
+            flex-shrink: 0;
+        }
+        .reg-section-header.collapsed-toggle[aria-expanded="false"] .sec-chevron {
+            transform: rotate(-90deg);
+        }
+        /* ── Action bar ── */
+        .action-bar {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1rem 1.4rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: .75rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+    

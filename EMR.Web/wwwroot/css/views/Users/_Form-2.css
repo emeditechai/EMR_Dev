@@ -1,0 +1,7 @@
+/* moved from Views/Users/_Form.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .uf-email-state { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); font-size: 1rem; line-height: 1; }
+    .uf-email-state.ok { color: #16a34a; } .uf-email-state.bad { color: #dc2626; } .uf-email-state.wait { color: #94a3b8; }
+    .uf-email-msg { font-size: .78rem; margin-top: .25rem; min-height: 1rem; }
+    .uf-email-msg.ok { color: #15803d; } .uf-email-msg.bad { color: #dc2626; }
+    #ufEmail.uf-ok { border-color: #16a34a; box-shadow: 0 0 0 .18rem rgba(22, 163, 74, .15); }
+    #ufEmail.uf-bad { border-color: #dc2626; box-shadow: 0 0 0 .18rem rgba(220, 38, 38, .12); }

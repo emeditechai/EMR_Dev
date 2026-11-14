@@ -103,21 +103,4 @@
 {
     <div class="ptpl-gap" style="height:@(Css(band.MarginBottomMm))mm">↕ space below @Css(band.MarginBottomMm) mm</div>
 }
-<style>
-    .ptpl-band { width: 100%; font-family: Arial, Helvetica, sans-serif; line-height: 1.3; }
-    .ptpl-row { display: flex; width: 100%; margin-bottom: 0.4mm; }
-    .ptpl-col { display: flex; flex-direction: column; padding: 0 0.7mm; min-width: 0; }
-    .ptpl-block { overflow-wrap: anywhere; }
-    .ptpl-barcode svg { width: 100%; height: 100%; display: block; }
-    .ptpl-badge { display: inline-block; border: 0.2mm solid #888; border-radius: 3mm; padding: 0.2mm 2mm; }
-    .ptpl-design .ptpl-row { outline: 1px dashed #c8c2d8; outline-offset: -1px; min-height: 7mm; }
-    .ptpl-design .ptpl-col { outline: 1px dashed #ddd6ea; outline-offset: -2px; min-height: 7mm; cursor: pointer; }
-    .ptpl-design .ptpl-block { cursor: pointer; border-radius: 2px; }
-    .ptpl-design .ptpl-block:hover { background: rgba(124, 58, 237, .07); }
-    .ptpl-design .ptpl-sel { outline: 2px solid #7c3aed !important; outline-offset: 0; background: rgba(124, 58, 237, .06); }
-    .ptpl-empty { color: #9a8fb3; font-size: 8pt; text-align: center; padding: 2mm 0; }
-    .ptpl-ph { display: inline-flex; align-items: center; justify-content: center; min-height: 6mm; padding: 0 2mm; border: 1px dashed #b9b1cc; color: #8a80a3; font-size: 7pt; border-radius: 2px; }
-    .ptpl-novalue { color: #b0a8c4 !important; }
-    .ptpl-gap { display: flex; align-items: center; justify-content: center; overflow: hidden; font: 9px Arial, sans-serif; color: #8a80a3;
-                background: repeating-linear-gradient(135deg, #f6f3fb, #f6f3fb 5px, #ece7f6 5px, #ece7f6 10px); border-left: 2px solid #c9bfe0; border-right: 2px solid #c9bfe0; }
-</style>
+<link rel="stylesheet" href="~/css/views/Shared/_PrintBand.css" asp-append-version="true" />

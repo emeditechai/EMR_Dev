@@ -13,24 +13,7 @@
     var tileColors = new[] { "#2563eb", "#7c3aed", "#0d9488", "#d97706", "#db2777", "#0891b2" };
 }
 
-<style>
-    .bm-tile { width: 40px; height: 40px; border-radius: .6rem; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .8rem; letter-spacing: .02em; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
-    .bm-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
-    .bm-sub { font-size: .76rem; color: #64748b; }
-    .bm-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem; background: #f1f5f9; color: #be185d; border: 1px solid #e2e8f0; border-radius: .35rem; padding: .05rem .4rem; }
-    .bm-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; background: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; border-radius: 1rem; padding: .1rem .55rem; white-space: nowrap; }
-    .bm-ho { display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; font-weight: 700; background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 1rem; padding: .1rem .55rem; white-space: nowrap; }
-    .bm-lab { display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; font-weight: 700; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 1rem; padding: .1rem .55rem; white-space: nowrap; }
-    .bm-table thead th { background: #f8fafc; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-    .bm-table tbody tr { transition: background .12s; }
-    .bm-table tbody tr.bm-inactive td { opacity: .62; }
-    .bm-table tbody tr.bm-inactive td:last-child { opacity: 1; }
-    .bm-table tbody tr.bm-is-ho > td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
-    .bm-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
-    .bm-kpi .bm-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
-    .bm-kpi .bm-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
-    .bm-kpi .bm-kpi-label { font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #64748b; }
-</style>
+<link rel="stylesheet" href="~/css/views/Branches/Index.css" asp-append-version="true" />
 
 <div class="container-fluid px-4 py-3">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -266,43 +249,5 @@
 </div>
 
 @section Scripts {
-    <script>
-        (function () {
-            const rows = [...document.querySelectorAll('#bmTable tbody tr[data-search]')];
-            const $search = document.getElementById('bmSearch');
-            const $status = document.getElementById('bmStatus');
-            const $type = document.getElementById('bmType');
-            const $lab = document.getElementById('bmLab');
-            const $count = document.getElementById('bmCount');
-            const $empty = document.getElementById('bmEmpty');
-
-            function apply() {
-                const term = $search.value.toLowerCase().trim();
-                const status = $status.value;
-                const type = $type.value;
-                const lab = $lab.value;
-                let shown = 0;
-
-                rows.forEach(r => {
-                    const ok = (!term || r.dataset.search.includes(term))
-                        && (!status || r.dataset.status === status)
-                        && (!type || r.dataset.type === type)
-                        && (!lab || r.dataset.lab === lab);
-                    r.style.display = ok ? '' : 'none';
-                    if (ok) shown++;
-                });
-
-                $count.textContent = 'Showing ' + shown + ' of ' + rows.length;
-                $empty.style.display = (rows.length > 0 && shown === 0) ? '' : 'none';
-            }
-
-            $search.addEventListener('input', apply);
-            $status.addEventListener('change', apply);
-            $type.addEventListener('change', apply);
-            $lab.addEventListener('change', apply);
-            document.getElementById('bmReset').addEventListener('click', () => {
-                $search.value = ''; $status.value = ''; $type.value = ''; $lab.value = ''; apply(); $search.focus();
-            });
-        })();
-    </script>
+    <script src="~/js/views/Branches/Index.js" asp-append-version="true"></script>
 }

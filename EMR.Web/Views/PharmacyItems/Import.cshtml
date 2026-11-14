@@ -4,16 +4,7 @@
     ViewData["Title"] = "Import Items";
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
-<style>
-    .im-card { border:1px solid #e2e8f0; border-radius:12px; background:#fff; padding:1rem 1.1rem; height:100%; }
-    .im-card h6 { font-weight:700; }
-    .im-step { width:26px; height:26px; border-radius:50%; background:#ede9fe; color:#6f42c1; display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:.8rem; margin-right:.4rem; }
-    .im-kpi { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:.5rem .8rem; }
-    .im-kpi .l { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
-    .im-kpi .v { font-size:1.15rem; font-weight:800; font-variant-numeric:tabular-nums; }
-    #imTable td, #imTable th { font-size:.8rem; vertical-align:middle; }
-    .im-filter .btn { font-size:.75rem; }
-</style>
+<link rel="stylesheet" href="~/css/views/PharmacyItems/Import.css" asp-append-version="true" />
 <partial name="_PharmacyMasterHeader" model="@(new PhHeader("Import Items", "bi-cloud-arrow-up", "Bring many items into the Item / Drug Master at once - from your distributor's list in the Excel template, or the standard starter list of commonly sold medicines and surgicals. Nothing is saved until you press Import.", null, null, Section: "Master", Group: "Pharmacy Master"))" />
 @Html.AntiForgeryToken()
 

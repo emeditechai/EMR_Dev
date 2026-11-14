@@ -1,0 +1,10 @@
+/* moved from Views/DayClosing/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .dc-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .75rem; }
+    .dc-sum td { padding: .45rem .75rem; }
+    .dc-sum .lbl { color: var(--bs-secondary-color); }
+    .dc-sum .exp td { font-weight: 700; font-size: 1.05rem; border-top: 2px solid var(--bs-border-color); }
+    .dc-amt { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; font-family: var(--bs-font-monospace); }
+    .dc-diff { border: 2px solid var(--bs-border-color); border-radius: .6rem; padding: .5rem .75rem; text-align: center; }
+    .dc-diff.ok { border-color: #198754; } .dc-diff.short { border-color: #dc3545; } .dc-diff.excess { border-color: #d97706; }
+    .dc-qty { max-width: 90px; }
+    .dc-step { font-size: .7rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--bs-secondary-color); }

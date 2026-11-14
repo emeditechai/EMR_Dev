@@ -5,36 +5,7 @@
 }
 
 @section HeadStyles {
-<style>
-    .module-tab-nav .nav-link { font-size:.82rem; font-weight:600; letter-spacing:.02em; padding:.55rem 1.2rem; border-radius:8px 8px 0 0; color:#6c757d; border:1px solid transparent; }
-    .module-tab-nav .nav-link.active { color:#fff; border-color: transparent; }
-    .module-tab-nav .nav-link[data-tab="opd"].active  { background:#0d6efd; }
-    .module-tab-nav .nav-link[data-tab="ipd"].active  { background:#198754; }
-    .module-tab-nav .nav-link[data-tab="lab"].active  { background:#fd7e14; }
-    .module-tab-nav .nav-link[data-tab="med"].active  { background:#6f42c1; }
-    .module-tab-nav .nav-link[data-tab="opd"]:not(.active):hover { background:#e8f0fe; color:#0d6efd; }
-    .module-tab-nav .nav-link[data-tab="ipd"]:not(.active):hover { background:#e6f4ea; color:#198754; }
-    .module-tab-nav .nav-link[data-tab="lab"]:not(.active):hover { background:#fff3e0; color:#fd7e14; }
-    .module-tab-nav .nav-link[data-tab="med"]:not(.active):hover { background:#f1ecff; color:#6f42c1; }
-    .module-tab-pane { background:#fff; border:1px solid #e9ecef; border-radius:0 12px 12px 12px; padding:1.4rem; min-height:220px; }
-    /* LAB tab: grouped, evenly sized parameter cards with the switch on the right */
-    .lab-section-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:700; display:flex; align-items:center; gap:.6rem; margin:0 0 .85rem; }
-    .lab-section-title::after { content:""; flex:1; height:1px; background:#e2e8f0; }
-    .lab-param { --lp:#2563eb; --lp-bg:#dbeafe; display:flex; gap:.9rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--lp); border-radius:12px; padding:1rem 1.1rem; height:100%; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-    .lab-param .lp-icon { width:42px; height:42px; border-radius:10px; background:var(--lp-bg); color:var(--lp); display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
-    .lab-param .lp-body { flex:1 1 auto; min-width:0; }
-    .lab-param .lp-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#475569; font-weight:700; line-height:1.25; }
-    .lab-param .lp-desc { font-size:.74rem; color:#94a3b8; margin-top:.2rem; line-height:1.3; }
-    .lab-param .form-check-input { width:2.6rem; height:1.35rem; cursor:pointer; margin:0; }
-    .lab-param .form-check-input:checked { background-color:var(--lp); border-color:var(--lp); }
-    .lab-param .lp-switch { display:flex; align-items:center; gap:.55rem; margin-top:.6rem; }
-    .lab-param .lp-switch label { font-size:.8rem; font-weight:600; color:#334155; cursor:pointer; margin:0; }
-    .lab-soon-row { display:flex; flex-wrap:wrap; gap:.5rem; }
-    .lab-soon-chip { border:1px dashed #cbd5e1; border-radius:2rem; padding:.3rem .85rem; font-size:.76rem; color:#94a3b8; background:#f8fafc; }
-    .param-placeholder { background:#f8f9fc; border:1px dashed #ced4da; border-radius:10px; padding:1rem 1.2rem; }
-    .param-placeholder .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#adb5bd; font-weight:700; margin-bottom:.4rem; }
-    .coming-soon-badge { font-size:.65rem; background:#e9ecef; color:#6c757d; padding:2px 7px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; }
-</style>
+<link rel="stylesheet" href="~/css/views/HospitalSettings/Edit.css" asp-append-version="true" />
 }
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -1469,18 +1440,7 @@
                     <input asp-for="PharmacyLoyaltyDiscountPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
                     <div class="form-text">Filled in as the bill discount for a member; not counted against the counter's discount limit.</div>
                 </div>
-                <script>
-                    (function () {
-                        const t = document.getElementById('loyType'), help = document.getElementById('loyTypeHelp');
-                        const sync = () => {
-                            const d = t.value === 'DISCOUNT';
-                            document.querySelectorAll('.loy-pts').forEach(e => e.classList.toggle('d-none', d));
-                            document.querySelectorAll('.loy-disc').forEach(e => e.classList.toggle('d-none', !d));
-                            help.textContent = d ? 'The member gets the % off at once; nothing goes to a wallet.' : 'Points go to the member\'s wallet and are used on a later bill (like health credits).';
-                        };
-                        t.addEventListener('change', sync); sync();
-                    })();
-                </script>
+                <script src="~/js/views/HospitalSettings/Edit.js" asp-append-version="true"></script>
                 <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">IPD issue</div>
                 <div class="col-md-3">
                     <label asp-for="PharmacyTtoBillingMode" class="form-label fw-semibold small">Discharge Medicines (TTO) Billed On</label>
@@ -1548,48 +1508,7 @@
 </div>
 
 @section Scripts {
-<script>
-// Save: a field that breaks its limits (on any tab) is shown - its tab opened and the field focused - instead of the browser
-// refusing to submit silently; fields hidden by a switch (e.g. the other loyalty type) never block the save.
-(function () {
-    const form = document.getElementById('hsForm'); if (!form) return;
-    const box = document.getElementById('hsErrors'), list = document.getElementById('hsErrorList');
-    const labelOf = el => { const l = el.id && form.querySelector(`label[for="${el.id}"]`); return (l ? l.textContent : el.name || 'A field').replace(/\s+/g, ' ').trim(); };
-    const openTabOf = el => {
-        const pane = el.closest('.tab-pane');
-        if (pane && !pane.classList.contains('active')) {
-            const btn = document.querySelector(`[data-bs-target="#${pane.id}"]`);
-            if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
-        }
-    };
-    const hidden = el => !!el.closest('.d-none');
-    form.addEventListener('submit', e => {
-        const bad = [...form.querySelectorAll('input, select, textarea')].filter(el => !el.disabled && !hidden(el) && !el.checkValidity());
-        if (!bad.length) return;
-        e.preventDefault();
-        list.innerHTML = bad.map(el => `<li>${labelOf(el)}: ${el.validationMessage}</li>`).join('');
-        box.classList.remove('d-none');
-        // the reason also right under each field, and in a pop-up, so it is seen where the cursor goes
-        form.querySelectorAll('.hs-inline-err').forEach(x => x.remove());
-        form.querySelectorAll('.is-invalid').forEach(x => x.classList.remove('is-invalid'));
-        bad.forEach(el => {
-            el.classList.add('is-invalid');
-            el.insertAdjacentHTML('afterend', `<div class="invalid-feedback d-block hs-inline-err">${el.validationMessage}</div>`);
-            el.addEventListener('input', () => { el.classList.remove('is-invalid'); el.parentElement.querySelector('.hs-inline-err')?.remove(); }, { once: true });
-        });
-        openTabOf(bad[0]);
-        setTimeout(() => { bad[0].focus(); bad[0].scrollIntoView({ block: 'center' }); }, 150);
-        if (window.Swal) Swal.fire({ icon: 'warning', title: 'Settings not saved', html: `<b>${labelOf(bad[0])}</b>: ${bad[0].validationMessage}${bad.length > 1 ? `<div class="small mt-1">and ${bad.length - 1} more - see the red fields</div>` : ''}`, returnFocus: false })
-            .then(() => bad[0].focus());
-    });
-    // jQuery Validation (_ValidationScriptsPartial) also checks this form and blocks the save without a message (e.g. its
-    // "step" rule refuses 10000.00 on step 1); the check above shows every problem, so it is switched off here.
-    window.addEventListener('load', () => { if (window.jQuery && $.fn.validate) { const v = $(form).data('validator') || $(form).validate(); v.settings.ignore = '*'; } });
-    // after a refused save: open the tab of the first field in error
-    const first = form.querySelector('.input-validation-error') || [...(list?.querySelectorAll('li[data-field]') || [])].map(li => form.querySelector(`[name="${li.dataset.field}"]`)).find(Boolean);
-    if (first) { openTabOf(first); setTimeout(() => first.focus(), 200); }
-})();
-</script>
+<script src="~/js/views/HospitalSettings/Edit-2.js" asp-append-version="true"></script>
 <script>
 (function () {
     const $ = id => document.getElementById(id);

@@ -12,14 +12,7 @@
     string StateUrl(string? st) => Url.Action("Mapping", new { search, state = st, departmentId = dept, pageSize = p.PageSize })!;
 }
 
-<style>
-    .mp-state { text-decoration: none; }
-    .mp-state.active .card { box-shadow: 0 0 0 2px var(--k) !important; }
-    #mapPanel { width: min(760px, 100vw); }
-    .mp-cand { border: 1px solid #e2e8f0; border-radius: .6rem; padding: .55rem .7rem; margin-bottom: .45rem; background: #fff; }
-    .mp-cand:hover { border-color: #93c5fd; background: #f8fbff; }
-    .mp-match { color: #15803d; } .mp-diff { color: #b45309; }
-</style>
+<link rel="stylesheet" href="~/css/views/LabTerminology/Mapping.css" asp-append-version="true" />
 
 <div class="container-fluid px-4 py-3">
     <partial name="_ApiDataNav" />

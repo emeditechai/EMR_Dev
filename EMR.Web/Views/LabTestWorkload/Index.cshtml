@@ -9,51 +9,7 @@
 @section HeadStyles {
 <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
-<style>
-    .tw-wrap { --tw-brand:#644098; --tw-line:#e2e8f0; --tw-muted:#64748b; --tw-ink:#0f172a; }
-    .tw-card { background:#fff; border:1px solid var(--tw-line); border-radius:.75rem; }
-    .tw-label { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--tw-muted); margin-bottom:.15rem; display:block; }
-    .tw-kpi { padding:.75rem .9rem; border-left:4px solid var(--k); height:100%; }
-    .tw-kpi .k-label { font-size:.64rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:var(--tw-muted); }
-    .tw-kpi .k-val { font-size:1.35rem; font-weight:800; color:var(--tw-ink); line-height:1.2; font-variant-numeric:tabular-nums; }
-    .tw-kpi .k-sub { font-size:.7rem; color:var(--tw-muted); }
-    .btn-quick.active { background:var(--tw-brand); border-color:var(--tw-brand); color:#fff; }
-    .tw-tabs .nav-link { font-size:.82rem; font-weight:600; color:var(--tw-muted); border:0; border-bottom:3px solid transparent; border-radius:0; padding:.6rem .9rem; }
-    .tw-tabs .nav-link.active { color:var(--tw-brand); border-bottom-color:var(--tw-brand); background:transparent; }
-    .tw-scroll { max-height:62vh; overflow:auto; }
-    .tw-table { margin:0; }
-    .tw-table thead th { position:sticky; top:0; z-index:2; background:#f8fafc; color:var(--tw-muted); font-size:.64rem; font-weight:700;
-                         letter-spacing:.3px; text-transform:uppercase; white-space:nowrap; border-bottom:1px solid var(--tw-line); vertical-align:bottom; }
-    .tw-table thead tr.grp th { top:0; z-index:3; text-align:center; color:var(--tw-brand); background:#f5f1fa; border-bottom:1px solid #e4dcf0; }
-    .tw-table thead tr.grp + tr th { top:27px; }
-    .tw-table tbody td, .tw-table tfoot td { font-size:.78rem; vertical-align:middle; border-color:#eef2f6; white-space:nowrap; }
-    .tw-table .num { text-align:right; font-variant-numeric:tabular-nums; }
-    .tw-table .zero { color:#cbd5e1; }
-    .tw-table td.sticky-col, .tw-table th.sticky-col { position:sticky; left:0; background:#fff; z-index:1; }
-    .tw-table thead th.sticky-col { z-index:4; background:#f8fafc; }
-    .tw-table tr.dept-row td { background:#f5f1fa; font-weight:700; color:var(--tw-brand); font-size:.74rem; }
-    .tw-table tr.dept-row td.sticky-col { background:#f5f1fa; }
-    .tw-table tr.sub-row td { background:#fbfaff; font-weight:700; font-style:italic; }
-    .tw-table tr.sub-row td.sticky-col { background:#fbfaff; }
-    .tw-table tfoot td { background:#ede7f6 !important; font-weight:800; position:sticky; bottom:0; }
-    .tw-table tbody tr.test-row { cursor:pointer; }
-    .tw-table tbody tr.test-row:hover td { background:#faf7ff; }
-    .tw-code { font-size:.68rem; color:var(--tw-muted); font-family:var(--bs-font-monospace); }
-    .pill { display:inline-block; font-size:.66rem; font-weight:600; padding:1px 7px; border-radius:999px; border:1px solid; }
-    .pill-ok { background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
-    .pill-bad { background:#fef2f2; color:#b91c1c; border-color:#fecaca; }
-    .pill-warn { background:#fffbeb; color:#92400e; border-color:#fde68a; }
-    .pill-info { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
-    .pill-mute { background:#f8fafc; color:#64748b; border-color:#e2e8f0; }
-    tr.line-cancelled td { color:#94a3b8 !important; text-decoration:line-through; }
-    .tw-empty { padding:2.5rem 1rem; text-align:center; color:var(--tw-muted); }
-    .bar { height:5px; border-radius:3px; background:#f1f5f9; overflow:hidden; min-width:60px; margin-top:3px; }
-    .bar > span { display:block; height:100%; background:var(--tw-brand); }
-    .select2-container--bootstrap-5 .select2-selection { min-height:calc(1.5em + .5rem + 2px); font-size:.875rem; }
-    .select2-container--bootstrap-5 .select2-selection--multiple { max-height:4.2rem; overflow-y:auto; }
-    .select2-container--bootstrap-5 .select2-selection--multiple .select2-search__field { margin-top:.15rem; }
-    .select2-container--bootstrap-5 .select2-results__option--highlighted { background-color:var(--tw-brand, #644098) !important; color:#fff; }
-</style>
+<link rel="stylesheet" href="~/css/views/LabTestWorkload/Index.css" asp-append-version="true" />
 }
 
 <div class="container-fluid px-3 py-2 tw-wrap">

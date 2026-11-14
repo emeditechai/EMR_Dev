@@ -1,0 +1,38 @@
+/* moved from Views/Users/Details.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+.detail-field {
+    background: #f8faff;
+    border: 1px solid #e8eef8;
+    border-radius: 8px;
+    padding: 0.7rem 0.9rem;
+}
+.detail-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #7a8aaa;
+    margin-bottom: 0.25rem;
+}
+.detail-value {
+    font-size: 0.97rem;
+    color: #1e2a3b;
+    font-weight: 500;
+}
+.branch-role-card {
+    border: 1px solid #d8e4f5;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.branch-role-card-header {
+    background: linear-gradient(90deg, #f0f4ff 0%, #eaf2ff 100%);
+    border-bottom: 1px solid #d8e4f5;
+    color: var(--emr-primary, #1f3b91);
+    font-weight: 700;
+    font-size: 0.88rem;
+    padding: 0.5rem 0.8rem;
+}
+.branch-role-card-body {
+    padding: 0.65rem 0.8rem;
+    background: #fff;
+    min-height: 44px;
+}

@@ -1,0 +1,20 @@
+/* moved from Views/Campaign/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .cp-card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; }
+    .cp-kpi { padding:.8rem 1rem; border-left:4px solid var(--k); }
+    .cp-kpi .k-label { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
+    .cp-kpi .k-val { font-size:1.4rem; font-weight:800; color:#0f172a; line-height:1.2; font-variant-numeric:tabular-nums; }
+    .cp-tabs .nav-link { font-size:.85rem; font-weight:600; color:#64748b; border:0; border-bottom:3px solid transparent; border-radius:0; padding:.65rem 1rem; }
+    .cp-tabs .nav-link.active { color:#644098; border-bottom-color:#644098; background:transparent; }
+    .cp-table th { font-size:.66rem; text-transform:uppercase; letter-spacing:.4px; color:#64748b; font-weight:700; background:#f8fafc; white-space:nowrap; }
+    .cp-table td { font-size:.82rem; vertical-align:middle; }
+    .cp-pill { display:inline-flex; align-items:center; gap:.3rem; font-size:.7rem; font-weight:700; padding:.15rem .55rem; border-radius:999px; border:1px solid; white-space:nowrap; }
+    .cp-draft { background:#f8fafc; color:#475569; border-color:#e2e8f0; }
+    .cp-scheduled { background:#fffbeb; color:#92400e; border-color:#fde68a; }
+    .cp-sending { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+    .cp-done { background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+    .cp-cancel { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+    .cp-bar { height:6px; border-radius:3px; background:#f1f5f9; overflow:hidden; display:flex; min-width:110px; }
+    .cp-bar span { display:block; height:100%; }
+    .cp-aud { display:inline-flex; align-items:center; gap:.35rem; font-size:.78rem; }
+    .cp-aud i { color:#644098; }
+    .cp-empty { padding:2.5rem 1rem; text-align:center; color:#64748b; }

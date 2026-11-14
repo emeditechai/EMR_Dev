@@ -148,24 +148,5 @@
 @section Scripts {
     <link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
     <script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
-    <script>
-        const tsCountry = new TomSelect('#fCountry', {
-            placeholder: 'Search country...', allowEmptyOption: true,
-            onChange: function (val) {
-                tsState.clear(); tsState.clearOptions();
-                tsState.addOption({ value: '', text: 'All States' });
-                if (!val) return;
-                fetch(`/States/GetByCountry?countryId=${val}`)
-                    .then(r => r.json())
-                    .then(data => {
-                        data.forEach(s => tsState.addOption({ value: s.stateId, text: s.stateName }));
-                        tsState.refreshOptions(false);
-                    });
-            }
-        });
-        const tsState = new TomSelect('#fState', {
-            placeholder: 'Search state...', allowEmptyOption: true,
-            onChange: function () { document.getElementById('filterForm').submit(); }
-        });
-    </script>
+    <script src="~/js/views/Districts/Index.js" asp-append-version="true"></script>
 }

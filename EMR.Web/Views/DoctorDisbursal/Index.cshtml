@@ -4,26 +4,7 @@
     bool Can(string c) => perms.TryGetValue(c, out var v) && v;
 }
 
-<style>
-    .dp-flow { display:flex; flex-wrap:wrap; gap:.5rem; }
-    .dp-step { flex:1 1 180px; display:flex; gap:.6rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; padding:.6rem .8rem; }
-    .dp-step .n { width:26px; height:26px; border-radius:50%; background:#1d4ed8; color:#fff; font-weight:700; font-size:.8rem; display:flex; align-items:center; justify-content:center; flex:0 0 26px; }
-    .dp-step b { font-size:.82rem; color:#0f172a; display:block; }
-    .dp-step span { font-size:.72rem; color:#64748b; }
-    .dp-kpi { background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--k, #1d4ed8); border-radius:.75rem; padding:.7rem .9rem; height:100%; }
-    .dp-kpi .l { font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#64748b; }
-    .dp-kpi .v { font-size:1.35rem; font-weight:800; color:#0f172a; font-variant-numeric:tabular-nums; }
-    .dp-kpi .s { font-size:.72rem; color:#64748b; }
-    .dp-card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; }
-    .dp-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; white-space:nowrap; background:#f8fafc; }
-    .dp-table td { vertical-align:middle; font-size:.85rem; }
-    .dp-table .amt { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .dp-lines td { font-size:.78rem; background:#f8fafc; }
-    .dp-pill { font-size:.68rem; font-weight:700; letter-spacing:.03em; }
-    .nav-pills .nav-link { font-weight:600; }
-    .dp-sum { display:grid; grid-template-columns:1fr auto; gap:.2rem .75rem; font-size:.86rem; }
-    .dp-sum .t { border-top:1px solid #e2e8f0; padding-top:.3rem; font-weight:800; }
-</style>
+<link rel="stylesheet" href="~/css/views/DoctorDisbursal/Index.css" asp-append-version="true" />
 
 <div class="container-fluid px-0">
     @Html.AntiForgeryToken()

@@ -6,15 +6,7 @@
     var wallet = set.LoyaltyType != "DISCOUNT";
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
-<style>
-    .lw-kpi { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:.6rem .9rem; height:100%; }
-    .lw-kpi .l { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
-    .lw-kpi .v { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
-    #lwTable td, #lwTable th, #stTable td, #stTable th { font-size:.8rem; vertical-align:middle; }
-    .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    #lwTable tbody tr { cursor:pointer; }
-    .lw-kind { font-size:.68rem; font-weight:700; border-radius:2rem; padding:.1rem .5rem; }
-</style>
+<link rel="stylesheet" href="~/css/views/PharmacySales/Loyalty.css" asp-append-version="true" />
 <partial name="_PharmacyMasterHeader" model="@(new PhHeader("Loyalty Wallet", "bi-wallet2", "Points members collect on pharmacy bills and use on later bills: balance, pending (lock-in), expiring, statement and manual adjustments.", null, null, Section: "Pharmacy", Group: "Sales"))" />
 @Html.AntiForgeryToken()
 @if (!set.LoyaltyEnabled || !wallet)

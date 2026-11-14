@@ -1,0 +1,66 @@
+/* moved from Views/Vitals/History.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .patient-header-card {
+        background: linear-gradient(135deg,#e8f0fe 0%,#f0fff4 100%);
+        border: 1.5px solid #0d6efd;
+        border-radius: 14px;
+        padding: 1.2rem 1.6rem;
+        margin-bottom: 1.5rem;
+    }
+    .vital-table-wrap {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+    .vital-table thead th {
+        background: #f8f9fc;
+        font-size: .72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .05em;
+        color: #6c757d;
+        border-bottom: 2px solid #e9ecef;
+        white-space: nowrap;
+    }
+    .vital-table tbody td { vertical-align: middle; font-size: .85rem; }
+    .vital-table tbody tr:hover { background: #f8f9fc; }
+
+    .vital-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: .2rem .5rem;
+        border-radius: 20px;
+        font-size: .78rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .chip-ok    { background: #e6f4ea; color: #137333; }
+    .chip-warn  { background: #fff3cd; color: #856404; }
+    .chip-high  { background: #fdecea; color: #c62828; }
+    .chip-na    { background: #f8f9fa; color: #aaa; }
+    .chip-na span { font-weight: 400; }
+
+    .bmi-badge { font-size: .7rem; border-radius: 20px; padding: .15rem .45rem; }
+
+    /* Lock indicator */
+    .action-locked {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: .7rem; color: #adb5bd;
+        padding: .15rem .5rem;
+        border: 1px dashed #dee2e6; border-radius: 6px;
+    }
+    /* View detail modal */
+    .vd-group { background: #f8f9fc; border: 1px solid #e9ecef; border-radius: 10px; padding: .9rem 1rem; margin-bottom: .75rem; }
+    .vd-group-title { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6c757d; margin-bottom: .65rem; display: flex; align-items: center; gap: .4rem; }
+    .vd-row { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; padding: .28rem 0; border-bottom: 1px solid #f0f0f0; font-size: .84rem; }
+    .vd-row:last-child { border-bottom: none; }
+    .vd-col { display: flex; flex-direction: column; min-width: 110px; gap: .18rem; }
+    .vd-label { color: #6c757d; font-size: .74rem; }
+    .vd-val   { font-weight: 600; }
+    .vd-chip  { display: inline-flex; align-items: center; padding: .15rem .55rem; border-radius: 20px; font-size: .78rem; font-weight: 600; }
+    .vd-ok   { background: #e6f4ea; color: #137333; }
+    .vd-warn { background: #fff3cd; color: #856404; }
+    .vd-high { background: #fdecea; color: #c62828; }
+    .vd-na   { color: #aaa; font-weight: 400; }

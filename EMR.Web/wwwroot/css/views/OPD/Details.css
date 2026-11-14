@@ -1,0 +1,15 @@
+/* moved from Views/OPD/Details.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .pp-kpi { border:1px solid #e9eef5; border-radius:.75rem; background:#fff; padding:.75rem 1rem; height:100%; }
+    .pp-kpi .lbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:#64748b; font-weight:600; }
+    .pp-kpi .val { font-size:1.15rem; font-weight:700; color:#0f172a; font-variant-numeric:tabular-nums; }
+    .pp-kpi .sub { font-size:.75rem; color:#64748b; }
+    .pp-mcard { border-radius:.9rem; color:#fff; padding:1.1rem 1.25rem; position:relative; overflow:hidden;
+                background:linear-gradient(135deg,#1e3a8a 0%,#4f46e5 55%,#7c3aed 100%); }
+    .pp-mcard.is-off { background:linear-gradient(135deg,#475569 0%,#64748b 100%); }
+    .pp-mcard::after { content:""; position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:rgba(255,255,255,.08); }
+    .pp-mcard .no { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.12em; font-size:1.15rem; font-weight:700; }
+    .pp-mcard .k { font-size:.65rem; text-transform:uppercase; letter-spacing:.08em; opacity:.75; }
+    .pp-mcard .v { font-weight:600; font-variant-numeric:tabular-nums; }
+    .pp-av { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.75rem; flex-shrink:0; background:#e0e7ff; color:#3730a3; }
+    .pp-row { display:flex; gap:.65rem; align-items:center; padding:.6rem 0; border-bottom:1px solid #f1f5f9; }
+    .pp-row:last-child { border-bottom:0; }

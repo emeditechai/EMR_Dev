@@ -4,18 +4,7 @@
 @* Settings > Audit Notification Setup (SQLScripts/2397): WhatsApp alerts of sensitive actions to chosen users *@
 <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
-<style>
-    .an-wrap { --an-line:#e2e8f0; --an-muted:#64748b; }
-    .an-card { background:#fff; border:1px solid var(--an-line); border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
-    .an-event { border-left:4px solid #cbd5e1; transition:border-color .15s; }
-    .an-event.is-on { border-left-color:#16a34a; }
-    .an-icon { width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; flex-shrink:0; }
-    .an-icon.lab { background:#fee2e2; color:#b91c1c; } .an-icon.opd { background:#e0e7ff; color:#3730a3; }
-    .an-kpi { padding:.75rem 1rem; } .an-kpi .v { font-size:1.35rem; font-weight:800; } .an-kpi .l { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--an-muted); }
-    .an-wrap .select2-container--bootstrap-5 .select2-selection--multiple { min-height:40px; }
-    .an-log td, .an-log th { font-size:.8rem; }
-    .an-status { min-width:64px; }
-</style>
+<link rel="stylesheet" href="~/css/views/AuditNotificationSetup/Index.css" asp-append-version="true" />
 
 <div class="container-fluid py-3 an-wrap">
     @Html.AntiForgeryToken()

@@ -1,0 +1,59 @@
+/* moved from Views/RoomDoctorAssignment/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        .drag-zone {
+            min-height: 120px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px dashed #dee2e6 !important;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            transition: all 0.2s ease;
+        }
+        .drag-zone.dragover {
+            border-color: #0d6efd !important;
+            background-color: #e9ecef !important;
+            box-shadow: inset 0 0 0 1px #0d6efd;
+        }
+        .draggable-doctor {
+            cursor: grab;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-left: 4px solid #6c757d !important;
+        }
+        .draggable-doctor:active {
+            cursor: grabbing;
+        }
+        .draggable-doctor:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .room-card {
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(0,0,0,0.08) !important;
+        }
+        .room-card:hover {
+            box-shadow: 0 8px 16px rgba(0,0,0,0.08) !important;
+        }
+        .sticky-column {
+            position: sticky;
+            top: 24px;
+            max-height: calc(100vh - 120px);
+            overflow-y: auto;
+        }
+        .floor-section-title {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        .doctor-badge-item {
+            border-left-color: #0dcaf0 !important;
+        }
+        .unassigned-doctor-item {
+            border-left-color: #6c757d !important;
+        }
+    

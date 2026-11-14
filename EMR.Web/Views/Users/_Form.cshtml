@@ -634,15 +634,7 @@
     <button type="button" class="btn btn-outline-primary" id="ufNext">Next<i class="bi bi-arrow-right ms-1"></i></button>
 </div>
 
-<style>
-    /* Inside the Pathologist modal the category list opens inline (it would otherwise be clipped by the
-       modal's rounded overflow) and pushes the footer down instead of floating over it. */
-    .sig-preview { width: 150px; height: 72px; flex-shrink: 0; border: 1px dashed #c4b5fd; border-radius: .5rem; display: flex; align-items: center; justify-content: center; overflow: hidden;
-                   background: repeating-conic-gradient(#f5f3ff 0% 25%, #ffffff 0% 50%) 50% / 12px 12px; }
-    .sig-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    #pathologistModal .cms-dropdown { position: static; margin-top: 4px; box-shadow: none; }
-    #pathologistModal .cms-options-container { max-height: 200px; }
-</style>
+<link rel="stylesheet" href="~/css/views/Users/_Form.css" asp-append-version="true" />
 
 <!-- Modal: Pathologist Configuration -->
 <div class="modal fade" id="pathologistModal" tabindex="-1" aria-labelledby="pathologistModalLabel" aria-hidden="true" data-bs-backdrop="static">
@@ -1983,95 +1975,10 @@ if (isLogisticsBoyToggle) {
     }
 </style>
 
-<script>
-// ── Step tabs: dependency order Account -> Profile -> Access & Roles -> Clinical & Status ──
-(function () {
-    const steps = [...document.querySelectorAll('#ufSteps .uf-step')];
-    const panes = [...document.querySelectorAll('.uf-pane')];
-    const prev = document.getElementById('ufPrev'), next = document.getElementById('ufNext'), info = document.getElementById('ufStepInfo');
-    const form = document.getElementById('ufSteps').closest('form');
-    let current = 1;
-
-    function go(n, scroll) {
-        current = Math.min(Math.max(n, 1), steps.length);
-        steps.forEach(s => {
-            const k = parseInt(s.dataset.step);
-            s.classList.toggle('active', k === current);
-            s.classList.toggle('done', k < current && !s.classList.contains('has-error'));
-            s.setAttribute('aria-selected', k === current ? 'true' : 'false');
-        });
-        panes.forEach(p => p.classList.toggle('active', parseInt(p.dataset.step) === current));
-        prev.disabled = current === 1;
-        next.style.visibility = current === steps.length ? 'hidden' : 'visible';
-        info.textContent = 'Step ' + current + ' of ' + steps.length;
-        document.querySelectorAll('.cms-wrap.cms-open').forEach(w => w.classList.remove('cms-open'));
-        if (scroll) document.getElementById('ufSteps').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-
-    // Steps that hold an invalid field (client or server) get a red marker; returns the first one
-    function markErrors() {
-        let first = null;
-        panes.forEach(p => {
-            const bad = p.querySelector('.input-validation-error, .field-validation-error:not(:empty)');
-            const k = parseInt(p.dataset.step);
-            steps[k - 1].classList.toggle('has-error', !!bad);
-            if (bad && first === null) first = k;
-        });
-        return first;
-    }
-
-    // "Next" asks for the dependency of the following step: Access & Roles needs at least one branch
-    function canLeave(step) {
-        if (step === 3 && !document.querySelector('input[name="SelectedBranchIds"]:checked')) {
-            const v = document.querySelector('[data-valmsg-for="SelectedBranchIds"]');
-            if (v) { v.textContent = 'Select at least one branch.'; v.classList.add('field-validation-error'); }
-            markErrors();
-            return false;
-        }
-        return true;
-    }
-
-    steps.forEach(s => s.addEventListener('click', () => go(parseInt(s.dataset.step))));
-    prev.addEventListener('click', () => go(current - 1, true));
-    next.addEventListener('click', () => { if (canLeave(current)) go(current + 1, true); });
-
-    document.querySelectorAll('input[name="SelectedBranchIds"]').forEach(cb => cb.addEventListener('change', () => {
-        const v = document.querySelector('[data-valmsg-for="SelectedBranchIds"]');
-        if (v && document.querySelector('input[name="SelectedBranchIds"]:checked') && v.textContent === 'Select at least one branch.') {
-            v.textContent = ''; v.classList.remove('field-validation-error'); markErrors();
-        }
-    }));
-
-    if (form) {
-        // Fields of hidden steps must still be validated on Save
-        window.addEventListener('load', () => {
-            const v = window.jQuery && jQuery(form).data('validator');
-            if (v) v.settings.ignore = ':hidden:not(.uf-pane :input)';
-        });
-        form.addEventListener('submit', e => {
-            if (!document.querySelector('input[name="SelectedBranchIds"]:checked')) {
-                canLeave(3); e.preventDefault(); go(3, true); return;
-            }
-            setTimeout(() => { const bad = markErrors(); if (bad && bad !== current) go(bad, true); }, 0);
-        });
-        form.addEventListener('input', () => setTimeout(markErrors, 0));
-        form.addEventListener('change', () => setTimeout(markErrors, 0));
-    }
-
-    // After a failed post-back open the first step with an error; otherwise start at step 1
-    go(markErrors() || 1);
-})();
-</script>
+<script src="~/js/views/Users/_Form.js" asp-append-version="true"></script>
 
 @* Sign-in by e-mail (SQLScripts/2307): the user name follows the e-mail, and the e-mail is checked for availability while typing *@
-<style>
-    .uf-email-state { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); font-size: 1rem; line-height: 1; }
-    .uf-email-state.ok { color: #16a34a; } .uf-email-state.bad { color: #dc2626; } .uf-email-state.wait { color: #94a3b8; }
-    .uf-email-msg { font-size: .78rem; margin-top: .25rem; min-height: 1rem; }
-    .uf-email-msg.ok { color: #15803d; } .uf-email-msg.bad { color: #dc2626; }
-    #ufEmail.uf-ok { border-color: #16a34a; box-shadow: 0 0 0 .18rem rgba(22, 163, 74, .15); }
-    #ufEmail.uf-bad { border-color: #dc2626; box-shadow: 0 0 0 .18rem rgba(220, 38, 38, .12); }
-</style>
+<link rel="stylesheet" href="~/css/views/Users/_Form-2.css" asp-append-version="true" />
 <script>
 (function () {
     const email = document.getElementById('ufEmail'), user = document.getElementById('ufUsername');

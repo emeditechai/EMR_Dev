@@ -57,15 +57,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            var txt = document.getElementById('Condition_Text');
-            var counter = document.getElementById('conditionTextCount');
-            if (txt && counter) {
-                var update = function () { counter.textContent = txt.value.length; };
-                txt.addEventListener('input', update);
-                update();
-            }
-        });
-    </script>
+    <script src="~/js/views/LabReportingConditions/Create.js" asp-append-version="true"></script>
 }

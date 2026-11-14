@@ -1,0 +1,11 @@
+/* moved from Views/AuditNotificationSetup/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .an-wrap { --an-line:#e2e8f0; --an-muted:#64748b; }
+    .an-card { background:#fff; border:1px solid var(--an-line); border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.04); }
+    .an-event { border-left:4px solid #cbd5e1; transition:border-color .15s; }
+    .an-event.is-on { border-left-color:#16a34a; }
+    .an-icon { width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.25rem; flex-shrink:0; }
+    .an-icon.lab { background:#fee2e2; color:#b91c1c; } .an-icon.opd { background:#e0e7ff; color:#3730a3; }
+    .an-kpi { padding:.75rem 1rem; } .an-kpi .v { font-size:1.35rem; font-weight:800; } .an-kpi .l { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--an-muted); }
+    .an-wrap .select2-container--bootstrap-5 .select2-selection--multiple { min-height:40px; }
+    .an-log td, .an-log th { font-size:.8rem; }
+    .an-status { min-width:64px; }

@@ -3,13 +3,7 @@
    "Add" goes through addInvestigationOption() - the page's own checks apply; once the test is billed the advice
    disappears by itself (a later bill carries it). The patient-loading code of the page is not touched: the hidden
    PatientId field is watched. *@
-<style>
-    #reflexAdvised { border:1px solid #86efac; background:#f0fdf4; border-radius:.75rem; padding:.5rem .75rem; margin-bottom:.6rem; display:none; font-size:.82rem; }
-    #reflexAdvised .ra-head { display:flex; align-items:center; gap:.45rem; font-weight:700; color:#14532d; margin-bottom:.25rem; }
-    #reflexAdvised .ra-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; padding:.3rem 0; border-top:1px dashed #bbf7d0; }
-    #reflexAdvised .ra-row:first-of-type { border-top:0; }
-    #reflexAdvised .ra-why { color:#475569; font-size:.74rem; }
-</style>
+<link rel="stylesheet" href="~/css/views/LabOrderBooking/_ReflexAdvised.css" asp-append-version="true" />
 <script>
     $(function () { setTimeout(initReflexAdvised, 0); });
     function initReflexAdvised() {

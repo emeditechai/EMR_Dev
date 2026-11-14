@@ -1,21 +1,7 @@
 @* LAB billing - AI assist (optional): upload a prescription, read on this server (Tesseract OCR), tests suggested by
    ML.NET matching; the user ticks which to add and each goes through addInvestigationOption() - the same checks as the
    search box. Needs #btnRxAssist, #ddlInvestigations, window.addInvestigationOption and window.getOrderItemKeys. *@
-<style>
-    .btn-rx-ai { color:#fff; background:linear-gradient(135deg,#7c3aed,#2563eb); border:0; font-weight:600; }
-    .btn-rx-ai:hover, .btn-rx-ai:focus { color:#fff; filter:brightness(1.08); }
-    #rxAssistModal .rx-drop { border:2px dashed #c7d2fe; border-radius:.75rem; background:#f8faff; padding:1.25rem; text-align:center; cursor:pointer; transition:.15s; }
-    #rxAssistModal .rx-drop.drag { border-color:#6366f1; background:#eef2ff; }
-    #rxAssistModal .rx-preview { max-height:360px; max-width:100%; border-radius:.5rem; border:1px solid #e2e8f0; user-select:none; -webkit-user-drag:none; }
-    #rxAssistModal .rx-row { display:flex; gap:.6rem; align-items:flex-start; padding:.55rem .65rem; border:1px solid #e2e8f0; border-radius:.6rem; }
-    #rxAssistModal .rx-row + .rx-row { margin-top:.4rem; }
-    #rxAssistModal .rx-row.is-added { background:#f8fafc; opacity:.75; }
-    #rxAssistModal .rx-score { font-size:.68rem; font-weight:700; padding:.15rem .45rem; border-radius:999px; white-space:nowrap; }
-    #rxAssistModal .rx-high { background:#dcfce7; color:#166534; }
-    #rxAssistModal .rx-mid { background:#fef3c7; color:#92400e; }
-    #rxAssistModal .rx-from { font-size:.72rem; color:#64748b; }
-    #rxAssistModal .rx-text { white-space:pre-wrap; font-size:.75rem; max-height:180px; overflow:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:.5rem; padding:.5rem; }
-</style>
+<link rel="stylesheet" href="~/css/views/LabOrderBooking/_PrescriptionAssist.css" asp-append-version="true" />
 
 <div class="modal fade" id="rxAssistModal" tabindex="-1" aria-labelledby="rxAssistTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">

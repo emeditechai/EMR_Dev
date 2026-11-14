@@ -6,18 +6,7 @@
     var groups = EMR.Web.Controllers.CompaniesController.CopyEntities.GroupBy(e => e.Group);
 }
 
-<style>
-    .cm-step { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700; font-size: .8rem; background: #ede9fe; color: #5b3fa0; flex-shrink: 0; }
-    .cm-ent { border: 1px solid #e5e7eb; border-radius: 12px; padding: .65rem .8rem; display: flex; gap: .65rem; align-items: center; cursor: pointer; transition: border-color .15s, background .15s; height: 100%; }
-    .cm-ent:hover { border-color: #b9a6e6; }
-    .cm-ent.on { border-color: #6d4bb0; background: #f6f2fd; }
-    .cm-ent.auto { border-style: dashed; }
-    .cm-ent .ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #f1ecfa; color: #6d4bb0; flex-shrink: 0; }
-    .cm-ent .nm { font-weight: 600; font-size: .9rem; line-height: 1.2; }
-    .cm-ent .why { font-size: .72rem; color: #6b7280; }
-    .cm-ent input { margin: 0; }
-    .cm-res td, .cm-res th { font-variant-numeric: tabular-nums; }
-</style>
+<link rel="stylesheet" href="~/css/views/Companies/CopyMasters.css" asp-append-version="true" />
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
     <div>

@@ -1,0 +1,6 @@
+/* moved from Views/Doctors/Edit.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        .dl-state { font-size: .8rem; margin-top: .3rem; min-height: 1rem; }
+        .dl-state.ok { color: #15803d; } .dl-state.bad { color: #dc2626; } .dl-state.wait { color: #64748b; }
+        #EmailId.dl-ok, #LoginUsername.dl-ok { border-color: #16a34a !important; box-shadow: 0 0 0 .18rem rgba(22, 163, 74, .15); }
+        #EmailId.dl-bad, #LoginUsername.dl-bad { border-color: #dc2626 !important; box-shadow: 0 0 0 .18rem rgba(220, 38, 38, .12); }
+    

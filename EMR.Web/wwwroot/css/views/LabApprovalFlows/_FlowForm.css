@@ -1,0 +1,58 @@
+/* moved from Views/LabApprovalFlows/_FlowForm.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    /* Searchable (Select2) dropdowns styled like the Bootstrap form-select used elsewhere on the page */
+    .flow-select2 + .select2-container { width: 100% !important; }
+    .flow-select2 + .select2-container .select2-selection--single { height: calc(2.375rem + 2px); border: 1px solid #ced4da; border-radius: .375rem; display: flex; align-items: center; }
+    .flow-select2 + .select2-container .select2-selection__rendered { padding-left: .75rem; padding-right: 2rem; color: #212529; line-height: 1.5; }
+    .flow-select2 + .select2-container .select2-selection__rendered { order: 1; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+    .flow-select2 + .select2-container .select2-selection__clear { order: 2; margin: 0 1.9rem 0 .25rem; float: none; color: #94a3b8; font-size: 1.15rem; line-height: 1; }
+    .flow-select2 + .select2-container .select2-selection__clear:hover { color: #dc3545; }
+    .flow-select2 + .select2-container .select2-selection__arrow { height: 100%; right: .5rem; }
+    .flow-select2 + .select2-container--focus .select2-selection--single,
+    .flow-select2 + .select2-container--open .select2-selection--single { border-color: #86b7fe; box-shadow: 0 0 0 .25rem rgba(13,110,253,.25); }
+    .select2-container--default .select2-results__option[aria-selected=true] { background: #eff6ff; color: #1d4ed8; }
+    /* Multi-select dropdowns: the app's shared cms-* component (same look as User Master > Department Access) */
+    .flow-cms .cms-trigger { min-height: calc(2.375rem + 2px); }
+    .flow-cms .cms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .flow-cms .cms-label.is-placeholder { color: #6c757d; }
+    .flow-cms .cms-noresult { display: none; }
+    .flow-cms .cms-option.approver-row { padding: .42rem 1rem; margin: 0; border-radius: 0; }
+    .flow-cms .cms-option.approver-row.is-locked { opacity: .5; cursor: not-allowed; }
+    .flow-cms .cms-option.approver-row.is-ineligible { background: #fff7ed; }
+    .level-card .flow-cms .cms-options-container { max-height: 240px; }
+    .select2-dropdown { border-color: #86b7fe; border-radius: .375rem; z-index: 1056; }
+    .select2-search--dropdown .select2-search__field { border: 1px solid #ced4da; border-radius: .375rem; padding: .35rem .6rem; }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] { background: #0d6efd; }
+    .select2-results__option { padding: .4rem .75rem; }
+
+    .flow-level-pick { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .flow-level-pick .lvl-opt { flex: 1 1 0; min-width: 120px; }
+    .flow-level-pick input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+    .flow-level-pick label { display: block; text-align: center; border: 1.5px solid #dbe2ef; border-radius: .75rem; padding: .6rem .5rem; cursor: pointer; background: #fff; transition: all .15s; }
+    .flow-level-pick label .n { display: block; font-size: 1.4rem; font-weight: 800; line-height: 1; color: #64748b; }
+    .flow-level-pick label .t { font-size: .7rem; text-transform: uppercase; letter-spacing: .3px; color: #94a3b8; font-weight: 600; }
+    .flow-level-pick input:checked + label { border-color: #0d6efd; background: #eff6ff; box-shadow: 0 0 0 3px rgba(13,110,253,.12); }
+    .flow-level-pick input:checked + label .n { color: #0d6efd; }
+    .flow-level-pick input:focus-visible + label { outline: 2px solid #0d6efd; outline-offset: 2px; }
+
+    .level-card { --lc: #0f766e; border: 1px solid #e2e8f0; border-left: 5px solid var(--lc); border-radius: .75rem; background: #fff; }
+    .level-card .lc-head { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-bottom: 1px solid #f1f5f9; }
+    .level-card .lc-badge { width: 34px; height: 34px; border-radius: 50%; background: var(--lc); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .level-card .lc-list { max-height: 210px; overflow-y: auto; padding: .35rem .5rem; }
+    .approver-row { display: flex; align-items: center; gap: .55rem; padding: .35rem .5rem; border-radius: .5rem; cursor: pointer; margin: 0; }
+    .approver-row:hover { background: #f8fafc; }
+    .approver-row input { flex-shrink: 0; }
+    .approver-row .ap-name { font-weight: 600; font-size: .86rem; color: #1e293b; }
+    .approver-row .ap-reg { font-size: .72rem; color: #64748b; margin-left: auto; white-space: nowrap; }
+    .approver-row .ap-main { min-width: 0; flex: 1 1 auto; display: block; }
+    .approver-row .ap-sub { display: block; font-size: .68rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .approver-match { border: 1px solid #dbeafe; background: #f8fbff; border-radius: .75rem; padding: .65rem .9rem; }
+    .approver-match .nl-row { display: flex; gap: .5rem; align-items: baseline; padding: .2rem 0; border-top: 1px dashed #e2e8f0; font-size: .78rem; }
+    .approver-match .nl-row:first-child { border-top: 0; }
+    .approver-match .nl-name { font-weight: 600; color: #334155; white-space: nowrap; }
+    .approver-match .nl-reason { color: #b45309; }
+    .approver-row.is-locked { opacity: .5; cursor: not-allowed; }
+    .approver-row.is-ineligible { background: #fff7ed; }
+    .flow-preview { border: 1px dashed #cbd5e1; border-radius: .75rem; background: #f8fafc; padding: .85rem 1rem; }
+    .flow-preview .step { display: inline-flex; align-items: center; gap: .4rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 2rem; padding: .25rem .75rem .25rem .3rem; font-size: .8rem; }
+    .flow-preview .step b { width: 22px; height: 22px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .72rem; }
+    .flow-preview .arrow { color: #94a3b8; margin: 0 .35rem; }

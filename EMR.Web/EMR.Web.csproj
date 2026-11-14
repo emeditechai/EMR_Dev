@@ -30,7 +30,6 @@
   <ItemGroup>
     <ProjectReference Include="..\EMR.Shared.Security\EMR.Shared.Security.csproj" />
     <!-- IPD views compile into their own assembly (EMR.Web.dll is at the CS8103 string-literal limit) -->
-    <ProjectReference Include="..\EMR.Web.Ipd\EMR.Web.Ipd.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -20,17 +20,7 @@
 }
 <link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
-<style>
-    .pr-kpi { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:.65rem .9rem; height:100%; }
-    .pr-kpi .l { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
-    .pr-kpi .v { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
-    .pr-kpi .s { font-size:.7rem; color:#64748b; }
-    #phTable td, #phTable th { white-space:nowrap; font-size:.8rem; }
-    #phTable td.num, #phTable th.num { text-align:right; font-variant-numeric:tabular-nums; }
-    #phTable tr.dn td { color:#b91c1c; }
-    #phTable tfoot tr.sub td { background:#f8fafc; }
-    .pr-sum td, .pr-sum th { font-size:.8rem; }
-</style>
+<link rel="stylesheet" href="~/css/views/PharmacyPurchase/Register.css" asp-append-version="true" />
 <partial name="_PharmacyMasterHeader" model="@(new PhHeader("Purchase Register", "bi-journal-text", "Posted purchases (GRN) and purchase returns (debit notes, shown minus) with the GST split, for GST input (GSTR-2B / 3B) and supplier reconciliation.", null, null, Stats: stats, Section: "Pharmacy", Group: "Purchase"))" />
 
 <div class="card shadow-sm border-0 mb-3">

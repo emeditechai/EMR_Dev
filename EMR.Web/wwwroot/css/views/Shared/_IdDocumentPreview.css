@@ -1,0 +1,6 @@
+/* moved from Views/Shared/_IdDocumentPreview.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .id-doc-existing { margin-top: .4rem; }
+    .id-doc-existing .idp-row { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; font-size: .8rem; color: #475569;
+                                background: #f8fafc; border: 1px solid #e2e8f0; border-radius: .5rem; padding: .3rem .5rem; }
+    .id-doc-existing .idp-row i.bi-file-earmark-check { color: #16a34a; }
+    .id-doc-existing .idp-new { font-size: .74rem; color: #b45309; margin-top: .2rem; }

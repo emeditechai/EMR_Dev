@@ -1,0 +1,9 @@
+/* moved from Views/LabDescriptiveTestTemplates/Create.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .ql-editor { min-height: 200px; font-size: 0.95rem; }
+    .ql-toolbar.ql-snow { border-radius: 0.375rem 0.375rem 0 0; }
+    .ql-container.ql-snow { border-radius: 0 0 0.375rem 0.375rem; }
+    .quick-insert-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 0.375rem; padding: 0.75rem; }
+    .quick-insert-panel .badge { cursor: pointer; font-size: 0.78rem; font-weight: 500; transition: all 0.15s; }
+    .quick-insert-panel .badge:hover { transform: scale(1.05); opacity: 0.85; }
+    .section-divider { border-top: 2px solid #e9ecef; margin: 1rem 0; }
+    .contrast-fields { display: none; }

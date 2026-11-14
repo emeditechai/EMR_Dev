@@ -1,0 +1,164 @@
+/* moved from Views/Vitals/RecordVital.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    /* Premium visual style */
+    .rounded-12 { border-radius: 12px; }
+    
+    ::placeholder {
+        color: #adb5bd !important;
+        opacity: 0.7 !important;
+        font-weight: 400 !important;
+    }
+    
+    /* Search panel */
+    .search-panel {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,.03);
+    }
+    .search-panel .search-label-strip {
+        font-size: .75rem; font-weight: 700; letter-spacing: 0.5px;
+        text-transform: uppercase; color: #4f46e5;
+        margin-bottom: .6rem;
+        display: flex; align-items: center; gap: .4rem;
+    }
+    #searchAutoDropdown {
+        position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 1060;
+        background: #fff; border: 1px solid #dee2e6;
+        border-radius: 8px;
+        box-shadow: 0 8px 30px rgba(0,0,0,.1);
+        max-height: 250px; overflow-y: auto; display: none;
+    }
+    .suggest-item { padding: .55rem .9rem; cursor: pointer; border-bottom: 1px solid #f3f3f3; display: flex; align-items: center; justify-content: space-between; gap: .5rem; transition: background .12s; }
+    .suggest-item:last-child { border-bottom: none; }
+    .suggest-item:hover { background: #f3f4f6; }
+    .suggest-no-result { padding: .7rem 1rem; color: #888; font-size: .84rem; text-align: center; }
+
+    /* Patient card */
+    #patientInfoCard {
+        background: linear-gradient(135deg, #f5f3ff 0%, #ecfdf5 100%);
+        border: 1px solid #e0d9ff;
+        border-radius: 12px;
+        padding: 0.9rem 1.2rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.05);
+    }
+
+    /* Vital form sections */
+    .vital-section {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,.02);
+    }
+    .vital-section-header {
+        display: flex; align-items: center; gap: .65rem;
+        padding: .7rem 1.1rem;
+        border-bottom: 1px solid #f3f4f6;
+        background: #f9fafb;
+    }
+    .vital-section-header .sec-icon {
+        width: 32px; height: 32px; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center; font-size: 0.95rem;
+    }
+    .vital-section-header .sec-icon.blue   { background: #eff6ff; color: #2563eb; }
+    .vital-section-header .sec-icon.red    { background: #fef2f2; color: #dc2626; }
+    .vital-section-header .sec-icon.green  { background: #ecfdf5; color: #059669; }
+    .vital-section-header .sec-icon.orange { background: #fff7ed; color: #ea580c; }
+    .vital-section-body { padding: 1rem 1.1rem; }
+
+    /* Vital input group with status ring */
+    .vital-input-wrap { position: relative; }
+    .vital-status {
+        position: absolute; right: 10px; top: 50%;
+        transform: translateY(-50%);
+        font-size: .8rem; font-weight: 700;
+        pointer-events: none;
+        display: none;
+    }
+    .vital-status.ok    { color: #10b981; display:block }
+    .vital-status.warn  { color: #f59e0b; display:block }
+    .vital-status.high  { color: #ef4444; display:block }
+
+    .vital-label { font-size: .8rem; font-weight: 600; color: #374151; margin-bottom: .25rem; }
+    .vital-label .unit { font-size: .7rem; font-weight: 400; color: #6b7280; margin-left: 2px; }
+    .vital-hint  { font-size: .68rem; color: #9ca3af; margin-top: .15rem; }
+    /* Soft check: an unusual value is flagged, never blocked */
+    .vital-unusual { font-size: .7rem; color: #b45309; margin-top: .15rem; display: none; }
+    .vital-unusual.show { display: block; }
+    .form-control.is-unusual { border-color: #f59e0b; box-shadow: 0 0 0 .15rem rgba(245,158,11,.15); }
+
+    /* BMI card */
+    #bmiCard {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: .6rem 1rem;
+        text-align: center;
+        min-height: 76px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        transition: background .2s;
+    }
+    #bmiCard.ok     { background: #ecfdf5; border-color: #a7f3d0; }
+    #bmiCard.under  { background: #fffbeb; border-color: #fde68a; }
+    #bmiCard.over   { background: #fef2f2; border-color: #fecaca; }
+    #bmiValue       { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+    #bmiCategory    { font-size: .74rem; font-weight: 600; margin-top: 1px; }
+
+    /* Pain scale visual */
+    .pain-bar { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; margin-top: .3rem; }
+    .pain-bar .pip {
+        width: 28px; height: 28px; border-radius: 50%;
+        border: 1px solid #d1d5db; background: #f9fafb;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: .72rem; font-weight: 700; color: #6b7280;
+        transition: all .15s;
+    }
+    .pain-bar .pip.active   { border-color: transparent; color: #fff; }
+    .pain-bar .pip[data-v="0"].active  { background: #10b981; }
+    .pain-bar .pip[data-v="1"].active,.pip[data-v="2"].active,.pip[data-v="3"].active  { background: #34d399; }
+    .pain-bar .pip[data-v="4"].active,.pip[data-v="5"].active { background: #fbbf24; color:#1f2937 }
+    .pain-bar .pip[data-v="6"].active,.pip[data-v="7"].active { background: #f59e0b; }
+    .pain-bar .pip[data-v="8"].active,.pip[data-v="9"].active,.pip[data-v="10"].active { background: #ef4444; }
+
+    /* Sections side by side on wide screens */
+    .vital-grid > [class*="col-"] > .vital-section { height: 100%; margin-bottom: 0; }
+
+    /* Action bar: stays in view at the bottom while the form scrolls */
+    .action-bar {
+        background: #fff; border: 1px solid #e5e7eb;
+        border-radius: 12px; padding: 0.8rem 1.1rem;
+        display: flex; justify-content: flex-end; align-items: center; gap: .6rem; flex-wrap: wrap;
+        margin: 1rem 0;
+        box-shadow: 0 -4px 16px rgba(15,23,42,.08);
+        position: sticky; bottom: 8px; z-index: 5;
+    }
+    .action-bar .action-hint { margin-right: auto; font-size: .74rem; color: #64748b; }
+
+    /* Guard overlay */
+    #formGuard { pointer-events: none; opacity: .4; transition: opacity .3s; }
+    #formGuard.unlocked { pointer-events: auto; opacity: 1; }
+    
+    /* View detail modal */
+    .vd-group { background: #f8f9fc; border: 1px solid #e9ecef; border-radius: 10px; padding: .9rem 1rem; margin-bottom: .75rem; }
+    .vd-group-title { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6c757d; margin-bottom: .65rem; display: flex; align-items: center; gap: .4rem; }
+    .vd-row { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; padding: .28rem 0; border-bottom: 1px solid #f0f0f0; font-size: .84rem; }
+    .vd-row:last-child { border-bottom: none; }
+    .vd-col { display: flex; flex-direction: column; min-width: 110px; gap: .18rem; }
+    .vd-label { color: #6c757d; font-size: .74rem; }
+    .vd-val   { font-weight: 600; }
+    .vd-chip  { display: inline-flex; align-items: center; padding: .15rem .55rem; border-radius: 20px; font-size: .78rem; font-weight: 600; }
+    .vd-ok   { background: #e6f4ea; color: #137333; }
+    .vd-warn { background: #fff3cd; color: #856404; }
+    .vd-high { background: #fdecea; color: #c62828; }
+    .vd-na   { color: #aaa; font-weight: 400; }
+
+    /* Custom layout modifications for Purple Navbar Theme */
+    .history-card-header {
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+    }

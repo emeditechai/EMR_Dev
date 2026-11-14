@@ -9,19 +9,7 @@
     bool Same(string a, string b) => MachineFingerprintProvider.Normalize(a) == MachineFingerprintProvider.Normalize(b);
 }
 
-<style>
-    .li-card { background:#fff; border:1px solid #e6e9f2; border-radius:16px; padding:1.1rem 1.25rem; box-shadow:0 6px 18px rgba(15,23,42,.04); height:100%; }
-    .li-card h3 { font-size:.95rem; font-weight:700; margin:0 0 .75rem; color:#0f172a; }
-    .li-grid { display:grid; grid-template-columns: minmax(130px, auto) 1fr; gap:.4rem 1rem; font-size:.86rem; }
-    .li-grid span { color:#64748b; }
-    .li-grid b { color:#0f172a; word-break:break-all; }
-    .li-status { border-radius:16px; padding:1.1rem 1.25rem; color:#fff; display:flex; gap:1rem; align-items:center; }
-    .li-status.ok { background:linear-gradient(120deg,#065f46,#059669); }
-    .li-status.bad { background:linear-gradient(120deg,#7f1d1d,#dc2626); }
-    .li-status.off { background:linear-gradient(120deg,#334155,#64748b); }
-    .li-status i.big { font-size:2rem; }
-    .li-hw td, .li-hw th { font-size:.84rem; vertical-align:middle; }
-</style>
+<link rel="stylesheet" href="~/css/views/License/Index.css" asp-append-version="true" />
 
 <div class="container-fluid px-0">
     <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1 small"><li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li><li class="breadcrumb-item">Settings</li><li class="breadcrumb-item active">Licence</li></ol></nav>

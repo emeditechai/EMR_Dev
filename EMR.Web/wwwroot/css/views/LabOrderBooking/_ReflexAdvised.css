@@ -1,0 +1,6 @@
+/* moved from Views/LabOrderBooking/_ReflexAdvised.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    #reflexAdvised { border:1px solid #86efac; background:#f0fdf4; border-radius:.75rem; padding:.5rem .75rem; margin-bottom:.6rem; display:none; font-size:.82rem; }
+    #reflexAdvised .ra-head { display:flex; align-items:center; gap:.45rem; font-weight:700; color:#14532d; margin-bottom:.25rem; }
+    #reflexAdvised .ra-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; padding:.3rem 0; border-top:1px dashed #bbf7d0; }
+    #reflexAdvised .ra-row:first-of-type { border-top:0; }
+    #reflexAdvised .ra-why { color:#475569; font-size:.74rem; }

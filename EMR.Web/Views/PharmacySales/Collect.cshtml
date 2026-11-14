@@ -25,12 +25,5 @@
 <div class="d-flex justify-content-end gap-2 mt-3"><a asp-action="Index" class="btn btn-outline-secondary">Back</a><button asp-permission="PHARMACY.CREDITCOLLECTION:COLLECT" class="btn btn-success px-4"><i class="bi bi-check2-circle me-1"></i>Receive &amp; print receipt</button></div>
 </form>
 @section Scripts {
-<script>
-(function () {
-    const al = [...document.querySelectorAll('.al')], t = document.getElementById('alT'), sum = () => t.textContent = al.reduce((s, a) => s + (parseFloat(a.value) || 0), 0).toFixed(2);
-    document.getElementById('amt').addEventListener('input', e => { let left = parseFloat(e.target.value) || 0; al.forEach(a => { const v = Math.min(left, parseFloat(a.dataset.due)); a.value = v > 0 ? v.toFixed(2) : ''; left -= v; }); sum(); });
-    al.forEach(a => a.addEventListener('input', sum));
-    const mode = document.getElementById('mode'), m = () => { document.getElementById('ref').required = mode.value !== 'CASH'; document.getElementById('refL').classList.toggle('req', mode.value !== 'CASH'); }; mode.addEventListener('change', m); m();
-})();
-</script>
+<script src="~/js/views/PharmacySales/Collect.js" asp-append-version="true"></script>
 }

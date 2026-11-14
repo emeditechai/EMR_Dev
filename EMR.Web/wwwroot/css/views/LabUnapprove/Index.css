@@ -1,0 +1,41 @@
+/* moved from Views/LabUnapprove/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        .unauth-wrapper { background-color: #f8f9fa; min-height: calc(100vh - 60px); }
+        .unauth-wrapper .fs-7 { font-size: 0.85rem !important; }
+        .unauth-wrapper .fs-8 { font-size: 0.78rem !important; }
+        .unauth-wrapper .fs-9 { font-size: 0.70rem !important; }
+
+        .unauth-wrapper .ua-card { border-left: 4px solid var(--c, #4f46e5) !important; position: relative; overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+        .unauth-wrapper .ua-card::after { content: ""; position: absolute; right: -18px; top: -18px; width: 70px; height: 70px; border-radius: 50%; background: var(--bg, #e0e7ff); opacity: .55; }
+        .unauth-wrapper .ua-card:hover { transform: translateY(-2px); box-shadow: 0 .4rem .8rem rgba(0,0,0,.09) !important; }
+        .unauth-wrapper .ua-card.active-card { outline: 2px solid var(--c); background: linear-gradient(135deg, #fff 40%, var(--bg)); }
+        .unauth-wrapper .ua-card.no-click { cursor: default; }
+        .unauth-wrapper .ua-card.no-click:hover { transform: none; box-shadow: none !important; }
+        .unauth-wrapper .ua-label { font-size: .68rem; letter-spacing: .3px; color: #6b7280; font-weight: 700; text-transform: uppercase; }
+        .unauth-wrapper .ua-value { color: var(--c); font-weight: 800; line-height: 1.1; font-size: 1.5rem; }
+        .unauth-wrapper .ua-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--bg); color: var(--c); display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; }
+        .unauth-wrapper .k-total   { --c: #1e3a8a; --bg: #dbeafe; }
+        .unauth-wrapper .k-full    { --c: #0f766e; --bg: #ccfbf1; }
+        .unauth-wrapper .k-partial { --c: #0369a1; --bg: #e0f2fe; }
+        .unauth-wrapper .k-tests   { --c: #b45309; --bg: #fef3c7; }
+
+        .unauth-wrapper .panel-body { height: calc(100vh - 400px); min-height: 380px; overflow-y: auto; }
+        .unauth-wrapper .order-row { cursor: pointer; border-left: 4px solid transparent; }
+        .unauth-wrapper .order-row:hover { background: #f8fafc; }
+        .unauth-wrapper .order-row.selected { background: #eef2ff; border-left-color: #4f46e5; }
+        .unauth-wrapper .order-row.t-full { box-shadow: inset 4px 0 0 #0f766e; }
+        .unauth-wrapper .order-row.t-partial { box-shadow: inset 4px 0 0 #0369a1; }
+        .unauth-wrapper .order-row.selected { box-shadow: inset 4px 0 0 #4f46e5; }
+        .unauth-wrapper .table thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 5; font-size: .68rem; text-transform: uppercase; color: #64748b; }
+
+        .unauth-wrapper .hero { background: linear-gradient(135deg, #fff 55%, #eef2ff); }
+        .unauth-wrapper .avatar-circle { width: 38px; height: 38px; }
+        .unauth-wrapper .group-head { background: #f1f5f9; font-weight: 700; font-size: .72rem; color: #334155; }
+        .unauth-wrapper .test-row.is-approved { background: #fff; }
+        .unauth-wrapper .test-row.not-approved { background: #fafafa; color: #94a3b8; }
+        .unauth-wrapper .test-row.checked, .unauth-wrapper .profile-head.checked { background: #fffbeb; }
+        .unauth-wrapper .profile-head { background: #eef2ff; }
+        .unauth-wrapper .profile-head td { padding-top: .45rem; padding-bottom: .45rem; }
+        .unauth-wrapper .test-row.in-profile > td:first-child { border-left: 3px solid #c7d2fe; }
+        .unauth-wrapper .val-pill { font-weight: 700; }
+        .unauth-wrapper .btn-audit-info { margin-left: 6px; }
+    

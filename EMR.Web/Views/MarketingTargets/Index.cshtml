@@ -1,0 +1,73 @@
+@{
+    // LAB > Marketing Executive Sales Target (SQLScripts/2447)
+    ViewData["Title"] = "Marketing Executive Sales Target";
+    var canAdd = ViewData["CanADD"] as bool? ?? false;
+    var canEdit = ViewData["CanEDIT"] as bool? ?? false;
+    var canVisits = ViewData["CanVisits"] as bool? ?? false;
+}
+@Html.AntiForgeryToken()
+<link rel="stylesheet" href="~/css/views/MarketingTargets/Index.css" asp-append-version="true" />
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+        <h1 class="h3 fw-bold mb-0"><i class="bi bi-bullseye me-2 text-danger"></i>Marketing Executive Sales Target</h1>
+        <small class="text-muted">Sales (₹) and doctor-visit targets of the LAB marketing executives for <b>@(User.FindFirst("BranchName")?.Value ?? "this branch")</b>, by financial year · used by Reports &gt; LAB &gt; Marketing Executive Business</small>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <label class="small fw-semibold" for="mtFy">Financial year</label>
+        <select id="mtFy" class="form-select form-select-sm" style="width:170px"></select>
+        @if (canVisits) { <a class="btn btn-sm btn-outline-secondary" href="@Url.Action("Visits")"><i class="bi bi-geo-alt me-1"></i>Doctor Visit Log</a> }
+    </div>
+</div>
+
+<div class="row g-3 mb-3" id="mtKpis"></div>
+
+<div class="card border-0 shadow-sm mb-3"><div class="card-body py-3"><div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="mtfExec">Marketing executive</label>
+        <select id="mtfExec" class="form-select form-select-sm"><option value="">All executives</option></select></div>
+    <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="mtfFreq">Frequency</label>
+        <select id="mtfFreq" class="form-select form-select-sm"><option value="">All</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option>
+            <option value="HALFYEARLY">Half-yearly</option><option value="YEARLY">Yearly</option><option value="NONE">Not set</option></select></div>
+    <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="mtfStatus">Executive status</label>
+        <select id="mtfStatus" class="form-select form-select-sm"><option value="">All</option><option value="1">Active</option><option value="0">Inactive</option></select></div>
+    <div class="col-12 col-md-2"><button type="button" class="btn btn-sm btn-light border w-100" id="mtfReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button></div>
+</div></div></div>
+
+<div class="card shadow-sm border-0"><div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+        <thead class="table-light"><tr><th>Marketing executive</th><th>Frequency</th><th class="mt-num">Sales target (year)</th><th class="mt-num">Doctor visits (year)</th><th>Last changed</th><th class="text-end">Action</th></tr></thead>
+        <tbody id="mtRows"><tr><td colspan="6" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+</div></div>
+
+<div class="modal fade" id="mtModal" tabindex="-1" aria-labelledby="mtTitle" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><div><h5 class="modal-title fw-bold" id="mtTitle">Sales target</h5><small class="text-muted" id="mtSub"></small></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
+            <div><label class="form-label small fw-semibold d-block">Target frequency <span class="text-danger">*</span></label>
+                <div class="btn-group btn-group-sm" role="group" id="mtFreq">
+                    <input type="radio" class="btn-check" name="mtF" id="fM" value="MONTHLY"><label class="btn btn-outline-primary" for="fM">Monthly</label>
+                    <input type="radio" class="btn-check" name="mtF" id="fQ" value="QUARTERLY"><label class="btn btn-outline-primary" for="fQ">Quarterly</label>
+                    <input type="radio" class="btn-check" name="mtF" id="fH" value="HALFYEARLY"><label class="btn btn-outline-primary" for="fH">Half-yearly</label>
+                    <input type="radio" class="btn-check" name="mtF" id="fY" value="YEARLY"><label class="btn btn-outline-primary" for="fY">Yearly</label>
+                </div></div>
+            <div class="mt-edit"><label class="form-label small fw-semibold" for="mtFillS">Fill every period: sales ₹</label><input id="mtFillS" type="number" min="0" step="any" class="form-control form-control-sm" style="width:140px" /></div>
+            <div class="mt-edit"><label class="form-label small fw-semibold" for="mtFillV">doctor visits</label><input id="mtFillV" type="number" min="0" step="1" class="form-control form-control-sm" style="width:110px" /></div>
+            <div class="mt-edit"><button type="button" class="btn btn-sm btn-outline-secondary" id="mtFill"><i class="bi bi-arrow-down-square me-1"></i>Fill</button></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm align-middle mb-0" id="mtBuckets">
+            <thead class="table-light"><tr><th>Period</th><th>Dates</th><th class="mt-num">Sales target (₹)</th><th class="mt-num">Doctor visits</th><th class="mt-num">Sales done</th><th>Sales achieved</th><th class="mt-num">Visits done</th></tr></thead>
+            <tbody></tbody><tfoot class="table-light fw-bold"></tfoot>
+        </table></div>
+        <div class="mt-3"><label class="form-label small fw-semibold" for="mtRemarks">Remarks</label><input id="mtRemarks" class="form-control form-control-sm" maxlength="500" /></div>
+        <div class="small text-muted mt-2" id="mtAudit"></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary mt-edit" id="mtSave"><i class="bi bi-check2 me-1"></i>Save target</button></div>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.MtPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/MarketingTargets/"), canAdd, canEdit }));</script>
+    <script src="~/js/lab/marketing-target.js" asp-append-version="true"></script>
+}

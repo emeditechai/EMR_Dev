@@ -1,0 +1,8 @@
+/* moved from Views/Users/_Form.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    /* Inside the Pathologist modal the category list opens inline (it would otherwise be clipped by the
+       modal's rounded overflow) and pushes the footer down instead of floating over it. */
+    .sig-preview { width: 150px; height: 72px; flex-shrink: 0; border: 1px dashed #c4b5fd; border-radius: .5rem; display: flex; align-items: center; justify-content: center; overflow: hidden;
+                   background: repeating-conic-gradient(#f5f3ff 0% 25%, #ffffff 0% 50%) 50% / 12px 12px; }
+    .sig-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    #pathologistModal .cms-dropdown { position: static; margin-top: 4px; box-shadow: none; }
+    #pathologistModal .cms-options-container { max-height: 200px; }

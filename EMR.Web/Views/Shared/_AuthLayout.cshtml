@@ -45,18 +45,7 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     @if (loginSlides.Count > 1)
     {
-        <script>
-            // background slideshow: cross-fade to the next image every 7 s, in a loop; paused while the tab is hidden
-            (function () {
-                const slides = document.querySelectorAll('.auth-slide');
-                let i = 0, timer = null;
-                const next = () => { slides[i].classList.remove('on'); i = (i + 1) % slides.length; slides[i].classList.add('on'); };
-                const start = () => { if (!timer) timer = setInterval(next, 7000); };
-                const stop = () => { clearInterval(timer); timer = null; };
-                document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
-                start();
-            })();
-        </script>
+        <script src="~/js/views/Shared/_AuthLayout.js" asp-append-version="true"></script>
     }
     @await RenderSectionAsync("Scripts", required: false)
 </body>

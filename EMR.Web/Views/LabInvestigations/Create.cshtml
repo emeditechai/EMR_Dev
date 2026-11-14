@@ -301,16 +301,7 @@
 </div>
 
 @section Scripts {
-    <script>
-        (function () {
-            ['Has_External_Document', 'Is_LMP_Date_Required'].forEach(function (id) {
-                var t = document.getElementById(id);
-                if (!t) return;
-                var l = document.querySelector('label.form-check-label[for="' + id + '"]');
-                t.addEventListener('change', function () { if (l) l.textContent = t.checked ? 'Yes' : 'No'; });
-            });
-        })();
-    </script>
+    <script src="~/js/views/LabInvestigations/Create.js" asp-append-version="true"></script>
     <partial name="_ValidationScriptsPartial" />
     <script>
         function toggleNablScope() {

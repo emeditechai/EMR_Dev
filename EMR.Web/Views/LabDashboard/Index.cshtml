@@ -17,36 +17,7 @@
 }
 
 @section HeadStyles {
-    <style>
-        /* client segmented filter */
-        .lab-seg { display:inline-flex; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25);
-                   border-radius:999px; padding:3px; gap:2px; backdrop-filter:blur(4px); }
-        .lab-seg-btn { display:inline-flex; align-items:center; gap:.35rem; padding:.28rem .8rem; border-radius:999px;
-                       font-size:.76rem; font-weight:600; color:#e9eaff; text-decoration:none; white-space:nowrap;
-                       transition:background .15s ease, color .15s ease; }
-        .lab-seg-btn:hover { background:rgba(255,255,255,.18); color:#fff; }
-        .lab-seg-btn.active { background:#fff; color:#4338ca; box-shadow:0 2px 6px rgba(15,23,42,.18); }
-
-        /* analysis panels */
-        .an-card { background:#fff; border:1px solid #e9ecef; border-radius:.9rem; }
-        .an-title { font-size:.68rem; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:#64748b; }
-        .an-kv { display:flex; align-items:baseline; justify-content:space-between; padding:.35rem 0; border-bottom:1px dashed #eef2f6; }
-        .an-kv:last-child { border-bottom:0; }
-        .an-kv .k { font-size:.76rem; color:#475569; }
-        .an-kv .v { font-size:.92rem; font-weight:800; color:#0f172a; letter-spacing:-.01em; }
-        .an-step { flex:1; text-align:center; padding:.5rem .25rem; border-radius:.6rem; background:var(--sb,#f1f5f9); }
-        .an-step .n { font-size:1.15rem; font-weight:800; color:var(--sc,#0f172a); line-height:1.1; }
-        .an-step .l { font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#64748b; }
-        .an-arrow { align-self:center; color:#cbd5e1; font-size:.8rem; }
-        .an-bar { height:7px; border-radius:4px; background:#eef2f6; overflow:hidden; }
-        .an-bar > span { display:block; height:100%; border-radius:4px; background:var(--bc,#6366f1); }
-        .an-spark { display:flex; align-items:flex-end; gap:3px; height:64px; }
-        .an-spark .b { flex:1; background:linear-gradient(180deg,#818cf8,#4f46e5); border-radius:3px 3px 0 0; min-height:2px; position:relative; }
-        .an-spark .b:hover { filter:brightness(1.12); }
-        .an-spark-x { display:flex; gap:3px; margin-top:4px; }
-        .an-spark-x span { flex:1; text-align:center; font-size:.56rem; color:#94a3b8; }
-        .an-chip { font-size:.68rem; font-weight:700; padding:.12rem .5rem; border-radius:999px; }
-    </style>
+    <link rel="stylesheet" href="~/css/views/LabDashboard/Index.css" asp-append-version="true" />
     <style>
         .lab-dashboard-page {
             margin-top: 0.25rem;
@@ -1167,68 +1138,5 @@
 </div>
 
 @section Scripts {
-    <script>
-        var currentTabFilter = 'all';
-
-        function setTabFilter(filter, el) {
-            currentTabFilter = filter;
-            document.querySelectorAll('.nav-pills-custom .nav-link').forEach(btn => btn.classList.remove('active'));
-            el.classList.add('active');
-            filterPatientTable();
-        }
-
-        function filterPatientTable() {
-            var search = document.getElementById('patientSearchInput').value.toLowerCase().trim();
-            var rows = document.querySelectorAll('#patientOrderTable tbody tr.patient-order-row');
-
-            rows.forEach(function (row) {
-                var rowText = row.innerText.toLowerCase();
-                var isUrgent = row.getAttribute('data-urgent') === 'true';
-                var isPending = row.getAttribute('data-pending') === 'true';
-                var status = row.getAttribute('data-status') || '';
-                var type = row.getAttribute('data-type') || '';
-
-                // Search query match
-                var matchesSearch = !search || rowText.includes(search);
-
-                // Tab filter match
-                var matchesTab = true;
-                if (currentTabFilter === 'urgent') {
-                    matchesTab = isUrgent;
-                } else if (currentTabFilter === 'pending') {
-                    matchesTab = isPending;
-                } else if (currentTabFilter === 'collected') {
-                    matchesTab = status.includes('collected');
-                } else if (currentTabFilter === 'home') {
-                    matchesTab = type === 'home';
-                }
-
-                if (matchesSearch && matchesTab) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-
-        function viewOrderSummaryModal(orderId, billNo, patientName, testSummary, status, amount) {
-            document.getElementById('modalBillNo').innerText = billNo;
-            document.getElementById('modalPatientName').innerText = patientName;
-            document.getElementById('modalTests').innerText = testSummary || 'No specific tests found.';
-            document.getElementById('modalStatus').innerText = status;
-            document.getElementById('modalAmount').innerText = '₹' + parseFloat(amount).toFixed(2);
-            document.getElementById('modalSampleColLink').href = '/SampleCollection/Index';
-
-            var modal = new bootstrap.Modal(document.getElementById('orderSummaryModal'));
-            modal.show();
-        }
-
-        // Initialize tooltips
-        document.addEventListener("DOMContentLoaded", function () {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl);
-            });
-        });
-    </script>
+    <script src="~/js/views/LabDashboard/Index.js" asp-append-version="true"></script>
 }

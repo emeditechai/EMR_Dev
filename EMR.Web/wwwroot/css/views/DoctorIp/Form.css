@@ -1,0 +1,7 @@
+/* moved from Views/DoctorIp/Form.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        .ip-grid { max-height: 520px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; }
+        .ip-grid thead th { position: sticky; top: 0; z-index: 3; background: #212529; color: #fff; white-space: nowrap; }
+        .ip-grid .inp-rate { max-width: 95px; margin-left: auto; }
+        .validation-summary-valid { display: none; }
+        .step-badge { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; }
+    

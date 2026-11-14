@@ -15,12 +15,7 @@
     if (Model.EmailEnabled) { channels.Add("email" + (string.IsNullOrWhiteSpace(Model.EmailId) ? " (no email address)" : " to " + Model.EmailId)); }
 }
 
-<style>
-    .mc-results { position:absolute; z-index:1060; left:0; right:0; max-height:220px; overflow:auto; background:#fff; border:1px solid #dee2e6; border-radius:.375rem; box-shadow:0 .5rem 1rem rgba(0,0,0,.12); display:none; }
-    .mc-results .mc-item { padding:.45rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; }
-    .mc-results .mc-item:hover { background:#f1f5f9; }
-    .mc-results .mc-none { padding:.6rem .75rem; color:#64748b; font-size:.875rem; }
-</style>
+<link rel="stylesheet" href="~/css/views/MembershipCards/Details.css" asp-append-version="true" />
 
 <div class="card emr-card mb-3">
     <div class="card-body">

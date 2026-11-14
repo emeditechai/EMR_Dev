@@ -4,17 +4,7 @@
     var isHo = (bool)ViewBag.IsHo;
 }
 
-<style>
-    .ad-kpi { cursor: pointer; transition: transform .12s, box-shadow .12s; border: 2px solid transparent !important; }
-    .ad-kpi:hover { transform: translateY(-2px); }
-    .ad-kpi.active { border-color: var(--bs-primary) !important; }
-    .ad-kpi .ad-ico { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: .75rem; }
-    tr.ad-row { cursor: pointer; }
-    .ad-diff td { vertical-align: top; font-size: .86rem; }
-    .ad-diff tr.changed td { background: #fffbeb; }
-    .ad-diff tr.changed td.ad-new { color: #166534; font-weight: 600; }
-    .ad-diff tr.changed td.ad-old { color: #991b1b; text-decoration: line-through; text-decoration-color: rgba(153, 27, 27, .45); }
-</style>
+<link rel="stylesheet" href="~/css/views/ApprovalDashboard/Index.css" asp-append-version="true" />
 
 <div class="container-fluid px-4 py-3">
     <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">

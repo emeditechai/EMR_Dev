@@ -1,0 +1,12 @@
+/* moved from Views/MembershipCards/Issue.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .mc-results { position:absolute; z-index:1050; left:0; right:0; max-height:260px; overflow:auto; background:#fff; border:1px solid #dee2e6; border-radius:.375rem; box-shadow:0 .5rem 1rem rgba(0,0,0,.12); display:none; }
+    .mc-results .mc-item { padding:.45rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; }
+    .mc-results .mc-item:hover { background:#f1f5f9; }
+    .mc-results .mc-none { padding:.6rem .75rem; color:#64748b; font-size:.875rem; }
+    #npPhoneList { position:absolute; z-index:1060; left:0; right:0; top:100%; margin-top:2px; max-height:280px; overflow:auto; background:#fff; border:1px solid #dee2e6;
+                   border-radius:.5rem; box-shadow:0 .5rem 1.25rem rgba(15,23,42,.15); display:none; }
+    #npPhoneList .np-hd { padding:.4rem .75rem; font-size:.7rem; font-weight:700; letter-spacing:.4px; text-transform:uppercase; color:#64748b; background:#f8fafc; border-bottom:1px solid #eef2f7; }
+    #npPhoneList .np-it { padding:.5rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; display:flex; gap:.6rem; align-items:center; }
+    #npPhoneList .np-it:hover, #npPhoneList .np-it.active { background:#eff6ff; }
+    #npPhoneList .np-av { width:32px; height:32px; border-radius:50%; background:#e0e7ff; color:#3730a3; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.8rem; flex-shrink:0; }
+    .np-locked .form-control, .np-locked .form-select { background-color:#f8fafc !important; }

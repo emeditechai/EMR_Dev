@@ -1,0 +1,7 @@
+/* moved from Views/Reports/OpdRevenueTrend.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .rt-heat { border-collapse: separate; border-spacing: 3px; font-size: .72rem; }
+    .rt-heat th { color: #64748b; font-weight: 600; text-align: center; padding: 0 2px; white-space: nowrap; }
+    .rt-heat td { width: 34px; height: 26px; text-align: center; border-radius: 4px; font-variant-numeric: tabular-nums; }
+    .rt-heat td.rt-day { width: auto; text-align: right; padding-right: 6px; color: #334155; font-weight: 600; background: none; }
+    .rt-legend { display: flex; align-items: center; gap: 6px; font-size: .72rem; color: #64748b; }
+    .rt-legend span { width: 18px; height: 10px; border-radius: 2px; display: inline-block; }

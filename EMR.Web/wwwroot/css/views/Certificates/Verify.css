@@ -1,0 +1,12 @@
+/* moved from Views/Certificates/Verify.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f1f5f9; color: #0f172a; }
+        .wrap { max-width: 480px; margin: 40px auto; padding: 0 16px; }
+        .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 20px rgba(15, 23, 42, .08); overflow: hidden; }
+        .head { padding: 22px; text-align: center; color: #fff; }
+        .head.ok { background: #0f766e; } .head.bad { background: #b91c1c; } .head.warn { background: #b45309; }
+        .head .ic { font-size: 40px; line-height: 1; }
+        .head h1 { font-size: 20px; margin: 8px 0 0; }
+        dl { margin: 0; padding: 18px 22px; display: grid; grid-template-columns: 40% 60%; row-gap: 10px; font-size: 14px; }
+        dt { color: #64748b; } dd { margin: 0; font-weight: 600; word-break: break-word; }
+        .foot { padding: 12px 22px 18px; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+    

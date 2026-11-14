@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Services;
 
 /// <summary>
-/// Header / footer of an IPD print (views in EMR.Web.Ipd, SQLScripts/2422+): the branch's Bill print template
+/// Header / footer of an IPD print (Views/Ipd*, SQLScripts/2422+): the branch's Bill print template
 /// (Utility > Print Templates) when assigned, else the hospital details of Hospital Settings - as OPD and LAB bills.
 /// </summary>
 public static class IpdPrint

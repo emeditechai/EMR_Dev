@@ -1,0 +1,4 @@
+/* moved from Views/LabApprovalFlows/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .lvl-chip { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid #e2e8f0; border-radius: 2rem; padding: .15rem .6rem .15rem .2rem; font-size: .74rem; background: #fff; margin: 0 .25rem .25rem 0; max-width: 260px; }
+    .lvl-chip b { width: 20px; height: 20px; border-radius: 50%; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: .68rem; flex-shrink: 0; }
+    .lvl-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

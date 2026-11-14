@@ -1,0 +1,113 @@
+/* moved from Views/MicrobiologyReporting/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        .reporting-wrapper {
+            --lr-bg: #f1f5f9;
+            --lr-line: #e2e8f0;
+            --lr-ink: #0f172a;
+            --lr-muted: #64748b;
+            background: var(--lr-bg);
+            min-height: calc(100vh - 60px);
+        }
+        .reporting-wrapper .fs-7 { font-size: 0.85rem !important; }
+        .reporting-wrapper .fs-8 { font-size: 0.78rem !important; }
+        .reporting-wrapper .fs-9 { font-size: 0.70rem !important; }
+        .py-0\.5 { padding-top: 0.2rem !important; padding-bottom: 0.2rem !important; }
+        .pt-1\.5 { padding-top: 0.45rem !important; }
+        .mt-1\.5 { margin-top: 0.45rem !important; }
+        .mb-1\.5 { margin-bottom: 0.45rem !important; }
+        .mb-0\.5 { margin-bottom: 0.15rem !important; }
+
+        /* ── page header ── */
+        .lr-head { background: #fff; border: 1px solid var(--lr-line); border-radius: .75rem; }
+        .lr-head-icon {
+            width: 38px; height: 38px; border-radius: .6rem; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4338ca; font-size: 1.05rem;
+        }
+        .lr-head h5 { letter-spacing: -.01em; }
+
+        /* ── KPI cards ── */
+        .stat-card {
+            --c: #4f46e5; --bg: #eef2ff;
+            position: relative; overflow: hidden; cursor: pointer; background: #fff;
+            border: 1px solid var(--lr-line) !important; border-radius: .7rem;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+        }
+        .stat-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); }
+        .stat-card::after {
+            content: ""; position: absolute; right: -22px; top: -22px; width: 72px; height: 72px;
+            border-radius: 50%; background: var(--bg); opacity: .5;
+        }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 .45rem .9rem rgba(15,23,42,.10) !important; border-color: var(--c) !important; }
+        .stat-card.active-card { border-color: var(--c) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent) !important; background: linear-gradient(135deg, #fff 55%, var(--bg)); outline: none; }
+        .stat-card .stat-label { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--lr-muted); }
+        .stat-card .stat-value { font-size: 1.45rem; font-weight: 800; line-height: 1.1; color: var(--c); letter-spacing: -.02em; }
+        .stat-icon { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .95rem; background: var(--bg); color: var(--c); position: relative; z-index: 1; }
+        .k-total { --c: #1d4ed8; --bg: #dbeafe; }
+        .k-pending { --c: #64748b; --bg: #e2e8f0; }
+        .k-draft { --c: #b45309; --bg: #fef3c7; }
+        .k-entered { --c: #0369a1; --bg: #e0f2fe; }
+        .k-validated { --c: #0f766e; --bg: #ccfbf1; }
+
+        /* ── filter card ── */
+        .lr-card { background: #fff; border: 1px solid var(--lr-line) !important; border-radius: .7rem; }
+        .lr-label { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--lr-muted); margin-bottom: .2rem; display: block; }
+        .reporting-wrapper .form-control, .reporting-wrapper .form-select { border-color: #dbe2ea; font-size: .78rem; }
+        .reporting-wrapper .form-control:focus, .reporting-wrapper .form-select:focus { border-color: #818cf8; box-shadow: 0 0 0 .18rem rgba(99,102,241,.14); }
+        .lr-quick .btn { font-size: .7rem; font-weight: 600; color: var(--lr-muted); border-color: #dbe2ea; background: #fff; }
+        .lr-quick .btn:hover { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
+        .lr-quick .btn.active { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+        .lr-filter-strip { background: #f8fafc; border-top: 1px dashed var(--lr-line); border-radius: 0 0 .7rem .7rem; }
+
+        /* ── table ── */
+        .table-responsive-custom { max-height: calc(100vh - 330px); min-height: 220px; overflow-y: auto; }
+        .table-sticky-header thead th {
+            position: sticky; top: 0; z-index: 10; background: #f8fafc; color: var(--lr-muted);
+            font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+            border-bottom: 1px solid var(--lr-line); box-shadow: 0 1px 0 var(--lr-line); white-space: nowrap;
+        }
+        #tblReportingOrders tbody td { border-top: 1px solid #eef2f6; border-bottom: 0; padding-top: .6rem; padding-bottom: .6rem; vertical-align: middle; }
+
+        /* ── row colour code by report status ── */
+        .st-pending   { --st: #64748b; --st-bg: #f8fafc; --st-hover: #eef2f6; --st-bd: #cbd5e1; }
+        .st-draft     { --st: #b45309; --st-bg: #fffbeb; --st-hover: #fef3c7; --st-bd: #fcd34d; }
+        .st-entered   { --st: #1d4ed8; --st-bg: #eff6ff; --st-hover: #dbeafe; --st-bd: #93c5fd; }
+        /* Validated (purple) and Approved (green) are deliberately far apart in hue - the earlier
+           green/teal pairing here read as the same colour at badge size. */
+        .st-validated { --st: #6d28d9; --st-bg: #f5f3ff; --st-hover: #ede9fe; --st-bd: #c4b5fd; }
+        .st-approved  { --st: #15803d; --st-bg: #f0fdf4; --st-hover: #dcfce7; --st-bd: #86efac; }
+        .st-recollect { --st: #c2410c; --st-bg: #fff7ed; --st-hover: #ffedd5; --st-bd: #fdba74; }
+        .st-rejected  { --st: #b91c1c; --st-bg: #fef2f2; --st-hover: #fee2e2; --st-bd: #fca5a5; }
+
+        #tblReportingOrders tbody tr { --bs-table-bg: var(--st-bg, #fff); transition: background .12s ease; }
+        #tblReportingOrders tbody tr:hover > * { --bs-table-bg-state: var(--st-hover, #f8fafc); }
+        #tblReportingOrders tbody tr > td:first-child { box-shadow: inset 3px 0 0 var(--st, transparent); }
+        .st-badge { color: var(--st); background: var(--st-hover); border: 1px solid var(--st-bd); font-weight: 600; }
+
+        /* ── legend ── */
+        .lr-legend { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+        .lr-legend .lg-item {
+            display: inline-flex; align-items: center; gap: .32rem; font-size: .68rem; font-weight: 600; color: var(--lr-muted);
+            background: transparent; border: 1px solid transparent; border-radius: 999px; padding: .15rem .5rem;
+            cursor: pointer; user-select: none; transition: background .12s ease, border-color .12s ease, color .12s ease;
+        }
+        .lr-legend .lg-item:hover { background: var(--st-bg); border-color: var(--st-bd); color: var(--st); }
+        .lr-legend .lg-item:focus-visible { outline: 2px solid var(--st); outline-offset: 1px; }
+        .lr-legend .lg-item.active { background: var(--st-hover); border-color: var(--st-bd); color: var(--st); }
+        .lr-legend .lg-item.is-empty { opacity: .4; }
+        .lr-legend .lg-dot { width: 9px; height: 9px; border-radius: 3px; background: var(--st); border: 1px solid var(--st-bd); flex: 0 0 9px; }
+        .lr-legend .lg-count { font-weight: 700; opacity: .8; }
+        .lr-legend .lg-clear { color: #64748b; border-color: #e2e8f0; }
+        .lr-legend .lg-clear:hover { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
+        .lr-avatar {
+            width: 30px; height: 30px; border-radius: 50%; flex: 0 0 30px; display: flex; align-items: center; justify-content: center;
+            font-size: .68rem; font-weight: 700; color: #4338ca; background: #eef2ff; border: 1px solid #e0e7ff;
+        }
+        .lr-avatar.female { color: #be185d; background: #fce7f3; border-color: #fbcfe8; }
+        .lr-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .lr-count-chip { background: #eef2ff; color: #4338ca; border: 1px solid #e0e7ff; border-radius: 999px; padding: .12rem .55rem; font-size: .68rem; font-weight: 700; }
+        .btn-entry {
+            background: #4f46e5; border: 1px solid #4f46e5; color: #fff; font-weight: 600; border-radius: .45rem;
+            transition: background .12s ease, box-shadow .12s ease;
+        }
+        .btn-entry:hover { background: #4338ca; border-color: #4338ca; color: #fff; box-shadow: 0 .25rem .6rem rgba(79,70,229,.3); }
+        .btn-icon { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: .5rem; }
+    

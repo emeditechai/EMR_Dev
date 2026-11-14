@@ -1,0 +1,16 @@
+/* moved from Views/Certificates/Form.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .cf-card { border:0; border-radius:14px; box-shadow:0 1px 3px rgba(15,23,42,.08); }
+    .cf-step { width:26px; height:26px; border-radius:50%; display:inline-grid; place-items:center; font-weight:700; font-size:.8rem; background:#ccfbf1; color:#0f766e; flex-shrink:0; }
+    .cf-types { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:.5rem; }
+    .cf-type { border:1px solid #e5e7eb; border-radius:10px; padding:.55rem .7rem; cursor:pointer; font-size:.85rem; font-weight:600; display:flex; gap:.5rem; align-items:center; background:#fff; }
+    .cf-type:hover { border-color:#5eead4; }
+    .cf-type.on { border-color:#0f766e; background:#f0fdfa; color:#0f766e; }
+    .cf-pt { display:flex; gap:.9rem; align-items:center; }
+    .cf-pt img, .cf-pt .ph { width:54px; height:54px; border-radius:12px; object-fit:cover; background:#f1f5f9; display:grid; place-items:center; color:#94a3b8; font-size:1.5rem; }
+    .cf-suggest { position:absolute; z-index:30; left:0; right:0; top:100%; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 8px 24px rgba(15,23,42,.12); max-height:320px; overflow:auto; }
+    .cf-suggest button { display:block; width:100%; text-align:left; border:0; background:none; padding:.5rem .75rem; font-size:.875rem; }
+    .cf-suggest button:hover { background:#f0fdfa; }
+    .cf-section[hidden] { display:none !important; }
+    .cf-dose td { padding:.25rem; }
+    .cf-dose input, .cf-dose select { font-size:.82rem; }
+    .cf-label { font-size:.78rem; font-weight:600; color:#475569; margin-bottom:.2rem; }

@@ -21,33 +21,7 @@
     var chips = new[] { ("instock", "In stock", "bi-box-seam"), ("near", "Expiring ≤ 90 days", "bi-hourglass-split"), ("expired", "Expired", "bi-x-octagon"), ("zero", "Zero stock", "bi-dash-circle"), ("all", "All batches", "bi-list-ul") };
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
-<style>
-    .se-tile { display:block; text-decoration:none; color:inherit; background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:.7rem .9rem;
-               border-left:4px solid var(--c,#6f42c1); height:100%; transition:box-shadow .15s, transform .15s; }
-    a.se-tile:hover { box-shadow:0 4px 14px rgba(15,23,42,.08); transform:translateY(-1px); color:inherit; }
-    .se-tile.active { box-shadow:0 0 0 2px var(--c,#6f42c1) inset; }
-    .se-tile .l { font-size:.66rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#64748b; }
-    .se-tile .v { font-size:1.25rem; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.25; }
-    .se-tile .s { font-size:.72rem; color:#64748b; }
-    .se-chip { border:1px solid #cbd5e1; border-radius:999px; padding:.25rem .8rem; font-size:.8rem; color:#334155; background:#fff; text-decoration:none; white-space:nowrap; }
-    .se-chip:hover { border-color:#6f42c1; color:#6f42c1; }
-    .se-chip.active { background:#6f42c1; border-color:#6f42c1; color:#fff; }
-    .se-table thead th { position:sticky; top:0; z-index:2; background:#f8fafc; font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; white-space:nowrap; cursor:pointer; user-select:none; }
-    .se-table thead th[data-sort]:hover { color:#6f42c1; }
-    .se-table thead th .bi { font-size:.65rem; }
-    .se-table td { vertical-align:middle; font-size:.84rem; }
-    .se-table td.num, .se-table th.num { text-align:right; font-variant-numeric:tabular-nums; }
-    .se-table tbody tr.se-row { cursor:pointer; }
-    .se-table tbody tr.se-row:hover td { background:#f5f3ff; }
-    .se-table tbody tr.exp td:first-child { box-shadow:inset 3px 0 0 #dc2626; }
-    .se-table tbody tr.nr td:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
-    .se-gen { font-size:.74rem; color:#64748b; max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .se-exp { font-size:.72rem; border-radius:999px; padding:.1rem .5rem; white-space:nowrap; }
-    .se-wrap { max-height:calc(100vh - 360px); min-height:300px; overflow:auto; }
-    tr.grp td { background:#f8fafc; font-weight:600; }
-    tr.grp .tg { width:22px; display:inline-block; color:#6f42c1; }
-    #ledgerPanel { width:min(760px, 100vw); }
-</style>
+<link rel="stylesheet" href="~/css/views/PharmacyInventory/Stock.css" asp-append-version="true" />
 <partial name="_PharmacyMasterHeader" model="@(new PhHeader("Stock Enquiry", "bi-search", "Batch-wise stock of this branch with value at landed cost and at MRP. Click a row for its movement history (stock ledger).", null, null, Stats: stats, Section: "Pharmacy", Group: "Inventory"))" />
 
 @* summary - each tile filters the list *@

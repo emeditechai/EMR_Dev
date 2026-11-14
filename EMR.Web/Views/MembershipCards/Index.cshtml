@@ -125,23 +125,5 @@
 </div>
 
 @section Scripts {
-    <script>
-        $(document).ready(function () {
-            if ($('#membershipCardTable tbody tr td').length > 1) {
-                $('#membershipCardTable').DataTable({
-                    "pageLength": 25,
-                    "order": [],
-                    "info": true,
-                    "searching": false, // Handled by the filter row
-                    "lengthChange": true,
-                    "language": {
-                        "paginate": {
-                            "previous": "<i class='bi bi-chevron-left'></i>",
-                            "next": "<i class='bi bi-chevron-right'></i>"
-                        }
-                    }
-                });
-            }
-        });
-    </script>
+    <script src="~/js/views/MembershipCards/Index.js" asp-append-version="true"></script>
 }
