@@ -999,7 +999,8 @@ body {
 .emr-main-menu .dropdown-menu.emr-menu-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
 .emr-main-menu .dropdown-menu.emr-menu-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 /* a flyout of a scrolling menu is placed on the page (fixed), so the scroll box does not cut it off */
-.dropdown-submenu-menu.is-fixed { position: fixed; margin: 0; }
+/* (more specific than Bootstrap's .navbar-expand-xl .navbar-nav .dropdown-menu { position: absolute }, which kept it clipped) */
+.navbar .emr-main-menu .dropdown-menu .dropdown-menu.dropdown-submenu-menu.is-fixed { position: fixed; margin: 0; }
 
 .dropdown-submenu-toggle {
   display: flex;
