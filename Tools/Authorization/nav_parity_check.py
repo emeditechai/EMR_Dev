@@ -10,7 +10,9 @@ src = src.replace("__file__", repr(os.path.join(HERE, "gen_nav_seed.py")))
 ns = {}; exec(src, ns)
 markup = ns["p"].top
 
-cs = dict(kv.split("=", 1) for kv in json.load(open(os.path.join(ROOT, "EMR.Web", "appsettings.json")))["ConnectionStrings"]["DefaultConnection"].split(";") if "=" in kv)
+sys.path.insert(0, os.path.join(ROOT, "Tools"))
+from conn_string import default_connection
+cs = dict(kv.split("=", 1) for kv in default_connection().split(";") if "=" in kv)
 def q(sql):
     out = subprocess.run(["sqlcmd","-S",cs["Server"],"-U",cs["User Id"],"-P",cs["Password"],"-C","-d",cs["Database"],"-h","-1","-W","-s","\t","-Q","SET NOCOUNT ON;"+sql],capture_output=True,text=True).stdout
     return [l.split("\t") for l in out.strip().splitlines() if l.strip()]

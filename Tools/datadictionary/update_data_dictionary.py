@@ -39,8 +39,9 @@ import dd_config as cfg  # noqa: E402
 def connection_settings():
     cs = os.environ.get("EMR_DD_CONNECTION")
     if not cs:
-        with open(os.path.join(ROOT, "EMR.Web", "appsettings.json"), encoding="utf-8-sig") as f:
-            cs = json.load(f)["ConnectionStrings"]["DefaultConnection"]
+        sys.path.insert(0, os.path.join(ROOT, "Tools"))
+        from conn_string import default_connection
+        cs = default_connection()
     parts = {}
     for kv in cs.split(";"):
         if "=" in kv:

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
 
 namespace EMR.Shared.Security;
 
@@ -59,8 +60,18 @@ public static class ConnectionStringCrypto
     public static bool IsEncrypted(string? value) =>
         value?.StartsWith(Prefix, StringComparison.Ordinal) == true;
 
-    /// <summary>Replaces every ENC: value under ConnectionStrings with its plain text, so all readers get a usable string.</summary>
+    /// <summary>
+    /// Replaces every ENC: value under ConnectionStrings with its plain text, so all readers get a usable string.
+    /// Runs again whenever appsettings.json reloads (it is edited while the site runs), which puts the ENC: text back.
+    /// </summary>
     public static void DecryptConnectionStrings(this IConfiguration configuration)
+    {
+        DecryptAll(configuration, throwOnError: true);
+        // an exception here would surface on the file watcher thread and stop the process; a bad value fails at the next start instead
+        ChangeToken.OnChange(configuration.GetReloadToken, () => DecryptAll(configuration, throwOnError: false));
+    }
+
+    private static void DecryptAll(IConfiguration configuration, bool throwOnError)
     {
         foreach (var entry in configuration.GetSection("ConnectionStrings").GetChildren())
         {
@@ -71,6 +82,7 @@ public static class ConnectionStringCrypto
             }
             catch (Exception ex) when (ex is CryptographicException or FormatException or ArgumentException)
             {
+                if (!throwOnError) continue;
                 throw new InvalidOperationException(
                     $"ConnectionStrings:{entry.Key} could not be decrypted. Re-create it with the ConnStringEncryptor tool.", ex);
             }
