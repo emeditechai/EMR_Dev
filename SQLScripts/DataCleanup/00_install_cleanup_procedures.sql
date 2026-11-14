@@ -534,7 +534,8 @@ GO
 -- Semi-master: Doctor Master - only doctors no remaining transaction refers to
 -- ============================================================================
 CREATE OR ALTER PROCEDURE cleanup.usp_ClearDoctors
-    @CompanyId INT = NULL
+    @CompanyId INT = NULL,
+    @BranchId  INT = NULL        -- 2026-11-14: one branch - its doctor set-up goes; doctors left with no other branch go too
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -542,7 +543,37 @@ BEGIN
     DECLARE @n INT, @A NVARCHAR(40) = N'Doctors';
 
     CREATE TABLE #D (DoctorId INT PRIMARY KEY);
-    INSERT INTO #D SELECT d.DoctorId FROM dbo.DoctorMaster d WHERE @CompanyId IS NULL OR d.CompanyId = @CompanyId;
+    IF @BranchId IS NOT NULL
+    BEGIN
+        -- the branch's own doctor set-up
+        DELETE FROM dbo.DoctorScheduleException WHERE BranchId = @BranchId;                         SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorScheduleException', 'DELETE', @n, 'schedule exceptions of the branch';
+        DELETE FROM dbo.DoctorScheduleMaster WHERE BranchId = @BranchId;                            SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorScheduleMaster', 'DELETE', @n, 'schedules of the branch';
+        DELETE FROM dbo.DoctorRoomMapping WHERE RoomId IN (SELECT r.RoomId FROM dbo.DoctorRoomMaster r WHERE r.BranchId = @BranchId);
+                                                                                                    SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorRoomMapping', 'DELETE', @n, 'doctors in the branch''s rooms';
+        DELETE FROM dbo.DoctorConsultingFeeMap WHERE BranchId = @BranchId;                          SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorConsultingFeeMap', 'DELETE', @n, 'consulting fees of the branch';
+        DELETE FROM dbo.Doctor_IP_Commission_Dtl WHERE Commission_Hdr_ID IN (SELECT h.Commission_Hdr_ID FROM dbo.Doctor_IP_Commission_Hdr h
+                 WHERE h.Branch_ID = @BranchId OR h.Doctor_IP_Hdr_ID IN (SELECT i.Doctor_IP_Hdr_ID FROM dbo.Doctor_IP_Hdr i WHERE i.Branch_ID = @BranchId));
+        DELETE FROM dbo.Doctor_IP_Commission_Hdr WHERE Branch_ID = @BranchId
+            OR Doctor_IP_Hdr_ID IN (SELECT i.Doctor_IP_Hdr_ID FROM dbo.Doctor_IP_Hdr i WHERE i.Branch_ID = @BranchId);
+        DELETE FROM dbo.Doctor_IP_Commission_RunLog WHERE Branch_ID = @BranchId;
+        DELETE FROM dbo.Doctor_IP_Dtl WHERE Doctor_IP_Hdr_ID IN (SELECT i.Doctor_IP_Hdr_ID FROM dbo.Doctor_IP_Hdr i WHERE i.Branch_ID = @BranchId);
+        DELETE FROM dbo.Doctor_IP_Hdr WHERE Branch_ID = @BranchId;                                  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'Doctor_IP_Hdr', 'DELETE', @n, 'Doctor IP of the branch (with lines and commission)';
+        DELETE FROM dbo.DoctorCommissionConfig WHERE BranchId = @BranchId;                          SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorCommissionConfig', 'DELETE', @n, 'commission rules of the branch';
+        DELETE FROM dbo.DoctorVisitProcessConfig WHERE BranchId = @BranchId;                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorVisitProcessConfig', 'DELETE', @n, 'visit process rules of the branch';
+        DELETE FROM dbo.IpdDoctorVisitFee WHERE BranchId = @BranchId;                               SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdDoctorVisitFee', 'DELETE', @n, 'IPD visit fees of the branch';
+        DELETE FROM dbo.DoctorBranchMap WHERE BranchId = @BranchId;                                 SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'DoctorBranchMap', 'DELETE', @n, 'doctors'' links to the branch';
+        -- doctors of the branch that no other branch uses any more
+        INSERT INTO #D SELECT d.DoctorId FROM dbo.DoctorMaster d
+        WHERE (@CompanyId IS NULL OR d.CompanyId = @CompanyId)
+          AND d.CreatedBranchId = @BranchId
+          AND NOT EXISTS (SELECT 1 FROM dbo.DoctorBranchMap m WHERE m.DoctorId = d.DoctorId);
+        SELECT @n = COUNT(1) FROM dbo.DoctorMaster d
+        WHERE (@CompanyId IS NULL OR d.CompanyId = @CompanyId) AND d.CreatedBranchId = @BranchId
+          AND EXISTS (SELECT 1 FROM dbo.DoctorBranchMap m WHERE m.DoctorId = d.DoctorId);
+        IF @n > 0 EXEC cleanup.usp_Report @A, 'DoctorMaster', 'KEPT', @n, 'created at this branch but still linked to other branches (only this branch''s set-up removed)';
+    END
+    ELSE
+        INSERT INTO #D SELECT d.DoctorId FROM dbo.DoctorMaster d WHERE @CompanyId IS NULL OR d.CompanyId = @CompanyId;
 
     CREATE TABLE #Keep (DoctorId INT PRIMARY KEY);
     INSERT INTO #Keep SELECT d.DoctorId FROM #D d
@@ -591,7 +622,8 @@ GO
 -- Semi-master: Lab Franchise Master - only franchises with no bill or invoice left
 -- ============================================================================
 CREATE OR ALTER PROCEDURE cleanup.usp_ClearFranchises
-    @CompanyId INT = NULL
+    @CompanyId INT = NULL,
+    @BranchId  INT = NULL        -- 2026-11-14: only the franchises whose parent branch is this one
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -599,7 +631,7 @@ BEGIN
     DECLARE @n INT, @A NVARCHAR(40) = N'Franchises';
 
     CREATE TABLE #F (Franchise_ID INT PRIMARY KEY);
-    INSERT INTO #F SELECT f.Franchise_ID FROM dbo.LabFranchiseMaster f WHERE @CompanyId IS NULL OR f.CompanyId = @CompanyId;
+    INSERT INTO #F SELECT f.Franchise_ID FROM dbo.LabFranchiseMaster f WHERE (@CompanyId IS NULL OR f.CompanyId = @CompanyId) AND (@BranchId IS NULL OR f.Parent_Branch_ID = @BranchId);
 
     CREATE TABLE #Keep (Franchise_ID INT PRIMARY KEY);
     INSERT INTO #Keep SELECT f.Franchise_ID FROM #F f

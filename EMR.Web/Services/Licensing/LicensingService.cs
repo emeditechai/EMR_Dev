@@ -378,7 +378,7 @@ public sealed class LicensingService(
         if (!_o.Enabled) return (false, "Licensing is not enabled on this server.");
         var gate = await EvaluateAccessAsync(http, force: true);
         if (gate.Status != LicenseGateStatus.Unregistered) return (false, "This server already has a licence: registration is not needed.");
-        if (gate.MovedClientCode != null) return (false, $"This server already holds licence {gate.MovedClientCode} for {gate.MovedAppUrl}. Contact the vendor.");
+        // another licence on this server under a different app URL does not block: each app URL is its own licence
 
         r.ClientName = (r.ClientName ?? string.Empty).Trim();
         r.ContactNumber = new string((r.ContactNumber ?? string.Empty).Where(char.IsDigit).ToArray());
