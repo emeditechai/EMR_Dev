@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Dapper;
 using EMR.Web.Data;
 using FluentFTP;
+using FluentFTP.Exceptions;
 using Microsoft.AspNetCore.DataProtection;
 
 namespace EMR.Web.Services;
@@ -118,46 +119,71 @@ public class LabFtpService(IDbConnectionFactory db, IDataProtectionProvider prot
     {
         var dir = string.Join("/", new[] { Root(s) }.Concat(folders.Select(SafeName)).Where(p => !string.IsNullOrEmpty(p)));
         var path = (string.IsNullOrEmpty(dir) ? "" : dir + "/") + SafeName(fileName);
-        await using var client = Create(s, null);
-        await client.Connect(ct);
-        if (!string.IsNullOrEmpty(dir) && !await client.DirectoryExists(dir, ct))
-            await client.CreateDirectory(dir, true, ct);
-        var status = await client.UploadStream(content, path, FtpRemoteExists.Overwrite, true, null, ct);
-        await client.Disconnect(ct);
-        if (status != FtpStatus.Success)
-            throw new InvalidOperationException("The FTP server did not accept the file.");
-        return path;
+        var start = content.CanSeek ? content.Position : 0;
+        return await RunAsync(s, async client =>
+        {
+            if (content.CanSeek) content.Position = start;
+            if (!string.IsNullOrEmpty(dir) && !await client.DirectoryExists(dir, ct))
+                await client.CreateDirectory(dir, true, ct);
+            var status = await client.UploadStream(content, path, FtpRemoteExists.Overwrite, true, null, ct);
+            if (status != FtpStatus.Success)
+                throw new InvalidOperationException("The FTP server did not accept the file.");
+            return path;
+        }, () => content.CanSeek, ct);
     }
 
-    public async Task<byte[]?> DownloadAsync(LabFtpSettings s, string path, CancellationToken ct)
-    {
-        await using var client = Create(s, null);
-        await client.Connect(ct);
-        try
+    public Task<byte[]?> DownloadAsync(LabFtpSettings s, string path, CancellationToken ct) =>
+        RunAsync<byte[]?>(s, async client =>
         {
             if (!await client.FileExists(path, ct)) return null;
             return await client.DownloadBytes(path, ct);
-        }
-        finally { await client.Disconnect(ct); }
-    }
+        }, () => true, ct);
 
-    public async Task<bool> CopyToAsync(LabFtpSettings s, string path, Stream target, Func<long, Task> onStart, CancellationToken ct)
+    public Task<bool> CopyToAsync(LabFtpSettings s, string path, Stream target, Func<long, Task> onStart, CancellationToken ct)
     {
-        await using var client = Create(s, null);
-        await client.Connect(ct);
-        try
+        var started = false;
+        return RunAsync(s, async client =>
         {
             if (!await client.FileExists(path, ct)) return false;
             var size = await client.GetFileSize(path, -1, ct);
             await using (var src = await client.OpenRead(path, FtpDataType.Binary, 0, size, ct))
             {
+                started = true;
                 await onStart(size);
                 await src.CopyToAsync(target, 81920, ct);
             }
             await client.GetReply(ct);
             return true;
+        }, () => !started, ct);
+    }
+
+    /// <summary>
+    /// Runs an FTP job on a fresh connection. In passive mode it uses EPSV first: some servers answer even a
+    /// PASV request in the extended form "229 ... (|||port|)", which the PASV parser rejects. If EPSV does not
+    /// work (an older server without it), the job is run again once with plain PASV, as long as nothing has been
+    /// sent to the caller yet (canRetry).
+    /// </summary>
+    private async Task<T> RunAsync<T>(LabFtpSettings s, Func<AsyncFtpClient, Task<T>> job, Func<bool> canRetry, CancellationToken ct)
+    {
+        var modes = s.UsePassive
+            ? new[] { FtpDataConnectionType.EPSV, FtpDataConnectionType.PASV }
+            : new[] { FtpDataConnectionType.AutoActive };
+        for (var i = 0; ; i++)
+        {
+            await using var client = Create(s, null);
+            client.Config.DataConnectionType = modes[i];
+            try
+            {
+                await client.Connect(ct);
+                var result = await job(client);
+                await client.Disconnect(ct);
+                return result;
+            }
+            catch (Exception ex) when ((ex is FtpException or IOException or TimeoutException) && i < modes.Length - 1 && canRetry() && !ct.IsCancellationRequested)
+            {
+                logger.LogInformation(ex, "FTP {Mode} to {Host} failed; trying {Next}", modes[i], s.Host, modes[i + 1]);
+            }
         }
-        finally { await client.Disconnect(ct); }
     }
 
     public string ProtectPassword(string password) => protector.Protect(password);
