@@ -15,10 +15,12 @@ public interface IMarketingService
     Task<object> BranchesAsync(MarketingCaller c);
     Task<object> SpecialitiesAsync(MarketingCaller c);
     Task<object?> SummaryAsync(MarketingCaller c);
+    Task<object> MyTargetAsync(MarketingCaller c, DateTime? fyStart);
     Task<object> LeadsAsync(MarketingCaller c, string? stage, string? search);
     Task<object> LeadAsync(MarketingCaller c, int id);
     Task<int> SaveLeadAsync(MarketingCaller c, int? id, MarketingLeadRequest r);
-    Task SetPinAsync(MarketingCaller c, int id, MarketingPinRequest r);
+    Task<object?> SetPinAsync(MarketingCaller c, int id, MarketingPinRequest r);
+    Task<GeoPoint?> GeocodeAsync(string? address);
     Task<string> SetStageAsync(MarketingCaller c, int id, MarketingStageRequest r);
     Task<object?> PromoteAsync(MarketingCaller c, int id, MarketingPromoteRequest r);
     Task<object?> CreateVisitAsync(MarketingCaller c, int id, MarketingVisitRequest r);
@@ -27,7 +29,7 @@ public interface IMarketingService
 }
 
 /// <summary>Marketing executive app (SQLScripts/2446). The rules live in the usp_Mkt_* procedures.</summary>
-public sealed class MarketingService(IDbConnectionFactory db) : IMarketingService
+public sealed class MarketingService(IDbConnectionFactory db, IGeocodingService geocoder) : IMarketingService
 {
     private const CommandType Sp = CommandType.StoredProcedure;
 
@@ -75,6 +77,16 @@ public sealed class MarketingService(IDbConnectionFactory db) : IMarketingServic
         return Camel(await con.QueryFirstOrDefaultAsync("dbo.usp_Mkt_Summary", new { c.UserId, c.CompanyId, c.BranchId }, commandType: Sp));
     }
 
+    // the own sales and doctor-visit target set on the web (LAB > Marketing Executive Sales Target), with the actuals (SQLScripts/2458)
+    public async Task<object> MyTargetAsync(MarketingCaller c, DateTime? fyStart)
+    {
+        using var con = db.CreateConnection();
+        using var grid = await con.QueryMultipleAsync("dbo.usp_Mkt_MyTarget", new { c.UserId, c.CompanyId, c.BranchId, FyStart = fyStart?.Date }, commandType: Sp);
+        var header = Camel(await grid.ReadFirstOrDefaultAsync());
+        var periods = Camel(await grid.ReadAsync());
+        return new { header, periods };
+    }
+
     public async Task<object> LeadsAsync(MarketingCaller c, string? stage, string? search)
     {
         using var con = db.CreateConnection();
@@ -93,20 +105,40 @@ public sealed class MarketingService(IDbConnectionFactory db) : IMarketingServic
 
     public async Task<int> SaveLeadAsync(MarketingCaller c, int? id, MarketingLeadRequest r)
     {
+        // 2459: the address is looked up on the map on every save; the procedure compares it with a GPS pin, or makes it the
+        // pin when the executive is not at the clinic
+        var geo = await geocoder.GeocodeAsync(r.Address);
+        var source = id is null ? r.PinSource?.Trim().ToUpperInvariant() : null;
+        var phoneOnly = source == "ADDRESS";
         using var con = db.CreateConnection();
         return await con.QuerySingleAsync<int>("dbo.usp_Mkt_Lead_Save",
             new { c.UserId, c.CompanyId, c.BranchId, ForecastDoctorId = id, r.NamePrefix, r.FullName, r.PhoneNumber, r.PrimarySpecialityId,
                   r.ClinicName, r.Address, r.ExpectedMonthlyReferrals, NextFollowUpDate = r.NextFollowUpDate?.Date, r.Remarks,
-                  Latitude = id is null ? r.Latitude : null, Longitude = id is null ? r.Longitude : null },
+                  Latitude = id is null && !phoneOnly ? r.Latitude : null, Longitude = id is null && !phoneOnly ? r.Longitude : null,
+                  PinSource = source, r.AccuracyM, r.IsMock,
+                  PhoneLatitude = phoneOnly ? r.Latitude : null, PhoneLongitude = phoneOnly ? r.Longitude : null,
+                  GeoLat = geo?.Latitude, GeoLng = geo?.Longitude, GeoAddress = geo?.FormattedAddress, GeoSource = geo?.Source },
             commandType: Sp);
     }
 
-    public async Task SetPinAsync(MarketingCaller c, int id, MarketingPinRequest r)
+    public async Task<object?> SetPinAsync(MarketingCaller c, int id, MarketingPinRequest r)
     {
+        var source = string.IsNullOrWhiteSpace(r.PinSource) ? "GPS" : r.PinSource.Trim().ToUpperInvariant();
         using var con = db.CreateConnection();
-        await con.ExecuteAsync("dbo.usp_Mkt_Lead_SetPin",
-            new { c.UserId, c.CompanyId, ForecastDoctorId = id, r.Latitude, r.Longitude, r.AccuracyM, r.IsMock }, commandType: Sp);
+        // the doctor's saved address (the procedure checks that the doctor is the executive's own)
+        var address = await con.QueryFirstOrDefaultAsync<string?>(
+            "SELECT Address FROM dbo.ForecastDoctor WHERE ForecastDoctorId = @id AND CompanyId = @CompanyId", new { id, c.CompanyId });
+        var geo = await geocoder.GeocodeAsync(address);
+        var phoneOnly = source == "ADDRESS";
+        return Camel(await con.QueryFirstOrDefaultAsync("dbo.usp_Mkt_Lead_SetPin",
+            new { c.UserId, c.CompanyId, ForecastDoctorId = id,
+                  Latitude = phoneOnly ? null : r.Latitude, Longitude = phoneOnly ? null : r.Longitude, r.AccuracyM, r.IsMock,
+                  PinSource = source, PhoneLatitude = phoneOnly ? r.Latitude : null, PhoneLongitude = phoneOnly ? r.Longitude : null,
+                  GeoLat = geo?.Latitude, GeoLng = geo?.Longitude, GeoAddress = geo?.FormattedAddress, GeoSource = geo?.Source },
+            commandType: Sp));
     }
+
+    public Task<GeoPoint?> GeocodeAsync(string? address) => geocoder.GeocodeAsync(address);
 
     public async Task<string> SetStageAsync(MarketingCaller c, int id, MarketingStageRequest r)
     {

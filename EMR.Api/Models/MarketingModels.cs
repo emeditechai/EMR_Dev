@@ -14,13 +14,21 @@ public sealed class MarketingLeadRequest
     public int ExpectedMonthlyReferrals { get; set; }
     public DateTime? NextFollowUpDate { get; set; }
     public string? Remarks { get; set; }
-    /// <summary>On add only: the clinic pin when the executive is at the clinic.</summary>
+    /// <summary>On add only: the clinic pin when the executive is at the clinic (PinSource GPS).</summary>
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
+    /// <summary>On add only (2459): GPS = at the clinic, the phone's position is the pin; ADDRESS = not at the clinic, the pin is
+    /// where the address is found on the map (Latitude/Longitude are then the phone's own position, kept for the office).</summary>
+    public string? PinSource { get; set; }
+    public decimal? AccuracyM { get; set; }
+    public bool IsMock { get; set; }
 }
 
 public sealed class MarketingPinRequest
 {
+    /// <summary>2459: GPS (default; also replaces an address pin) or ADDRESS (the pin from the doctor's saved address; the
+    /// Latitude/Longitude sent are then the phone's own position).</summary>
+    public string? PinSource { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public decimal? AccuracyM { get; set; }

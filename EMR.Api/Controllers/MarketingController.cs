@@ -48,6 +48,10 @@ public sealed class MarketingController(IMarketingService marketing, ILogger<Mar
     [HttpGet("summary")]
     public Task<IActionResult> Summary() => Run(async c => Ok(new { success = true, summary = await marketing.SummaryAsync(c) }));
 
+    /// <summary>My Target: the own target set on the web for this branch and a financial year (the current one by default). Read only.</summary>
+    [HttpGet("my-target")]
+    public Task<IActionResult> MyTarget([FromQuery] DateTime? fyStart) => Run(async c => Ok(new { success = true, target = await marketing.MyTargetAsync(c, fyStart) }));
+
     // ── leads (forecast doctors) ─────────────────────────────────────────
     [HttpGet("leads")]
     public Task<IActionResult> Leads([FromQuery] string? stage, [FromQuery] string? search) => Run(async c =>
@@ -67,9 +71,16 @@ public sealed class MarketingController(IMarketingService marketing, ILogger<Mar
     [HttpPost("leads/{id:int}/pin")]
     public Task<IActionResult> SetPin(int id, [FromBody] MarketingPinRequest request) => Run(async c =>
     {
-        await marketing.SetPinAsync(c, id, request);
-        return Ok(new { success = true, message = "Clinic location saved." });
+        var pin = await marketing.SetPinAsync(c, id, request);
+        return Ok(new { success = true, message = "Clinic location saved.", pin });
     });
+
+    /// <summary>Where an address is on the map (2459): the app shows it before an address pin is saved. Nothing is saved.</summary>
+    [HttpGet("geocode")]
+    public Task<IActionResult> Geocode([FromQuery] string? address) => Run(async c =>
+        await marketing.GeocodeAsync(address) is { } p
+            ? Ok(new { success = true, point = new { latitude = p.Latitude, longitude = p.Longitude, formattedAddress = p.FormattedAddress, source = p.Source } })
+            : Refuse("The address could not be found on the map. Add the area, city and pin code, or save the location when you are at the clinic.", "NOT_FOUND"));
 
     [HttpPost("leads/{id:int}/stage")]
     public Task<IActionResult> SetStage(int id, [FromBody] MarketingStageRequest request) => Run(async c =>
