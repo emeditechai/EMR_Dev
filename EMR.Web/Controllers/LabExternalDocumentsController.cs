@@ -21,7 +21,7 @@ public class LabExternalDocumentsController(
     ILogger<LabExternalDocumentsController> logger) : Controller
 {
     private const long MaxBytes = 20 * 1024 * 1024;
-    private static readonly string[] Allowed = [".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"];
+    private static readonly string[] Allowed = [".pdf", ".jpg", ".jpeg", ".png"];
 
     [HttpGet]
     public async Task<IActionResult> Index()
@@ -63,6 +63,41 @@ public class LabExternalDocumentsController(
             : Json(new { success = true, booking, tests });
     }
 
+    /// <summary>Opens the current document of a test in the browser, read from the FTP server. Own branch only.</summary>
+    [HttpGet]
+    public async Task<IActionResult> ViewDocument(int id)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return RedirectToAction("SelectBranch", "Account");
+        using var con = db.CreateConnection();
+        var doc = await con.QueryFirstOrDefaultAsync<(string FileName, string FilePath)?>(
+            @"SELECT FileName, FilePath FROM dbo.LabExternalDocument
+               WHERE DocumentId = @id AND BranchId = @branchId AND IsActive = 1", new { id, branchId });
+        if (doc is null) return NotFound("The document was not found, or it has been replaced. Reload the booking.");
+        var settings = await ftp.GetForBranchAsync(User.GetCompanyId(), branchId.Value);
+        if (settings is null || string.IsNullOrEmpty(settings.PasswordEnc))
+            return Content("FTP is not set up. Enter the FTP credentials in Hospital Settings > Lab.");
+        byte[]? bytes;
+        try { bytes = await ftp.DownloadAsync(settings, doc.Value.FilePath, HttpContext.RequestAborted); }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "External document {Id} could not be read from the FTP server", id);
+            return Content("The document could not be read from the FTP server: " + ex.Message);
+        }
+        if (bytes is null) return NotFound("The file is no longer on the FTP server.");
+        var type = Path.GetExtension(doc.Value.FileName).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            _ => "application/octet-stream"
+        };
+        // inline for PDF and images; older DOC/DOCX uploads download instead
+        Response.Headers.ContentDisposition = (type == "application/octet-stream" ? "attachment" : "inline") + "; filename=\"" + doc.Value.FileName + "\"";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(bytes, type);
+    }
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(MaxBytes + 1024 * 1024)]
@@ -73,7 +108,7 @@ public class LabExternalDocumentsController(
         if (file is null || file.Length == 0) return Fail("Choose the file to upload.");
         if (file.Length > MaxBytes) return Fail("The file is larger than 20 MB.");
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (!Allowed.Contains(ext)) return Fail("Upload a PDF, JPG, PNG, DOC or DOCX file.");
+        if (!Allowed.Contains(ext)) return Fail("Upload a PDF, JPG or PNG file.");
         if (!await LooksLikeAsync(file, ext)) return Fail($"The file content is not a valid {ext.TrimStart('.').ToUpperInvariant()} file.");
 
         var companyId = User.GetCompanyId();
@@ -124,7 +159,7 @@ public class LabExternalDocumentsController(
         return Json(new { success = true, message = "Uploaded.", path, fileName });
     }
 
-    /// <summary>The file's first bytes match its extension (PDF, JPEG, PNG, DOC, DOCX).</summary>
+    /// <summary>The file's first bytes match its extension (PDF, JPEG, PNG).</summary>
     private static async Task<bool> LooksLikeAsync(IFormFile file, string ext)
     {
         var h = new byte[8];
@@ -136,8 +171,6 @@ public class LabExternalDocumentsController(
             ".pdf" => h[0] == 0x25 && h[1] == 0x50 && h[2] == 0x44 && h[3] == 0x46,                        // %PDF
             ".png" => h[0] == 0x89 && h[1] == 0x50 && h[2] == 0x4E && h[3] == 0x47,
             ".jpg" or ".jpeg" => h[0] == 0xFF && h[1] == 0xD8 && h[2] == 0xFF,
-            ".docx" => h[0] == 0x50 && h[1] == 0x4B,                                                     // zip
-            ".doc" => h[0] == 0xD0 && h[1] == 0xCF && h[2] == 0x11 && h[3] == 0xE0,                      // OLE
             _ => false
         };
     }

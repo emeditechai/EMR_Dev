@@ -79,7 +79,7 @@
                     <tbody id="xdTests"></tbody>
                 </table>
             </div>
-            <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>PDF, JPG, PNG, DOC or DOCX up to 20 MB. The file is renamed to BranchCode_BookingNo_TestCode; uploading again replaces the current document.</div>
+            <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>PDF, JPG or PNG up to 20 MB. The file is renamed to BranchCode_BookingNo_TestCode; uploading again replaces the current document.</div>
         </div>
     </div>
 </div>
@@ -134,7 +134,7 @@
                     <div class="small text-muted">${esc(t.Test_Code)}${t.ViaName ? ' · in ' + esc(t.ViaName) : ''}</div></td>
                 <td class="xd-current">${current(t)}</td>
                 <td><div class="input-group input-group-sm">
-                        <input type="file" class="form-control xd-file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                        <input type="file" class="form-control xd-file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
                         <button type="button" class="btn ${t.DocumentId ? 'btn-outline-primary' : 'btn-primary'} xd-up">
                             <i class="bi bi-cloud-arrow-up me-1"></i>${t.DocumentId ? 'Replace' : 'Upload'}</button>
                     </div></td>
@@ -146,7 +146,8 @@
         if (!t.DocumentId) return '<span class="badge bg-warning-subtle text-warning-emphasis">Not uploaded</span>';
         return `<div class="xd-done fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>${esc(t.FileName)}</div>
                 <div class="small text-muted">${esc(t.OriginalFileName)} · ${size(t.FileSizeBytes)} · ${esc(t.UpdatedByName)} · ${dt(t.UpdatedDate)}${t.UploadCount > 1 ? ' · uploaded ' + t.UploadCount + ' times' : ''}</div>
-                <div class="xd-path">${esc(t.FilePath)}</div>`;
+                <div class="xd-path">${esc(t.FilePath)}</div>
+                <a class="btn btn-sm btn-outline-success mt-1" target="_blank" rel="noopener" href="@Url.Action("ViewDocument")?id=${t.DocumentId}"><i class="bi bi-eye me-1"></i>View</a>`;
     }
 
     xdTests.addEventListener('click', async e => {
@@ -154,6 +155,7 @@
         const tr = btn.closest('tr'); const input = tr.querySelector('.xd-file');
         if (!input.files.length) { Swal.fire({ icon: 'warning', text: 'Choose the file to upload.' }); return; }
         const f = input.files[0];
+        if (!/\.(pdf|jpe?g|png)$/i.test(f.name)) { input.value = ''; Swal.fire({ icon: 'warning', text: 'Only PDF, JPG or PNG files can be uploaded.' }); return; }
         if (f.size > 20 * 1024 * 1024) { Swal.fire({ icon: 'warning', text: 'The file is larger than 20 MB.' }); return; }
         const body = new FormData();
         body.append('labOrderId', sel.value); body.append('testId', tr.dataset.test); body.append('file', f);
