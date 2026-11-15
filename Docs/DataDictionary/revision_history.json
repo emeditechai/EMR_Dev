@@ -276,5 +276,14 @@
   ],
   "date": "13 Nov 2026",
   "version": "1.20"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "Users: new column(s) Is_Verified, Verified_Date",
+   "MS_Description changed on Users"
+  ],
+  "date": "15 Nov 2026",
+  "version": "1.21"
  }
 ]

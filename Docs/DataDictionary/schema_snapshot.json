@@ -57747,6 +57747,32 @@
    "type": "bit"
   },
   {
+   "col": "Is_Verified",
+   "def": "((1))",
+   "descr": "0 = the login has not been verified by one-time code yet and cannot sign in (a marketing executive before the first sign-in in the app); 1 = verified. Set to 1 when the code is confirmed and the password is set.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 54,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "Users",
+   "type": "bit"
+  },
+  {
+   "col": "Verified_Date",
+   "def": null,
+   "descr": "When the login was verified by one-time code (first sign-in). Empty for logins that never needed it.",
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 55,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "Users",
+   "type": "datetime"
+  },
+  {
    "col": "VaccineId",
    "def": null,
    "descr": null,
@@ -57969,7 +57995,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-13T08:35:10",
+ "extracted_on": "2026-11-15T21:33:09",
  "fk": [
   {
    "col": "LedgerId",
