@@ -14,21 +14,18 @@
         meCode: v => /^[A-Za-z0-9_-]{1,20}$/.test(v.trim()),
         mePhone: v => /^[6-9]\d{9}$/.test(v.trim()),
         meEmail: v => !v.trim() || /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/.test(v.trim()),
-        meTarget: v => v !== '' && !isNaN(Number(v)) && Number(v) >= 0,
-        // the login's password, needed when an e-mail ID is given and the executive has no login yet (SQLScripts/2444)
-        mePwd: v => !needsPassword() || v.length >= 6,
-        mePwd2: v => !needsPassword() || v === $('mePwd').value
+        meTarget: v => v !== '' && !isNaN(Number(v)) && Number(v) >= 0
     };
     const emailOk = v => /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/.test(v.trim());
-    function needsPassword() { return !(current && current.HasLogin) && emailOk($('meEmail').value); }
     function loginUi() {
         const has = !!(current && current.HasLogin), show = has || emailOk($('meEmail').value);
         $('meLoginBox').classList.toggle('d-none', !show);
         $('meLoginNew').classList.toggle('d-none', has);
         $('meLoginInfo').classList.toggle('d-none', !has);
         if (has) $('meLoginInfo').innerHTML = `<i class="bi bi-check-circle-fill text-success me-1"></i>Login <b>${E(current.LoginUsername)}</b> ${current.LoginActive ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>'}
-            <span class="text-muted">· follows this executive's e-mail, mobile and status · password is changed in User Master</span>`;
-        $('meEmailHint').textContent = has ? 'This is the login (sign-in) of the executive.' : 'With an e-mail ID a login is created (sign-in = e-mail).';
+            ${current.LoginVerified === false ? '<span class="badge text-bg-warning">Not verified yet</span>' : ''}
+            <span class="text-muted">· follows this executive's e-mail, mobile and status · ${current.LoginVerified === false ? 'the executive sets the password in the mobile app on the first sign-in (code on WhatsApp)' : 'password is changed in User Master'}</span>`;
+        $('meEmailHint').textContent = has ? 'This is the login (sign-in) of the executive.' : 'With an e-mail ID a login is created (sign-in = e-mail). The password is set by the executive in the mobile app.';
     }
     // server-side availability of the e-mail for the login (checked again on save)
     async function checkEmail() {
@@ -94,7 +91,7 @@
 
     function open(r, readOnly) {
         $('meForm').reset(); current = r; emailState = { value: '', ok: true };
-        ['meType', 'meName', 'meCode', 'mePhone', 'meEmail', 'meTarget', 'mePwd', 'mePwd2'].forEach(id => $(id).classList.remove('is-invalid'));
+        ['meType', 'meName', 'meCode', 'mePhone', 'meEmail', 'meTarget'].forEach(id => $(id).classList.remove('is-invalid'));
         $('meTitle').textContent = !r ? 'Add Marketing Executive' : readOnly ? 'Marketing Executive' : 'Edit Marketing Executive';
         $('meId').value = r ? r.ExecutiveId : '';
         $('meType').value = r ? r.ExecutiveType : ''; $('meName').value = r ? r.ExecutiveName : ''; $('meCode').value = r ? r.ExecutiveCode : '';
@@ -132,15 +129,13 @@
         const body = {
             executiveId: Number($('meId').value) || null, executiveType: $('meType').value, executiveName: $('meName').value.trim(),
             executiveCode: $('meCode').value.trim().toUpperCase(), phoneNumber: $('mePhone').value.trim(), emailId: $('meEmail').value.trim() || null,
-            address: $('meAddress').value.trim() || null, monthlyTarget: Number($('meTarget').value) || 0, isActive: $('meActive').checked,
-            loginPassword: needsPassword() ? $('mePwd').value : null, loginConfirmPassword: needsPassword() ? $('mePwd2').value : null
+            address: $('meAddress').value.trim() || null, monthlyTarget: Number($('meTarget').value) || 0, isActive: $('meActive').checked
         };
         const btn = $('meSave'); btn.disabled = true;
         try {
             const res = await Ipd.post(P.base + 'Save', body);
             if (!res.success) {
                 if (/e-mail/i.test(res.error || '')) { $('meEmail').classList.add('is-invalid'); $('meEmailMsg').textContent = res.error; $('meEmail').focus(); return; }
-                if (/password/i.test(res.error || '')) { $('mePwd').classList.add('is-invalid'); $('mePwd').focus(); return Ipd.error(res.error); }
                 if (/code/i.test(res.error || '')) { $('meCode').classList.add('is-invalid'); $('meCodeMsg').textContent = res.error; $('meCode').focus(); return; }
                 return Ipd.error(res.error);
             }

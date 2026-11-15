@@ -57,6 +57,8 @@ public sealed class AuthController(
         public bool IsSuperAdmin { get; set; }
         public int CompanyId { get; set; }
         public bool MustChangePassword { get; set; }
+        /// <summary>False until the first sign-in by one-time code (SQLScripts/2457). Only the sign-in query reads it.</summary>
+        public bool IsVerified { get; set; } = true;
     }
     private sealed record BranchRow(int BranchId, string BranchName, int CompanyId);
 
@@ -72,7 +74,8 @@ public sealed class AuthController(
         using var con = db.CreateConnection();
         var user = await con.QuerySingleOrDefaultAsync<UserRow>(
             @"SELECT Id, Username, FullName, PasswordHash, IsActive, ISNULL(IsLockedOut, 0) AS IsLockedOut,
-                     ISNULL(IsSuperAdmin, 0) AS IsSuperAdmin, ISNULL(CompanyId, 1) AS CompanyId, ISNULL(MustChangePassword, 0) AS MustChangePassword
+                     ISNULL(IsSuperAdmin, 0) AS IsSuperAdmin, ISNULL(CompanyId, 1) AS CompanyId, ISNULL(MustChangePassword, 0) AS MustChangePassword,
+                     Is_Verified AS IsVerified
               FROM dbo.Users WHERE Username = @u", new { u = request.Username.Trim() });
 
         // The same answer and roughly the same work whether or not the user exists.
@@ -83,6 +86,13 @@ public sealed class AuthController(
         }
         if (await loginSecurity.LockedUntilAsync(user.Id) is { } until)
             return StatusCode(423, Fail("LOCKED_OUT", $"Too many wrong passwords. Try again after {until:HH:mm}."));
+
+        // First sign-in (SQLScripts/2457): the login has no password yet. The app asks for a code (password/forgot),
+        // confirms it (password/forgot/verify) and sets the password (password/forgot/reset), which verifies the login.
+        if (!user.IsVerified)
+            return user.IsActive && !user.IsLockedOut
+                ? StatusCode(403, Fail("VERIFICATION_REQUIRED", "This login is not verified yet. Get the code on WhatsApp and set your password."))
+                : StatusCode(403, Fail("ACCOUNT_INACTIVE", "User is inactive or locked out. Contact administrator."));
 
         bool ok;
         try { ok = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash); } catch { ok = false; }

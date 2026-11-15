@@ -7,7 +7,7 @@ namespace EMR.Api.Controllers;
 
 public record MarketingExecutiveSaveRequest(int? ExecutiveId, string? ExecutiveType, string? ExecutiveName, string? ExecutiveCode, string? PhoneNumber,
     string? EmailId, string? Address, decimal MonthlyTarget, bool IsActive,
-    int? BranchId = null, string? LoginPasswordHash = null, string? LoginSalt = null);   // 2444: the executive's login (hash made by the web)
+    int? BranchId = null);   // 2444: the branch of the executive's login
 public record MarketingExecutiveStatusRequest(bool IsActive);
 public record DoctorMarketingExecutiveRequest(int? ExecutiveId);
 public record MarketingTargetSaveRequest(int BranchId, int ExecutiveId, DateTime FyStart, string? Frequency, string? Buckets, string? Remarks);
@@ -53,7 +53,11 @@ public class MarketingExecutiveController(IIpdProcService procs) : ControllerBas
         return Row(await procs.RowAsync("dbo.usp_Api_MarketingExecutive_Save", new
         {
             c.CompanyId, c.UserId, r.ExecutiveId, r.ExecutiveType, r.ExecutiveName, r.ExecutiveCode, r.PhoneNumber, r.EmailId, r.Address, r.MonthlyTarget, r.IsActive,
-            r.BranchId, r.LoginPasswordHash, r.LoginSalt
+            r.BranchId,
+            // 2457: no password is taken. A new login gets the hash of a random value nobody knows and stays unverified
+            // until the executive confirms the code in the app and sets the password there.
+            LoginPasswordHash = BCrypt.Net.BCrypt.HashPassword(Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)), 10),
+            LoginSalt = (string?)null
         }));
     }
 

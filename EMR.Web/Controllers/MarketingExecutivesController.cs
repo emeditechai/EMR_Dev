@@ -13,7 +13,7 @@ namespace EMR.Web.Controllers;
 /// Page MASTER.MARKETINGEXECUTIVES: VIEW, ADD, EDIT, STATUS, DELETE. Web -> EMR.Api api/marketing-executives -> procedures.
 /// </summary>
 [Authorize]
-public class MarketingExecutivesController(MarketingExecutiveApiClient api, IActionPermissionGuard permissionGuard, IAuditLogService auditLogService, IPasswordHasherService passwordHasher, ILogger<MarketingExecutivesController> logger) : Controller
+public class MarketingExecutivesController(MarketingExecutiveApiClient api, IActionPermissionGuard permissionGuard, IAuditLogService auditLogService, ILogger<MarketingExecutivesController> logger) : Controller
 {
     private IActionResult Fail(string message) => Json(new { success = false, error = message });
 
@@ -63,9 +63,6 @@ public class MarketingExecutivesController(MarketingExecutiveApiClient api, IAct
         public string? Address { get; set; }
         public decimal MonthlyTarget { get; set; }
         public bool IsActive { get; set; } = true;
-        // 2444: password of the login made for an executive with an e-mail ID (new login only; never sent to the API in clear)
-        public string? LoginPassword { get; set; }
-        public string? LoginConfirmPassword { get; set; }
     }
 
     [HttpGet]
@@ -91,17 +88,11 @@ public class MarketingExecutivesController(MarketingExecutiveApiClient api, IAct
             catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException) { return Fail(ex.Message); }
         }
         // the login (SQLScripts/2444): an executive with an e-mail ID gets one, made on add or on the first edit without one
-        string? hash = null, salt = null;
-        if (!string.IsNullOrWhiteSpace(b.LoginPassword))
-        {
-            if (b.LoginPassword.Length < 6) return Fail("The login password must have at least 6 characters.");
-            if (b.LoginPassword != b.LoginConfirmPassword) return Fail("The passwords do not match.");
-            (hash, salt) = passwordHasher.HashPassword(b.LoginPassword);
-        }
+        // 2457: no password is taken here; the executive verifies by code in the mobile app and sets the password there
         var body = new
         {
             b.ExecutiveId, b.ExecutiveType, b.ExecutiveName, b.ExecutiveCode, b.PhoneNumber, b.EmailId, b.Address, b.MonthlyTarget, b.IsActive,
-            BranchId = User.GetCurrentBranchId(), LoginPasswordHash = hash, LoginSalt = salt
+            BranchId = User.GetCurrentBranchId()
         };
         return await Write(() => api.PostAsync("", body), b.ExecutiveId is > 0 ? "MarketingExecutive.Edit" : "MarketingExecutive.Add",
             $"Marketing executive {(b.ExecutiveId is > 0 ? "edited" : "added")}: {b.ExecutiveName} ({b.ExecutiveCode}, {b.ExecutiveType})");
