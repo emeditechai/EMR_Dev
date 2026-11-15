@@ -75,6 +75,14 @@ public sealed class MarketingController(IMarketingService marketing, ILogger<Mar
         return Ok(new { success = true, message = "Clinic location saved.", pin });
     });
 
+    /// <summary>Places matching the address typed so far (Add Doctor): up to 5, each with its point on the map. Nothing is saved.</summary>
+    [HttpGet("address-suggest")]
+    public Task<IActionResult> AddressSuggest([FromQuery] string? q) => Run(async c =>
+        Ok(new { success = true, places = (await marketing.SuggestAddressAsync(q)).Select(p => new
+        {
+            latitude = p.Latitude, longitude = p.Longitude, formattedAddress = p.FormattedAddress, source = p.Source
+        }) }));
+
     /// <summary>Where an address is on the map (2459): the app shows it before an address pin is saved. Nothing is saved.</summary>
     [HttpGet("geocode")]
     public Task<IActionResult> Geocode([FromQuery] string? address) => Run(async c =>

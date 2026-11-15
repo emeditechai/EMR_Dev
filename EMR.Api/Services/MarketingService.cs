@@ -21,6 +21,7 @@ public interface IMarketingService
     Task<int> SaveLeadAsync(MarketingCaller c, int? id, MarketingLeadRequest r);
     Task<object?> SetPinAsync(MarketingCaller c, int id, MarketingPinRequest r);
     Task<GeoPoint?> GeocodeAsync(string? address);
+    Task<IReadOnlyList<GeoPoint>> SuggestAddressAsync(string? text);
     Task<string> SetStageAsync(MarketingCaller c, int id, MarketingStageRequest r);
     Task<object?> PromoteAsync(MarketingCaller c, int id, MarketingPromoteRequest r);
     Task<object?> CreateVisitAsync(MarketingCaller c, int id, MarketingVisitRequest r);
@@ -139,6 +140,8 @@ public sealed class MarketingService(IDbConnectionFactory db, IGeocodingService 
     }
 
     public Task<GeoPoint?> GeocodeAsync(string? address) => geocoder.GeocodeAsync(address);
+
+    public Task<IReadOnlyList<GeoPoint>> SuggestAddressAsync(string? text) => geocoder.SuggestAsync(text, 5);
 
     public async Task<string> SetStageAsync(MarketingCaller c, int id, MarketingStageRequest r)
     {

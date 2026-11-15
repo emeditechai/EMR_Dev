@@ -156,4 +156,43 @@ public class MarketingExecutiveController(IIpdProcService procs) : ControllerBas
         if (Caller() is not { } c) return NoCaller();
         return Row(await procs.RowAsync("dbo.usp_Api_MktVisit_Delete", new { c.CompanyId, r.BranchId, c.UserId, VisitId = id }));
     }
+
+    // ── LAB > Marketing Field Report (SQLScripts/2462): what the Marketing Executive App recorded. Branch from the web. ──
+    [HttpGet("field/visits")]
+    public async Task<IActionResult> FieldVisits([FromQuery] int branchId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate,
+        [FromQuery] int? executiveId, [FromQuery] string? status, [FromQuery] string? search)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        var sets = await procs.SetsAsync("dbo.usp_Api_MktField_Visits", new { c.CompanyId, BranchId = branchId, c.UserId, FromDate = fromDate.Date, ToDate = toDate.Date,
+            ExecutiveId = executiveId, Status = status, Search = search }, 2);
+        return Ok(ApiResponse<object>.Ok(new { visits = sets[0], executives = sets[1] }));
+    }
+
+    [HttpGet("field/days")]
+    public async Task<IActionResult> FieldDays([FromQuery] int branchId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate, [FromQuery] int? executiveId)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(await procs.RowsAsync("dbo.usp_Api_MktField_Days",
+            new { c.CompanyId, BranchId = branchId, c.UserId, FromDate = fromDate.Date, ToDate = toDate.Date, ExecutiveId = executiveId })));
+    }
+
+    [HttpGet("field/days/{dayId:int}/route")]
+    public async Task<IActionResult> FieldRoute(int dayId, [FromQuery] int branchId)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        try
+        {
+            var sets = await procs.SetsAsync("dbo.usp_Api_MktField_Route", new { c.CompanyId, BranchId = branchId, c.UserId, DayId = dayId }, 3);
+            return Ok(ApiResponse<object>.Ok(new { day = sets[0].FirstOrDefault(), points = sets[1], visits = sets[2] }));
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number >= 50000) { return BadRequest(ApiResponse.Fail(ex.Message)); }
+    }
+
+    [HttpGet("field/doctors")]
+    public async Task<IActionResult> FieldDoctors([FromQuery] int branchId, [FromQuery] int? executiveId, [FromQuery] string? stage, [FromQuery] string? pin, [FromQuery] string? search)
+    {
+        if (Caller() is not { } c) return NoCaller();
+        return Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(await procs.RowsAsync("dbo.usp_Api_MktField_Doctors",
+            new { c.CompanyId, BranchId = branchId, c.UserId, ExecutiveId = executiveId, Stage = stage, Pin = pin, Search = search })));
+    }
 }

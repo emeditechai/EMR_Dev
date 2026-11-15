@@ -12,6 +12,8 @@ public interface IGeocodingService
 {
     /// <summary>The point of an address in India, or null when it cannot be found (or the map services cannot be reached).</summary>
     Task<GeoPoint?> GeocodeAsync(string? address, CancellationToken ct = default);
+    /// <summary>Up to <paramref name="limit"/> places matching what is typed so far (the address box of Add Doctor).</summary>
+    Task<IReadOnlyList<GeoPoint>> SuggestAsync(string? text, int limit = 5, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -28,31 +30,53 @@ public sealed class GeocodingService(IHttpClientFactory httpFactory, IConfigurat
 
     public async Task<GeoPoint?> GeocodeAsync(string? address, CancellationToken ct = default)
     {
-        address = string.Join(' ', (address ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        address = Clean(address);
         if (address.Length < 5) return null;
         var key = "geocode:" + address.ToLowerInvariant();
         if (cache.TryGetValue(key, out GeoPoint? hit)) return hit;
+        var point = (await LookupAsync(address, 1, ct)).FirstOrDefault();
+        // a miss is cached for a short time only (the address may be corrected and tried again)
+        cache.Set(key, point, point is null ? TimeSpan.FromMinutes(5) : TimeSpan.FromDays(1));
+        return point;
+    }
 
-        GeoPoint? point = null;
+    public async Task<IReadOnlyList<GeoPoint>> SuggestAsync(string? text, int limit = 5, CancellationToken ct = default)
+    {
+        text = Clean(text);
+        if (text.Length < 4) return [];
+        limit = Math.Clamp(limit, 1, 8);
+        var key = $"geosuggest:{limit}:{text.ToLowerInvariant()}";
+        if (cache.TryGetValue(key, out IReadOnlyList<GeoPoint>? hit) && hit is not null) return hit;
+        var list = await LookupAsync(text, limit, ct);
+        cache.Set(key, list, list.Count == 0 ? TimeSpan.FromMinutes(5) : TimeSpan.FromHours(6));
+        // a picked suggestion is then saved as the address: its point is already known
+        foreach (var p in list) cache.Set("geocode:" + Clean(p.FormattedAddress).ToLowerInvariant(), (GeoPoint?)p, TimeSpan.FromDays(1));
+        return list;
+    }
+
+    private static string Clean(string? s) => string.Join(' ', (s ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    // Google first (when there is a key), OpenStreetMap when Google has nothing or fails
+    private async Task<IReadOnlyList<GeoPoint>> LookupAsync(string text, int limit, CancellationToken ct)
+    {
         if (GoogleKey is not null)
         {
-            try { point = await GoogleAsync(address, ct); }
+            try
+            {
+                var g = await GoogleAsync(text, limit, ct);
+                if (g.Count > 0) return g;
+            }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
             {
                 log.LogWarning(ex, "[GEOCODE] Google Places text search failed - using OpenStreetMap");
             }
         }
-        if (point is null)
+        try { return await OsmAsync(text, limit, ct); }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
         {
-            try { point = await OsmAsync(address, ct); }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException)
-            {
-                log.LogWarning(ex, "[GEOCODE] OpenStreetMap search failed");
-            }
+            log.LogWarning(ex, "[GEOCODE] OpenStreetMap search failed");
+            return [];
         }
-        // a miss is cached for a short time only (the address may be corrected and tried again)
-        cache.Set(key, point, point is null ? TimeSpan.FromMinutes(5) : TimeSpan.FromDays(1));
-        return point;
     }
 
     private HttpClient Client()
@@ -63,42 +87,49 @@ public sealed class GeocodingService(IHttpClientFactory httpFactory, IConfigurat
         return c;
     }
 
-    private async Task<GeoPoint?> GoogleAsync(string address, CancellationToken ct)
+    private async Task<IReadOnlyList<GeoPoint>> GoogleAsync(string address, int limit, CancellationToken ct)
     {
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://places.googleapis.com/v1/places:searchText")
         {
-            Content = JsonContent.Create(new { textQuery = address, regionCode = "in", languageCode = "en", pageSize = 1 })
+            Content = JsonContent.Create(new { textQuery = address, regionCode = "in", languageCode = "en", pageSize = limit })
         };
         req.Headers.Add("X-Goog-Api-Key", GoogleKey);
-        req.Headers.Add("X-Goog-FieldMask", "places.location,places.formattedAddress");
+        req.Headers.Add("X-Goog-FieldMask", "places.location,places.formattedAddress,places.displayName");
         using var res = await Client().SendAsync(req, ct);
         if (!res.IsSuccessStatusCode)
         {
             log.LogWarning("[GEOCODE] Google Places text search answered {Status}", (int)res.StatusCode);
-            return null;
+            return [];
         }
         using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
-        if (!doc.RootElement.TryGetProperty("places", out var places) || places.GetArrayLength() == 0) return null;
-        var p = places[0];
-        if (!p.TryGetProperty("location", out var loc)) return null;
-        return new GeoPoint(Round(loc.GetProperty("latitude").GetDouble()), Round(loc.GetProperty("longitude").GetDouble()),
-            p.TryGetProperty("formattedAddress", out var f) ? f.GetString() ?? address : address, "GOOGLE");
+        if (!doc.RootElement.TryGetProperty("places", out var places)) return [];
+        var list = new List<GeoPoint>();
+        foreach (var p in places.EnumerateArray())
+        {
+            if (!p.TryGetProperty("location", out var loc)) continue;
+            var formatted = p.TryGetProperty("formattedAddress", out var f) ? f.GetString() ?? address : address;
+            // a named place (a hospital, a clinic, a building) leads with its name
+            var name = p.TryGetProperty("displayName", out var d) && d.TryGetProperty("text", out var t) ? t.GetString() : null;
+            if (!string.IsNullOrWhiteSpace(name) && !formatted.StartsWith(name, StringComparison.OrdinalIgnoreCase)) formatted = name + ", " + formatted;
+            list.Add(new GeoPoint(Round(loc.GetProperty("latitude").GetDouble()), Round(loc.GetProperty("longitude").GetDouble()), formatted, "GOOGLE"));
+        }
+        return list;
     }
 
-    private async Task<GeoPoint?> OsmAsync(string address, CancellationToken ct)
+    private async Task<IReadOnlyList<GeoPoint>> OsmAsync(string address, int limit, CancellationToken ct)
     {
         await OsmGate.WaitAsync(ct);
         try
         {
-            var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&q=" + Uri.EscapeDataString(address);
+            var url = $"https://nominatim.openstreetmap.org/search?format=jsonv2&limit={limit}&countrycodes=in&q=" + Uri.EscapeDataString(address);
             using var res = await Client().GetAsync(url, ct);
-            if (!res.IsSuccessStatusCode) return null;
+            if (!res.IsSuccessStatusCode) return [];
             using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync(ct));
-            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0) return null;
-            var p = doc.RootElement[0];
-            return new GeoPoint(Round(double.Parse(p.GetProperty("lat").GetString()!, CultureInfo.InvariantCulture)),
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return [];
+            return doc.RootElement.EnumerateArray().Select(p => new GeoPoint(
+                Round(double.Parse(p.GetProperty("lat").GetString()!, CultureInfo.InvariantCulture)),
                 Round(double.Parse(p.GetProperty("lon").GetString()!, CultureInfo.InvariantCulture)),
-                p.TryGetProperty("display_name", out var n) ? n.GetString() ?? address : address, "OSM");
+                p.TryGetProperty("display_name", out var n) ? n.GetString() ?? address : address, "OSM")).ToList();
         }
         finally
         {
