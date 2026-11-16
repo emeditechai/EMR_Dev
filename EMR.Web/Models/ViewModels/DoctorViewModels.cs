@@ -130,13 +130,15 @@ public class DoctorListPageViewModel
     public string? Referral { get; set; }
     public string? Speciality { get; set; }
     public string? Department { get; set; }
+    /// <summary>2469: OPD / LAB / IPD / MED - doctors having a department of that type.</summary>
+    public string? DeptType { get; set; }
     public int? DoctorId { get; set; }
     public List<string> Specialities { get; set; } = new();
     /// <summary>Department name and its type (OPD / IPD / LAB) for the filter labels.</summary>
     public List<(string Name, string Type)> Departments { get; set; } = new();
     public int TotalPages => PageSize > 0 ? Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)PageSize)) : 1;
     public bool HasFilter => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Referral)
-                             || !string.IsNullOrWhiteSpace(Speciality) || !string.IsNullOrWhiteSpace(Department) || DoctorId is > 0;
+                             || !string.IsNullOrWhiteSpace(Speciality) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(DeptType) || DoctorId is > 0;
 }
 
 public class DoctorListItemViewModel

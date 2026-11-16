@@ -12,7 +12,7 @@
             $(this).select2({ theme: 'bootstrap-5', width: '100%', allowClear: true,
                 placeholder: this.id === 'dmDept' ? 'All departments' : 'All specialities' });
         });
-        $('#dmStatus, #dmReferral, #dmSpeciality, #dmDept').on('change', submit);
+        $('#dmStatus, #dmReferral, #dmType, #dmSpeciality, #dmDept').on('change', submit);
 
         search.addEventListener('input', () => {
             clearTimeout(timer);

@@ -13,14 +13,14 @@ public class DoctorApiClient : IDoctorApiClient
     }
 
     public async Task<DoctorPagedList> GetPagedListAsync(int? companyId, int? branchId, string? search, string? status, string? referral,
-        string? speciality, string? department, int? doctorId, int pageNumber, int pageSize)
+        string? speciality, string? department, int? doctorId, int pageNumber, int pageSize, string? deptType = null)
     {
         var q = new List<string> { $"pageNumber={pageNumber}", $"pageSize={pageSize}" };
         if (companyId is > 0) q.Add($"companyId={companyId}");
         if (branchId.HasValue) q.Add($"branchId={branchId}");
         if (doctorId is > 0) q.Add($"doctorId={doctorId}");
         void Add(string k, string? v) { if (!string.IsNullOrWhiteSpace(v)) q.Add($"{k}={Uri.EscapeDataString(v.Trim())}"); }
-        Add("search", search); Add("status", status); Add("referral", referral); Add("speciality", speciality); Add("department", department);
+        Add("search", search); Add("status", status); Add("referral", referral); Add("speciality", speciality); Add("department", department); Add("deptType", deptType);
         var response = await _http.GetFromJsonAsync<ApiResponse<DoctorPagedList>>("api/doctors/paged?" + string.Join("&", q));
         return response?.Data ?? new DoctorPagedList();
     }

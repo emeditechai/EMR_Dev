@@ -92,7 +92,7 @@ public class DoctorsController(
     /// <summary>Doctor Master list, paged and filtered on the server (SQLScripts/2315).</summary>
     public async Task<IActionResult> Index([FromQuery] int? doctorId = null, [FromQuery] string? search = null, [FromQuery] string? status = null,
         [FromQuery] string? referral = null, [FromQuery] string? speciality = null, [FromQuery] string? department = null,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, [FromQuery] string? deptType = null)
     {
         var branchId = User.GetCurrentBranchId();
 
@@ -108,18 +108,19 @@ public class DoctorsController(
         search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         speciality = string.IsNullOrWhiteSpace(speciality) ? null : speciality.Trim();
         department = string.IsNullOrWhiteSpace(department) ? null : department.Trim();
+        deptType = deptType?.Trim().ToUpperInvariant() is "OPD" or "LAB" or "IPD" or "MED" ? deptType.Trim().ToUpperInvariant() : null;   // 2469
         var oneDoctor = doctorId is > 0 ? doctorId : null;
 
         try
         {
             // Strictly via EMR.Api — no DB fallback
-            var result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize);
+            var result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize, deptType);
             // a page past the end (e.g. after narrowing the filter): show the last page
             var lastPage = Math.Max(1, (int)Math.Ceiling(result.FilteredCount / (double)pageSize));
             if (page > lastPage)
             {
                 page = lastPage;
-                result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize);
+                result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize, deptType);
             }
             if (oneDoctor.HasValue && result.Items.FirstOrDefault() is { } selected)
                 ViewBag.SelectedDoctorName = $"{selected.FullName} ({selected.PrimarySpecialityName})";
@@ -154,6 +155,7 @@ public class DoctorsController(
                 Referral = referral,
                 Speciality = speciality,
                 Department = department,
+                DeptType = deptType,
                 DoctorId = oneDoctor,
                 Specialities = result.Specialities,
                 Departments = result.Departments.Select(d => (d.Name, d.Type)).ToList()

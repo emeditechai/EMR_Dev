@@ -27,7 +27,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
     }
 
     public async Task<DoctorPagedList> GetPagedListAsync(int? companyId, int? branchId, string? search, string? status, string? referral,
-        string? speciality, string? department, int? doctorId, int pageNumber, int pageSize)
+        string? speciality, string? department, int? doctorId, int pageNumber, int pageSize, string? deptType = null)
     {
         var page = Math.Max(1, pageNumber);
         var size = pageSize is < 1 or > 200 ? 25 : pageSize;
@@ -35,7 +35,8 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         using var multi = await con.QueryMultipleAsync("usp_Api_Doctor_GetPagedList", new
         {
             CompanyId = companyId, BranchId = branchId, Search = search, Status = status, Referral = referral,
-            Speciality = speciality, Department = department, DoctorId = doctorId, PageNumber = page, PageSize = size
+            Speciality = speciality, Department = department, DoctorId = doctorId, PageNumber = page, PageSize = size,
+            DeptType = deptType is "OPD" or "LAB" or "IPD" or "MED" ? deptType : null   // 2469
         }, commandType: CommandType.StoredProcedure);
 
         var result = await multi.ReadSingleAsync<DoctorPagedList>();

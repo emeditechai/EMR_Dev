@@ -32,12 +32,12 @@ public class DoctorsController(IDoctorService doctorService) : ControllerBase
     public async Task<IActionResult> GetPagedList(
         [FromQuery] int? companyId, [FromQuery] int? branchId, [FromQuery] string? search = null, [FromQuery] string? status = null,
         [FromQuery] string? referral = null, [FromQuery] string? speciality = null, [FromQuery] string? department = null,
-        [FromQuery] int? doctorId = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 25)
+        [FromQuery] int? doctorId = null, [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 25, [FromQuery] string? deptType = null)
     {
         var data = await doctorService.GetPagedListAsync(companyId, branchId, search?.Trim(),
             status?.Trim().ToLowerInvariant() is "active" or "inactive" ? status.Trim().ToLowerInvariant() : null,
             referral?.Trim().ToLowerInvariant() is "yes" or "no" ? referral.Trim().ToLowerInvariant() : null,
-            speciality?.Trim(), department?.Trim(), doctorId, pageNumber, pageSize);
+            speciality?.Trim(), department?.Trim(), doctorId, pageNumber, pageSize, deptType?.Trim().ToUpperInvariant());
         return Ok(ApiResponse<DoctorPagedList>.Ok(data));
     }
 
