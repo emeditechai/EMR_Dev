@@ -16849,6 +16849,19 @@
    "type": "bit"
   },
   {
+   "col": "AllowPrintLabReportInDue",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 159,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -57995,7 +58008,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-15T21:33:09",
+ "extracted_on": "2026-11-16T12:55:39",
  "fk": [
   {
    "col": "LedgerId",
@@ -61280,6 +61293,11 @@
    }
   ],
   "ApprovalModule": [
+   {
+    "Module_Code": "LAB.DUEREPORTPRINT",
+    "Module_Name": "Due Report Print",
+    "Sort_Order": 40
+   },
    {
     "Module_Code": "LAB.FRANCHISE",
     "Module_Name": "Franchise Setup",

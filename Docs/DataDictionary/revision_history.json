@@ -285,5 +285,14 @@
   ],
   "date": "15 Nov 2026",
   "version": "1.21"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "HospitalSettings: new column(s) AllowPrintLabReportInDue",
+   "Lookup values changed: ApprovalModule"
+  ],
+  "date": "16 Nov 2026",
+  "version": "1.22"
  }
 ]
