@@ -610,6 +610,23 @@ namespace EMR.Web.Controllers
             }
             catch { }
 
+            // LAB > External Document Upload (SQLScripts/2391): an approved test's external document (PDF / JPG / PNG) is
+            // merged right after that test's report, on pages of its own under the same letterhead and footer
+            try
+            {
+                var approvedTests = detail.Items
+                    .Where(i => i.ReportStatusId == 5 && i.InvestigationID > 0)
+                    .GroupBy(i => i.InvestigationID)
+                    .ToDictionary(g => g.Key, g => g.First().TestName ?? string.Empty);
+                if (approvedTests.Count > 0)
+                {
+                    var companyId = await dbContext.BranchMasters.Where(b => b.BranchId == detail.BranchId)
+                                        .Select(b => (int?)b.CompanyId).FirstOrDefaultAsync() ?? User.GetCompanyId();
+                    ViewBag.ExternalDocs = await pdfService.LoadExternalDocumentsAsync(labOrderId, companyId, approvedTests);
+                }
+            }
+            catch { /* the report prints without them */ }
+
             return View(detail);
         }
 

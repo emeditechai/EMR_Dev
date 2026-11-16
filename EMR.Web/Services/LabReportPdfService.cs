@@ -36,6 +36,10 @@ public interface ILabReportPdfService
     /// <summary>Utility > Print Templates (SQLScripts/2324): puts the branch's Lab Report template (or, for the designer's
     /// preview, a template's draft) on the report. BuildAsync already applies the published one.</summary>
     Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId);
+
+    /// <summary>LAB > External Document Upload (SQLScripts/2391) for the Image / Descriptive report page: the latest external
+    /// document of each given test (InvestigationId -> test name), as report pages. Never throws.</summary>
+    Task<Dictionary<int, LabReportExternalDoc>> LoadExternalDocumentsAsync(int labOrderId, int companyId, IReadOnlyDictionary<int, string> tests);
 }
 
 /// <summary>
@@ -175,7 +179,7 @@ public class LabReportPdfService(
 
     /// <summary>
     /// Merges the external documents (dbo.LabExternalDocument) into the report: a document goes under the group of its test,
-    /// only when that test is printed and approved. PDF pages become images (150 dpi), JPG / PNG are used as they are;
+    /// only when that test is printed and approved. PDF pages become images (150 dpi), a JPG / PNG becomes one page;
     /// a Word file or an unreachable FTP server leaves a note instead. Files are cached for 10 minutes per upload, so a
     /// reprint or the e-mail / WhatsApp copy does not read the FTP server again. Never blocks the report.
     /// </summary>
@@ -194,36 +198,119 @@ public class LabReportPdfService(
                 if (group is null) continue;   // the test is not on this report, or not approved yet
                 var row = group.Rows.First(r => r.InvestigationId == d.InvestigationId);
 
-                var ext = new LabReportExternalDoc { TestName = row.TestName, FileName = d.OriginalFileName ?? d.FileName };
-                var kind = ExternalKind(d.FileName, d.ContentType);
-                if (kind == "word")
-                    ext.Note = $"External document \"{ext.FileName}\" (Word file) is not printed here - it is kept with the booking.";
-                else
-                {
-                    var key = $"labextdoc:{d.DocumentId}:{d.UpdatedDate.Ticks}";
-                    var pages = await cache.GetOrCreateAsync(key, async e =>
-                    {
-                        e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
-                        var settings = await ftp.GetForBranchAsync(d.CompanyId > 0 ? d.CompanyId : companyId, d.BranchId);
-                        if (settings is null) return null;
-                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-                        var bytes = await ftp.DownloadAsync(settings, d.FilePath, cts.Token);
-                        if (bytes is null || bytes.Length == 0) return null;
-                        return kind == "pdf" ? PdfPages(bytes) : new List<byte[]> { bytes };
-                    });
-                    if (pages is { Count: > 0 }) ext.Pages = pages;
-                    else
-                    {
-                        cache.Remove(key);   // not kept: the next print tries the server again
-                        ext.Note = $"External document \"{ext.FileName}\" could not be read from the document server.";
-                    }
-                }
-                group.ExternalDocuments.Add(ext);
+                group.ExternalDocuments.Add(await LoadExternalDocAsync(d, row.TestName, companyId));
             }
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "External documents of lab order {LabOrderId} were not merged into the report", labOrderId);
+        }
+    }
+
+    public async Task<Dictionary<int, LabReportExternalDoc>> LoadExternalDocumentsAsync(int labOrderId, int companyId, IReadOnlyDictionary<int, string> tests)
+    {
+        var result = new Dictionary<int, LabReportExternalDoc>();
+        if (tests.Count == 0) return result;
+        try
+        {
+            var docs = (await Dapper.SqlMapper.QueryAsync<ExternalDocRow>(dbContext.Database.GetDbConnection(),
+                "dbo.usp_Lab_ExternalDoc_ForReport", new { LabOrderId = labOrderId }, commandType: System.Data.CommandType.StoredProcedure)).ToList();
+            foreach (var d in docs)
+                if (tests.TryGetValue(d.InvestigationId, out var testName) && !result.ContainsKey(d.InvestigationId))
+                    result[d.InvestigationId] = await LoadExternalDocAsync(d, testName, companyId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "External documents of lab order {LabOrderId} were not merged into the image report", labOrderId);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// One external document as report pages: a PDF page by page (150 dpi), a JPG / PNG as one page - turned upright
+    /// (camera rotation), sized for an A4 page and flattened on white, the way a PDF page is. A file that cannot be read
+    /// leaves a note instead, so it never stops the report.
+    /// </summary>
+    private async Task<LabReportExternalDoc> LoadExternalDocAsync(ExternalDocRow d, string testName, int companyId)
+    {
+        var ext = new LabReportExternalDoc { TestName = testName, FileName = d.OriginalFileName ?? d.FileName };
+        var kind = ExternalKind(d.FileName, d.ContentType);
+        if (kind == "word")
+        {
+            ext.Note = $"External document \"{ext.FileName}\" (Word file) is not printed here - it is kept with the booking.";
+            return ext;
+        }
+
+        var key = $"labextdoc:{d.DocumentId}:{d.UpdatedDate.Ticks}";
+        var unreadable = false;
+        var pages = await cache.GetOrCreateAsync(key, async e =>
+        {
+            e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            var settings = await ftp.GetForBranchAsync(d.CompanyId > 0 ? d.CompanyId : companyId, d.BranchId);
+            if (settings is null) return null;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            var bytes = await ftp.DownloadAsync(settings, d.FilePath, cts.Token);
+            if (bytes is null || bytes.Length == 0) return null;
+            if (kind == "pdf") return PdfPages(bytes);
+            var page = ImagePage(bytes);
+            if (page is null) { unreadable = true; return null; }
+            return new List<byte[]> { page };
+        });
+        if (pages is { Count: > 0 }) ext.Pages = pages;
+        else
+        {
+            cache.Remove(key);   // not kept: the next print tries the server again
+            ext.Note = unreadable
+                ? $"External document \"{ext.FileName}\" is not a readable image - it is kept with the booking."
+                : $"External document \"{ext.FileName}\" could not be read from the document server.";
+        }
+        return ext;
+    }
+
+    /// <summary>Longest side of an external image page: about A4 at 170 dpi, like a PDF page at 150 dpi.</summary>
+    private const int MaxImagePageSide = 2000;
+
+    /// <summary>
+    /// A JPG / PNG as a report page (JPEG bytes): upright per its EXIF orientation, at most <see cref="MaxImagePageSide"/>
+    /// px on the longest side, transparency on white. Null when the file is not a readable image.
+    /// </summary>
+    private static byte[]? ImagePage(byte[] bytes)
+    {
+        try
+        {
+            using var data = SkiaSharp.SKData.CreateCopy(bytes);
+            using var codec = SkiaSharp.SKCodec.Create(data);
+            if (codec is null) return null;
+            using var src = SkiaSharp.SKImage.FromEncodedData(data);
+            if (src is null || src.Width <= 0 || src.Height <= 0) return null;
+
+            var origin = codec.EncodedOrigin;
+            var quarterTurn = origin is SkiaSharp.SKEncodedOrigin.RightTop or SkiaSharp.SKEncodedOrigin.LeftBottom;
+            int w0 = quarterTurn ? src.Height : src.Width, h0 = quarterTurn ? src.Width : src.Height;
+            var scale = Math.Min(1f, (float)MaxImagePageSide / Math.Max(w0, h0));
+            int w = Math.Max(1, (int)Math.Round(w0 * scale)), h = Math.Max(1, (int)Math.Round(h0 * scale));
+
+            using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(w, h, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Premul));
+            if (surface is null) return null;
+            var canvas = surface.Canvas;
+            canvas.Clear(SkiaSharp.SKColors.White);
+            switch (origin)
+            {
+                case SkiaSharp.SKEncodedOrigin.BottomRight: canvas.Translate(w, h); canvas.RotateDegrees(180); break;
+                case SkiaSharp.SKEncodedOrigin.RightTop:    canvas.Translate(w, 0); canvas.RotateDegrees(90);  break;
+                case SkiaSharp.SKEncodedOrigin.LeftBottom:  canvas.Translate(0, h); canvas.RotateDegrees(270); break;
+            }
+            canvas.DrawImage(src, new SkiaSharp.SKRect(0, 0, src.Width * scale, src.Height * scale),
+                new SkiaSharp.SKSamplingOptions(SkiaSharp.SKFilterMode.Linear, SkiaSharp.SKMipmapMode.Linear));
+            canvas.Flush();
+
+            using var page = surface.Snapshot();
+            using var jpeg = page.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90);
+            return jpeg?.ToArray();
+        }
+        catch
+        {
+            return null;
         }
     }
 
