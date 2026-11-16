@@ -134,6 +134,7 @@
     }[s] || s);
     const typeBadge = t => t === 'CREATE'
         ? '<span class="badge bg-primary-subtle text-primary-emphasis">New record</span>'
+        : t === 'PRINT' ? '<span class="badge bg-warning-subtle text-warning-emphasis"><i class="bi bi-printer me-1"></i>Print with due</span>'
         : '<span class="badge bg-info-subtle text-info-emphasis">Change</span>';
     const labels = { '': 'All requests', P: 'Pending', A: 'Approved', S: 'Sent Back' };
     let status = 'P', current = null;
@@ -182,15 +183,16 @@
         const res = await (await fetch('@Url.Action("Detail")?id=' + id)).json();
         if (!res.success) { Swal.fire({ icon: 'error', text: res.message }); return; }
         current = res;
-        const r = res.request, isNew = r.Action_Type === 'CREATE';
+        const r = res.request, isPrint = r.Action_Type === 'PRINT', isNew = r.Action_Type === 'CREATE' || isPrint;
         admTitle.innerHTML = esc(r.Entity_Name) + ' ' + statusBadge(r.Status);
-        admSub.textContent = `${r.Module_Name} · ${isNew ? 'New record' : 'Change'} · #${r.Request_ID} · submitted by ${r.Requested_By_Name || ''} on ${dt(r.Requested_Date)} · ${r.Scope === 'C' ? 'company-wise' : 'branch ' + (r.BranchName || '')}`;
+        admSub.textContent = `${r.Module_Name} · ${isPrint ? 'Print with due' : isNew ? 'New record' : 'Change'} · #${r.Request_ID} · submitted by ${r.Requested_By_Name || ''} on ${dt(r.Requested_Date)} · ${r.Scope === 'C' ? 'company-wise' : 'branch ' + (r.BranchName || '')}`;
         adModal.querySelector('.ad-oldh').classList.toggle('d-none', isNew);
         admOnlyWrap.classList.toggle('d-none', isNew);
-        admCompareTitle.textContent = isNew ? 'Values of the new record' : `${res.changedCount} field(s) changed`;
+        admCompareTitle.textContent = isPrint ? 'Bill and reason' : isNew ? 'Values of the new record' : `${res.changedCount} field(s) changed`;
         let alert = '';
         if (r.Status === 'S') alert = `<div class="alert alert-danger py-2"><b>Sent back</b> by ${esc(r.Actioned_By_Name)} on ${dt(r.Actioned_Date)}: ${esc(r.Remarks)}</div>`;
         else if (r.Status === 'A') alert = `<div class="alert alert-success py-2"><b>Approved</b> by ${esc(r.Actioned_By_Name)} on ${dt(r.Actioned_Date)}${r.Remarks ? ': ' + esc(r.Remarks) : ''}</div>`;
+        else if (isPrint) alert = '<div class="alert alert-warning py-2 small mb-3">The bill still has a balance due. Approving lets Lab Report Dispatch print its lab report.</div>';
         else if (isNew) alert = '<div class="alert alert-warning py-2 small mb-3">This record is saved inactive. Approving makes it available (and enables its login, if it has one).</div>';
         else alert = '<div class="alert alert-info py-2 small mb-3">The record still works on its old values. Approving applies the new values.</div>';
         admAlert.innerHTML = alert;
@@ -225,7 +227,7 @@
     }
 
     admApprove.addEventListener('click', async () => {
-        const ok = await Swal.fire({ icon: 'question', title: 'Approve?', text: current.request.Action_Type === 'CREATE' ? 'The record becomes available.' : 'The new values are applied now.', showCancelButton: true, confirmButtonText: 'Approve', confirmButtonColor: '#198754' });
+        const ok = await Swal.fire({ icon: 'question', title: 'Approve?', text: current.request.Action_Type === 'PRINT' ? 'The lab report of this bill can then be printed with the due.' : current.request.Action_Type === 'CREATE' ? 'The record becomes available.' : 'The new values are applied now.', showCancelButton: true, confirmButtonText: 'Approve', confirmButtonColor: '#198754' });
         if (ok.isConfirmed) act('@Url.Action("Approve")', { remarks: admRemarks.value });
     });
     admSendBack.addEventListener('click', () => {

@@ -33,6 +33,17 @@ public static class DiscountPermission
     };
 
     /// <summary>
+    /// Collection-only pages that host the payment modal without being a billing screen (LAB > Report Dispatch,
+    /// SQLScripts 2466): the modal offers a discount when the user holds DISCOUNT on any billing screen of the module -
+    /// the same rule /OPD/SavePayment applies.
+    /// </summary>
+    public static IReadOnlyList<string>? CollectionScreensFor(string? controller, string? action) => (controller, action) switch
+    {
+        ("LabReportDispatch", "Index") => LabScreens,
+        _ => null
+    };
+
+    /// <summary>
     /// For /OPD/SavePayment: true unless the payment adds or raises a discount the user may not give.
     /// Collecting a due on a bill whose discount is unchanged is never blocked.
     /// </summary>

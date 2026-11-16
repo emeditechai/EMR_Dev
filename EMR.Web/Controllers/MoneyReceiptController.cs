@@ -4,6 +4,7 @@ using EMR.Shared.Security;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
+using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EMR.Web.Controllers;
 
 /// <summary>
-/// Money Receipt (A5) for a payment collected against an OPD / LAB bill that was saved with a balance due
+/// Money Receipt (A5 landscape, laid out like the bill print) for a payment collected against an OPD / LAB bill that was saved with a balance due
 /// (SQLScripts/2204). Offered by the payment modal after a due collection; the first payment at billing keeps its
 /// bill print and a B2B settlement keeps LabOrderBooking/PrintSettlementReceipt. Allowed by the VIEW of any page that
 /// collects a due; the receipt must belong to the login branch unless Super Admin.
@@ -20,6 +21,7 @@ namespace EMR.Web.Controllers;
 public class MoneyReceiptController(
     IDbConnectionFactory db,
     ApplicationDbContext dbContext,
+    IPrintTemplateRuntime printTemplates,
     ILogger<MoneyReceiptController> logger) : Controller
 {
     [HttpGet]
@@ -30,6 +32,7 @@ public class MoneyReceiptController(
     [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "VIEW")]
     [RequiresPermission("LAB.LABORDERBOOKING.B2BBOOKING", "VIEW")]
     [RequiresPermission("LAB.LABORDERBOOKING.B2BREGISTRATION", "VIEW")]
+    [RequiresPermission("LAB.LABREPORTDISPATCH", "COLLECT_PAYMENT")]   // 2466: Collect Payment on Report Dispatch
     public async Task<IActionResult> Print(string receiptNo)
     {
         receiptNo = (receiptNo ?? string.Empty).Trim();
@@ -124,6 +127,32 @@ public class MoneyReceiptController(
         vm.HospitalGSTIN      = settings?.GSTCode;
         vm.HospitalLogoPath   = settings?.LogoPath;
         vm.RegistrationNumber = settings?.RegistrationNumber;
+        vm.HospitalType           = settings?.HospitalType;
+        vm.HospitalEmergencyPhone = settings?.EmergencyNumber;
+        vm.HospitalWebsite        = settings?.Website;
+        vm.NabhStatus             = settings?.NabhStatus;
+        vm.NabhCertificateNo      = settings?.NabhCertificateNo;
+        // a due collection is a B2C payment: LAB follows the B2C bill's letterhead setting, as the bill print does
+        vm.ShowHeaderFooter = vm.ModuleCode != "LAB" || (settings?.LabB2CBillPrintHeaderRequired ?? true);
+        vm.PrintedByName    = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name;
+
+        // Utility > Print Templates (SQLScripts/2324): the branch's Bill template header / footer, as on the bill
+        try
+        {
+            await printTemplates.ApplyToBillAsync(ViewData, User, receiptBranchId, new PrintDocInfo
+            {
+                DocNo     = vm.ReceiptNo,
+                DocDate   = vm.ReceiptOn.ToString("dd-MMM-yyyy hh:mm tt"),
+                TokenNo   = vm.TokenNo,
+                CopyLabel = "Original",
+                PrintedBy = vm.PrintedByName,
+                CreatedBy = vm.ReceivedByName
+            }, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Print template for money receipt {ReceiptNo} not applied; classic header used", receiptNo);
+        }
 
         return View(vm);
     }

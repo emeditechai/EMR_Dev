@@ -201,6 +201,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Is Phlebotomist App Required")]
     public bool IsPhlebotomistAppRequired { get; set; }
 
+    [Display(Name = "Allow Print Lab Report in Due")]
+    public bool AllowPrintLabReportInDue { get; set; }
+
     [Display(Name = "Follow up Notification Required")]
     public bool OpdFollowUpNotificationRequired { get; set; }
 

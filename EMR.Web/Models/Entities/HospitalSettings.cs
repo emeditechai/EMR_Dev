@@ -253,6 +253,8 @@ public class HospitalSettings
     public bool LabPatientPortalRequired { get; set; }
     /// <summary>SQLScripts/2395: the branch uses the Phlebotomist App for home collection (default No).</summary>
     public bool IsPhlebotomistAppRequired { get; set; }
+    /// <summary>SQLScripts/2464: a B2C bill with a balance due may still print its lab report (default No = blocked).</summary>
+    public bool AllowPrintLabReportInDue { get; set; }
 
     public bool IsActive { get; set; } = true;
 

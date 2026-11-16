@@ -32,6 +32,7 @@ public interface ILabReportPdfService
     /// <summary>The reports of the bill that have something to print in this scope: Numeric (Lab Report) and/or Template (Microbiology).</summary>
     Task<List<string>> GetPrintableReportTypesAsync(int labOrderId, string scope = LabReportPrintBuilder.ScopeAll);
 
+
     /// <summary>Utility > Print Templates (SQLScripts/2324): puts the branch's Lab Report template (or, for the designer's
     /// preview, a template's draft) on the report. BuildAsync already applies the published one.</summary>
     Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId);

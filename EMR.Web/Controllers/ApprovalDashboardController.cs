@@ -153,7 +153,8 @@ public class ApprovalDashboardController(
         string? note;
         try
         {
-            note = r.Action_Type == "CREATE" ? await ActivateAsync(con, r) : await ApplyChangeAsync(r);
+            note = r.Action_Type == "PRINT" ? "The report of this bill can now be printed from Lab Report Dispatch."   // 2465: nothing to apply
+                 : r.Action_Type == "CREATE" ? await ActivateAsync(con, r) : await ApplyChangeAsync(r);
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or JsonException)
         {
@@ -169,6 +170,15 @@ public class ApprovalDashboardController(
 
         await approvals.ClearNoticesAsync([id]);
         var who = User.GetDisplayName();
+        if (r.Action_Type == "PRINT")
+        {
+            // 2465: Due Report Print - back to the requester, pointing at Lab Report Dispatch
+            await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "INFO",
+                $"Due Report Print approved · {r.Entity_Name}",
+                $"{who} approved printing the lab report of {r.Entity_Name} with a due. Print it from Lab Report Dispatch > Action > Report Print." + (Trim(remarks) is string pr ? $" Remarks: {pr}" : ""),
+                DuePrintLink, MasterApprovalService.NotifyRef, id, $"APPROVAL_DONE:{id}", r.Branch_ID, User.GetUserId());
+            return Json(new { success = true, message = "Approved. " + note });
+        }
         await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "INFO",
             $"{r.Module_Name} approved · {r.Entity_Name}",
             $"{who} approved your " + (r.Action_Type == "CREATE" ? "new" : "change to") + $" {r.Module_Name} '{r.Entity_Name}'" +
@@ -202,6 +212,14 @@ public class ApprovalDashboardController(
 
         await approvals.ClearNoticesAsync([id]);
         var who = User.GetDisplayName();
+        if (r.Action_Type == "PRINT")
+        {
+            await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "WARNING",
+                $"Due Report Print sent back · {r.Entity_Name}",
+                $"{who} did not approve printing the lab report of {r.Entity_Name} with a due: {reason}. Collect the due, or send a new request.",
+                DuePrintLink, MasterApprovalService.NotifyRef, id, $"APPROVAL_DONE:{id}", r.Branch_ID, User.GetUserId());
+            return Json(new { success = true, message = "Sent back. The report stays locked until the due is cleared or a new request is approved." });
+        }
         await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "WARNING",
             $"{r.Module_Name} sent back · {r.Entity_Name}",
             $"{who} sent back your " + (r.Action_Type == "CREATE" ? "new" : "change to") + $" {r.Module_Name} '{r.Entity_Name}': {reason}. Correct it and submit again.",
@@ -356,6 +374,8 @@ public class ApprovalDashboardController(
         string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<List<ApprovalField>>(json);
 
     private static string? Trim(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim()[..Math.Min(s.Trim().Length, 500)];
+
+    private const string DuePrintLink = "/LabReportDispatch/Index";
 
     private JsonResult Fail(string message) => Json(new { success = false, message });
 

@@ -8,6 +8,14 @@
     <link rel="stylesheet" href="~/css/views/LabReportDispatch/Index.css" asp-append-version="true" />
 }
 
+@* 2466: Collect Payment of a due bill - the same payment dialog and flow as the B2C Order List (standby, opened per bill) *@
+@{
+    ViewData["PaymentModuleCode"]     = "LAB";
+    ViewData["PaymentModuleRefId"]    = 0;
+    ViewData["PaymentSuccessModalId"] = "";
+}
+<partial name="_PaymentModal" />
+
 <div class="container-fluid px-3 py-2 dispatch-wrapper">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
@@ -380,6 +388,8 @@
 @* 2392: Send Report - the token for its POST, and whether this user may send (control SEND_REPORT) *@
 @Html.AntiForgeryToken()
 <span id="permSendReport" class="d-none" asp-permission="LAB.LABREPORTDISPATCH:SEND_REPORT"></span>
+@* 2466: whether this user may collect a payment here (control COLLECT_PAYMENT) *@
+<span id="permCollectPayment" class="d-none" asp-permission="LAB.LABREPORTDISPATCH:COLLECT_PAYMENT"></span>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -392,7 +402,9 @@
             const pdfUrl = '@Url.Action("PrintReportPdf", "LabReportDispatch")';
             const billUrl = '@Url.Action("PrintBill", "LabReportDispatch")';
             const sendUrl = '@Url.Action("SendReport", "LabReportDispatch")';
+            const duePrintUrl = '@Url.Action("RequestDuePrint", "LabReportDispatch")';   // 2465
             const canSendReport = $('#permSendReport').length > 0;
+            const canCollectPayment = $('#permCollectPayment').length > 0 && typeof window.pmOpenFor === 'function';   // 2466
             // The Image / Descriptive report has its own existing print page; the PDF above only ever
             // carries the Numeric tests, so a bill holding both is printed from both.
             const imagePrintUrl = '@Url.Action("Print", "LabImageReporting")';
@@ -408,6 +420,7 @@
 
             let rows = [];
             let encMap = {};
+            let duePrint = {};   // 2465: labOrderId -> { allow, status P/A/S, remarks, requestedBy, actionedBy, ... }
             let page = 1;
             let statusFilter = 'ALL';
             let clientType = 'ALL';
@@ -460,6 +473,7 @@
                     }
                     rows = res.rows || [];
                     encMap = res.encMap || {};
+                    duePrint = res.duePrint || {};
                     page = 1;
                     renderStats(res.stats || {});
                     renderTable();
@@ -533,7 +547,10 @@
 
                 // B2B due is settled with the franchise/company, not the patient at the counter - never
                 // block printing on it. B2C keeps the existing "clear the due first" rule unchanged.
-                const hasDue = !paid && !isB2B;
+                const dp = duePrint[r.labOrderId] || null;
+                // 2465: with "Allow Print Lab Report in Due" = Yes, an approved Due Report Print request releases the report
+                const dueApproved = !paid && !isB2B && !!dp && dp.allow && dp.status === 'A';
+                const hasDue = !paid && !isB2B && !dueApproved;
                 // 2392: one Action menu - Report Print (by state), Bill, Send Report. The items keep the classes / data the
                 // existing click handlers use, so printing works exactly as before.
                 const item = (cls, attrs, icon, text, title, disabled) =>
@@ -544,7 +561,16 @@
                     printItems = item('', '', 'bi-printer', 'Report Print', 'Validate at least one test to print', true);
                 } else if (hasDue) {
                     // Kept clickable on purpose: the click explains why the report is held back.
-                    printItems = item('btn-print-due text-danger', ' data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '"', 'bi-lock-fill', 'Report Print', 'Payment pending - the report cannot be printed');
+                    printItems = item('btn-print-due text-danger', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '"', 'bi-lock-fill', 'Report Print', 'Payment pending - the report cannot be printed');
+                    if (dp && dp.allow) {
+                        // 2465: ask the Due Report Print approvers (Approval Matrix) to release the report
+                        if (dp.status === 'P')
+                            printItems += item('', '', 'bi-hourglass-split text-warning', 'Due Print Approval Pending', 'Sent by ' + (dp.requestedBy || '') + ' on ' + fmt(dp.requestedAt) + ' - waiting for an approver', true);
+                        else
+                            printItems += item('btn-due-approval', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '"',
+                                'bi-shield-lock-fill text-primary', dp.status === 'S' ? 'Send Approval Again (Due Report Print)' : 'Send Approval for Due Report Print',
+                                dp.status === 'S' ? 'Sent back by ' + (dp.actionedBy || '') + ': ' + (dp.remarks || '') : 'Ask an approver to allow printing this report with the due');
+                    }
                 } else if (r.dispatchStatus === 'PARTIAL') {
                     printItems = item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="approved"', 'bi-printer-fill text-success', 'Report Print (Approved)', 'Print the approved test(s) of this bill - ' + r.approvedTests + ' of ' + total)
                         + item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="pending"', 'bi-printer-fill text-warning', 'Report Print (Not Approved)', 'Print a NOT APPROVED copy of the tests still awaiting approval');
@@ -552,6 +578,12 @@
                     printItems = item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="all"', 'bi-printer-fill ' + (isReady ? 'text-success' : 'text-warning'),
                         isReady ? 'Report Print' : 'Report Print (Not Approved)', isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)');
                 }
+                if (dueApproved && r.canPrint)
+                    printItems = '<li><span class="dropdown-item-text fs-9 text-success"><i class="bi bi-shield-check me-1"></i>Due print approved by ' + esc(dp.actionedBy || '') + '</span></li>' + printItems;
+                // 2466: Collect Payment - a B2C bill with a balance due (B2B is settled with the franchise / company)
+                const payItem = canCollectPayment && !paid && !isB2B
+                    ? item('btn-collect-payment', ' data-id="' + r.labOrderId + '"', 'bi-cash-coin text-success', 'Collect Payment', 'Collect the due of ₹' + Number(r.balanceDue).toFixed(2) + ' on ' + (r.billNo || 'this bill'))
+                    : '';
                 const billItem = item('btn-print-bill', ' data-id="' + r.labOrderId + '"', 'bi-receipt', 'Bill', 'Print the bill for ' + (r.billNo || 'this order'));
                 // Send Report: the final report only (every test approved) and only once the bill has no due
                 const sendBlock = !isReady ? 'Only an approved report can be sent (' + r.approvedTests + ' of ' + total + ' tests approved)'
@@ -563,7 +595,7 @@
                 const actionMenu = '<div class="dropdown">'
                     + '<button type="button" class="btn btn-sm fs-9 px-2 py-1 dropdown-toggle ' + (isReady && !hasDue ? 'btn-print-ready' : 'btn-outline-secondary') + '" data-bs-toggle="dropdown" data-bs-popper-config=\'{"strategy":"fixed"}\' aria-expanded="false">'
                     + '<i class="bi bi-three-dots-vertical me-1"></i>Action</button>'
-                    + '<ul class="dropdown-menu dropdown-menu-end shadow-sm">' + printItems + billItem + sendItem + '</ul></div>';
+                    + '<ul class="dropdown-menu dropdown-menu-end shadow-sm">' + printItems + payItem + billItem + sendItem + '</ul></div>';
 
                 const client = isB2B
                     ? '<div class="fs-9 text-muted text-truncate mt-1" style="max-width:150px" title="' + esc((r.clientType === 'FRANCHISE' ? 'Franchise: ' : 'Company: ') + (r.clientName || '')) + '"><i class="bi ' + (r.clientType === 'FRANCHISE' ? 'bi-shop' : 'bi-building') + ' me-1"></i>' + esc([r.clientCode, r.clientName].filter(Boolean).join(' · ') || '—') + '</div>'
@@ -733,7 +765,7 @@
                         try { body = await res.json(); msg = body.message || msg; } catch (e) { /* keep default */ }
                         if (res.status === 402) {                 // payment pending - the server holds the report back
                             bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                            dueAlert(body && body.billNo, body && body.balanceDue);
+                            dueAlert(body && body.billNo, body && body.balanceDue, printOrderId);
                             load();
                             return;
                         }
@@ -771,7 +803,7 @@
                 if (res.status === 402) {
                     let body = null; try { body = await res.json(); } catch (e) { /* ignore */ }
                     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                    dueAlert(body && body.billNo, body && body.balanceDue);
+                    dueAlert(body && body.billNo, body && body.balanceDue, printOrderId);
                     load();
                     throw new Error('due');
                 }
@@ -880,21 +912,59 @@
                 $('#testsFooterNote').text(tests.length + ' test(s) \u00b7 TAT is measured from sample collection to report approval');
             }
 
-            function dueAlert(billNo, due) {
+            function dueAlert(billNo, due, labOrderId) {
                 const amount = due != null ? '₹' + Number(due).toFixed(2) : '';
+                const canPay = canCollectPayment && labOrderId > 0;   // 2466: collect the due straight from here
                 Swal.fire({
                     icon: 'error',
                     title: 'Unable to Print Report',
                     html: '<div class="fs-8">Clear the due first.</div>'
                         + (billNo ? '<div class="fs-9 text-muted mt-2">Bill No: <span class="font-monospace">' + esc(billNo) + '</span></div>' : '')
                         + (amount ? '<div class="fw-bold text-danger mt-1">Outstanding: ' + amount + '</div>' : ''),
-                    confirmButtonColor: '#dc3545',
-                    confirmButtonText: 'OK'
-                });
+                    showCancelButton: canPay,
+                    reverseButtons: canPay,
+                    confirmButtonColor: canPay ? '#198754' : '#dc3545',
+                    confirmButtonText: canPay ? '<i class="bi bi-cash-coin me-1"></i>Collect Payment' : 'OK',
+                    cancelButtonText: 'Close'
+                }).then(res => { if (canPay && res.isConfirmed) collectPayment(labOrderId); });
             }
 
+            // 2466: Collect Payment - the shared payment dialog (/OPD/SavePayment); the list refreshes after a save
+            function collectPayment(labOrderId) {
+                if (!canCollectPayment || !(labOrderId > 0)) return;
+                window.pmOpenFor(labOrderId, function () { load(); }, 'LAB');
+            }
+            $('#tblDispatchBody').on('click', '.btn-collect-payment', function () {
+                collectPayment(Number($(this).data('id')));
+            });
+
+            // 2465: a Due Report Print approved / sent back while this page is open refreshes the list (live notification)
+            if (window.EmrNotify) window.EmrNotify.on(function (kind, n) {
+                if (kind === 'new' && n && /^Due Report Print (approved|sent back)/.test(n.title || '')) load();
+            });
+
+            // 2465: Send Approval for Due Report Print
+            $('#tblDispatchBody').on('click', '.btn-due-approval', async function () {
+                const id = $(this).data('id'), bill = $(this).data('bill'), due = $(this).data('due');
+                const ask = await Swal.fire({
+                    icon: 'question', title: 'Send for approval?',
+                    html: '<div class="fs-8">Ask an approver to allow printing the report of <b class="font-monospace">' + esc(bill) + '</b> with a due of <b class="text-danger">₹' + esc(due) + '</b>.</div>',
+                    input: 'textarea', inputLabel: 'Reason', inputPlaceholder: 'e.g. Patient will pay at the next visit',
+                    inputValidator: v => (!v || v.trim().length < 5) ? 'Give a reason (at least 5 characters).' : undefined,
+                    showCancelButton: true, confirmButtonText: '<i class="bi bi-send-fill me-1"></i>Send for approval', confirmButtonColor: '#0d6efd', reverseButtons: true
+                });
+                if (!ask.isConfirmed) return;
+                $.ajax({ url: duePrintUrl, type: 'POST', data: { labOrderId: id, reason: ask.value },
+                         headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() } })
+                    .done(res => {
+                        if (res && res.success) { toastr.success(res.message); load(); }
+                        else Swal.fire({ icon: 'warning', title: 'Not sent', text: (res && res.message) || 'The request could not be sent.' });
+                    })
+                    .fail(xhr => Swal.fire({ icon: 'error', title: 'Not sent', text: xhr.status === 403 ? 'You do not have permission to print reports.' : 'Server error while sending the request.' }));
+            });
+
             $('#tblDispatchBody').on('click', '.btn-print-due', function () {
-                dueAlert($(this).data('bill'), $(this).data('due'));
+                dueAlert($(this).data('bill'), $(this).data('due'), Number($(this).data('id')));
             });
 
             const modalEl = document.getElementById('modalDispatchPrint');

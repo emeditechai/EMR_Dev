@@ -14,6 +14,15 @@ namespace EMR.Web.Models.ViewModels
         public string? HospitalGSTIN { get; set; }
         public string? HospitalLogoPath { get; set; }
         public string? RegistrationNumber { get; set; }
+        // same header as the bill print (LabOrderBooking/PrintBill)
+        public string? HospitalType { get; set; }
+        public string? HospitalEmergencyPhone { get; set; }
+        public string? HospitalWebsite { get; set; }
+        public string? NabhStatus { get; set; }
+        public string? NabhCertificateNo { get; set; }
+        /// <summary>False = blank space for pre-printed letterhead (LAB: Hospital Settings > Required B2C Bill Print Header).</summary>
+        public bool ShowHeaderFooter { get; set; } = true;
+        public string? PrintedByName { get; set; }
 
         // ── Receipt ───────────────────────────────────────────────────────────
         public string ReceiptNo { get; set; } = string.Empty;

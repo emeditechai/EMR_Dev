@@ -616,6 +616,21 @@ else
                 </div>
             </div>
 
+            @* SQLScripts/2464 *@
+            <div class="lab-section-title">Report Printing</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-printer-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Allow Print Lab Report in Due</div>
+                            <div class="lp-desc">Yes: the Lab / Microbiology report prints even when the bill still has a balance due. No: a bill with a due cannot be printed until it is paid. B2B bills always print.</div>
+                            <span class="lp-pill @(Model.AllowPrintLabReportInDue ? "yes" : "no")"><i class="bi @(Model.AllowPrintLabReportInDue ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.AllowPrintLabReportInDue ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })

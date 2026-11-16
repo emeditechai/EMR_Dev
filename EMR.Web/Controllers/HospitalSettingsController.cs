@@ -604,6 +604,7 @@ public class HospitalSettingsController(
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.LabPatientPortalRequired = model.LabPatientPortalRequired;
             existing.IsPhlebotomistAppRequired = model.IsPhlebotomistAppRequired;
+            existing.AllowPrintLabReportInDue = model.AllowPrintLabReportInDue;   // SQLScripts/2464
             existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
             existing.OpdCertificateNotificationRequired = model.OpdCertificateNotificationRequired;
             existing.ShowQrOnB2BInvoice = model.ShowQrOnB2BInvoice;   // SQLScripts/2452
@@ -802,6 +803,7 @@ public class HospitalSettingsController(
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             LabPatientPortalRequired = s.LabPatientPortalRequired,
             IsPhlebotomistAppRequired = s.IsPhlebotomistAppRequired,
+            AllowPrintLabReportInDue = s.AllowPrintLabReportInDue,
             OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = s.OpdCertificateNotificationRequired,
             ShowQrOnB2BInvoice = s.ShowQrOnB2BInvoice,
@@ -945,6 +947,7 @@ public class HospitalSettingsController(
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             LabPatientPortalRequired = m.LabPatientPortalRequired,
             IsPhlebotomistAppRequired = m.IsPhlebotomistAppRequired,
+            AllowPrintLabReportInDue = m.AllowPrintLabReportInDue,
             OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = m.OpdCertificateNotificationRequired,
             ShowQrOnB2BInvoice = m.ShowQrOnB2BInvoice,

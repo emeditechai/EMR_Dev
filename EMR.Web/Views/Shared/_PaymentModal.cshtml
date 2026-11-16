@@ -22,10 +22,19 @@
     string pmSuccess = ViewData["PaymentSuccessModalId"] as string ?? "bookingSuccessModal";
 
     // Giving a discount is its own control on the billing screen (Settings > Security > DISCOUNT).
-    var pmScreen = EMR.Web.Services.DiscountPermission.ScreenFor(
-        ViewContext.RouteData.Values["controller"]?.ToString(), ViewContext.RouteData.Values["action"]?.ToString());
+    var pmController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var pmAction = ViewContext.RouteData.Values["action"]?.ToString();
+    var pmScreen = EMR.Web.Services.DiscountPermission.ScreenFor(pmController, pmAction);
     bool pmCanDiscount = pmScreen is null
         || await PermissionGuard.ShowsAsync(Context, pmScreen, EMR.Shared.Security.PermissionControls.Discount);
+    // a collection-only page (Report Dispatch): DISCOUNT on any billing screen of the module
+    var pmCollectionScreens = pmScreen is null ? EMR.Web.Services.DiscountPermission.CollectionScreensFor(pmController, pmAction) : null;
+    if (pmCollectionScreens is not null)
+    {
+        pmCanDiscount = false;
+        foreach (var s in pmCollectionScreens)
+            if (await PermissionGuard.ShowsAsync(Context, s, EMR.Shared.Security.PermissionControls.Discount)) { pmCanDiscount = true; break; }
+    }
 }
 
 <style>
