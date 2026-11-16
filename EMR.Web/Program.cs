@@ -188,6 +188,8 @@ builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailSender, EMR
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.IMachineFingerprintProvider, EMR.Web.Services.Licensing.MachineFingerprintProvider>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseCrypto, EMR.Web.Services.Licensing.LicenseCrypto>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralLicenseRepository, EMR.Web.Services.Licensing.CentralLicenseRepository>();
+// SQLScripts/2467: central company register (Central_Lic_DB.dbo.Central_Company), same licensing connection
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralCompanyRegistry, EMR.Web.Services.Licensing.CentralCompanyRegistry>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILocalLicenseRepository, EMR.Web.Services.Licensing.LocalLicenseRepository>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailer, EMR.Web.Services.Licensing.LicenseMailer>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicensingService, EMR.Web.Services.Licensing.LicensingService>();

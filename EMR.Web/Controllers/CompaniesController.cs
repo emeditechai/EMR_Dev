@@ -120,11 +120,16 @@ public class CompaniesController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(CompanyFormViewModel model)
+    public async Task<IActionResult> Create(CompanyFormViewModel model, [FromServices] EMR.Web.Services.Licensing.ICentralCompanyRegistry central)
     {
         if (await dbContext.CompanyMasters.AnyAsync(x => x.CompanyCode == model.CompanyCode))
         {
             ModelState.AddModelError(nameof(model.CompanyCode), "Company Code already exists.");
+        }
+        // SQLScripts/2467: Company Code is unique across every eCare360 installation (central company register)
+        else if (!string.IsNullOrWhiteSpace(model.CompanyCode) && await central.CodeTakenElsewhereAsync(model.CompanyCode) is string takenCreate)
+        {
+            ModelState.AddModelError(nameof(model.CompanyCode), takenCreate);
         }
 
         if (!ModelState.IsValid)
@@ -165,6 +170,7 @@ public class CompaniesController(
 
         await auditLogService.LogAsync("Company", "Create", $"Created company: {company.CompanyName} ({company.CompanyCode})", branchId: User.GetCurrentBranchId());
         TempData["Success"] = $"Company '{company.CompanyName}' created successfully. You can now add branches under this company.";
+        await PushToCentralAfterSaveAsync(central, company.CompanyId, company.CompanyCode, company.CompanyName);
 
         return RedirectToAction(nameof(Details), new { id = company.CompanyId });
     }
@@ -201,11 +207,18 @@ public class CompaniesController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(CompanyFormViewModel model)
+    public async Task<IActionResult> Edit(CompanyFormViewModel model, [FromServices] EMR.Web.Services.Licensing.ICentralCompanyRegistry central)
     {
         if (await dbContext.CompanyMasters.AnyAsync(x => x.CompanyCode == model.CompanyCode && x.CompanyId != model.CompanyId))
         {
             ModelState.AddModelError(nameof(model.CompanyCode), "Company Code already exists.");
+        }
+        // SQLScripts/2467: a changed code must also be free across every installation
+        else if (!string.IsNullOrWhiteSpace(model.CompanyCode)
+                 && !await dbContext.CompanyMasters.AnyAsync(x => x.CompanyId == model.CompanyId && x.CompanyCode == model.CompanyCode.Trim().ToUpper())
+                 && await central.CodeTakenElsewhereAsync(model.CompanyCode) is string takenEdit)
+        {
+            ModelState.AddModelError(nameof(model.CompanyCode), takenEdit);
         }
 
         if (!ModelState.IsValid)
@@ -243,6 +256,7 @@ public class CompaniesController(
 
         await auditLogService.LogAsync("Company", "Edit", $"Updated company: {company.CompanyName}", branchId: User.GetCurrentBranchId());
         TempData["Success"] = "Company details updated successfully.";
+        await PushToCentralAfterSaveAsync(central, company.CompanyId, company.CompanyCode, company.CompanyName);   // keeps code / name in step
 
         return RedirectToAction(nameof(Details), new { id = company.CompanyId });
     }
@@ -284,7 +298,8 @@ public class CompaniesController(
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<IActionResult> Onboard(CompanyOnboardViewModel model,
-        [FromServices] EMR.Web.ApiClients.ICompanyOnboardingApiClient onboarding, [FromServices] IPasswordHasherService passwordHasher)
+        [FromServices] EMR.Web.ApiClients.ICompanyOnboardingApiClient onboarding, [FromServices] IPasswordHasherService passwordHasher,
+        [FromServices] EMR.Web.Services.Licensing.ICentralCompanyRegistry central)
     {
         if (!IsSuperAdmin) return RedirectToAction(nameof(Create));
         model.CompanyCode = (model.CompanyCode ?? "").Trim().ToUpperInvariant();
@@ -299,6 +314,9 @@ public class CompaniesController(
         {
             var free = await onboarding.CheckAsync(model.CompanyCode, model.BranchCode, model.AdminUsername, model.AdminEmail);
             if (!free.CompanyCodeFree) ModelState.AddModelError(nameof(model.CompanyCode), "This company code is already used.");
+            // SQLScripts/2467: and free across every eCare360 installation (central company register; not reachable = not blocked)
+            else if (!string.IsNullOrEmpty(model.CompanyCode) && await central.CodeTakenElsewhereAsync(model.CompanyCode) is string takenOnboard)
+                ModelState.AddModelError(nameof(model.CompanyCode), takenOnboard);
             if (!free.BranchCodeFree) ModelState.AddModelError(nameof(model.BranchCode), "This branch code is already used - branch codes are unique in the whole application.");
             if (!free.UsernameFree || !free.EmailFree) ModelState.AddModelError(nameof(model.AdminEmail), "This e-mail is already used by another sign-in.");
         }
@@ -353,6 +371,7 @@ public class CompaniesController(
             $"Onboarded company {model.CompanyName} ({model.CompanyCode}): Head Office {model.BranchCode}, Hospital Settings, {result.Pages} pages / {result.Menus} menus copied, " +
             $"{result.Roles} role(s), {result.Permissions} Administrator permission(s) copied, administrator '{model.AdminUsername}'.", branchId: User.GetCurrentBranchId());
         TempData["Onboarded"] = System.Text.Json.JsonSerializer.Serialize(result);
+        await PushToCentralAfterSaveAsync(central, result.CompanyId, model.CompanyCode, model.CompanyName.Trim());
         return RedirectToAction(nameof(Onboarded), new { id = result.CompanyId });
     }
 
@@ -393,6 +412,45 @@ public class CompaniesController(
         ViewBag.Admin = await dbContext.Users.AsNoTracking().Where(u => u.CompanyId == id).OrderBy(u => u.Id)
             .Select(u => new { u.Id, u.Username, u.FullName, u.Email }).FirstOrDefaultAsync();
         return View(company);
+    }
+
+    // ── Central company register (SQLScripts/2467, Central_Lic_DB.dbo.Central_Company) ─────────────────────────────
+
+    /// <summary>After a company is created or edited: push it to the central register. Never fails the save - a central
+    /// problem only adds a warning, and the company can be pushed later from its profile.</summary>
+    private async Task PushToCentralAfterSaveAsync(EMR.Web.Services.Licensing.ICentralCompanyRegistry central, int companyId, string code, string name)
+    {
+        var r = await central.PushAsync(companyId, code, name);
+        if (!r.Ok)
+            TempData["Warning"] = $"Saved here, but not in the central company register: {r.Message} Use \"Push to Central\" on the company profile.";
+    }
+
+    /// <summary>Company profile: the company's place in the central register (loaded after the page, Super Admin only).</summary>
+    [HttpGet]
+    public async Task<IActionResult> CentralStatus(int id, [FromServices] EMR.Web.Services.Licensing.ICentralCompanyRegistry central)
+    {
+        if (!IsSuperAdmin) return Forbid();
+        var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(c => c.CompanyId == id);
+        if (company is null) return NotFound();
+        var st = await central.GetStatusAsync(company.CompanyId, company.CompanyCode, company.CompanyName);
+        return Json(new { state = st.State, message = st.Message, canPush = st.CanPush, centralName = st.CentralCompanyName, apiUrl = st.ApiUrl,
+                          createdDate = st.CreatedDate, modifiedDate = st.ModifiedDate });
+    }
+
+    /// <summary>Company profile: push a company that is not in the central register yet (or refresh its code / name).
+    /// Refused when another installation already holds the code.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PushToCentral(int id, [FromServices] EMR.Web.Services.Licensing.ICentralCompanyRegistry central)
+    {
+        if (!IsSuperAdmin) return Json(new { success = false, message = "Only the Super Admin can push a company to the central register." });
+        var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(c => c.CompanyId == id);
+        if (company is null) return Json(new { success = false, message = "Company not found." });
+        var r = await central.PushAsync(company.CompanyId, company.CompanyCode, company.CompanyName);
+        if (r.Status is "CREATED" or "UPDATED")
+            await auditLogService.LogAsync("Company", "PushToCentral",
+                $"Company {company.CompanyName} ({company.CompanyCode}) pushed to the central company register: {r.Status}.", branchId: User.GetCurrentBranchId());
+        return Json(new { success = r.Ok, status = r.Status, message = r.Message });
     }
 
     private int FirstStepWithError()
