@@ -20,7 +20,7 @@
             </ol>
         </nav>
         <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-cloud-arrow-up-fill me-2"></i>External Document Upload</h4>
-        <div class="text-muted small mt-1">Upload the external document of tests marked "Has External Document" for a lab booking. Files are stored on the FTP server by company, branch and date.</div>
+        <div class="text-muted small mt-1">Upload the external document of tests marked "Has External Document" for a lab order. Files are stored on the FTP server by company, branch and lab order date.</div>
     </div>
 
     @if (!ftpReady)
@@ -36,7 +36,7 @@
         <div class="card-body">
             <form id="xdSearch" class="row g-2 align-items-end" autocomplete="off">
                 <div class="col-sm-6 col-md-2">
-                    <label class="form-label small fw-semibold mb-1">Booking date <span class="text-danger">*</span></label>
+                    <label class="form-label small fw-semibold mb-1">Lab order date <span class="text-danger">*</span></label>
                     <input type="date" class="form-control form-control-sm" id="xdDate" required value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
                 </div>
                 <div class="col-sm-6 col-md-2">
@@ -48,7 +48,7 @@
                     <input type="text" class="form-control form-control-sm" id="xdName" maxlength="100" />
                 </div>
                 <div class="col-sm-6 col-md-3">
-                    <label class="form-label small fw-semibold mb-1">Lab booking no.</label>
+                    <label class="form-label small fw-semibold mb-1">Lab order no.</label>
                     <input type="text" class="form-control form-control-sm" id="xdBill" maxlength="50" placeholder="e.g. LAB/HO2627000296" />
                 </div>
                 <div class="col-md-2 d-grid">
@@ -58,11 +58,11 @@
 
             <div class="row g-2 mt-2">
                 <div class="col-lg-8">
-                    <label class="form-label small fw-semibold mb-1">Lab booking</label>
+                    <label class="form-label small fw-semibold mb-1">Lab order</label>
                     <select class="form-select form-select-sm" id="xdBooking" disabled>
-                        <option value="">Search to list the bookings</option>
+                        <option value="">Search to list the lab orders</option>
                     </select>
-                    <div class="form-text" id="xdBookingHint">Only active bookings with tests needing an external document are listed.</div>
+                    <div class="form-text" id="xdBookingHint">Only active lab orders with tests needing an external document are listed.</div>
                 </div>
             </div>
         </div>
@@ -79,7 +79,7 @@
                     <tbody id="xdTests"></tbody>
                 </table>
             </div>
-            <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>PDF, JPG or PNG up to 20 MB. The file is renamed to BranchCode_BookingNo_TestCode; uploading again replaces the current document.</div>
+            <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>PDF, JPG or PNG up to 20 MB. The file is saved in the lab order date folder as BranchCode_LabOrderNo_TestCode; uploading again replaces the current document.</div>
         </div>
     </div>
 </div>
@@ -96,7 +96,7 @@
 
     document.getElementById('xdSearch').addEventListener('submit', async e => {
         e.preventDefault();
-        if (!xdDate.value) { Swal.fire({ icon: 'warning', text: 'Choose the booking date.' }); return; }
+        if (!xdDate.value) { Swal.fire({ icon: 'warning', text: 'Choose the lab order date.' }); return; }
         card.classList.add('d-none');
         sel.innerHTML = '<option value="">Searching…</option>'; sel.disabled = true;
         const qs = new URLSearchParams({ date: xdDate.value, mobile: xdMobile.value.trim(), name: xdName.value.trim(), billNo: xdBill.value.trim() });
@@ -104,14 +104,14 @@
             const res = await (await fetch('@Url.Action("Bookings")?' + qs)).json();
             if (!res.success) { sel.innerHTML = '<option value="">' + esc(res.message) + '</option>'; return; }
             if (!res.rows.length) {
-                sel.innerHTML = '<option value="">No booking found</option>';
-                xdBookingHint.textContent = 'No active booking of this date with tests needing an external document matches the filters.';
+                sel.innerHTML = '<option value="">No lab order found</option>';
+                xdBookingHint.textContent = 'No active lab order of this date with tests needing an external document matches the filters.';
                 return;
             }
-            sel.innerHTML = '<option value="">-- Select lab booking (' + res.rows.length + ') --</option>' + res.rows.map(r =>
+            sel.innerHTML = '<option value="">-- Select lab order (' + res.rows.length + ') --</option>' + res.rows.map(r =>
                 `<option value="${r.LabOrderId}">${esc(r.BillNo)} — ${esc(r.PatientName)} (${esc(r.Mobile || '')}) — ${r.UploadedCount}/${r.TestCount} uploaded</option>`).join('');
             sel.disabled = false;
-            xdBookingHint.textContent = res.rows.length + ' booking(s) found.';
+            xdBookingHint.textContent = res.rows.length + ' lab order(s) found.';
             if (res.rows.length === 1) { sel.selectedIndex = 1; loadTests(); }
         } catch { sel.innerHTML = '<option value="">Could not search. Try again.</option>'; }
     });
@@ -124,10 +124,10 @@
         if (!res.success) { Swal.fire({ icon: 'error', text: res.message }); return; }
         const b = res.booking;
         xdBookingInfo.innerHTML = `<div class="d-flex flex-wrap gap-4 small">
-            <div><span class="text-muted">Booking</span><div class="fw-bold">${esc(b.BillNo)}</div></div>
+            <div><span class="text-muted">Lab order no.</span><div class="fw-bold">${esc(b.BillNo)}</div></div>
             <div><span class="text-muted">Patient</span><div class="fw-semibold">${esc(b.PatientName)} <span class="text-muted">(${esc(b.PatientCode)})</span></div></div>
             <div><span class="text-muted">Mobile</span><div>${esc(b.Mobile || '—')}</div></div>
-            <div><span class="text-muted">Booked on</span><div>${dt(b.OrderDate)}</div></div></div>`;
+            <div><span class="text-muted">Lab order date</span><div>${dt(b.OrderDate)}</div></div></div>`;
         xdTests.innerHTML = res.tests.map(t => `
             <tr data-test="${t.Test_ID}">
                 <td><div class="fw-semibold">${esc(t.Test_Name)}</div>

@@ -8,10 +8,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace EMR.Web.Controllers;
 
 /// <summary>
-/// LAB > External Document Upload (SQLScripts/2354). For an active lab booking of the current branch, uploads the
+/// LAB > External Document Upload (SQLScripts/2354). For an active lab order of the current branch, uploads the
 /// external document of each test marked "Has External Document" to the FTP server set in Hospital Settings > Lab:
-/// &lt;Root&gt;/&lt;Company&gt;/&lt;Branch&gt;/&lt;yyyy-MM-dd&gt;/&lt;BranchCode&gt;_&lt;Lab booking no&gt;_&lt;Test code&gt;.&lt;ext&gt;,
-/// and records it in LabExternalDocument (with the branch, booking and investigation IDs and the lab booking no). Cancelled bookings and cancelled tests are never offered.
+/// &lt;Root&gt;/&lt;Company&gt;/&lt;Branch&gt;/&lt;Lab order date yyyy-MM-dd&gt;/&lt;BranchCode&gt;_&lt;Lab order no&gt;_&lt;Test code&gt;.&lt;ext&gt;,
+/// and records it in LabExternalDocument (with the branch, order and investigation IDs and the lab order no = LabOrder.BillNo).
+/// Cancelled orders and cancelled tests are never offered.
 /// </summary>
 [Authorize]
 public class LabExternalDocumentsController(
@@ -33,11 +34,11 @@ public class LabExternalDocumentsController(
         return View();
     }
 
-    /// <summary>Active bookings of the day (and filters) having at least one external-document test.</summary>
+    /// <summary>Active lab orders of the lab order date (and filters) having at least one external-document test.</summary>
     [HttpGet]
     public async Task<IActionResult> Bookings(DateTime? date, string? mobile, string? name, string? billNo)
     {
-        if (date is null) return Json(new { success = false, message = "Choose the booking date." });
+        if (date is null) return Json(new { success = false, message = "Choose the lab order date." });
         var branchId = User.GetCurrentBranchId();
         if (branchId is null) return Json(new { success = false, message = "Select a branch first." });
         using var con = db.CreateConnection();
@@ -47,7 +48,7 @@ public class LabExternalDocumentsController(
         return Json(new { success = true, rows });
     }
 
-    /// <summary>The booking's external-document tests and their current uploads.</summary>
+    /// <summary>The lab order's external-document tests and their current uploads.</summary>
     [HttpGet]
     public async Task<IActionResult> Tests(int labOrderId)
     {
@@ -59,7 +60,7 @@ public class LabExternalDocumentsController(
         var booking = await grid.ReadFirstOrDefaultAsync();
         var tests = await grid.ReadAsync();
         return booking is null
-            ? Json(new { success = false, message = "This booking is cancelled or not of your branch." })
+            ? Json(new { success = false, message = "This lab order is cancelled or not of your branch." })
             : Json(new { success = true, booking, tests });
     }
 
@@ -117,28 +118,29 @@ public class LabExternalDocumentsController(
             return Fail("FTP is not set up. Enter the FTP credentials in Hospital Settings > Lab.");
 
         using var con = db.CreateConnection();
-        // the test must still be an active external-document test of an active booking of this branch
+        // the test must still be an active external-document test of an active lab order of this branch
         var item = await con.QueryFirstOrDefaultAsync<int?>(
             @"SELECT TOP 1 v.LabOrderItemId FROM dbo.vw_LabExternalDocTest v JOIN dbo.LabOrder lo ON lo.LabOrderId = v.LabOrderId
                WHERE v.LabOrderId = @labOrderId AND v.Test_ID = @testId AND lo.BranchId = @branchId AND lo.IsActive = 1",
             new { labOrderId, testId, branchId });
-        if (item is null) return Fail("This test is cancelled, not on the booking, or the booking is not of your branch.");
+        if (item is null) return Fail("This test is cancelled, not on the lab order, or the lab order is not of your branch.");
 
-        var names = await con.QueryFirstAsync<(string Company, string Branch, string BranchCode, string BillNo, string TestCode)>(
+        var names = await con.QueryFirstAsync<(string Company, string Branch, string BranchCode, string BillNo, string TestCode, DateTime OrderDate)>(
             @"SELECT ISNULL((SELECT CompanyName FROM dbo.CompanyMaster WHERE CompanyId = @companyId), 'Company'),
                      ISNULL((SELECT BranchName FROM dbo.Branchmaster WHERE BranchID = @branchId), 'Branch'),
                      ISNULL((SELECT NULLIF(BranchCode, '') FROM dbo.Branchmaster WHERE BranchID = @branchId), CAST(@branchId AS VARCHAR(12))),
                      ISNULL((SELECT NULLIF(BillNo, '') FROM dbo.LabOrder WHERE LabOrderId = @labOrderId), CAST(@labOrderId AS VARCHAR(12))),
-                     ISNULL((SELECT NULLIF(Test_Code, '') FROM dbo.LabInvestigationMaster WHERE Test_ID = @testId), CAST(@testId AS VARCHAR(12)))",
+                     ISNULL((SELECT NULLIF(Test_Code, '') FROM dbo.LabInvestigationMaster WHERE Test_ID = @testId), CAST(@testId AS VARCHAR(12))),
+                     ISNULL((SELECT COALESCE(OrderDate, BookingDate) FROM dbo.LabOrder WHERE LabOrderId = @labOrderId), GETDATE())",
             new { companyId, branchId, labOrderId, testId });
 
-        // file name: <BranchCode>_<Lab booking no>_<Test code>; the record keeps the branch, booking and test IDs and the lab booking no
+        // folder: the lab order date; file name: <BranchCode>_<Lab order no>_<Test code>; the record keeps the branch, order and test IDs and the lab order no
         var fileName = ftp.SafeName($"{names.BranchCode}_{names.BillNo}_{names.TestCode}") + ext;
         string path;
         try
         {
             await using var stream = file.OpenReadStream();
-            path = await ftp.UploadAsync(settings, [names.Company, names.Branch, DateTime.Today.ToString("yyyy-MM-dd")],
+            path = await ftp.UploadAsync(settings, [names.Company, names.Branch, names.OrderDate.ToString("yyyy-MM-dd")],
                 fileName, stream, HttpContext.RequestAborted);
         }
         catch (Exception ex)
@@ -155,7 +157,7 @@ public class LabExternalDocumentsController(
         }, commandType: System.Data.CommandType.StoredProcedure);
 
         await auditLogService.LogAsync("Lab External Document", "Upload",
-            $"External document for booking #{labOrderId}, test #{testId} uploaded to {path}", User.GetUserId(), branchId.Value);
+            $"External document for lab order {names.BillNo} (#{labOrderId}), test #{testId} uploaded to {path}", User.GetUserId(), branchId.Value);
         return Json(new { success = true, message = "Uploaded.", path, fileName });
     }
 
