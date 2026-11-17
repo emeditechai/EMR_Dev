@@ -162,6 +162,7 @@ document.getElementById('btnCancelAdm')?.addEventListener('click', async () => {
             <div class="col-2"><input class="form-control form-control-sm ap" placeholder="Mobile" maxlength="15" value="${E(a?.Phone)}" /></div><div class="col-2"><select class="form-select form-select-sm ait">${opt(L.idTypes, 'Id', 'Name', 'ID type')}</select></div>
             <div class="col-2"><input class="form-control form-control-sm ain" placeholder="ID no." maxlength="60" value="${E(a?.IdNumber)}" /></div><div class="col-1"><button type="button" class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-trash"></i></button></div>`;
         d.querySelector('.ait').value = a?.IdTypeId || ''; d.dataset.primary = primary ? '1' : '0';
+        d.dataset.address = a?.Address || ''; d.dataset.pass = a?.PassNo || '';   // not on this form: kept as they are
         d.querySelector('button').addEventListener('click', () => d.remove());
         document.getElementById('eAtts').appendChild(d);
     }
@@ -210,18 +211,40 @@ document.getElementById('ePayer')?.addEventListener('change', () => { ePayerUi()
         const payers = payer === 'CASH' ? [] : [{ PayerType: payer, InsuranceTpaId: payer === 'INSURANCE' ? n('eIns') : null, CorporateId: payer === 'CORPORATE' ? n('eCorp') : null,
             SchemeId: payer === 'SCHEME' ? n('eSch') : null, PolicyNo: g('ePol'), MemberId: g('eMem'), EmployeeId: g('eEmp'), CardHolderName: g('eHolder'), RelationToHolder: g('eHolderRel'),
             PolicyValidTo: g('eValid'), CardFilePath: (P[0] || {}).CardFilePath || null }];
+        // further payers (not on this form) are kept as they are
+        P.slice(1).forEach(x => payers.push({ PayerType: x.PayerType, InsuranceTpaId: x.InsuranceTpaId, CorporateId: x.CorporateId, SchemeId: x.SchemeId, PolicyNo: x.PolicyNo,
+            MemberId: x.MemberId, EmployeeId: x.EmployeeId, CardHolderName: x.CardHolderName, RelationToHolder: x.RelationToHolder,
+            PolicyValidTo: x.PolicyValidTo ? String(x.PolicyValidTo).substring(0, 10) : null, CardFilePath: x.CardFilePath, Remarks: x.Remarks }));
         const atts = [...document.querySelectorAll('.e-att')].map(r => ({ Name: r.querySelector('.an').value.trim(), Relation: r.querySelector('.ar').value.trim(), Phone: r.querySelector('.ap').value.trim(),
-            IdTypeId: Number(r.querySelector('.ait').value) || null, IdNumber: r.querySelector('.ain').value.trim(), IsPrimary: r.dataset.primary === '1' })).filter(a => a.Name);
+            IdTypeId: Number(r.querySelector('.ait').value) || null, IdNumber: r.querySelector('.ain').value.trim(), IsPrimary: r.dataset.primary === '1',
+            Address: r.dataset.address || null, PassNo: r.dataset.pass || null })).filter(a => a.Name);
         const mlc = { MlcNo: g('emNo'), Nature: g('emNature'), IncidentAt: g('emAt'), IncidentPlace: g('emPlace'), BroughtBy: g('emBy'), BroughtByPhone: g('emByPh'),
                       PoliceStation: g('emPs'), InformedAt: g('emInf'), OfficerName: g('emOff'), Remarks: g('emRem') };
         const body = { AdmissionType: g('eType'), AdmissionSource: g('eSource'), AdmittingDoctorId: n('eAdm') || 0, ConsultantDoctorId: n('eCon') || 0, DepartmentId: n('eDept'),
             ReferralDoctorId: n('eRef'), ExpectedDischargeAt: g('eExp'), PackageId: n('ePkg'), ProvisionalDiagnosis: g('eDx'), DiagnosisCode: g('eIcd'), ReasonForAdmission: g('eReason'),
             PayerType: payer, TariffCategoryId: n('eTariff') || 0, Remarks: g('eRemarks'), Payers: JSON.stringify(payers), Attendants: JSON.stringify(atts),
             IsMlc: document.getElementById('eMlc').checked, Mlc: JSON.stringify(mlc) };
-        e.target.disabled = true;
+        // what the change sets off: confirm before the stay is re-priced; a package change needs a reason
+        const btn = e.currentTarget || e.target;
+        const changes = [];
+        if (String(body.TariffCategoryId) !== String(H.TariffCategoryId)) changes.push('the <b>tariff category</b> changes: bed days and the services / procedures / doctor visits at their master rate are re-priced');
+        if (body.PayerType !== H.PayerType) changes.push('the <b>payer</b> changes: medicines and consumables issued are re-priced by the Price Rule of the new payer');
+        if (String(body.PackageId || '') !== String(H.PackageId || '')) changes.push('the <b>package</b> changes: charges move inside / outside the package');
+        if (changes.length && !await Ipd.confirm('Save these changes?', '<div class="text-start small">' + changes.map(c => '• ' + c).join('<br>') + '<br><br>Hand-edited rates are kept.</div>', 'Save')) return;
+        if (String(body.PackageId || '') !== String(H.PackageId || '') && H.PackageId) {
+            const why = await Ipd.reason('Reason for changing the package', 'Reason'); if (!why) return;
+            body.PackageReason = why;
+        }
+        btn.disabled = true;
         const r = await Ipd.post(base + 'Update?id=' + id, body);
-        e.target.disabled = false;
+        btn.disabled = false;
         if (!r.success) { Ipd.error(r.error); return; }
-        reloadTab('overview');
+        const d = r.data || {}, notes = [];
+        if (d.TariffRepriced) notes.push(`${d.TariffRepriced} charge(s) re-priced to the new tariff`);
+        if (d.TariffKept) notes.push(`${d.TariffKept} charge(s) kept at their rate (edited rate, or no rate in the new tariff)`);
+        if (d.PharmacyRepriced) notes.push(`${d.PharmacyRepriced} medicine / consumable line(s) re-priced for the new payer`);
+        if (d.PackageChanged) notes.push('charges re-checked against the package');
+        if (notes.length && window.Swal) await Swal.fire({ icon: 'success', title: 'Admission updated', html: '<div class="text-start small">' + notes.map(n => '• ' + n).join('<br>') + '</div>' });
+        reloadTab(new URLSearchParams(location.search).get('tab') || 'overview');
     });
 })();

@@ -103,11 +103,19 @@
         renderCart();
     }
 
+    function recvCell(r) {
+        if (!r.ReceiveStatus) return '<span class="small text-muted">—</span>';
+        const pill = { PENDING: '<span class="ipd-pill warn">To receive</span>', RECEIVED: '<span class="ipd-pill ok">Received</span>',
+                       NOT_RECEIVED: '<span class="ipd-pill alert">Not received</span>', TAKEN_BACK: '<span class="ipd-pill muted">Taken back by pharmacy</span>' }[r.ReceiveStatus] || '';
+        return pill + (r.ReceivedBy ? `<div class="small text-muted">${E(r.ReceivedBy)} ${Ipd.dt(r.ReceivedAt)}</div>` : '') + (r.ReceiveRemarks ? `<div class="small">${E(r.ReceiveRemarks)}</div>` : '');
+    }
+    window.IpdPhReload = () => loadRows();
+
     async function loadRows() {
         for (const tb of document.querySelectorAll('.ipd-ph-rows')) {
             const head = tb.dataset.head, rt = document.querySelector(`.ipd-ph-returns[data-head="${head}"]`);
             let d;
-            try { d = await Ipd.get(P.base + 'PhIssues?id=' + P.id + '&head=' + head); } catch (e) { tb.innerHTML = `<tr><td colspan="8" class="text-danger small">${E(e.message)}</td></tr>`; continue; }
+            try { d = await Ipd.get(P.base + 'PhIssues?id=' + P.id + '&head=' + head); } catch (e) { tb.innerHTML = `<tr><td colspan="9" class="text-danger small">${E(e.message)}</td></tr>`; continue; }
             const rows = d.issues || [], rets = d.returns || [];
             tb.innerHTML = rows.length ? rows.map(r => `<tr>
                 <td><div class="fw-semibold font-monospace small">${E(r.IssueNo)}</div><div class="small text-muted">${Ipd.dt(r.IssueAt)}</div></td>
@@ -115,9 +123,14 @@
                     <div class="small text-muted">Batch ${E(r.BatchNo)} · exp ${Ipd.date(r.ExpiryDate)} · ${E(r.StoreName || '')}${r.DoctorName ? ' · Dr ' + E(r.DoctorName) : ''}</div></td>
                 <td class="text-end">${Number(r.Qty)}</td><td class="text-end">${Number(r.ReturnedQty) ? Number(r.ReturnedQty) : '—'}</td>
                 <td class="text-end">${Ipd.num(r.UnitPrice)}</td><td class="text-end fw-semibold">${Ipd.num(r.KeptAmount)}</td>
-                <td class="small">${E(r.IssuedBy || '')}</td>
-                <td class="text-end">${r.CanReturn && P.can.ret ? `<button type="button" class="btn btn-sm btn-light border p-ret" data-line="${r.LineId}" data-max="${Number(r.KeptQty)}" data-name="${E(r.ItemName)}" title="Return unused"><i class="bi bi-arrow-return-left"></i></button>` : ''}</td></tr>`).join('')
-                : '<tr><td colspan="8" class="text-muted small">Nothing issued yet.</td></tr>';
+                <td class="small">${E(r.IssuedBy || '')}${r.IndentNo ? `<div class="text-muted font-monospace">${E(r.IndentNo)}</div>` : ''}</td>
+                ${head === 'PHARMACY' ? `<td>${recvCell(r)}</td>` : ''}
+                <td class="text-end text-nowrap">${r.CanReceive && P.can.receive ? `<button type="button" class="btn btn-sm btn-success p-recv" data-line="${r.LineId}" title="Received on the ward"><i class="bi bi-check2"></i></button>
+                    ${r.ReceiveStatus === 'PENDING' ? `<button type="button" class="btn btn-sm btn-light border text-danger p-notrecv" data-line="${r.LineId}" data-name="${E(r.ItemName)}" title="Not received"><i class="bi bi-x-lg"></i></button>` : ''}` : ''}
+                ${r.CanReIndent && P.can.indent ? `<button type="button" class="btn btn-sm btn-outline-primary p-reind-issue" data-line="${r.LineId}" data-item="${r.ItemId}" data-name="${E(r.ItemName)}" data-qty="${Number(r.Qty)}" data-uom="${E(r.SaleUom || '')}" title="Re-indent"><i class="bi bi-arrow-repeat"></i></button>` : ''}
+                ${r.CanReturn && P.can.ret ? `<button type="button" class="btn btn-sm btn-light border p-ret" data-line="${r.LineId}" data-max="${Number(r.KeptQty)}" data-name="${E(r.ItemName)}" title="Return unused"><i class="bi bi-arrow-return-left"></i></button>` : ''}</td></tr>`).join('')
+                : `<tr><td colspan="9" class="text-muted small">Nothing issued yet.</td></tr>`;
+            if (head === 'PHARMACY') document.querySelector('.ipd-recv-all')?.classList.toggle('d-none', !(P.can.receive && rows.some(r => r.CanReceive && r.ReceiveStatus === 'PENDING')));
             if (rt) rt.innerHTML = rets.length ? rets.map(r => `<tr><td><div class="font-monospace small fw-semibold">${E(r.IssueNo)}</div><div class="small text-muted">${Ipd.dt(r.IssueAt)} · from ${E(r.FromIssueNo)}</div></td>
                 <td>${E(r.ItemName)} <span class="small text-muted">batch ${E(r.BatchNo)}</span></td><td class="text-end">${Number(r.Qty)}</td><td class="text-end">${Ipd.num(r.Amount)}</td>
                 <td class="small">${E(r.Remarks || '')}</td><td class="small">${E(r.ReturnedBy || '')}</td></tr>`).join('') : '<tr><td colspan="6" class="text-muted small">No returns.</td></tr>';
@@ -140,6 +153,32 @@
         if (!res.success) return Ipd.error(res.error);
         Ipd.toast('Returned ' + res.data.IssueNo); loadRows();
         if (window.IpdBillRefresh) window.IpdBillRefresh();
+    });
+
+    // ward receipt of indent issues (SQLScripts/2475)
+    async function receive(lines) {
+        const r = await Ipd.post(P.base + 'Receive?id=' + P.id, { lines });
+        if (!r.success) return Ipd.error(r.error);
+        Ipd.toast(lines.every(l => l.received) ? 'Received' : 'Marked not received'); loadRows();
+        if (window.IpdIndentReload) window.IpdIndentReload();
+    }
+    document.addEventListener('click', async e => {
+        const ok = e.target.closest('.p-recv');
+        if (ok) return receive([{ lineId: Number(ok.dataset.line), received: true }]);
+        const no = e.target.closest('.p-notrecv');
+        if (no) {
+            const why = await Ipd.reason('Not received: ' + no.dataset.name, 'Reason (e.g. not delivered, wrong item, damaged)'); if (!why) return;
+            return receive([{ lineId: Number(no.dataset.line), received: false, remarks: why }]);
+        }
+        if (e.target.closest('.ipd-recv-all')) {
+            let d; try { d = await Ipd.get(P.base + 'PhIssues?id=' + P.id + '&head=PHARMACY'); } catch (x) { return Ipd.error(x.message); }
+            const pend = (d.issues || []).filter(r => r.CanReceive && r.ReceiveStatus === 'PENDING');
+            if (!pend.length) return;
+            if (!await Ipd.confirm('Receive all pending items?', pend.map(r => E(r.ItemName) + ' × ' + Number(r.KeptQty)).join('<br>'), 'Receive')) return;
+            return receive(pend.map(r => ({ lineId: r.LineId, received: true })));
+        }
+        const ri = e.target.closest('.p-reind-issue');
+        if (ri && window.IpdReIndent) window.IpdReIndent({ itemId: Number(ri.dataset.item), name: ri.dataset.name, qty: Number(ri.dataset.qty), uom: ri.dataset.uom, issueLineId: Number(ri.dataset.line) });
     });
 
     document.querySelectorAll('.ipd-ph-form').forEach(initForm);

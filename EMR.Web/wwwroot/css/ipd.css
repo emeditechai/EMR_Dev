@@ -140,3 +140,13 @@
 .ipdx-tag { display:inline-flex; align-items:center; gap:.3rem; font-size:.74rem; font-weight:600; padding:.15rem .55rem; border-radius:6px; }
 .ipdx-tag.in { background:#ecfdf5; color:#047857; } .ipdx-tag.out { background:#fef2f2; color:#b91c1c; }
 .ipdx-empty { text-align:center; color:#64748b; padding:1.75rem 1rem; } .ipdx-empty i { font-size:1.8rem; color:#cbd5e1; display:block; margin-bottom:.35rem; }
+
+/* medicine indent (SQLScripts/2475): IPD Patient > Medicines and Pharmacy > IPD Issue */
+.ipd-pill.ok { background:#dcfce7; color:#166534; border-color:#86efac; }
+.ind-tile { cursor:pointer; transition:box-shadow .15s; } .ind-tile:hover { box-shadow:0 4px 14px rgba(15,23,42,.08); } .ind-tile.sel { outline:2px solid #2563eb; }
+.ind-row { cursor:pointer; } .ind-row.sel > td { background:#eff6ff !important; }
+.ind-row.pri-STAT > td:first-child { border-left:4px solid #dc2626; } .ind-row.pri-URGENT > td:first-child { border-left:4px solid #d97706; }
+.ind-detail-empty { min-height:240px; display:flex; align-items:center; justify-content:center; color:#64748b; text-align:center; }
+.ind-line { border:1px solid #e2e8f0; border-radius:10px; padding:.65rem .8rem; }
+.ind-line + .ind-line { margin-top:.6rem; } .ind-line.closed { background:#f8fafc; }
+.ind-qty { font-variant-numeric:tabular-nums; }

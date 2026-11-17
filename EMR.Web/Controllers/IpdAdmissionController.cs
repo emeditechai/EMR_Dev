@@ -404,7 +404,7 @@ public class IpdAdmissionController(
             var model = await LoadPatientAsync(id);
             if (model is null) return NotFound();
             model.Tab = string.IsNullOrWhiteSpace(tab) ? "overview" : tab;
-            foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER", "CHARGE", "CHARGE_CANCEL", "RATE_EDIT", "DISCOUNT", "PACKAGE", "FINAL_BILL", "BILL_BACKDATE", "BILL_CANCEL", "LAB_ORDER", "LAB_CANCEL", "PH_ISSUE", "PH_RETURN" })
+            foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER", "CHARGE", "CHARGE_CANCEL", "RATE_EDIT", "DISCOUNT", "PACKAGE", "FINAL_BILL", "BILL_BACKDATE", "BILL_CANCEL", "LAB_ORDER", "LAB_CANCEL", "PH_ISSUE", "PH_RETURN", "PH_INDENT", "PH_RECEIVE" })
                 ViewData["Can" + c] = await permissionGuard.AllowsAsync(HttpContext, PatientPage, c);
             ViewData["CanEstimate"] = await permissionGuard.AllowsAsync(HttpContext, IpdEstimationController.EstimationPage, "VIEW");
             return View(model);
@@ -437,6 +437,7 @@ public class IpdAdmissionController(
         public string? Attendants { get; set; }
         public bool IsMlc { get; set; }
         public string? Mlc { get; set; }
+        public string? PackageReason { get; set; }
     }
 
     [HttpPost]
@@ -444,11 +445,12 @@ public class IpdAdmissionController(
     public async Task<IActionResult> Update(int id, [FromBody] UpdateBody b)
     {
         var canTariff = await permissionGuard.AllowsAsync(HttpContext, PatientPage, "CHANGE_TARIFF");
+        var canPackage = await permissionGuard.AllowsAsync(HttpContext, PatientPage, "PACKAGE");
         return await WriteJson(() => api.PostAsync($"/admissions/{id}/update", new
         {
             b.AdmissionType, b.AdmissionSource, b.ReferralDoctorId, b.AdmittingDoctorId, b.ConsultantDoctorId, b.DepartmentId, b.ProvisionalDiagnosis,
             b.DiagnosisCode, b.ReasonForAdmission, b.ExpectedDischargeAt, b.TariffCategoryId, b.PayerType, b.PackageId, b.Remarks, b.Payers, b.Attendants,
-            b.IsMlc, b.Mlc, CanChangeTariff = canTariff
+            b.IsMlc, b.Mlc, CanChangeTariff = canTariff, CanChangePackage = canPackage, b.PackageReason
         }), _ => auditLogService.LogActivityAsync(eventType: "IPD Admission", actionName: "IPD.Edit", description: $"Admission {id} details updated.",
             userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "IPD", referenceId: id));
     }

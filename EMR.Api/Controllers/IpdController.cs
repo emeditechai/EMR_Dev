@@ -13,13 +13,19 @@ public record IpdAdmitRequest(Guid? RequestKey, int PatientId, DateTime? Admissi
     bool CanWaiveAdvance, string? AdvanceWaiveReason, bool CanBackdate);
 public record IpdUpdateRequest(string AdmissionType, string AdmissionSource, int? ReferralDoctorId, int AdmittingDoctorId, int ConsultantDoctorId,
     int? DepartmentId, string? ProvisionalDiagnosis, string? DiagnosisCode, string? ReasonForAdmission, DateTime? ExpectedDischargeAt,
-    int TariffCategoryId, string PayerType, int? PackageId, string? Remarks, string? Payers, string? Attendants, bool IsMlc, string? Mlc, bool CanChangeTariff);
+    int TariffCategoryId, string PayerType, int? PackageId, string? Remarks, string? Payers, string? Attendants, bool IsMlc, string? Mlc, bool CanChangeTariff,
+    bool CanChangePackage = false, string? PackageReason = null);
 public record IpdReasonRequest(string? Reason);
 public record IpdChargeAddRequest(string Lines, bool CanEditRate, bool CanDiscount);
 public record IpdDoctorFeeRequest(int? FeeId, int DoctorId, string? VisitType, int? TariffCategoryId, decimal Rate, DateTime EffectiveFrom, DateTime? EffectiveTo, string? Remarks);
 public record IpdLabOrderRequest(string Items, int? DoctorId, string? Remarks);
 public record IpdPhIssueRequest(string Lines, string? Head, int? StoreId, int? DoctorId, string? Remarks);
 public record IpdPhReturnRequest(string Lines, string? Reason);
+public record IpdPhIndentRequest(string Lines, int? StoreId, int? DoctorId, string? Priority, string? Remarks);
+public record IpdPhIndentCancelRequest(int IndentId, int? LineId, string? Reason);
+public record IpdPhReceiveRequest(string Lines);
+public record IpdPhIndentProcessRequest(string? Issue, string? NotIssue, int? StoreId, string? Remarks);
+public record IpdPhTakeBackRequest(string? Remarks);
 public record IpdAdviceRequest(int OpdServiceId, string? Reason, string? Diagnosis, string? DiagnosisCode, string? Urgency, DateTime? ExpectedAt, int? DepartmentId, string? Remarks);
 public record IpdPackageRequest(int? PackageId, string? Reason);
 public record IpdFinaliseRequest(DateTime? UpTo, string? DiscountType, decimal DiscountValue, string? DiscountReason, string? Remarks, bool CanDiscount, bool CanBackdate);
@@ -116,7 +122,7 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
         {
             c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.AdmissionType, r.AdmissionSource, r.ReferralDoctorId, r.AdmittingDoctorId,
             r.ConsultantDoctorId, r.DepartmentId, r.ProvisionalDiagnosis, r.DiagnosisCode, r.ReasonForAdmission, r.ExpectedDischargeAt,
-            r.TariffCategoryId, r.PayerType, r.PackageId, r.Remarks, r.Payers, r.Attendants, r.IsMlc, r.Mlc, r.CanChangeTariff
+            r.TariffCategoryId, r.PayerType, r.PackageId, r.Remarks, r.Payers, r.Attendants, r.IsMlc, r.Mlc, r.CanChangeTariff, r.CanChangePackage, r.PackageReason
         })));
 
     [HttpPost("admissions/{id:int}/cancel")]
@@ -373,6 +379,43 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     [HttpPost("admissions/{id:int}/ph-returns")]
     public Task<IActionResult> PhReturn(int id, [FromBody] IpdPhReturnRequest r) => Run(async c =>
         Row(await ipd.RowAsync("dbo.usp_Api_IpdPh_Return", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Lines, r.Reason })));
+
+    // ── medicine indent: ward raises, pharmacy issues / not issues, ward receives (SQLScripts/2475) ──────────────
+    [HttpGet("admissions/{id:int}/ph-indent-items")]
+    public Task<IActionResult> PhIndentItems(int id, [FromQuery] string? q, [FromQuery] int? storeId) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdPhIndent_Items", new { c.CompanyId, c.BranchId, Q = q, StoreId = storeId }, 2)));
+
+    [HttpGet("admissions/{id:int}/ph-indents")]
+    public Task<IActionResult> PhIndents(int id) => Run(async c =>
+        Rows(await ipd.RowsAsync("dbo.usp_Api_IpdPhIndent_List", new { c.CompanyId, AdmissionId = id })));
+
+    [HttpPost("admissions/{id:int}/ph-indents")]
+    public Task<IActionResult> PhIndentSave(int id, [FromBody] IpdPhIndentRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPhIndent_Save", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Lines, r.StoreId, r.DoctorId, r.Priority, r.Remarks })));
+
+    [HttpPost("admissions/{id:int}/ph-indents/cancel")]
+    public Task<IActionResult> PhIndentCancel(int id, [FromBody] IpdPhIndentCancelRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPhIndent_Cancel", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.IndentId, r.LineId, r.Reason })));
+
+    [HttpPost("admissions/{id:int}/ph-receive")]
+    public Task<IActionResult> PhReceive(int id, [FromBody] IpdPhReceiveRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPhIndent_Receive", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Lines })));
+
+    [HttpGet("ph-indent-board")]
+    public Task<IActionResult> PhIndentBoard([FromQuery] string? status, [FromQuery] int? storeId, [FromQuery] string? q, [FromQuery] DateTime? from, [FromQuery] DateTime? to) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdPhIndent_Board", new { c.CompanyId, c.BranchId, Status = status, StoreId = storeId, Q = q, From = from, To = to }, 2)));
+
+    [HttpGet("ph-indents/{indentId:int}")]
+    public Task<IActionResult> PhIndentGet(int indentId) => Run(async c =>
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdPhIndent_Get", new { c.CompanyId, c.BranchId, IndentId = indentId }, 3)));
+
+    [HttpPost("ph-indents/{indentId:int}/process")]
+    public Task<IActionResult> PhIndentProcess(int indentId, [FromBody] IpdPhIndentProcessRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPhIndent_Process", new { c.CompanyId, c.BranchId, c.UserId, IndentId = indentId, r.Issue, r.NotIssue, r.StoreId, r.Remarks })));
+
+    [HttpPost("ph-issue-lines/{lineId:int}/take-back")]
+    public Task<IActionResult> PhTakeBack(int lineId, [FromBody] IpdPhTakeBackRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPhIndent_TakeBack", new { c.CompanyId, c.BranchId, c.UserId, IssueLineId = lineId, r.Remarks })));
 
     // ── OPD admission advice (SQLScripts/2438) ────────────────────────────────────────────────────────────────────
     [HttpGet("advice")]

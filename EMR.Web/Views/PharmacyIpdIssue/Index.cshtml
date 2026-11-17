@@ -1,0 +1,40 @@
+@{
+    ViewData["Title"] = "IPD Issue - Medicine Indents";
+    var canIssue = ViewData["CanIssue"] as bool? ?? false;
+    var canTakeBack = ViewData["CanTakeBack"] as bool? ?? false;
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div><h1 class="h3 mb-0 fw-bold"><i class="bi bi-hospital me-2 text-success"></i>IPD Issue</h1>
+        <small class="text-muted">Medicine indents raised by the wards. Stock moves only when you issue; anything you cannot supply is closed with a reason.</small></div>
+    <button type="button" class="btn btn-outline-secondary" id="indRefresh" title="Refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+</div>
+<div class="row g-3 mb-3" id="indTiles"></div>
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3">
+    <div><label class="form-label small fw-semibold mb-1">Status</label>
+        <select class="form-select form-select-sm" id="indStatus">
+            <option value="OPEN" selected>Open (pending + part issued)</option><option value="PENDING">Pending</option><option value="PARTIAL">Part issued</option>
+            <option value="NOT_RECEIVED">Not received by ward</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option><option value="ALL">All</option>
+        </select></div>
+    <div><label class="form-label small fw-semibold mb-1">From</label><input type="date" class="form-control form-control-sm" id="indFrom" /></div>
+    <div><label class="form-label small fw-semibold mb-1">To</label><input type="date" class="form-control form-control-sm" id="indTo" /></div>
+    <div class="flex-grow-1" style="max-width:320px"><label class="form-label small fw-semibold mb-1">Search</label>
+        <input class="form-control form-control-sm" id="indQ" placeholder="Indent no., IP no., UHID, patient, bed, ward" /></div>
+</div>
+<div class="row g-3">
+    <div class="col-12 col-xl-5">
+        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon green"><i class="bi bi-list-check"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Indents <span class="badge text-bg-secondary" id="indCount"></span></h6><small class="text-muted">STAT and urgent first, then oldest first</small></div></div>
+            <div class="reg-section-body p-0"><div class="table-responsive" style="max-height:70vh;overflow-y:auto"><table class="table table-hover ipd-table mb-0">
+                <thead class="sticky-top bg-white"><tr><th>Indent</th><th>Patient / bed</th><th class="text-center">Lines</th><th>Status</th></tr></thead>
+                <tbody id="indRows"><tr><td colspan="4" class="text-muted small">Loading…</td></tr></tbody></table></div></div></div>
+    </div>
+    <div class="col-12 col-xl-7">
+        <div class="reg-section"><div id="indDetail" class="reg-section-body"><div class="ind-detail-empty"><div><i class="bi bi-hand-index fs-2 d-block mb-2"></i>Choose an indent to see its medicines and issue them.</div></div></div></div>
+    </div>
+</div>
+@section Scripts {
+<script src="~/js/ipd.js" asp-append-version="true"></script>
+<script>window.PhIpd = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/PhIpdIssue/"), patientBase = Url.Content("~/IpdAdmission/Patient/"), can = new { issue = canIssue, takeBack = canTakeBack } }));</script>
+<script src="~/js/ipd/indent-issue.js" asp-append-version="true"></script>
+}

@@ -448,6 +448,7 @@
     <script src="~/js/ipd/billing.js" asp-append-version="true"></script>
     <script>window.IpdLab = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdLab/"), report = Url.Content("~/LabReportDispatch/PrintReportPdf"), open = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), consultant = h.I("ConsultantDoctorId"), can = new { order = Can("LAB_ORDER"), cancel = Can("LAB_CANCEL") } }));</script>
     <script src="~/js/ipd/lab.js" asp-append-version="true"></script>
-    <script>window.IpdPh = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdPharmacy/"), open = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), consultant = h.I("ConsultantDoctorId"), can = new { issue = Can("PH_ISSUE"), ret = Can("PH_RETURN") } }));</script>
+    <script>window.IpdPh = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdPharmacy/"), open = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), consultant = h.I("ConsultantDoctorId"), can = new { issue = Can("PH_ISSUE"), ret = Can("PH_RETURN"), indent = Can("PH_INDENT"), receive = Can("PH_RECEIVE") } }));</script>
     <script src="~/js/ipd/pharmacy.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/indent.js" asp-append-version="true"></script>
 }
