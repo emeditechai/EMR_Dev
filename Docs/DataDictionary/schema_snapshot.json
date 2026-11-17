@@ -7060,6 +7060,32 @@
    "type": "datetime2"
   },
   {
+   "col": "ValidFrom",
+   "def": "(CONVERT([date],getdate()))",
+   "descr": null,
+   "ident": false,
+   "len": 3,
+   "nullable": false,
+   "ord": 22,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "CompanyMaster",
+   "type": "date"
+  },
+  {
+   "col": "ValidTo",
+   "def": "(dateadd(year,(1),CONVERT([date],getdate())))",
+   "descr": null,
+   "ident": false,
+   "len": 3,
+   "nullable": false,
+   "ord": 23,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "CompanyMaster",
+   "type": "date"
+  },
+  {
    "col": "Consent_ID",
    "def": null,
    "descr": null,
@@ -58034,7 +58060,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-17T06:45:41",
+ "extracted_on": "2026-11-17T07:07:35",
  "fk": [
   {
    "col": "LedgerId",
