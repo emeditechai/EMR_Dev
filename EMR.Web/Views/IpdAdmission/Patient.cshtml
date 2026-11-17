@@ -262,7 +262,7 @@
                     <tr>
                         <td><div class="fw-semibold">@a2.Dt("CreatedDate", "dd-MMM-yyyy")</div><div class="small text-muted">@a2.Dt("CreatedDate", "hh:mm tt")</div></td>
                         <td class="font-monospace fw-semibold">@a2.S("DocNo")</td>
-                        <td>@if (refund) {<span class="ipdx-tag out"><i class="bi bi-arrow-up-right"></i>Refund</span>} else {<span class="ipdx-tag in"><i class="bi bi-arrow-down-left"></i>@(a2.S("Kind") == "SETTLE" ? "Bill payment" : "Advance")</span>}</td>
+                        <td>@if (refund) {<span class="ipdx-tag out"><i class="bi bi-arrow-up-right"></i>Refund</span>} else {<span class="ipdx-tag in"><i class="bi bi-arrow-down-left"></i>@(a2.S("Kind") switch { "SETTLE" => "Bill payment", "ADJUST" => "Discount / round off", _ => "Advance" })</span>}</td>
                         <td>@a2.S("Modes")@if (!string.IsNullOrWhiteSpace(a2.S("RefNo"))) {<div class="small text-muted">Ref @a2.S("RefNo")</div>}</td>
                         <td class="text-muted">@(string.IsNullOrWhiteSpace(a2.S("Remarks")) ? "—" : a2.S("Remarks"))</td>
                         <td>@a2.S("CreatedByName")</td>
@@ -341,10 +341,26 @@
 
 @* ══ modals ══ *@
 <div class="modal fade" id="advanceModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
-    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-cash-coin me-1 text-success"></i>Collect Advance · @h.S("IpNo")</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-cash-coin me-1 text-success"></i><span id="advTitle">Collect Advance</span> · @h.S("IpNo")</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
     <div class="modal-body">
+        @* the figures are worked out by the server (SQLScripts/2479): before the final bill = advance; after it = settlement with discount / round off *@
+        <div id="advSummary" class="adv-sum mb-3"></div>
+        <div id="advSettle" class="adv-settle mb-3 d-none">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-4"><label class="form-label small fw-semibold" for="advDiscValue">Discount</label>
+                    <div class="input-group">
+                        <input type="radio" class="btn-check" name="advDiscType" id="advDiscP" value="P" checked /><label class="btn btn-outline-secondary" for="advDiscP">%</label>
+                        <input type="radio" class="btn-check" name="advDiscType" id="advDiscA" value="A" /><label class="btn btn-outline-secondary" for="advDiscA">₹</label>
+                        <input type="number" min="0" step="0.01" class="form-control" id="advDiscValue" placeholder="0" @(Can("DISCOUNT") ? "" : "disabled") />
+                    </div></div>
+                <div class="col-12 col-md-5"><label class="form-label small fw-semibold" for="advDiscReason">Reason for discount</label><input id="advDiscReason" class="form-control" maxlength="300" placeholder="e.g. senior citizen, approved by MS" @(Can("DISCOUNT") ? "" : "disabled") /></div>
+                <div class="col-12 col-md-3"><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="advRound" /><label class="form-check-label small fw-semibold" for="advRound">Round off paise</label></div></div>
+            </div>
+            @if (!Can("DISCOUNT")) { <div class="small text-muted mt-1"><i class="bi bi-lock me-1"></i>A discount needs the IPD Patient › Discount permission.</div> }
+        </div>
         <div id="advRows"></div>
         <div class="d-flex justify-content-between align-items-center mt-2"><button type="button" class="btn btn-sm btn-outline-primary" id="btnAdvRow"><i class="bi bi-plus-lg me-1"></i>Split payment</button><b>Total: <span id="advTotal">₹0.00</span></b></div>
+        <div id="advHint" class="small mt-1"></div>
         <div class="mt-3"><label class="form-label small fw-semibold" for="advRemarks">Remarks</label><input id="advRemarks" class="form-control" maxlength="300" placeholder="e.g. Day 3 deposit" /></div>
     </div>
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-success" id="btnAdvSave"><i class="bi bi-check2 me-1"></i>Save &amp; Print Receipt</button></div>

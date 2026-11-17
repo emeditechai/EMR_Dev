@@ -1,29 +1,86 @@
 @{ ViewData["Title"] = "IPD Admission List"; }
 @section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
-<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <div><h1 class="h3 mb-0 fw-bold"><i class="bi bi-card-list me-2 text-success"></i>Admission List</h1><small class="text-muted">Search admissions by IP no., UHID, name, mobile or bed</small></div>
-    <a asp-action="New" class="btn btn-success"><i class="bi bi-person-plus-fill me-1"></i>New Admission</a>
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold"><i class="bi bi-card-list me-2 text-success"></i>Admission List <span class="badge rounded-pill text-bg-light border align-middle fs-6" id="alTotal"></span></h1>
+        <small class="text-muted">Every admission of the branch: search, filter, sort and act on a patient without opening the file. Press <kbd>/</kbd> to search.</small>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-secondary" id="alRefresh" title="Refresh (auto every 2 min)"><i class="bi bi-arrow-clockwise"></i></button>
+        <button type="button" class="btn btn-outline-success" id="alExport" title="Excel of the list as filtered and sorted"><i class="bi bi-file-earmark-excel me-1"></i>Export</button>
+        <a asp-controller="IpdBeds" asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-grid-3x3-gap me-1"></i>Bed Board</a>
+        <a asp-action="New" class="btn btn-success"><i class="bi bi-person-plus-fill me-1"></i>New Admission</a>
+    </div>
 </div>
 @if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
-<div class="reg-section"><div class="reg-section-body py-3">
-    <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-4"><label class="form-label" for="fSearch">Search</label><input id="fSearch" class="form-control" placeholder="IP no., UHID, name, mobile, bed" /></div>
-        <div class="col-6 col-md-2"><label class="form-label" for="fStatus">Status</label>
-            <select id="fStatus" class="form-select"><option value="OPEN">In hospital</option><option value="">All</option><option value="ADMITTED">Admitted</option><option value="DISCHARGE_ADVISED">Discharge advised</option><option value="DISCHARGED">Discharged</option><option value="CANCELLED">Cancelled</option></select></div>
-        <div class="col-6 col-md-2"><label class="form-label" for="fPayer">Payer</label>
-            <select id="fPayer" class="form-select"><option value="">All</option><option value="CASH">Cash</option><option value="CORPORATE">Corporate</option><option value="INSURANCE">Insurance / TPA</option><option value="SCHEME">Govt. scheme</option></select></div>
-        <div class="col-6 col-md-2"><label class="form-label" for="fFrom">Admitted from</label><input type="date" id="fFrom" class="form-control" /></div>
-        <div class="col-6 col-md-2"><label class="form-label" for="fTo">to</label><input type="date" id="fTo" class="form-control" /></div>
+
+<div class="al-tiles mb-3" id="alTiles"></div>
+
+<div class="reg-section al-filters">
+    <div class="reg-section-body py-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <div class="al-search flex-grow-1">
+                <i class="bi bi-search"></i>
+                <input id="fSearch" class="form-control" placeholder="Search IP no., UHID, name, mobile, bed, ward or doctor" autocomplete="off" />
+                <button type="button" class="btn btn-sm al-clear d-none" id="fSearchClear" title="Clear"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="al-pills" id="fStatusPills" role="group" aria-label="Status">
+                <button type="button" data-v="OPEN" class="active">In hospital</button>
+                <button type="button" data-v="ADMITTED">Admitted</button>
+                <button type="button" data-v="DISCHARGE_ADVISED">Discharge advised</button>
+                <button type="button" data-v="DISCHARGED">Discharged</button>
+                <button type="button" data-v="CANCELLED">Cancelled</button>
+                <button type="button" data-v="">All</button>
+            </div>
+            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#alMore" aria-expanded="false" id="alMoreBtn">
+                <i class="bi bi-sliders me-1"></i>More filters <span class="badge text-bg-primary d-none" id="alMoreCount"></span></button>
+        </div>
+        <div class="collapse" id="alMore">
+            <div class="row g-2 align-items-end pt-3">
+                <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fPayer">Payer</label>
+                    <select id="fPayer" class="form-select form-select-sm"><option value="">All payers</option><option value="CASH">Cash</option><option value="CORPORATE">Corporate</option><option value="INSURANCE">Insurance / TPA</option><option value="SCHEME">Govt. scheme</option></select></div>
+                <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fWard">Ward</label><select id="fWard" class="form-select form-select-sm"><option value="">All wards</option></select></div>
+                <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fDoctor">Consultant</label><select id="fDoctor" class="form-select form-select-sm"><option value="">All consultants</option></select></div>
+                <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fDept">Department</label><select id="fDept" class="form-select form-select-sm"><option value="">All departments</option></select></div>
+                <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fFrom">Admitted from</label><input type="date" id="fFrom" class="form-control form-control-sm" /></div>
+                <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fTo">to</label><input type="date" id="fTo" class="form-control form-control-sm" /></div>
+                <div class="col-12 d-flex flex-wrap gap-1 align-items-center small">
+                    <span class="text-muted me-1">Admitted:</span>
+                    <button type="button" class="btn btn-link btn-sm p-0 me-2 al-range" data-r="today">Today</button>
+                    <button type="button" class="btn btn-link btn-sm p-0 me-2 al-range" data-r="7">Last 7 days</button>
+                    <button type="button" class="btn btn-link btn-sm p-0 me-2 al-range" data-r="month">This month</button>
+                    <button type="button" class="btn btn-link btn-sm p-0 me-2 al-range" data-r="">Any time</button>
+                </div>
+            </div>
+        </div>
+        <div class="al-chips mt-2" id="alChips"></div>
     </div>
-</div></div>
+</div>
+
 <div class="reg-section"><div class="reg-section-body p-0">
-    <div class="table-responsive"><table class="table table-hover ipd-table mb-0">
-        <thead><tr><th>IP No.</th><th>Admitted</th><th>Patient</th><th>Ward / bed</th><th>Consultant</th><th>Payer</th><th class="text-end">Day</th><th class="text-end">Bill so far</th><th class="text-end">Advance</th><th class="text-end">Balance</th><th>Status</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="11" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    <div class="table-responsive al-table-wrap"><table class="table table-hover ipd-table al-table mb-0">
+        <thead><tr>
+            <th class="al-sort" data-s="IPNO">IP No.</th>
+            <th class="al-sort" data-s="ADMITTED">Admitted</th>
+            <th class="al-sort" data-s="NAME">Patient</th>
+            <th class="al-sort" data-s="BED">Ward / bed</th>
+            <th>Consultant</th>
+            <th>Payer</th>
+            <th class="text-end al-sort" data-s="DAYS_DESC">Day</th>
+            <th class="text-end al-sort" data-s="BILL_DESC">Bill so far</th>
+            <th class="text-end">Advance</th>
+            <th class="text-end al-sort" data-s="BALANCE_DESC">Balance</th>
+            <th>Status</th>
+            <th class="text-end"></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
     </table></div>
 </div></div>
-<div class="d-flex justify-content-between align-items-center"><span id="count" class="small text-muted"></span>
-    <div class="btn-group"><button type="button" class="btn btn-sm btn-outline-secondary" id="prev">Previous</button><button type="button" class="btn btn-sm btn-outline-secondary" id="next">Next</button></div></div>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2 small text-muted"><span id="count"></span>
+        <select id="fSize" class="form-select form-select-sm w-auto"><option>25</option><option>50</option><option>100</option></select><span>per page</span></div>
+    <nav><ul class="pagination pagination-sm mb-0" id="pager"></ul></nav>
+</div>
 @section Scripts {
 <script src="~/js/ipd.js" asp-append-version="true"></script>
 <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdAdmission/") }));</script>

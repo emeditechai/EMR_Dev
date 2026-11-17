@@ -30,7 +30,7 @@ public record IpdAdviceRequest(int OpdServiceId, string? Reason, string? Diagnos
 public record IpdPackageRequest(int? PackageId, string? Reason);
 public record IpdFinaliseRequest(DateTime? UpTo, string? DiscountType, decimal DiscountValue, string? DiscountReason, string? Remarks, bool CanDiscount, bool CanBackdate);
 public record IpdCancelRequest(string? Reason, string? RefundMethod, string? RefundRefNo);
-public record IpdAdvanceRequest(string Payments, string? Remarks);
+public record IpdAdvanceRequest(string Payments, string? Remarks, string? DiscType = null, decimal DiscValue = 0, string? DiscReason = null, bool RoundOff = false, bool CanDiscount = false);
 public record IpdRefundRequest(decimal Amount, string Method, string? RefNo, string? Reason);
 public record IpdConsentRequest(int ConsentId, string? SignedByName, string? SignedByRelation, string? WitnessName, string? SignaturePath, string? WitnessSignaturePath);
 public record IpdDocumentRequest(string? DocType, string? Title, string FilePath, string? Remarks);
@@ -95,12 +95,13 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     // ── admissions ────────────────────────────────────────────────────────────────────────────────────────────
     [HttpGet("admissions")]
     public Task<IActionResult> List([FromQuery] string? status, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, [FromQuery] string? search,
-        [FromQuery] int? wardId, [FromQuery] string? payerType, [FromQuery] int page = 1, [FromQuery] int pageSize = 25) => Run(async c =>
+        [FromQuery] int? wardId, [FromQuery] string? payerType, [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] int? consultantId = null, [FromQuery] int? departmentId = null, [FromQuery] string? flag = null, [FromQuery] string? sort = null) => Run(async c =>
         Sets(await ipd.SetsAsync("dbo.usp_Api_IpdAdmission_List", new
         {
             c.CompanyId, c.BranchId, Status = status, FromDate = fromDate?.Date, ToDate = toDate?.Date, Search = search, WardId = wardId,
-            PayerType = payerType, Page = page, PageSize = pageSize
-        }, 2)));
+            PayerType = payerType, Page = page, PageSize = pageSize, ConsultantId = consultantId, DepartmentId = departmentId, Flag = flag, Sort = sort
+        }, 6)));
 
     [HttpGet("admissions/{id:int}")]
     public Task<IActionResult> Get(int id) => Run(async c =>
@@ -132,7 +133,13 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     // ── advances ──────────────────────────────────────────────────────────────────────────────────────────────
     [HttpPost("admissions/{id:int}/advance")]
     public Task<IActionResult> Advance(int id, [FromBody] IpdAdvanceRequest r) => Run(async c =>
-        Row(await ipd.RowAsync("dbo.usp_Api_IpdAdvance_Add", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Payments, r.Remarks })));
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdAdvance_Add", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Payments, r.Remarks,
+            r.DiscType, r.DiscValue, r.DiscReason, r.RoundOff, r.CanDiscount })));
+
+    // settlement figures for the Collect payment modal (SQLScripts/2479)
+    [HttpGet("admissions/{id:int}/advance-preview")]
+    public Task<IActionResult> AdvancePreview(int id, [FromQuery] string? discType, [FromQuery] decimal discValue = 0, [FromQuery] bool roundOff = false) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdAdvance_Preview", new { c.CompanyId, c.BranchId, AdmissionId = id, DiscType = discType, DiscValue = discValue, RoundOff = roundOff })));
 
     [HttpPost("admissions/{id:int}/refund")]
     public Task<IActionResult> Refund(int id, [FromBody] IpdRefundRequest r) => Run(async c =>

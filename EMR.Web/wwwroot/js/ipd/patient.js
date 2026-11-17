@@ -34,16 +34,72 @@
         d.querySelector('.pdel').addEventListener('click', () => { if (document.querySelectorAll('.adv-row').length > 1) d.remove(); advTotal(); });
     }
     const advPays = () => [...document.querySelectorAll('.adv-row')].map(r => ({ Method: r.querySelector('.pm').value, Amount: Number(r.querySelector('.pa').value) || 0, Ref: r.querySelector('.pr').value.trim() })).filter(p => p.Amount > 0);
-    function advTotal() { document.getElementById('advTotal').textContent = Ipd.money(advPays().reduce((s, p) => s + p.Amount, 0)); }
-    document.getElementById('advanceModal')?.addEventListener('show.bs.modal', async () => { await lookups(); if (!document.querySelector('.adv-row')) advRow(); });
+    // settlement figures come from the server (SQLScripts/2479): due, discount, round off, payable
+    let adv = { kind: null, payable: null }, advTimer;
+    const advEl = k => document.getElementById(k);
+    const advDisc = () => ({ type: document.querySelector('input[name="advDiscType"]:checked')?.value || 'P', value: Number(advEl('advDiscValue')?.value) || 0, round: !!advEl('advRound')?.checked });
+    function advTotal() {
+        const total = advPays().reduce((s, p) => s + p.Amount, 0);
+        advEl('advTotal').textContent = Ipd.money(total);
+        const hint = advEl('advHint'); if (!hint) return;
+        if (adv.kind !== 'SETTLE' || adv.payable == null) { hint.innerHTML = ''; return; }
+        const diff = Math.round((adv.payable - total) * 100) / 100;
+        hint.innerHTML = total > adv.payable + 0.004 ? `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>More than the payable ${Ipd.money(adv.payable)}.</span>`
+            : diff > 0 && advDisc().round ? `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>Round off needs the full ${Ipd.money(adv.payable)} (or untick it).</span>`
+            : diff > 0 ? `<span class="text-muted">Part payment: ${Ipd.money(diff)} will stay due.</span>`
+            : `<span class="text-success"><i class="bi bi-check2-circle me-1"></i>The bill will be fully settled.</span>`;
+    }
+    async function advPreview() {
+        const d = advDisc();
+        let r;
+        try { r = await Ipd.get(base + 'AdvancePreview?id=' + id + '&discType=' + d.type + '&discValue=' + (d.value || 0) + '&roundOff=' + d.round); }
+        catch (e) { advEl('advSummary').innerHTML = `<div class="text-danger small">${E(e.message)}</div>`; return; }
+        if (!r) return;
+        adv = { kind: r.Kind, payable: r.Kind === 'SETTLE' ? Number(r.Payable) : null };
+        const settle = r.Kind === 'SETTLE';
+        advEl('advTitle').textContent = settle ? 'Collect Payment · ' + (r.BillNo || '') : 'Collect Advance';
+        advEl('advSettle').classList.toggle('d-none', !settle);
+        const cell = (label, val, cls) => `<div class="adv-sum-cell ${cls || ''}"><small>${label}</small><b class="num">${val}</b></div>`;
+        advEl('advSummary').innerHTML = settle
+            ? `<div class="adv-sum-grid">${cell('Final bill', Ipd.money(r.BillNet))}${cell('Paid / adjusted', Ipd.money(r.Paid))}${cell('Balance due', Ipd.money(r.Due), 'due')}
+                ${cell('Discount', '− ' + Ipd.money(r.Discount), Number(r.Discount) ? 'minus' : 'mute')}${cell('Round off', '− ' + Ipd.money(r.RoundOff), Number(r.RoundOff) ? 'minus' : 'mute')}
+                ${cell('Payable now', Ipd.money(r.Payable), 'pay')}</div>
+                <div class="d-flex justify-content-between align-items-center mt-1"><span class="small text-muted">${r.Note ? E(r.Note) : 'Worked out by the server; the discount and round off are posted to the ledger.'}</span>
+                <button type="button" class="btn btn-link btn-sm p-0" id="advFill">Collect ${Ipd.money(r.Payable)}</button></div>`
+            : `<div class="adv-sum-grid">${cell('Bill so far', Ipd.money(r.BillNow))}${cell('Advance held', Ipd.money(r.Paid))}${cell(Number(r.Due) > 0 ? 'Balance so far' : 'Advance covers', Ipd.money(Math.abs(Number(r.Due) || 0)), Number(r.Due) > 0 ? 'due' : '')}</div>
+                <div class="small text-muted mt-1"><i class="bi bi-info-circle me-1"></i>This is a refundable deposit. Discount and round off are given when the final bill is settled.</div>`;
+        advTotal();
+    }
+    const advPreviewSoon = () => { clearTimeout(advTimer); advTimer = setTimeout(advPreview, 250); };
+    document.getElementById('advanceModal')?.addEventListener('show.bs.modal', async () => {
+        await lookups(); if (!document.querySelector('.adv-row')) advRow();
+        if (advEl('advDiscValue')) advEl('advDiscValue').value = '';
+        if (advEl('advDiscReason')) advEl('advDiscReason').value = '';
+        if (advEl('advRound')) advEl('advRound').checked = false;
+        advPreview();
+    });
+    ['advDiscValue', 'advRound', 'advDiscP', 'advDiscA'].forEach(k => advEl(k)?.addEventListener(k === 'advDiscValue' ? 'input' : 'change', advPreviewSoon));
+    document.getElementById('advanceModal')?.addEventListener('click', e => {
+        if (!e.target.closest('#advFill') || adv.payable == null) return;
+        const rows = document.querySelectorAll('.adv-row');
+        rows.forEach((r, i) => { if (i > 0) r.remove(); });
+        const first = document.querySelector('.adv-row .pa'); if (first) first.value = adv.payable.toFixed(2);
+        advTotal();
+    });
     document.getElementById('btnAdvRow')?.addEventListener('click', advRow);
     document.getElementById('btnAdvSave')?.addEventListener('click', async e => {
-        const pays = advPays(); if (!pays.length) { Ipd.error('Enter the amount.'); return; }
-        e.target.disabled = true;
-        const r = await Ipd.post(base + 'AddAdvance?id=' + id, { Payments: JSON.stringify(pays), Remarks: document.getElementById('advRemarks').value });
-        e.target.disabled = false;
+        const btn = e.currentTarget || e.target;
+        const pays = advPays(), d = advDisc(), settle = adv.kind === 'SETTLE';
+        const hasAdj = settle && (d.value > 0 || d.round);
+        if (!pays.length && !(hasAdj && adv.payable === 0)) { Ipd.error('Enter the amount.'); return; }
+        if (settle && d.value > 0 && !advEl('advDiscReason').value.trim()) { Ipd.error('Enter the reason for the discount.'); return; }
+        const body = { Payments: JSON.stringify(pays), Remarks: advEl('advRemarks').value };
+        if (settle) Object.assign(body, { DiscType: d.value > 0 ? d.type : null, DiscValue: d.value, DiscReason: advEl('advDiscReason').value.trim() || null, RoundOff: d.round });
+        btn.disabled = true;
+        const r = await Ipd.post(base + 'AddAdvance?id=' + id, body);
+        btn.disabled = false;
         if (!r.success) { Ipd.error(r.error); return; }
-        window.open(base + 'PrintReceipt/' + r.data.AdvanceId, '_blank');
+        if (r.data.AdvanceId) window.open(base + 'PrintReceipt/' + r.data.AdvanceId, '_blank');
         reloadTab('advance');
     });
 

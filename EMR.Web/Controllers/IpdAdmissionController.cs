@@ -375,9 +375,59 @@ public class IpdAdmissionController(
     public IActionResult Index() => User.GetCurrentBranchId() is null ? RedirectToAction("SelectBranch", "Account") : View();
 
     [HttpGet]
-    public Task<IActionResult> ListData(string? status, DateTime? fromDate, DateTime? toDate, string? search, int? wardId, string? payerType, int page = 1, int pageSize = 25) =>
-        ApiJson(async () => NamedSets(await api.SetsAsync("/admissions" + IpdApiClient.Q(("status", status), ("fromDate", fromDate), ("toDate", toDate),
-            ("search", search), ("wardId", wardId), ("payerType", payerType), ("page", page), ("pageSize", pageSize))), ["rows", "total"]));
+    public Task<IActionResult> ListData(string? status, DateTime? fromDate, DateTime? toDate, string? search, int? wardId, string? payerType, int page = 1, int pageSize = 25,
+        int? consultantId = null, int? departmentId = null, string? flag = null, string? sort = null) =>
+        ApiJson(async () => NamedSets(await api.SetsAsync(ListUrl(status, fromDate, toDate, search, wardId, payerType, page, pageSize, consultantId, departmentId, flag, sort)),
+            ["rows", "total", "summary", "wards", "consultants", "departments"]));
+
+    private static string ListUrl(string? status, DateTime? fromDate, DateTime? toDate, string? search, int? wardId, string? payerType, int page, int pageSize,
+        int? consultantId, int? departmentId, string? flag, string? sort) =>
+        "/admissions" + IpdApiClient.Q(("status", status), ("fromDate", fromDate?.ToString("yyyy-MM-dd")), ("toDate", toDate?.ToString("yyyy-MM-dd")), ("search", search),
+            ("wardId", wardId), ("payerType", payerType), ("page", page), ("pageSize", pageSize), ("consultantId", consultantId), ("departmentId", departmentId),
+            ("flag", flag), ("sort", sort));
+
+    /// <summary>The list as filtered and sorted on screen (all pages, up to 2000 admissions) as an Excel sheet.</summary>
+    [HttpGet]
+    public async Task<IActionResult> ListExport(string? status, DateTime? fromDate, DateTime? toDate, string? search, int? wardId, string? payerType,
+        int? consultantId = null, int? departmentId = null, string? flag = null, string? sort = null)
+    {
+        List<JsonElement> sets;
+        try { sets = await api.SetsAsync(ListUrl(status, fromDate, toDate, search, wardId, payerType, 1, 2000, consultantId, departmentId, flag, sort)); }
+        catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException) { TempData["Error"] = "The list could not be exported: " + ex.Message; return RedirectToAction(nameof(Index)); }
+        var rows = sets.ElementAtOrDefault(0).Items();
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.Worksheets.Add("Admissions");
+        string[] head = ["IP No.", "Admitted", "UHID", "Patient", "Age", "Gender", "Mobile", "Ward", "Bed", "ICU", "Consultant", "Department", "Payer", "Tariff",
+                         "Package", "MLC", "Day", "Expected discharge", "Bill so far", "Advance", "Balance", "Advance cover %", "Deposit alert", "Status"];
+        for (var i = 0; i < head.Length; i++) ws.Cell(1, i + 1).Value = head[i];
+        var r = 2;
+        foreach (var x in rows)
+        {
+            object?[] v = [x.S("IpNo"), x.D("AdmissionAt"), x.S("PatientCode"), x.S("PatientName"), x.S("AgeText"), x.S("Gender"), x.S("PhoneNumber"), x.S("WardName"),
+                x.S("BedNumber"), x.B("IsIcu") ? "Yes" : "", x.S("ConsultantDoctorName"), x.S("DepartmentName"), x.S("PayerType"), x.S("TariffCategoryName"),
+                x.S("PackageName"), x.B("IsMlc") ? "Yes" : "", x.I("DayCount"), x.D("ExpectedDischargeAt"), x.M("BillNow"), x.M("NetAdvance"), x.M("BalanceDue"),
+                x.NI("AdvanceCoverPct"), x.B("DepositAlert") ? "Yes" : "", x.S("Status").Replace('_', ' ')];
+            for (var c = 0; c < v.Length; c++)
+                ws.Cell(r, c + 1).Value = v[c] switch
+                {
+                    DateTime dt => dt, decimal m => m, int n => n, null => "", var o => o.ToString()
+                };
+            r++;
+        }
+        var hdr = ws.Range(1, 1, 1, head.Length);
+        hdr.Style.Font.Bold = true; hdr.Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.FromHtml("#E2E8F0");
+        ws.Columns(2, 2).Style.DateFormat.Format = "dd-MMM-yyyy hh:mm AM/PM";
+        ws.Columns(18, 18).Style.DateFormat.Format = "dd-MMM-yyyy hh:mm AM/PM";
+        ws.Columns(19, 21).Style.NumberFormat.Format = "#,##0.00";
+        ws.SheetView.FreezeRows(1);
+        ws.RangeUsed()?.SetAutoFilter();
+        ws.Columns().AdjustToContents(1, Math.Min(r, 200));
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        await auditLogService.LogActivityAsync(eventType: "IPD Admission", actionName: "IPD.ListExport", description: $"Admission list exported ({rows.Count} rows)",
+            userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "IPD", referenceId: 0);
+        return File(ms.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Admissions_{DateTime.Now:yyyyMMdd_HHmm}.xlsx");
+    }
 
     // ═════════════════════════════════════════════════════════════════════════════════════════════════════════
     //  IPD Patient workspace
@@ -469,14 +519,23 @@ public class IpdAdmissionController(
                 userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "IPD", referenceId: id));
     }
 
-    public sealed class AdvanceBody { public string? Payments { get; set; } public string? Remarks { get; set; } }
+    public sealed class AdvanceBody { public string? Payments { get; set; } public string? Remarks { get; set; } public string? DiscType { get; set; } public decimal DiscValue { get; set; } public string? DiscReason { get; set; } public bool RoundOff { get; set; } }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public Task<IActionResult> AddAdvance(int id, [FromBody] AdvanceBody b) =>
-        WriteJson(() => api.PostAsync($"/admissions/{id}/advance", new { Payments = b.Payments ?? "[]", b.Remarks }),
-            r => auditLogService.LogActivityAsync(eventType: "IPD Billing", actionName: "IPD.Advance", description: $"Advance receipt {r.S("ReceiptNo")} on admission {id}.",
+    public async Task<IActionResult> AddAdvance(int id, [FromBody] AdvanceBody b)
+    {
+        // a discount on settlement needs the Discount control of the IPD Patient page (checked again by the procedure)
+        var canDiscount = await permissionGuard.AllowsAsync(HttpContext, PatientPage, "DISCOUNT");
+        return await WriteJson(() => api.PostAsync($"/admissions/{id}/advance", new { Payments = b.Payments ?? "[]", b.Remarks, b.DiscType, b.DiscValue, b.DiscReason, b.RoundOff, CanDiscount = canDiscount }),
+            r => auditLogService.LogActivityAsync(eventType: "IPD Billing", actionName: "IPD.Advance",
+                description: $"Receipt {r.S("ReceiptNo")} on admission {id}." + (r.M("Adjusted") > 0 ? $" Discount / round off {r.M("Adjusted").Rs()}" + (string.IsNullOrWhiteSpace(b.DiscReason) ? "" : $" ({b.DiscReason})") : ""),
                 userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "IPD", referenceNo: r.S("ReceiptNo"), referenceId: id));
+    }
+
+    [HttpGet]
+    public Task<IActionResult> AdvancePreview(int id, string? discType, decimal discValue = 0, bool roundOff = false) =>
+        ApiJson(async () => (object)await api.GetAsync($"/admissions/{id}/advance-preview" + IpdApiClient.Q(("discType", discType), ("discValue", discValue), ("roundOff", roundOff))));
 
     public sealed class RefundBody { public decimal Amount { get; set; } public string? Method { get; set; } public string? RefNo { get; set; } public string? Reason { get; set; } }
 
@@ -574,7 +633,7 @@ public class IpdAdmissionController(
             await PreparePrintAsync(doc.S("DocNo"), doc.Dt("CreatedDate"));
             return View(new IpdPrintView
             {
-                Title = refund ? "Advance Refund Voucher" : "Advance Receipt", DocNo = doc.S("DocNo"), Header = header, Doc = doc,
+                Title = refund ? "Advance Refund Voucher" : doc.S("Kind") switch { "SETTLE" => "Payment Receipt", "ADJUST" => "Settlement Note", _ => "Advance Receipt" }, DocNo = doc.S("DocNo"), Header = header, Doc = doc,
                 Rows = sets.ElementAtOrDefault(2).Items(), PrintedBy = this.PrintedBy()
             });
         }
