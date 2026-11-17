@@ -77,9 +77,17 @@
                 <div class="card-body p-3 small">
                     <div id="centralMessage" class="text-muted">Checking the central register…</div>
                     <div id="centralDates" class="text-muted mt-1"></div>
-                    <button type="button" id="btnPushCentral" class="btn btn-primary btn-sm mt-3 d-none">
-                        <i class="bi bi-cloud-upload me-1"></i>Push to Central
-                    </button>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="button" id="btnPushCentral" class="btn btn-primary btn-sm d-none">
+                            <i class="bi bi-cloud-upload me-1"></i>Push to Central
+                        </button>
+                        @* SQLScripts/2470: register this company's users in the central user register *@
+                        <button type="button" id="btnSyncUsers" class="btn btn-outline-primary btn-sm" data-sync-url="@Url.Action("SyncUsers", new { id = Model.CompanyId })"
+                                title="Register this company's users in the central user register (Central_Users)">
+                            <i class="bi bi-people me-1"></i><i class="bi bi-arrow-repeat me-1"></i>Sync Users
+                        </button>
+                    </div>
+                    <div id="syncUsersResult" class="mt-2 d-none"></div>
                 </div>
             </div>
         }
@@ -354,6 +362,30 @@
                     .catch(() => notify('error', 'Not pushed', 'Server error while pushing the company.'))
                     .finally(() => { btn.disabled = false; });
             });
+            // SQLScripts/2470: Sync Users - every user of this company into the central user register
+            const syncBtn = document.getElementById('btnSyncUsers'), syncOut = document.getElementById('syncUsersResult');
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            syncBtn.addEventListener('click', function () {
+                syncBtn.disabled = true;
+                syncOut.className = 'mt-2 small text-muted';
+                syncOut.textContent = 'Syncing users…';
+                const token = document.querySelector('input[name="__RequestVerificationToken"]');
+                fetch(syncBtn.dataset.syncUrl, { method: 'POST', credentials: 'same-origin', headers: { 'RequestVerificationToken': token ? token.value : '' } })
+                    .then(r => r.json())
+                    .then(r => {
+                        syncOut.className = 'mt-2 small ' + (r.success ? 'text-success' : 'text-danger');
+                        syncOut.innerHTML = '<i class="bi ' + (r.success ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(r.message)
+                            + (r.users && r.users.length
+                                ? '<ul class="mb-0 mt-1 ps-3 text-body">' + r.users.map(u => '<li><b>' + esc(u.username) + '</b>: ' + esc(u.message)
+                                    + (u.status === 'CONFLICT' ? ' <a href="' + esc(u.editUrl) + '" target="_blank" class="ms-1"><i class="bi bi-pencil-square me-1"></i>Edit username</a>' : '') + '</li>').join('')
+                                  + '</ul>' + (r.users.some(u => u.status === 'CONFLICT') ? '<div class="text-muted mt-1">Change the username and save - the user is registered centrally on save; then Sync Users again.</div>' : '')
+                                : (r.problems && r.problems.length ? '<ul class="mb-0 mt-1 ps-3 text-body">' + r.problems.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : ''));
+                        load();
+                    })
+                    .catch(() => { syncOut.className = 'mt-2 small text-danger'; syncOut.textContent = 'Server error while syncing users.'; })
+                    .finally(() => { syncBtn.disabled = false; });
+            });
+
             load();
         })();
     </script>

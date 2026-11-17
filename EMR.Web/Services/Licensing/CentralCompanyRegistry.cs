@@ -14,6 +14,7 @@ public sealed class CentralCompanyStatus
     public string State { get; init; } = "UNAVAILABLE";
     public string Message { get; init; } = string.Empty;
     public string? CentralCompanyName { get; init; }
+    public int? CentralCompanyId { get; init; }
     public string? ApiUrl { get; init; }
     public DateTime? CreatedDate { get; init; }
     public DateTime? ModifiedDate { get; init; }
@@ -21,7 +22,7 @@ public sealed class CentralCompanyStatus
 }
 
 /// <summary>Result of a push: Status CREATED / UPDATED / UNCHANGED / CONFLICT / UNAVAILABLE.</summary>
-public sealed record CentralCompanyPushResult(string Status, string Message)
+public sealed record CentralCompanyPushResult(string Status, string Message, int? CentralCompanyId = null)
 {
     public bool Ok => Status is "CREATED" or "UPDATED" or "UNCHANGED";
 }
@@ -43,6 +44,16 @@ public interface ICentralCompanyRegistry
     /// <summary>For a new company: the message when another installation already holds the code; null when the code is
     /// free centrally or the central database cannot be reached (never blocks creation for that).</summary>
     Task<string?> CodeTakenElsewhereAsync(string companyCode);
+
+    /// <summary>The Central_Company.ID of this installation's company (SQLScripts/2470 maps users to it). When the company
+    /// is not registered yet (or its code / name / API address changed) and <paramref name="pushIfNeeded"/> is set, it is
+    /// pushed first. Error is set when it cannot be mapped (code held by another installation, central DB unreachable).</summary>
+    /// Unreachable is true when the central database could not be reached (as opposed to a company that cannot be mapped).
+    Task<(int? CentralCompanyId, string? Error, bool Unreachable)> ResolveAsync(int companyId, string companyCode, string companyName, bool pushIfNeeded);
+
+    /// <summary>This installation's key (server|database of DefaultConnection) - Central_Company.InstanceKey; central usernames
+    /// are unique per installation (SQLScripts/2470).</summary>
+    string InstanceKey { get; }
 }
 
 public sealed class CentralCompanyRegistry(
@@ -59,7 +70,7 @@ public sealed class CentralCompanyRegistry(
     private int Timeout => Math.Max(5, _o.RemoteConnectionTimeoutSeconds * 2);
 
     /// <summary>server|database of this installation's application database, lower case.</summary>
-    private string InstanceKey
+    public string InstanceKey
     {
         get
         {
@@ -98,6 +109,7 @@ public sealed class CentralCompanyRegistry(
     private sealed class Row
     {
         public string Match { get; set; } = "";
+        public int ID { get; set; }
         public string CompanyCode { get; set; } = "";
         public string CompanyName { get; set; } = "";
         public int ApplicationCompanyID { get; set; }
@@ -111,6 +123,7 @@ public sealed class CentralCompanyRegistry(
     {
         public string Status { get; set; } = "";
         public string Message { get; set; } = "";
+        public int? ID { get; set; }
     }
 
     private async Task<List<Row>> GetRowsAsync(string code, int? companyId)
@@ -135,7 +148,7 @@ public sealed class CentralCompanyRegistry(
                 // the name or the API address changed here and was not pushed yet (e.g. the central server was down)
                 var stale = (companyName is not null && !string.Equals(byCode.CompanyName, companyName.Trim(), StringComparison.Ordinal))
                             || !string.Equals(byCode.ApiUrl ?? "", ApiUrl ?? "", StringComparison.OrdinalIgnoreCase);
-                return new CentralCompanyStatus { State = stale ? "OUTDATED" : "SYNCED", CentralCompanyName = byCode.CompanyName, ApiUrl = byCode.ApiUrl,
+                return new CentralCompanyStatus { State = stale ? "OUTDATED" : "SYNCED", CentralCompanyName = byCode.CompanyName, ApiUrl = byCode.ApiUrl, CentralCompanyId = byCode.ID,
                     CreatedDate = byCode.CreatedDate, ModifiedDate = byCode.ModifiedDate,
                     Message = stale ? "Registered centrally, but the name or API address there is out of date. Push to update it." : "In the central company register." };
             }
@@ -145,7 +158,7 @@ public sealed class CentralCompanyRegistry(
                         ? $"Code {code} is registered centrally for another company of this installation ({byCode.CompanyName})."
                         : $"Code {code} is already registered centrally by another eCare360 installation ({byCode.CompanyName}). Change this company's code to push it." };
             if (own is not null)
-                return new CentralCompanyStatus { State = "CODE_CHANGED", CentralCompanyName = own.CompanyName, CreatedDate = own.CreatedDate, ModifiedDate = own.ModifiedDate,
+                return new CentralCompanyStatus { State = "CODE_CHANGED", CentralCompanyId = own.ID, CentralCompanyName = own.CompanyName, CreatedDate = own.CreatedDate, ModifiedDate = own.ModifiedDate,
                     Message = $"Registered centrally under the old code {own.CompanyCode}. Push to update it to {code}." };
             return new CentralCompanyStatus { State = "NOT_PUSHED", Message = "Not in the central company register yet." };
         }
@@ -169,7 +182,7 @@ public sealed class CentralCompanyRegistry(
                 commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
             if (r.Status == "CONFLICT")
                 logger.LogWarning("Central company register: company {CompanyId} ({Code}) not pushed - {Message}", companyId, code, r.Message);
-            return new(r.Status, r.Message);
+            return new(r.Status, r.Message, r.Status == "CONFLICT" ? null : r.ID);
         }
         catch (Exception ex)
         {
@@ -195,5 +208,17 @@ public sealed class CentralCompanyRegistry(
             logger.LogWarning(ex, "Central company register: code {Code} not checked", code);
             return null;
         }
+    }
+
+    public async Task<(int? CentralCompanyId, string? Error, bool Unreachable)> ResolveAsync(int companyId, string companyCode, string companyName, bool pushIfNeeded)
+    {
+        if (!Configured) return (null, "The central licence database is not configured on this server.", true);
+        var st = await GetStatusAsync(companyId, companyCode, companyName);
+        if (st.State == "SYNCED" && st.CentralCompanyId is > 0) return (st.CentralCompanyId, null, false);
+        if (st.State == "UNAVAILABLE") return (null, st.Message, true);
+        if (st.State == "CONFLICT") return (null, st.Message, false);
+        if (!pushIfNeeded) return (st.CentralCompanyId, st.CentralCompanyId is > 0 ? null : st.Message, false);
+        var r = await PushAsync(companyId, companyCode, companyName);
+        return r.Ok && r.CentralCompanyId is > 0 ? (r.CentralCompanyId, null, false) : (null, r.Message, r.Status == "UNAVAILABLE");
     }
 }

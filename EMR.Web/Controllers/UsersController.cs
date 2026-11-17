@@ -27,7 +27,8 @@ public class UsersController(
     ICityService cityService,
     IAreaService areaService,
     ILabTestCategoryApiClient labTestCategoryApiClient,
-    IUserListApiClient userListApiClient) : Controller
+    IUserListApiClient userListApiClient,
+    EMR.Web.Services.Licensing.ICentralUserRegistry centralUsers) : Controller
 {
     /// <summary>
     /// Which users this login may see and manage. Signed in to the head office (Branchmaster.IsHOBranch): every user of
@@ -292,7 +293,14 @@ public class UsersController(
         RequireEmail(model);
         model.Username = (model.Email ?? "").Trim().ToLowerInvariant();
         ModelState.Remove(nameof(model.Username));
-        if (model.Username.Length > 0 && await dbContext.Users.AnyAsync(x => x.Username == model.Username))
+        // SQLScripts/2470: 1) the central user register first (username unique per installation); 2) the application database -
+        // always, so the name is still unique here when the central server is unreachable (Status UNAVAILABLE never blocks)
+        if (model.Username.Length > 0
+            && await centralUsers.CheckAsync((int?)User.GetCompanyId() ?? 0, model.Username) is { Taken: true } centralTaken)
+        {
+            ModelState.AddModelError(nameof(model.Email), centralTaken.Message);
+        }
+        else if (model.Username.Length > 0 && await dbContext.Users.AnyAsync(x => x.Username == model.Username))
         {
             ModelState.AddModelError(nameof(model.Email), "This e-mail is already used as a sign-in.");
         }
@@ -331,6 +339,19 @@ public class UsersController(
             await PopulateSelections(model);
             return View(model);
         }
+
+        // SQLScripts/2470: the login is created in the central user register FIRST (reserved for this company); the
+        // application user follows with the existing logic and is linked to it after the save (CentralUserSyncInterceptor).
+        // Central database not reachable: the user is still created here and registered later (Companies > Sync Users).
+        var central = await centralUsers.SaveAsync((int?)User.GetCompanyId() ?? 0, model.Username, null, null);
+        if (central.Taken || central.NoCompany)
+        {
+            // taken in this installation, or no central company for it (no user without its company - FK): not created
+            ModelState.AddModelError(central.Taken ? nameof(model.Email) : string.Empty, central.Message);
+            await PopulateSelections(model);
+            return View(model);
+        }
+        long? reservedCentralId = central.Ok ? central.CentralUserId : null;
 
         var normalizedEmployeeCode = string.IsNullOrWhiteSpace(model.EmployeeCode)
             ? null
@@ -384,6 +405,7 @@ public class UsersController(
             AnalyzerTrainedOn = model.IsLabTechnician ? model.AnalyzerTrainedOn?.Trim() : null,
             UserType = UserTypes.General,          // created in User Master (logins of other masters are created there)
             ReferenceUserId = null,
+            CentralUserID = reservedCentralId,     // 2470: linked to the central row reserved above
             PasswordLastChanged = DateTime.Now,
             CreatedDate = DateTime.Now,
             LastModifiedDate = DateTime.Now,
@@ -391,12 +413,22 @@ public class UsersController(
 
 
         dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch
+        {
+            if (reservedCentralId is > 0) await centralUsers.ReleaseAsync(reservedCentralId.Value);   // no orphan central login
+            throw;
+        }
 
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
         await SaveZonesAsync(user.Id, model);
         await auditLogService.LogAsync("MasterData", "Users.Create", $"Created user: {user.Username}", user.Id);
         TempData["Success"] = "User created successfully.";
+        if (!central.Ok)
+            TempData["Warning"] = $"User created, but not yet in the central user register: {central.Message} Use \"Sync Users\" on the company profile.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -538,7 +570,20 @@ public class UsersController(
                 ? user.Username : newEmail;
             ModelState.Remove(nameof(model.Username));
         }
-        if (await dbContext.Users.AnyAsync(x => x.Id != model.Id && x.Username == model.Username))
+        // SQLScripts/2470: a changed username - 1) the central user register first (the save updates it there); 2) the application
+        // database below, always, so it stays unique here when the central server is unreachable
+        if (!string.Equals(model.Username, user.Username, StringComparison.OrdinalIgnoreCase)
+            && await centralUsers.CheckAsync(user.CompanyId ?? 0, model.Username, user.Id, user.CentralUserID) is { Taken: true } centralTakenEdit)
+        {
+            ModelState.AddModelError(nameof(model.Email), centralTakenEdit.Message);
+        }
+        // and the user's company must be a central company (no central user without its company - FK)
+        else if (!string.Equals(model.Username, user.Username, StringComparison.OrdinalIgnoreCase)
+                 && await centralUsers.EnsureCompanyAsync(user.CompanyId ?? 0) is { NoCompany: true } noCompanyEdit)
+        {
+            ModelState.AddModelError(string.Empty, noCompanyEdit.Message);
+        }
+        else if (await dbContext.Users.AnyAsync(x => x.Id != model.Id && x.Username == model.Username))
         {
             ModelState.AddModelError(nameof(model.Email), "This e-mail is already used as a sign-in.");
         }
@@ -1220,10 +1265,25 @@ public class UsersController(
         if (e.Length > 100 || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(e) || !e.Contains('.'))
             return Json(new { valid = false, available = false, message = "Enter a valid e-mail address." });
         var lower = e.ToLower();
+        // SQLScripts/2470: 1) the central user register first (username unique per installation); 2) this application's database -
+        // always; when the central server is unreachable only the application could be checked, and the message says so
+        var (checkCompanyId, checkCentralId) = id > 0
+            ? await dbContext.Users.AsNoTracking().Where(u => u.Id == id).Select(u => new ValueTuple<int, long?>(u.CompanyId ?? 0, u.CentralUserID)).FirstOrDefaultAsync()
+            : ((int?)User.GetCompanyId() ?? 0, null);
+        var central = await centralUsers.CheckAsync(checkCompanyId, lower, id > 0 ? id : null, checkCentralId);
+        if (central.Taken)
+            return Json(new { valid = true, available = false, message = central.Message });
         var taken = await dbContext.Users.AsNoTracking()
             .Where(u => u.Id != id && ((u.Email != null && u.Email.Trim().ToLower() == lower) || u.Username == lower))
             .Select(u => new { u.Username, u.CompanyId }).FirstOrDefaultAsync();
-        if (taken is null) return Json(new { valid = true, available = true, message = "Available - this e-mail will be the sign-in." });
+        if (taken is null)
+            return Json(new
+            {
+                valid = true, available = true,
+                message = central.Status == "UNAVAILABLE"
+                    ? "Available in this application - this e-mail will be the sign-in. (Central user register not reachable now: it is registered there on the next sync.)"
+                    : "Available - this e-mail will be the sign-in."
+            });
         return Json(new
         {
             valid = true, available = false,

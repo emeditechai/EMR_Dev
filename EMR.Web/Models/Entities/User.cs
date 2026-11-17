@@ -13,6 +13,9 @@ public class User
     [MaxLength(200)]
     public string? Email { get; set; }
 
+    /// <summary>The user's row in the central user register (Central_Lic_DB.dbo.Central_Users.ID, SQLScripts/2470 / 2471).</summary>
+    public long? CentralUserID { get; set; }
+
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
 

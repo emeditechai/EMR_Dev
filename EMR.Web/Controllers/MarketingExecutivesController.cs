@@ -30,6 +30,9 @@ public class MarketingExecutivesController(MarketingExecutiveApiClient api, IAct
         {
             var row = await call();
             if (!row.B("Success")) return Fail(row.S("Error") is { Length: > 0 } e ? e : "The request could not be completed.");
+            // SQLScripts/2470: the executive's login is created / renamed by the procedure - keep the central user register in step
+            if (row.ValueKind == JsonValueKind.Object && row.TryGetProperty("LoginUserId", out var login) && login.ValueKind == JsonValueKind.Number && login.GetInt32() > 0)
+                await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>().SyncUserAsync(login.GetInt32());
             await auditLogService.LogActivityAsync(eventType: "Master", actionName: action, description: description, userId: User.GetUserId(),
                 branchId: User.GetCurrentBranchId(), moduleCode: "MASTER", referenceId: row.I("ExecutiveId"));
             return Json(new { success = true, data = row });

@@ -372,6 +372,8 @@ public class CompaniesController(
             $"{result.Roles} role(s), {result.Permissions} Administrator permission(s) copied, administrator '{model.AdminUsername}'.", branchId: User.GetCurrentBranchId());
         TempData["Onboarded"] = System.Text.Json.JsonSerializer.Serialize(result);
         await PushToCentralAfterSaveAsync(central, result.CompanyId, model.CompanyCode, model.CompanyName.Trim());
+        // 2470: the administrator was created by the onboarding procedure: register it in the central user register too
+        await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>().SyncCompanyAsync(result.CompanyId, onlyPending: true);
         return RedirectToAction(nameof(Onboarded), new { id = result.CompanyId });
     }
 
@@ -451,6 +453,26 @@ public class CompaniesController(
             await auditLogService.LogAsync("Company", "PushToCentral",
                 $"Company {company.CompanyName} ({company.CompanyCode}) pushed to the central company register: {r.Status}.", branchId: User.GetCurrentBranchId());
         return Json(new { success = r.Ok, status = r.Status, message = r.Message });
+    }
+
+    /// <summary>Company profile: register this company's users in the central user register (SQLScripts/2470) - users not
+    /// there yet are added, renamed ones updated; a username already held by another user of the central company is
+    /// reported, not changed. Each user's Users.CentralUserID is stored.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SyncUsers(int id, [FromServices] EMR.Web.Services.Licensing.ICentralUserRegistry centralUsers)
+    {
+        if (!IsSuperAdmin) return Json(new { success = false, message = "Only the Super Admin can sync users to the central register." });
+        var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(c => c.CompanyId == id);
+        if (company is null) return Json(new { success = false, message = "Company not found." });
+        var r = await centralUsers.SyncCompanyAsync(id, onlyPending: false);
+        if (r.Error is not null) return Json(new { success = false, message = r.Error });
+        await auditLogService.LogAsync("Company", "SyncUsers",
+            $"Users of {company.CompanyName} ({company.CompanyCode}) synced to the central user register: {r.Created} added, {r.Updated} updated, {r.Unchanged} unchanged, {r.Failed} not synced.",
+            branchId: User.GetCurrentBranchId());
+        return Json(new { success = r.Failed == 0, total = r.Total, created = r.Created, updated = r.Updated, unchanged = r.Unchanged, failed = r.Failed, problems = r.Problems,
+                          users = r.Users.Select(u => new { u.UserId, u.Username, u.Status, u.Message, editUrl = Url.Action("Edit", "Users", new { id = u.UserId }) }),
+                          message = r.Total == 0 ? "This company has no users." : $"{r.Created} added, {r.Updated} updated, {r.Unchanged} already registered" + (r.Failed > 0 ? $", {r.Failed} not synced." : ".") });
     }
 
     private int FirstStepWithError()

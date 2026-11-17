@@ -23,8 +23,10 @@ builder.Services.AddControllersWithViews(options =>
 builder.Services.AddEmrAuthorization(builder.Configuration, "DefaultConnection",
     new EmrAuthorizationApp { Name = "WEB" });
 builder.Services.AddScoped<IPermissionAdminService, PermissionAdminService>();
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+           // SQLScripts/2470: a user added / renamed through EF is registered in the central user register after the save
+           .AddInterceptors(sp.GetRequiredService<EMR.Web.Services.Licensing.CentralUserSyncInterceptor>()));
 
 builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
@@ -190,6 +192,11 @@ builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseCrypto, EMR.Web
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralLicenseRepository, EMR.Web.Services.Licensing.CentralLicenseRepository>();
 // SQLScripts/2467: central company register (Central_Lic_DB.dbo.Central_Company), same licensing connection
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralCompanyRegistry, EMR.Web.Services.Licensing.CentralCompanyRegistry>();
+// SQLScripts/2470: central user register (Central_Users), and the EF hook that keeps it in step
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralUserRegistry, EMR.Web.Services.Licensing.CentralUserRegistry>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.CentralUserSyncInterceptor>();
+// users the central server missed (it was unreachable) are registered in the background once it is back
+builder.Services.AddHostedService<EMR.Web.Services.Licensing.CentralUserSyncWorker>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILocalLicenseRepository, EMR.Web.Services.Licensing.LocalLicenseRepository>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailer, EMR.Web.Services.Licensing.LicenseMailer>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicensingService, EMR.Web.Services.Licensing.LicensingService>();
