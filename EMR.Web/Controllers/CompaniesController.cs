@@ -86,6 +86,8 @@ public class CompaniesController(
             LogoPath = company.LogoPath,
             FullAddress = string.Join(", ", new[] { company.Address, company.City, company.State, company.Country, company.Pincode }.Where(s => !string.IsNullOrWhiteSpace(s))),
             IsActive = company.IsActive,
+            ValidFrom = company.ValidFrom,
+            ValidTo = company.ValidTo,
             CreatedDate = company.CreatedDate,
             ModifiedDate = company.ModifiedDate,
             Branches = company.Branches.Select(b => new BranchSummaryItem
@@ -131,6 +133,7 @@ public class CompaniesController(
         {
             ModelState.AddModelError(nameof(model.CompanyCode), takenCreate);
         }
+        ValidateValidity(model.ValidFrom, model.ValidTo);
 
         if (!ModelState.IsValid)
         {
@@ -161,6 +164,8 @@ public class CompaniesController(
             Pincode = model.Pincode?.Trim(),
             LogoPath = logoPath,
             IsActive = model.IsActive,
+            ValidFrom = model.ValidFrom!.Value.Date,
+            ValidTo = model.ValidTo!.Value.Date,
             CreatedBy = User.GetUserId(),
             CreatedDate = DateTime.Now
         };
@@ -199,6 +204,8 @@ public class CompaniesController(
             City = company.City,
             Pincode = company.Pincode,
             IsActive = company.IsActive,
+            ValidFrom = company.ValidFrom,
+            ValidTo = company.ValidTo,
             ExistingLogoPath = company.LogoPath
         };
 
@@ -220,6 +227,7 @@ public class CompaniesController(
         {
             ModelState.AddModelError(nameof(model.CompanyCode), takenEdit);
         }
+        ValidateValidity(model.ValidFrom, model.ValidTo);
 
         if (!ModelState.IsValid)
         {
@@ -249,10 +257,17 @@ public class CompaniesController(
         company.City = model.City?.Trim();
         company.Pincode = model.Pincode?.Trim();
         company.IsActive = model.IsActive;
+        var validityChanged = company.ValidFrom != model.ValidFrom!.Value.Date || company.ValidTo != model.ValidTo!.Value.Date;
+        company.ValidFrom = model.ValidFrom!.Value.Date;
+        company.ValidTo = model.ValidTo!.Value.Date;
         company.ModifiedBy = User.GetUserId();
         company.ModifiedDate = DateTime.Now;
 
         await dbContext.SaveChangesAsync();
+        CompanyValidity.Invalidate(company.CompanyId);   // signed-in sessions see the new dates at once
+        if (validityChanged)
+            await auditLogService.LogAsync("Company", "Validity", $"Validity of {company.CompanyName} set to {company.ValidFrom:dd MMM yyyy} - {company.ValidTo:dd MMM yyyy}",
+                branchId: User.GetCurrentBranchId());
 
         await auditLogService.LogAsync("Company", "Edit", $"Updated company: {company.CompanyName}", branchId: User.GetCurrentBranchId());
         TempData["Success"] = "Company details updated successfully.";
@@ -320,6 +335,7 @@ public class CompaniesController(
             if (!free.BranchCodeFree) ModelState.AddModelError(nameof(model.BranchCode), "This branch code is already used - branch codes are unique in the whole application.");
             if (!free.UsernameFree || !free.EmailFree) ModelState.AddModelError(nameof(model.AdminEmail), "This e-mail is already used by another sign-in.");
         }
+        ValidateValidity(model.ValidFrom, model.ValidTo);
         if (model.LogoFile is { Length: > 0 } logo)
         {
             var ext = Path.GetExtension(logo.FileName).ToLowerInvariant();
@@ -371,6 +387,14 @@ public class CompaniesController(
             $"Onboarded company {model.CompanyName} ({model.CompanyCode}): Head Office {model.BranchCode}, Hospital Settings, {result.Pages} pages / {result.Menus} menus copied, " +
             $"{result.Roles} role(s), {result.Permissions} Administrator permission(s) copied, administrator '{model.AdminUsername}'.", branchId: User.GetCurrentBranchId());
         TempData["Onboarded"] = System.Text.Json.JsonSerializer.Serialize(result);
+        // SQLScripts/2472: the onboarding procedure creates the company with the default one-year validity - set the chosen dates
+        if (await dbContext.CompanyMasters.FirstOrDefaultAsync(x => x.CompanyId == result.CompanyId) is { } onboarded)
+        {
+            onboarded.ValidFrom = model.ValidFrom!.Value.Date;
+            onboarded.ValidTo = model.ValidTo!.Value.Date;
+            await dbContext.SaveChangesAsync();
+            CompanyValidity.Invalidate(onboarded.CompanyId);
+        }
         await PushToCentralAfterSaveAsync(central, result.CompanyId, model.CompanyCode, model.CompanyName.Trim());
         // 2470: the administrator was created by the onboarding procedure: register it in the central user register too
         await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>().SyncCompanyAsync(result.CompanyId, onlyPending: true);
@@ -475,11 +499,20 @@ public class CompaniesController(
                           message = r.Total == 0 ? "This company has no users." : $"{r.Created} added, {r.Updated} updated, {r.Unchanged} already registered" + (r.Failed > 0 ? $", {r.Failed} not synced." : ".") });
     }
 
+    /// <summary>SQLScripts/2472: Valid From and Valid To are mandatory, Valid To not before Valid From.</summary>
+    private void ValidateValidity(DateTime? validFrom, DateTime? validTo)
+    {
+        if (validFrom is null || validTo is null) return;   // [Required] reports it
+        if (validTo.Value.Date < validFrom.Value.Date)
+            ModelState.AddModelError("ValidTo", "Valid To cannot be before Valid From.");
+    }
+
     private int FirstStepWithError()
     {
         var steps = new (int Step, string[] Fields)[]
         {
             (1, [nameof(CompanyOnboardViewModel.CompanyCode), nameof(CompanyOnboardViewModel.CompanyName), nameof(CompanyOnboardViewModel.LegalName),
+                 nameof(CompanyOnboardViewModel.ValidFrom), nameof(CompanyOnboardViewModel.ValidTo),
                  nameof(CompanyOnboardViewModel.RegistrationNumber), nameof(CompanyOnboardViewModel.GSTIN), nameof(CompanyOnboardViewModel.PAN),
                  nameof(CompanyOnboardViewModel.Email), nameof(CompanyOnboardViewModel.Phone), nameof(CompanyOnboardViewModel.Website),
                  nameof(CompanyOnboardViewModel.Address), nameof(CompanyOnboardViewModel.Pincode), nameof(CompanyOnboardViewModel.LogoFile)]),

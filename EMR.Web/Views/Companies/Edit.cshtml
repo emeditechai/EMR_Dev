@@ -130,6 +130,20 @@
                             <label asp-for="Pincode" class="form-label fw-semibold">Pincode</label>
                             <input asp-for="Pincode" class="form-control" />
                         </div>
+                        @* SQLScripts/2472: the company's users may sign in to the web application only within these dates *@
+                        <div class="col-md-3">
+                            <label asp-for="ValidFrom" class="form-label fw-semibold">Valid From <span class="text-danger">*</span></label>
+                            <input asp-for="ValidFrom" type="date" class="form-control" required />
+                            <span asp-validation-for="ValidFrom" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="ValidTo" class="form-label fw-semibold">Valid To <span class="text-danger">*</span></label>
+                            <input asp-for="ValidTo" type="date" class="form-control" required />
+                            <span asp-validation-for="ValidTo" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="small text-muted"><i class="bi bi-shield-lock me-1"></i>The company's users can sign in only from Valid From to Valid To (both days included).</div>
+                        </div>
                     </div>
                 </div>
             </div>

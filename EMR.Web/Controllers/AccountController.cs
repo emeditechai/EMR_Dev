@@ -51,6 +51,13 @@ public class AccountController(
             return RedirectToAction("Index", "Dashboard");
         }
 
+        // SQLScripts/2472: a session ended because the company's validity is over says why
+        if (Request.Cookies[CompanyValidity.ReasonCookie] == CompanyValidity.ReasonCode)
+        {
+            Response.Cookies.Delete(CompanyValidity.ReasonCookie);
+            ModelState.AddModelError(string.Empty, "You were signed out: your organisation's access period has ended (or not started yet). Contact your administrator.");
+        }
+
         return View(new LoginViewModel());
     }
 
@@ -124,6 +131,22 @@ public class AccountController(
             await auditLogService.LogAsync("AuthFailure", "Login", $"Inactive/locked user attempted login: {user.Username}", user.Id);
             ModelState.AddModelError(string.Empty, "User is inactive or locked out. Contact administrator.");
             return View(model);
+        }
+
+        // SQLScripts/2472: the user's company may use the application only from Valid From to Valid To (Super Admin exempt)
+        if (!IsSuperAdminUser(user))
+        {
+            var validityCompanyId = user.CompanyId ?? user.UserBranches.Select(b => (int?)b.Branch.CompanyId).FirstOrDefault(c => c > 0);
+            if (validityCompanyId is > 0
+                && await dbContext.CompanyMasters.AsNoTracking().Where(c => c.CompanyId == validityCompanyId)
+                       .Select(c => new { c.CompanyName, c.ValidFrom, c.ValidTo }).FirstOrDefaultAsync() is { } validity
+                && CompanyValidity.RefusalFor(validity.CompanyName, validity.ValidFrom, validity.ValidTo, DateTime.Today) is string refusal)
+            {
+                await auditLogService.LogAsync("AuthFailure", "Login",
+                    $"Company validity ({validity.ValidFrom:dd MMM yyyy} - {validity.ValidTo:dd MMM yyyy}) refused sign-in of {user.Username}", user.Id);
+                ModelState.AddModelError(string.Empty, refusal);
+                return View(model);
+            }
         }
 
         await loginSecurity.RecordSuccessAsync(user.Id);

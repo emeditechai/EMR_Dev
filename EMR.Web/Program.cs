@@ -367,7 +367,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromMinutes(Math.Max(60, EMR.Web.Services.IdleSessionPolicy.IdleMinutes)); // the cookie outlives the idle limit; IdleSessionPolicy decides
         // idle sign-out enforced by the server: background requests (bell poll, hub, auto-refresh) do not count as
         // activity, so they can no longer keep an idle session alive (IdleSessionPolicy, Security:IdleTimeoutMinutes)
-        options.Events.OnValidatePrincipal = EMR.Web.Services.IdleSessionPolicy.ValidateAsync;
+        options.Events.OnValidatePrincipal = async ctx =>
+        {
+            await EMR.Web.Services.IdleSessionPolicy.ValidateAsync(ctx);
+            // SQLScripts/2472: a company outside its Valid From / Valid To ends its users' sessions (cached 5 min per company)
+            await EMR.Web.Services.CompanyValidity.ValidateAsync(ctx);
+        };
         options.Events.OnSigningIn = ctx => { ctx.Properties.Items[EMR.Web.Services.IdleSessionPolicy.ActivityKey] = DateTimeOffset.UtcNow.UtcTicks.ToString(); return Task.CompletedTask; };
     });
 EMR.Web.Services.IdleSessionPolicy.Configure(builder.Configuration);

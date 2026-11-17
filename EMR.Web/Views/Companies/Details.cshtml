@@ -91,6 +91,48 @@
                 </div>
             </div>
         }
+        @* SQLScripts/2472: the dates the company's users may sign in to the web application *@
+        @{
+            var vToday = DateTime.Today;
+            var vNotYet = vToday < Model.ValidFrom.Date;
+            var vEnded = vToday > Model.ValidTo.Date;
+            var vDaysLeft = (Model.ValidTo.Date - vToday).Days;
+        }
+        <div class="card border-0 shadow-sm rounded-3 mb-3">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-calendar2-check me-2"></i>Validity</h6>
+                @if (vEnded)
+                {
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Expired - sign-in blocked</span>
+                }
+                else if (vNotYet)
+                {
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Not started - sign-in blocked</span>
+                }
+                else if (vDaysLeft <= 30)
+                {
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Ends in @vDaysLeft day(s)</span>
+                }
+                else
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                }
+            </div>
+            <div class="card-body p-3">
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Valid From:</span>
+                        <span class="fw-semibold text-dark">@Model.ValidFrom.ToString("dd MMM yyyy")</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Valid To:</span>
+                        <span class="fw-semibold text-dark">@Model.ValidTo.ToString("dd MMM yyyy")</span>
+                    </li>
+                </ul>
+                <div class="text-muted small mt-2">The company's users can sign in to the web application only within these dates.</div>
+            </div>
+        </div>
+
         <!-- Tax & Legal Card -->
         <div class="card border-0 shadow-sm rounded-3 mb-3">
             <div class="card-header bg-white border-bottom py-3">

@@ -84,6 +84,17 @@ public class CompanyFormViewModel
     [Display(Name = "Active Status")]
     public bool IsActive { get; set; } = true;
 
+    // SQLScripts/2472: web sign-in of the company's users only within these dates
+    [Required(ErrorMessage = "Valid From is required.")]
+    [DataType(DataType.Date)]
+    [Display(Name = "Valid From")]
+    public DateTime? ValidFrom { get; set; } = DateTime.Today;
+
+    [Required(ErrorMessage = "Valid To is required.")]
+    [DataType(DataType.Date)]
+    [Display(Name = "Valid To")]
+    public DateTime? ValidTo { get; set; } = DateTime.Today.AddYears(1);
+
     [Display(Name = "Company Logo")]
     public IFormFile? LogoFile { get; set; }
 
@@ -93,6 +104,8 @@ public class CompanyFormViewModel
 public class CompanyDetailsViewModel
 {
     public int CompanyId { get; set; }
+    public DateTime ValidFrom { get; set; }   // SQLScripts/2472
+    public DateTime ValidTo { get; set; }
     public string CompanyCode { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;
     public string? LegalName { get; set; }
@@ -149,6 +162,15 @@ public class CompanyOnboardViewModel
     [StringLength(200)]
     [Display(Name = "Company / Brand Name")]
     public string CompanyName { get; set; } = string.Empty;
+    // SQLScripts/2472: web sign-in of the company's users only within these dates
+    [Required(ErrorMessage = "Valid From is required.")]
+    [DataType(DataType.Date)]
+    [Display(Name = "Valid From")]
+    public DateTime? ValidFrom { get; set; } = DateTime.Today;
+    [Required(ErrorMessage = "Valid To is required.")]
+    [DataType(DataType.Date)]
+    [Display(Name = "Valid To")]
+    public DateTime? ValidTo { get; set; } = DateTime.Today.AddYears(1);
     [StringLength(250)] public string? LegalName { get; set; }
     [StringLength(100)] public string? RegistrationNumber { get; set; }
     [StringLength(20)] [RegularExpression(@"^[0-9A-Za-z]{15}$", ErrorMessage = "GSTIN has 15 letters / digits.")] public string? GSTIN { get; set; }
