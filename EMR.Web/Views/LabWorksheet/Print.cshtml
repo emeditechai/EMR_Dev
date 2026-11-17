@@ -1,0 +1,86 @@
+@model EMR.Web.Services.LabWorksheetDoc
+@{
+    Layout = null;
+    var d = Model;
+    var header = d.Template is null ? null : new EMR.Web.Models.ViewModels.PrintBandView { Band = d.Template.Header, Values = d.Values, LogoUrl = d.LogoUrl };
+    var footer = d.Template is null ? null : new EMR.Web.Models.ViewModels.PrintBandView { Band = d.Template.Footer, IsFooter = true, Values = d.Values, LogoUrl = d.LogoUrl };
+    var n = 0;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Work Sheet @d.Date.ToString("dd-MMM-yyyy")</title>
+    <link rel="stylesheet" href="~/css/lab-worksheet.css" asp-append-version="true" />
+</head>
+<body class="ws-print">
+    <div class="ws-toolbar">
+        <button type="button" onclick="window.print()">Print</button>
+        @if (ViewData["PdfUrl"] is string pdf) { <a href="@pdf" class="sec">Export PDF</a> }
+        <button type="button" class="sec" onclick="window.close()">Close</button>
+    </div>
+    <div class="ws-sheet">
+        @* thead / tfoot repeat on every printed page: the header and footer stay on each A4 sheet *@
+        <table class="ws-frame">
+            <thead><tr><td>
+                @if (header is not null) { <partial name="_PrintBand" model="header" /> }
+                else
+                {
+                    <div class="ws-hdr">
+                        @if (!string.IsNullOrWhiteSpace(d.LogoUrl)) { <img src="@Url.Content("~/" + d.LogoUrl!.TrimStart('~', '/'))" alt="" /> }
+                        <div><div class="hn">@d.HospitalName</div><div class="ha">@d.HospitalAddress</div><div class="ha">@d.HospitalContact</div></div>
+                    </div>
+                }
+                <div class="ws-title"><span>LAB WORK SHEET</span><small>@d.Subtitle</small></div>
+            </td></tr></thead>
+            <tfoot><tr><td>
+                @if (footer is not null) { <partial name="_PrintBand" model="footer" /> }
+                <div class="ws-foot"><span>Printed by @d.PrintedBy on @d.PrintedAt.ToString("dd-MMM-yyyy hh:mm tt")</span><span>@d.HospitalName</span></div>
+            </td></tr></tfoot>
+            <tbody><tr><td>
+                @if (d.Bills.Count == 0)
+                {
+                    <div class="ws-empty">No numeric tests for this filter.</div>
+                }
+                else
+                {
+                    <table class="ws-grid">
+                        <colgroup><col class="w-n" /><col class="w-d" /><col class="w-o" /><col class="w-p" /><col /><col class="w-u" /><col class="w-c" /><col class="w-v" /></colgroup>
+                        <thead><tr><th class="c">#</th><th>Bill date</th><th>Lab order / Token</th><th>Patient / Age / Sex</th><th>Test</th><th>Unit</th><th>Sample<br />collected</th><th class="c">Value</th></tr></thead>
+                        @foreach (var b in d.Bills)
+                        {
+                            n++;
+                            var first = true;
+                            <tbody class="ws-bill @(n % 2 == 0 ? "alt" : "")">
+                            @foreach (var g in b.Groups)
+                            {
+                                if (g.ProfileName is not null)
+                                {
+                                    var leadP = first ? EMR.Web.Services.LabWorksheetHtml.BillCells(b, n) : null; first = false;
+                                    <tr>
+                                        @leadP
+                                        <td colspan="4" class="ws-profile">@g.ProfileName</td>
+                                    </tr>
+                                }
+                                foreach (var t in g.Tests)
+                                {
+                                    var leadT = first ? EMR.Web.Services.LabWorksheetHtml.BillCells(b, n) : null; first = false;
+                                    <tr>
+                                        @leadT
+                                        <td class="@(g.ProfileName is null ? "" : "ind")">@t.TestName</td>
+                                        <td class="sm">@t.Unit</td>
+                                        <td class="sm">@(t.CollectedAt?.ToString("dd-MMM hh:mm tt") ?? "—")</td>
+                                        <td class="ws-val"><div class="box">@(string.IsNullOrWhiteSpace(t.Value) ? "" : t.Value)</div></td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        }
+                    </table>
+                    <div class="ws-signs"><div>Technician (name / sign)</div><div>Checked by (name / sign)</div><div>Entered in system by / date</div></div>
+                }
+            </td></tr></tbody>
+        </table>
+    </div>
+</body>
+</html>

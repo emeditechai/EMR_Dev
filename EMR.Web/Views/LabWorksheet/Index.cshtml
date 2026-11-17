@@ -1,0 +1,58 @@
+@{
+    ViewData["Title"] = "Work Sheet";
+    var canPrint = ViewData["CanPrint"] as bool? ?? false;
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/lab-worksheet.css" asp-append-version="true" /> }
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div><h1 class="h3 mb-0 fw-bold"><i class="bi bi-grid-3x3 me-2 text-primary"></i>Work Sheet</h1>
+        <small class="text-muted">Numeric tests of one day's bills, printed for writing the values by hand at the bench</small></div>
+    @if (canPrint)
+    {
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary" id="wsPrint" disabled><i class="bi bi-printer me-1"></i>Print (A4)</button>
+            <button type="button" class="btn btn-outline-danger" id="wsPdf" disabled><i class="bi bi-file-earmark-pdf me-1"></i>Export PDF</button>
+        </div>
+    }
+</div>
+<div class="card shadow-sm mb-3"><div class="card-body">
+    <div class="row g-3 align-items-end">
+        <div class="col-12 col-lg-3">
+            <label class="form-label small fw-semibold mb-1">Date of</label>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="wsType" id="wsTypeOrder" value="ORDER" checked /><label class="btn btn-outline-primary btn-sm" for="wsTypeOrder">Order</label>
+                <input type="radio" class="btn-check" name="wsType" id="wsTypeBooking" value="BOOKING" /><label class="btn btn-outline-primary btn-sm" for="wsTypeBooking">Booking</label>
+                <input type="radio" class="btn-check" name="wsType" id="wsTypeColl" value="COLLECTION" /><label class="btn btn-outline-primary btn-sm" for="wsTypeColl">Collection</label>
+            </div>
+        </div>
+        <div class="col-6 col-lg-2"><label class="form-label small fw-semibold mb-1" for="wsDate">Date (one day)</label>
+            <input type="date" class="form-control form-control-sm" id="wsDate" value="@DateTime.Today.ToString("yyyy-MM-dd")" max="@DateTime.Today.ToString("yyyy-MM-dd")" /></div>
+        <div class="col-6 col-lg-2">
+            <label class="form-label small fw-semibold mb-1">Bills</label>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="wsCh" id="wsChAll" value="ALL" checked /><label class="btn btn-outline-secondary btn-sm" for="wsChAll">All</label>
+                <input type="radio" class="btn-check" name="wsCh" id="wsChB2C" value="B2C" /><label class="btn btn-outline-secondary btn-sm" for="wsChB2C">B2C</label>
+                <input type="radio" class="btn-check" name="wsCh" id="wsChB2B" value="B2B" /><label class="btn btn-outline-secondary btn-sm" for="wsChB2B">B2B</label>
+            </div>
+        </div>
+        <div class="col-8 col-lg-3">
+            <label class="form-label small fw-semibold mb-1">Values</label>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="wsVal" id="wsValAll" value="ALL" checked /><label class="btn btn-outline-secondary btn-sm" for="wsValAll">All</label>
+                <input type="radio" class="btn-check" name="wsVal" id="wsValWith" value="WITH" /><label class="btn btn-outline-secondary btn-sm" for="wsValWith">With value</label>
+                <input type="radio" class="btn-check" name="wsVal" id="wsValWithout" value="WITHOUT" /><label class="btn btn-outline-secondary btn-sm" for="wsValWithout">Without value</label>
+            </div>
+        </div>
+        <div class="col-4 col-lg-2 d-flex gap-2"><button type="button" class="btn btn-success btn-sm flex-grow-1" id="wsLoad"><i class="bi bi-search me-1"></i>Show</button></div>
+    </div>
+</div></div>
+<div class="d-flex justify-content-between align-items-center mb-2"><div class="small text-muted" id="wsSummary"></div></div>
+<div class="card shadow-sm"><div class="table-responsive">
+    <table class="table ws-grid mb-0">
+        <thead><tr><th class="c">#</th><th>Bill date</th><th>Lab order / Token</th><th>Patient / Age / Sex</th><th>Test</th><th>Unit</th><th>Sample collected</th><th class="c">Value</th></tr></thead>
+        <tbody id="wsRows"><tr><td colspan="8" class="text-muted small p-3">Choose the date and click Show.</td></tr></tbody>
+    </table>
+</div></div>
+@section Scripts {
+<script>window.LabWs = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/LabWorksheet/"), canPrint }));</script>
+<script src="~/js/lab-worksheet.js" asp-append-version="true"></script>
+}
