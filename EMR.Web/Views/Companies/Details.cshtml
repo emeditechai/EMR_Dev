@@ -384,7 +384,8 @@
                 badge.textContent = look[1];
                 msg.textContent = r.message || '';
                 dates.textContent = (r.createdDate ? 'Registered ' + fmt(r.createdDate) + (r.modifiedDate ? ' · updated ' + fmt(r.modifiedDate) : '') : '')
-                    + (r.apiUrl ? ' · API ' + r.apiUrl : '');
+                    + (r.validFrom && r.validTo ? ' · Valid ' + r.validFrom + ' - ' + r.validTo : '')
+                    + (r.webUrl ? ' · Web ' + r.webUrl : '') + (r.apiUrl ? ' · API ' + r.apiUrl : '');
                 btn.classList.toggle('d-none', !r.canPush);
                 btn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>' + (r.state === 'CODE_CHANGED' || r.state === 'OUTDATED' ? 'Update in Central' : 'Push to Central');
             }

@@ -16,6 +16,11 @@ public sealed class CentralCompanyStatus
     public string? CentralCompanyName { get; init; }
     public int? CentralCompanyId { get; init; }
     public string? ApiUrl { get; init; }
+    /// <summary>The installation's web address stored centrally (SQLScripts/2473).</summary>
+    public string? WebUrl { get; init; }
+    /// <summary>The company's validity stored centrally (SQLScripts/2473).</summary>
+    public DateTime? ValidFrom { get; init; }
+    public DateTime? ValidTo { get; init; }
     public DateTime? CreatedDate { get; init; }
     public DateTime? ModifiedDate { get; init; }
     public bool CanPush => State is "NOT_PUSHED" or "CODE_CHANGED" or "OUTDATED";
@@ -59,6 +64,7 @@ public interface ICentralCompanyRegistry
 public sealed class CentralCompanyRegistry(
     IOptions<LicensingOptions> options,
     IConfiguration configuration,
+    IHttpContextAccessor httpContextAccessor,
     ILogger<CentralCompanyRegistry> logger) : ICentralCompanyRegistry
 {
     private readonly LicensingOptions _o = options.Value;
@@ -104,6 +110,42 @@ public sealed class CentralCompanyRegistry(
     /// <summary>This instance's EMR.Api address (ApiSettings:BaseUrl - what this application calls), no trailing slash.</summary>
     private string? ApiUrl => configuration["ApiSettings:BaseUrl"]?.Trim().TrimEnd('/') is { Length: > 0 } u ? u : null;
 
+    /// <summary>
+    /// SQLScripts/2473: this installation's web address - Licensing:AppUrl when configured (the address the licence is bound
+    /// to), else the address the current request reached the application at (scheme://host[:port][/base]); null when neither
+    /// is known (a background sync), so a push keeps the address stored centrally. Lower case, no trailing slash.
+    /// </summary>
+    private string? WebUrl
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(_o.AppUrl)) return _o.AppUrl.Trim().TrimEnd('/').ToLowerInvariant();
+            var req = httpContextAccessor.HttpContext?.Request;
+            if (req is null || !req.Host.HasValue) return null;
+            return $"{req.Scheme}://{req.Host.Value}{req.PathBase.Value}".TrimEnd('/').ToLowerInvariant();
+        }
+    }
+
+    private sealed class ValidityRow { public DateTime? ValidFrom { get; set; } public DateTime? ValidTo { get; set; } }
+
+    /// <summary>SQLScripts/2472 / 2474: the company's Valid From / Valid To in the application database (null when not readable,
+    /// so a push keeps the dates stored centrally).</summary>
+    private async Task<(DateTime? From, DateTime? To)> ValidityAsync(int companyId)
+    {
+        try
+        {
+            await using var app = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
+            var v = await app.QueryFirstOrDefaultAsync<ValidityRow>("dbo.usp_Company_CentralGet", new { CompanyId = companyId },
+                commandType: CommandType.StoredProcedure);
+            return (v?.ValidFrom?.Date, v?.ValidTo?.Date);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Central company register: validity of company {CompanyId} not read", companyId);
+            return (null, null);
+        }
+    }
+
     private const string Unreachable = "The central company register could not be reached. The company works normally; push it again later.";
 
     private sealed class Row
@@ -114,6 +156,9 @@ public sealed class CentralCompanyRegistry(
         public string CompanyName { get; set; } = "";
         public int ApplicationCompanyID { get; set; }
         public string? ApiUrl { get; set; }
+        public string? WebUrl { get; set; }
+        public DateTime? ValidFrom { get; set; }
+        public DateTime? ValidTo { get; set; }
         public bool SameInstance { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime? ModifiedDate { get; set; }
@@ -145,12 +190,18 @@ public sealed class CentralCompanyRegistry(
             var own = rows.FirstOrDefault(r => r.Match == "INSTANCE");
             if (byCode is not null && byCode.SameInstance && byCode.ApplicationCompanyID == companyId)
             {
-                // the name or the API address changed here and was not pushed yet (e.g. the central server was down)
+                // the name, the API address or the web address changed here and was not pushed yet (e.g. the central server was down);
+                // the web address only counts when it is known now (a request or Licensing:AppUrl)
+                var web = WebUrl;
+                var (from, to) = await ValidityAsync(companyId);
                 var stale = (companyName is not null && !string.Equals(byCode.CompanyName, companyName.Trim(), StringComparison.Ordinal))
-                            || !string.Equals(byCode.ApiUrl ?? "", ApiUrl ?? "", StringComparison.OrdinalIgnoreCase);
-                return new CentralCompanyStatus { State = stale ? "OUTDATED" : "SYNCED", CentralCompanyName = byCode.CompanyName, ApiUrl = byCode.ApiUrl, CentralCompanyId = byCode.ID,
-                    CreatedDate = byCode.CreatedDate, ModifiedDate = byCode.ModifiedDate,
-                    Message = stale ? "Registered centrally, but the name or API address there is out of date. Push to update it." : "In the central company register." };
+                            || !string.Equals(byCode.ApiUrl ?? "", ApiUrl ?? "", StringComparison.OrdinalIgnoreCase)
+                            || (web is not null && !string.Equals(byCode.WebUrl ?? "", web, StringComparison.OrdinalIgnoreCase))
+                            || (from is not null && byCode.ValidFrom?.Date != from) || (to is not null && byCode.ValidTo?.Date != to);
+                return new CentralCompanyStatus { State = stale ? "OUTDATED" : "SYNCED", CentralCompanyName = byCode.CompanyName, ApiUrl = byCode.ApiUrl, WebUrl = byCode.WebUrl,
+                    ValidFrom = byCode.ValidFrom, ValidTo = byCode.ValidTo,
+                    CentralCompanyId = byCode.ID, CreatedDate = byCode.CreatedDate, ModifiedDate = byCode.ModifiedDate,
+                    Message = stale ? "Registered centrally, but the name, validity, API or web address there is out of date. Push to update it." : "In the central company register." };
             }
             if (byCode is not null)
                 return new CentralCompanyStatus { State = "CONFLICT", CentralCompanyName = byCode.CompanyName, CreatedDate = byCode.CreatedDate,
@@ -158,7 +209,7 @@ public sealed class CentralCompanyRegistry(
                         ? $"Code {code} is registered centrally for another company of this installation ({byCode.CompanyName})."
                         : $"Code {code} is already registered centrally by another eCare360 installation ({byCode.CompanyName}). Change this company's code to push it." };
             if (own is not null)
-                return new CentralCompanyStatus { State = "CODE_CHANGED", CentralCompanyId = own.ID, CentralCompanyName = own.CompanyName, CreatedDate = own.CreatedDate, ModifiedDate = own.ModifiedDate,
+                return new CentralCompanyStatus { State = "CODE_CHANGED", CentralCompanyId = own.ID, CentralCompanyName = own.CompanyName, WebUrl = own.WebUrl, CreatedDate = own.CreatedDate, ModifiedDate = own.ModifiedDate,
                     Message = $"Registered centrally under the old code {own.CompanyCode}. Push to update it to {code}." };
             return new CentralCompanyStatus { State = "NOT_PUSHED", Message = "Not in the central company register yet." };
         }
@@ -175,10 +226,12 @@ public sealed class CentralCompanyRegistry(
         var code = (companyCode ?? string.Empty).Trim().ToUpperInvariant();
         try
         {
+            var (validFrom, validTo) = await ValidityAsync(companyId);
             await using var cn = Open();
             var r = await cn.QueryFirstAsync<PushRow>("dbo.usp_CentralCompany_Push",
                 new { CompanyCode = code, CompanyName = (companyName ?? string.Empty).Trim(), ApplicationCompanyID = companyId,
-                      ConnectionString = EncryptedConnectionString, InstanceKey, ApiUrl, DecryptedConnectionString },
+                      ConnectionString = EncryptedConnectionString, InstanceKey, ApiUrl, DecryptedConnectionString, WebUrl,
+                      ValidFrom = validFrom, ValidTo = validTo },
                 commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
             if (r.Status == "CONFLICT")
                 logger.LogWarning("Central company register: company {CompanyId} ({Code}) not pushed - {Message}", companyId, code, r.Message);

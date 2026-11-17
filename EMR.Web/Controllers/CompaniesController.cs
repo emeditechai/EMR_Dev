@@ -459,7 +459,8 @@ public class CompaniesController(
         var company = await dbContext.CompanyMasters.AsNoTracking().FirstOrDefaultAsync(c => c.CompanyId == id);
         if (company is null) return NotFound();
         var st = await central.GetStatusAsync(company.CompanyId, company.CompanyCode, company.CompanyName);
-        return Json(new { state = st.State, message = st.Message, canPush = st.CanPush, centralName = st.CentralCompanyName, apiUrl = st.ApiUrl,
+        return Json(new { state = st.State, message = st.Message, canPush = st.CanPush, centralName = st.CentralCompanyName, apiUrl = st.ApiUrl, webUrl = st.WebUrl,
+                          validFrom = st.ValidFrom?.ToString("dd MMM yyyy"), validTo = st.ValidTo?.ToString("dd MMM yyyy"),
                           createdDate = st.CreatedDate, modifiedDate = st.ModifiedDate });
     }
 
