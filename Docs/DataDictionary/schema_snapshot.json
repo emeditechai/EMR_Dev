@@ -57786,6 +57786,32 @@
    "type": "datetime"
   },
   {
+   "col": "CentralUserID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 56,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "Users",
+   "type": "bigint"
+  },
+  {
+   "col": "CentralSyncPending",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 57,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "Users",
+   "type": "bit"
+  },
+  {
    "col": "VaccineId",
    "def": null,
    "descr": null,
@@ -58008,7 +58034,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-16T12:55:39",
+ "extracted_on": "2026-11-17T06:45:41",
  "fk": [
   {
    "col": "LedgerId",

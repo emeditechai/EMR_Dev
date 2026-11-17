@@ -294,5 +294,13 @@
   ],
   "date": "16 Nov 2026",
   "version": "1.22"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "Users: new column(s) CentralUserID, CentralSyncPending"
+  ],
+  "date": "17 Nov 2026",
+  "version": "1.23"
  }
 ]
