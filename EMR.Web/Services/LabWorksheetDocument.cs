@@ -108,6 +108,8 @@ public sealed class LabWorksheetTest
 /// <summary>The work sheet as an A4 portrait PDF: template header / footer on every page, a ruled grid with a box per value.</summary>
 public static class LabWorksheetPdf
 {
+    static LabWorksheetPdf() => QuestPDF.Settings.License = LicenseType.Community;
+
     private const string Line = "#475569", Band = "#f1f5f9", Head = "#e2e8f0", ProfileBg = "#eef2ff", Ink = "#0f172a", Muted = "#64748b";
 
     public static byte[] Build(LabWorksheetDoc d) => Document.Create(doc => doc.Page(page =>
