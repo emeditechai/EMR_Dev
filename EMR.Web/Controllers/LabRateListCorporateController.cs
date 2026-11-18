@@ -98,6 +98,25 @@ public class LabRateListCorporateController(
         }).ToList();
     }
 
+    /// <summary>
+    /// "Copy Rates from Source Corporate": active corporates (status on, within their effective dates) that have a
+    /// corporate rate list made on this page - active and not deleted, in this company (the list the copy reads in
+    /// GetDetailsForCorporate). The corporate being edited is left out.
+    /// </summary>
+    private async Task<List<SelectListItem>> GetSourceCorporateListAsync(int? excludeCorporateId = null)
+    {
+        try
+        {
+            var cards = await rateCardApi.GetListAsync(CorporateRateType, null, true, User.GetCompanyId());
+            var withRateList = cards
+                .Where(c => c.B2CIdentity_ID.HasValue && c.B2CIdentity_ID != excludeCorporateId)
+                .Select(c => c.B2CIdentity_ID!.Value)
+                .ToHashSet();
+            return (await GetActiveCorporateListAsync()).Where(c => withRateList.Contains(int.Parse(c.Value))).ToList();
+        }
+        catch { return []; }
+    }
+
     private async Task<List<SelectListItem>> GetActiveCorporateListAsync(int? selectedId = null, bool filterExistingConfigured = false)
     {
         try
@@ -181,7 +200,7 @@ public class LabRateListCorporateController(
 
         var branches = await GetBranchListAsync(currentBranchId);
         var corporates = await GetActiveCorporateListAsync(filterExistingConfigured: true);
-        var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+        var allCorporates = await GetSourceCorporateListAsync();
 
         var vm = new LabRateCardFormViewModel
         {
@@ -215,7 +234,7 @@ public class LabRateListCorporateController(
         var isHO = CheckIsHOBranch();
         var branches = await GetBranchListAsync(card.Header.Branch_ID);
         var corporates = await GetActiveCorporateListAsync(card.Header.B2CIdentity_ID, filterExistingConfigured: true);
-        var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+        var allCorporates = await GetSourceCorporateListAsync(card.Header.B2CIdentity_ID);
 
         var vm = new LabRateCardFormViewModel
         {
@@ -253,7 +272,7 @@ public class LabRateListCorporateController(
             TempData["ErrorMessage"] = string.IsNullOrWhiteSpace(errors) ? "Please fill all required fields correctly." : errors;
             var isHO = CheckIsHOBranch();
             var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
-            var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+            var allCorporates = await GetSourceCorporateListAsync(vm.B2CIdentity_ID);
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
@@ -277,7 +296,7 @@ public class LabRateListCorporateController(
                     TempData["ErrorMessage"] = "A rate list already exists for this Corporate. Only one rate list is allowed per Corporate.";
                     var isHO = CheckIsHOBranch();
                     var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
-                    var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+                    var allCorporates = await GetSourceCorporateListAsync(vm.B2CIdentity_ID);
                     vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
                     vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
                     vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
@@ -323,7 +342,7 @@ public class LabRateListCorporateController(
             TempData["ErrorMessage"] = ex.Message;
             var isHO = CheckIsHOBranch();
             var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
-            var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+            var allCorporates = await GetSourceCorporateListAsync(vm.B2CIdentity_ID);
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
