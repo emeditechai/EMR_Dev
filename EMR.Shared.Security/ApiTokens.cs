@@ -27,9 +27,6 @@ public sealed class ApiAuthOptions
     public int AccessTokenMinutes { get; set; } = 15;
     public int RefreshTokenDays { get; set; } = 7;
 
-    /// <summary>api/auth/patient-login: how long a patient app stays signed in.</summary>
-    public int PatientTokenHours { get; set; } = 12;
-
     /// <summary>Wrong passwords before a temporary lockout, and its length (web and API sign-in alike).</summary>
     public int MaxFailedAttempts { get; set; } = 5;
     public int LockoutMinutes { get; set; } = 15;
@@ -51,7 +48,7 @@ public static class TokenUse
     public const string WebAccess = "web";
     /// <summary>Short ticket between api/auth/login and api/auth/context when the user must pick a branch / role.</summary>
     public const string Login = "login";
-    /// <summary>Issued by api/auth/patient-login to the patient app; opens only [PatientOwnData] endpoints for its patient_id.</summary>
+    /// <summary>Issued by api/auth/patient-login / patient-refresh to the patient app (AccessTokenMinutes); opens only [PatientOwnData] endpoints for its patient_id.</summary>
     public const string Patient = "patient";
     /// <summary>Short ticket from api/auth/patient-login to api/auth/patient-password/first-change.</summary>
     public const string PatientPasswordChange = "patient_pwd";
@@ -60,6 +57,17 @@ public static class TokenUse
     public const string DocumentClaim = "doc";
 
     public const string PatientIdClaim = "patient_id";
+    /// <summary>On a head of family's patient token: the dependents' patient ids (comma-separated), whose records the token also opens.</summary>
+    public const string PatientFamilyClaim = "patient_family";
+
+    /// <summary>The patient ids a patient token opens: its own, then the dependents'.</summary>
+    public static IReadOnlyList<string> PatientIds(System.Security.Claims.ClaimsPrincipal user)
+    {
+        var own = user.FindFirst(PatientIdClaim)?.Value;
+        if (string.IsNullOrEmpty(own)) return Array.Empty<string>();
+        var family = user.FindFirst(PatientFamilyClaim)?.Value;
+        return string.IsNullOrEmpty(family) ? new[] { own } : new[] { own }.Concat(family.Split(',', StringSplitOptions.RemoveEmptyEntries)).ToArray();
+    }
 }
 
 public interface IApiTokenService

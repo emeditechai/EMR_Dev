@@ -33,7 +33,8 @@ namespace EMR.Web.Controllers
         ILabReportWhatsAppService labReportWhatsAppService,
         EMR.Web.Data.ApplicationDbContext dbContext,
         ILabReportPdfService pdfService,
-        EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
+        EMR.Shared.Security.IActionPermissionGuard permissionGuard,
+        EMR.Shared.Security.IApiTokenService apiTokens) : Controller
     {
         private int CurrentBranchId()
             => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
@@ -537,6 +538,35 @@ namespace EMR.Web.Controllers
                 TempData["ErrorMessage"] = "Order not found.";
                 return RedirectToAction(nameof(Index));
             }
+            return await PrintViewAsync(detail, labOrderId, sampleCollectionId, embed, CurrentBranchId(),
+                User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System", patientCopy: false);
+        }
+
+        /// <summary>
+        /// The patient app's copy of the Image report (whole bill or one test): opened by a 10-minute ticket of EMR.Web
+        /// api/patient-app (token_use patient_doc, doc = image:{labOrderId}) for the patient the bill belongs to; only
+        /// approved tests, always with the letterhead (the patient's digital copy, as the WhatsApp report). EMR.Web prints
+        /// it to PDF for the app (IHtmlPdfRenderer).
+        /// </summary>
+        [HttpGet, AllowAnonymous]
+        public async Task<IActionResult> PatientPrint(int labOrderId, long? sampleCollectionId, string? t)
+        {
+            var ticket = await apiTokens.ValidateAsync(t ?? "", EMR.Shared.Security.TokenUse.PatientDocument);
+            if (ticket?.FindFirst(EMR.Shared.Security.TokenUse.DocumentClaim)?.Value != $"image:{labOrderId}"
+                || !int.TryParse(ticket.FindFirst(EMR.Shared.Security.TokenUse.PatientIdClaim)?.Value, out var patientId)
+                || await Dapper.SqlMapper.ExecuteScalarAsync<int>(dbContext.Database.GetDbConnection(),
+                       "SELECT COUNT(1) FROM dbo.LabOrder WHERE LabOrderId = @Id AND PatientId = @P AND IsActive = 1",
+                       new { Id = labOrderId, P = patientId }) == 0)
+                return Content("This link has expired. Open the report again from the app.", "text/plain");
+
+            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, null, "Image");
+            if (detail == null) return Content("The report is not available.", "text/plain");
+            return await PrintViewAsync(detail, labOrderId, sampleCollectionId, false, detail.BranchId, "Patient Portal", patientCopy: true);
+        }
+
+        private async Task<IActionResult> PrintViewAsync(LabReportingOrderDetailDto detail, int labOrderId, long? sampleCollectionId, bool embed,
+            int branchId, string printedBy, bool patientCopy)
+        {
 
             // Filter to image investigations
             detail.Items = detail.Items?
@@ -552,14 +582,14 @@ namespace EMR.Web.Controllers
 
             // A report prints once it is validated (provisional, watermarked) or approved (final).
             // Anything earlier - pending, draft, submitted, re-collect - has nothing reviewed to print.
-            if (detail.Items.Count == 0 || detail.Items.Any(i => i.ReportStatusId != 3 && i.ReportStatusId != 5))
+            if (detail.Items.Count == 0 || detail.Items.Any(i => i.ReportStatusId != 3 && i.ReportStatusId != 5)
+                || (patientCopy && detail.Items.Any(i => i.ReportStatusId != 5)))   // the patient's copy: approved only
             {
                 return Content(
                     "This report cannot be printed yet: a report prints once it is validated (provisional) or approved (final).",
                     "text/plain");
             }
 
-            var branchId = CurrentBranchId();
             var settings = await dbContext.HospitalSettings
                 .Where(s => s.BranchId == branchId && s.IsActive)
                 .FirstOrDefaultAsync();
@@ -576,10 +606,10 @@ namespace EMR.Web.Controllers
             ViewBag.RegistrationNumber = settings?.RegistrationNumber;
             // B2C: Hospital Settings > LAB > Required B2C Lab Report Print Header. B2B: a franchise's Report Header Required
             // (Franchise Master); a company's B2B report always prints it.
-            ViewBag.ShowLetterhead = detail.IsB2B
+            ViewBag.ShowLetterhead = patientCopy || (detail.IsB2B
                 ? (await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId) ?? true)
-                : (settings?.LabB2CReportPrintHeaderRequired ?? true);
-            ViewBag.PrintedBy = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System";
+                : (settings?.LabB2CReportPrintHeaderRequired ?? true));
+            ViewBag.PrintedBy = printedBy;
             // embed = shown inside the Pathologist Dashboard's report viewer, which has its own Print / Close.
             ViewBag.Embed = embed;
 
@@ -621,13 +651,13 @@ namespace EMR.Web.Controllers
                 if (approvedTests.Count > 0)
                 {
                     var companyId = await dbContext.BranchMasters.Where(b => b.BranchId == detail.BranchId)
-                                        .Select(b => (int?)b.CompanyId).FirstOrDefaultAsync() ?? User.GetCompanyId();
+                                        .Select(b => (int?)b.CompanyId).FirstOrDefaultAsync() ?? (patientCopy ? 1 : User.GetCompanyId());
                     ViewBag.ExternalDocs = await pdfService.LoadExternalDocumentsAsync(labOrderId, companyId, approvedTests);
                 }
             }
             catch { /* the report prints without them */ }
 
-            return View(detail);
+            return View(nameof(Print), detail);
         }
 
         // ── Audit helpers (Image Reporting) ──────────────────────────────────────

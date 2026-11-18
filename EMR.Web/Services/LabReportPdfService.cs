@@ -18,7 +18,9 @@ public interface ILabReportPdfService
     /// <summary>The report view model, or null when the order has no reporting detail.</summary>
     /// <param name="scope">"all" (default), "approved" or "pending" - see <see cref="LabReportPrintBuilder"/>.</param>
     /// <param name="reportingType">Which report: "Numeric" (Lab Report Entry, default) or "Template" (Microbiology Report Entry).</param>
-    Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric");
+    /// <param name="sampleIds">Only these tests (SamplecollectionID) - the patient app's one-test report; null = the whole bill.</param>
+    Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric",
+        IReadOnlyCollection<long>? sampleIds = null);
 
     /// <summary>Hospital logo bytes for the letterhead (png / jpg inside wwwroot only).</summary>
     byte[]? LoadLogo(string? logoPath);
@@ -80,11 +82,14 @@ public class LabReportPdfService(
 {
     public const string PrintedAction = "LAB.ReportPrinted";
 
-    public async Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric")
+    public async Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric",
+        IReadOnlyCollection<long>? sampleIds = null)
     {
         scope = LabReportPrintBuilder.NormalizeScope(scope);
         var detail = await labReportingApiClient.GetDetailAsync(labOrderId, null, reportingType);
         if (detail == null) return null;
+        if (sampleIds is { Count: > 0 })
+            detail.Items = (detail.Items ?? new()).Where(i => sampleIds.Contains(i.SamplecollectionID)).ToList();
 
         // Microbiology (Template) report: a picklist parameter has no numeric range - its normal answers are printed instead.
         if (!string.Equals(reportingType, "Numeric", StringComparison.OrdinalIgnoreCase))

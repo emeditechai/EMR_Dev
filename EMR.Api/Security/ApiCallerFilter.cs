@@ -104,9 +104,9 @@ public sealed class PatientOwnDataAttribute : Attribute, IAuthorizationFilter
         if (user.Identity?.IsAuthenticated != true && !apiAuth.IsEnforced) return;
 
         if (user.FindFirstValue(ClaimTypes.NameIdentifier) is { Length: > 0 }) return;   // staff (obo / access)
-        var own = user.FindFirstValue(TokenUse.PatientIdClaim);
+        // the patient's own records, and a head of family's dependents' (patient_family)
         var asked = context.RouteData.Values.TryGetValue("patientId", out var p) ? p?.ToString() : null;
-        if (own is { Length: > 0 } && own == asked) return;
+        if (asked is { Length: > 0 } && TokenUse.PatientIds(user).Contains(asked)) return;
 
         context.Result = new ObjectResult(new { success = false, code = "FORBIDDEN", message = "You can only see your own records." })
             { StatusCode = StatusCodes.Status403Forbidden };

@@ -36,6 +36,9 @@ public sealed class PatientAppController(
     IOpdBookingNotifier bookingNotifier,
     ILabOrderApiClient labOrderApiClient,
     ILabBookingNotifier labBookingNotifier,
+    IHtmlPdfRenderer pdfRenderer,
+    Microsoft.AspNetCore.Hosting.Server.IServer server,
+    IConfiguration config,
     ILogger<PatientAppController> logger) : Controller
 {
     private static readonly TimeSpan TicketLifetime = TimeSpan.FromMinutes(10);
@@ -417,28 +420,31 @@ public sealed class PatientAppController(
         if (!await OwnsLabOrderAsync(labOrderId, patientId)) return NotFound(Fail("NOT_FOUND", "Bill not found."));
         if (await ReportBlockAsync(labOrderId) is { } why) return Ok(new { success = false, message = why, reports = Array.Empty<object>() });
 
-        var reports = (await documents.ReportTypesAsync(labOrderId)).Select(type => new
-        {
-            type,
-            title = type == LabReportTypes.Template ? "Microbiology Report" : "Lab Report",
-            url = $"{Host}/api/patient-app/files/lab-report/{labOrderId}?type={Uri.EscapeDataString(type)}&t={Ticket(patientId, $"report:{labOrderId}")}"
-        }).ToList();
-        return Ok(new { success = reports.Count > 0, message = reports.Count > 0 ? null : "The report is not available yet.", reports });
+        // as Lab Report Dispatch prints them: the whole bill per report (Lab Report, Microbiology Report, Image report),
+        // and here also each approved test on its own
+        var tests = await documents.ApprovedTestsAsync(labOrderId);
+        var ticket = Ticket(patientId, $"report:{labOrderId}");
+        string Url(string type, long? sample) => type == PatientDocumentService.ImageType
+            ? $"{Host}/api/patient-app/files/image-report/{labOrderId}?t={ticket}{(sample is { } s ? $"&sample={s}" : "")}"
+            : $"{Host}/api/patient-app/files/lab-report/{labOrderId}?type={Uri.EscapeDataString(type)}&t={ticket}{(sample is { } s2 ? $"&sample={s2}" : "")}";
+        var reports = tests.Select(t => t.Type).Distinct()
+            .OrderBy(t => t == LabReportTypes.Numeric ? 0 : t == LabReportTypes.Template ? 1 : 2)
+            .Select(type => new { type, title = ReportTitle(type), url = Url(type, null) }).ToList();
+        var perTest = tests.Select(t => new { sampleCollectionId = t.SampleCollectionId, testName = t.TestName, type = t.Type, title = ReportTitle(t.Type), url = Url(t.Type, t.SampleCollectionId) });
+        return Ok(new { success = reports.Count > 0, message = reports.Count > 0 ? null : "The report is not available yet.", reports, tests = perTest });
     });
 
     // GET api/patient-app/files/lab-report/5?t= - the PDF itself (the link above)
     [HttpGet("files/lab-report/{labOrderId:int}")]
-    public async Task<IActionResult> LabReportFile(int labOrderId, string? type, string? t)
+    public async Task<IActionResult> LabReportFile(int labOrderId, string? type, string? t, long? sample)
     {
         var patientId = await TicketPatientAsync(t, $"report:{labOrderId}");
         if (patientId is null) return Content("This link has expired. Open the report again from the app.");
         if (await ReportBlockAsync(labOrderId) is { } why) return Content(why);
         try
         {
-            var file = await documents.LabReportAsync(labOrderId, patientId.Value, string.IsNullOrEmpty(type) ? null : type, digitalCopy: true);
-            if (file.Pdf is not { } pdf) return Content(file.Message ?? "The report is not available yet.");
-            Response.Headers["Content-Disposition"] = $"inline; filename=\"{file.FileName}\"";
-            return File(pdf, "application/pdf");
+            var file = await documents.LabReportAsync(labOrderId, patientId.Value, string.IsNullOrEmpty(type) ? null : type, digitalCopy: true, sampleId: sample);
+            return PdfOrMessage(file);
         }
         catch (Exception ex)
         {
@@ -446,6 +452,35 @@ public sealed class PatientAppController(
             return Content("The report could not be prepared right now. Please try again.");
         }
     }
+
+    // GET api/patient-app/files/image-report/5?t=&sample= - the approved Image report (X-Ray, USG, ...) as a PDF: EMR's
+    // Image report print page for the patient (LabImageReporting/PatientPrint), printed by headless Chrome into the response
+    [HttpGet("files/image-report/{labOrderId:int}")]
+    public async Task<IActionResult> ImageReportFile(int labOrderId, string? t, long? sample)
+    {
+        var patientId = await TicketPatientAsync(t, $"report:{labOrderId}");
+        if (patientId is null) return Content("This link has expired. Open the report again from the app.");
+        if (await ReportBlockAsync(labOrderId) is { } why) return Content(why);
+        var page = $"{SelfBase}/LabImageReporting/PatientPrint?labOrderId={labOrderId}&t={Ticket(patientId.Value, $"image:{labOrderId}")}"
+                   + (sample is { } s ? $"&sampleCollectionId={s}" : "");
+        return PdfOrMessage(await documents.ImageReportAsync(labOrderId, page));
+    }
+
+    // GET api/patient-app/files/lab-bill/5?t= and files/opd-bill/5?t= - the bill prints (the same pages as the View bill
+    // links below) as a PDF to download
+    [HttpGet("files/lab-bill/{id:int}")]
+    public async Task<IActionResult> LabBillFile(int id, string? t) =>
+        await TicketPatientAsync(t, $"lab-bill:{id}") is null
+            ? Content("This link has expired. Open the bill again from the app.")
+            : await BillPdfAsync($"{SelfBase}/LabOrderBooking/PrintBillAnonymous?labOrderId={id}&secret={Uri.EscapeDataString($"lab_print_{id}")}",
+                await BillNoAsync("SELECT BillNo FROM LabOrder WHERE LabOrderId = @Id", id) ?? $"LabBill-{id}");
+
+    [HttpGet("files/opd-bill/{id:int}")]
+    public async Task<IActionResult> OpdBillFile(int id, string? t) =>
+        await TicketPatientAsync(t, $"opd-bill:{id}") is null
+            ? Content("This link has expired. Open the bill again from the app.")
+            : await BillPdfAsync($"{SelfBase}/OPD/PrintBillAnonymous?id={id}&secret={Uri.EscapeDataString(BillSecret(id))}",
+                await BillNoAsync("SELECT OPDBillNo FROM PatientOPDService WHERE OPDServiceId = @Id", id) ?? $"OpdBill-{id}");
 
     // GET api/patient-app/links/prescription?opdServiceId=5&doctorId=2 - the EMR prescription print of a visit
     [HttpGet("links/prescription")]
@@ -461,14 +496,16 @@ public sealed class PatientAppController(
     public Task<IActionResult> OpdBillLink(int id) => AsPatient(async patientId =>
     {
         if (!await OwnsVisitAsync(id, patientId)) return NotFound(Fail("NOT_FOUND", "Bill not found."));
-        return Ok(new { success = true, url = $"{Host}/OPD/PrintBillAnonymous?id={id}&secret={Uri.EscapeDataString(BillSecret(id))}" });
+        return Ok(new { success = true, url = $"{Host}/OPD/PrintBillAnonymous?id={id}&secret={Uri.EscapeDataString(BillSecret(id))}",
+                        pdfUrl = $"{Host}/api/patient-app/files/opd-bill/{id}?t={Ticket(patientId, $"opd-bill:{id}")}" });
     });
 
     [HttpGet("links/lab-bill/{id:int}")]
     public Task<IActionResult> LabBillLink(int id) => AsPatient(async patientId =>
     {
         if (!await OwnsLabOrderAsync(id, patientId)) return NotFound(Fail("NOT_FOUND", "Bill not found."));
-        return Ok(new { success = true, url = $"{Host}/LabOrderBooking/PrintBillAnonymous?labOrderId={id}&secret={Uri.EscapeDataString($"lab_print_{id}")}" });
+        return Ok(new { success = true, url = $"{Host}/LabOrderBooking/PrintBillAnonymous?labOrderId={id}&secret={Uri.EscapeDataString($"lab_print_{id}")}",
+                        pdfUrl = $"{Host}/api/patient-app/files/lab-bill/{id}?t={Ticket(patientId, $"lab-bill:{id}")}" });
     });
 
     // ── helpers ──────────────────────────────────────────────────────────
@@ -497,6 +534,14 @@ public sealed class PatientAppController(
         {
             Response.Headers.WWWAuthenticate = "Bearer";
             return Unauthorized(Fail("UNAUTHENTICATED", "Please sign in again."));
+        }
+        // A head of family looking at a dependent: X-Patient-Id names whose records, and the token must open them
+        // (patient_family). Everything below - records, bookings, documents - is then for that patient.
+        var asked = Request.Headers["X-Patient-Id"].ToString();
+        if (asked.Length > 0 && asked != patientId.ToString())
+        {
+            if (!TokenUse.PatientIds(new System.Security.Claims.ClaimsPrincipal(identity)).Contains(asked) || !int.TryParse(asked, out patientId))
+                return StatusCode(403, Fail("FORBIDDEN", "You can only see your own and your family's records."));
         }
         return await action(patientId);
     }
@@ -551,6 +596,45 @@ public sealed class PatientAppController(
     private static string BillSecret(int id) => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"bill-{id}-emr"));
 
     private string Host => $"{Request.Scheme}://{Request.Host}";
+
+    /// <summary>
+    /// Where headless Chrome on this server opens EMR's print pages: "PdfRenderer:SelfBaseUrl", else this app's own
+    /// listening address (a phone's address for the server, e.g. 10.0.2.2, is not reachable from the server itself).
+    /// </summary>
+    private string SelfBase
+    {
+        get
+        {
+            var configured = config["PdfRenderer:SelfBaseUrl"];
+            if (!string.IsNullOrWhiteSpace(configured)) return configured.TrimEnd('/');
+            var own = server.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses
+                .OrderBy(a => a.StartsWith("https", StringComparison.OrdinalIgnoreCase) ? 1 : 0).FirstOrDefault();
+            if (own is null) return Host;
+            return own.Replace("://+", "://127.0.0.1").Replace("://*", "://127.0.0.1").Replace("://0.0.0.0", "://127.0.0.1")
+                      .Replace("://[::]", "://127.0.0.1").TrimEnd('/');
+        }
+    }
+
+    private static string ReportTitle(string type) =>
+        type == LabReportTypes.Template ? "Microbiology Report" : type == PatientDocumentService.ImageType ? "Image Report" : "Lab Report";
+
+    private IActionResult PdfOrMessage(PatientReportFile file)
+    {
+        if (file.Pdf is not { } pdf) return Content(file.Message ?? "The report is not available yet.");
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{file.FileName}\"";
+        return File(pdf, "application/pdf");
+    }
+
+    private async Task<IActionResult> BillPdfAsync(string page, string billNo)
+    {
+        var pdf = await pdfRenderer.RenderAsync(page);
+        if (pdf is null) return Content("The bill could not be prepared right now. Please try again.");
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{billNo.Replace('/', '-')}.pdf\"";
+        return File(pdf, "application/pdf");
+    }
+
+    private Task<string?> BillNoAsync(string sql, int id) =>
+        dbContext.Database.GetDbConnection().ExecuteScalarAsync<string?>(sql, new { Id = id });
 
     private static object Fail(string code, string message) => new { success = false, code, message };
 }
