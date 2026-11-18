@@ -310,5 +310,19 @@
   ],
   "date": "17 Nov 2026",
   "version": "1.24"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table EmrTemplateDoctorMap (6 columns, module not yet grouped)",
+   "DoctorMaster: new column(s) IsSuspended, SuspendReason, SuspendedBy, SuspendedAt",
+   "PatientMaster: new column(s) Is_App_Verified, App_Verified_Date",
+   "PhleboSettings: new column(s) RequireDeviceApproval",
+   "New foreign key EmrTemplateDoctorMap.DoctorId -> DoctorMaster.DoctorId",
+   "New foreign key EmrTemplateDoctorMap.TemplateId -> EmrTemplates.TemplateId",
+   "MS_Description changed on PatientMaster, PhleboSettings"
+  ],
+  "date": "18 Nov 2026",
+  "version": "1.25"
  }
 ]
