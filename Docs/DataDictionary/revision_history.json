@@ -312,10 +312,9 @@
   "version": "1.24"
  },
  {
-  "by": "purojitbhar",
+  "by": "abhikporel",
   "changes": [
    "New table EmrTemplateDoctorMap (6 columns, module not yet grouped)",
-   "DoctorMaster: new column(s) IsSuspended, SuspendReason, SuspendedBy, SuspendedAt",
    "PatientMaster: new column(s) Is_App_Verified, App_Verified_Date",
    "PhleboSettings: new column(s) RequireDeviceApproval",
    "New foreign key EmrTemplateDoctorMap.DoctorId -> DoctorMaster.DoctorId",
@@ -324,5 +323,13 @@
   ],
   "date": "18 Nov 2026",
   "version": "1.25"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "DoctorMaster: new column(s) IsSuspended, SuspendReason, SuspendedBy, SuspendedAt"
+  ],
+  "date": "18 Nov 2026",
+  "version": "1.26"
  }
 ]

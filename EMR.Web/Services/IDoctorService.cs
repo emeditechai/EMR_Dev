@@ -8,6 +8,8 @@ public interface IDoctorService
     Task<IEnumerable<DoctorListItemViewModel>> GetListForBranchAsync(int? branchId);
     Task<DoctorMaster?> GetByIdAsync(int id);
     Task<DoctorDetailsViewModel?> GetDetailsAsync(int id, int? branchId);
+    /// <summary>SQLScripts/2484: the refusal for a suspended doctor in a booking (with the reason), or null.</summary>
+    Task<string?> SuspensionBlockAsync(int? doctorId, string role, int? keepOpdServiceId = null);
     Task<List<int>> GetBranchIdsAsync(int doctorId);
     Task<List<int>> GetDepartmentIdsAsync(int doctorId);
     Task<bool> IsVisibleForBranchAsync(int doctorId, int? branchId);

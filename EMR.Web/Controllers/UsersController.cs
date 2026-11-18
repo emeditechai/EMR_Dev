@@ -425,7 +425,7 @@ public class UsersController(
 
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
         await SaveZonesAsync(user.Id, model);
-        await auditLogService.LogAsync("MasterData", "Users.Create", $"Created user: {user.Username}", user.Id);
+        await auditLogService.LogActivityAsync("MasterData", "Users.Create", $"Created user: {user.Username}", referenceId: user.Id);
         TempData["Success"] = "User created successfully.";
         if (!central.Ok)
             TempData["Warning"] = $"User created, but not yet in the central user register: {central.Message} Use \"Sync Users\" on the company profile.";
@@ -690,7 +690,7 @@ public class UsersController(
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
         await dbContext.SaveChangesAsync();
         await SaveZonesAsync(user.Id, model);
-        await auditLogService.LogAsync("MasterData", "Users.Edit", $"Updated user: {user.Username}", user.Id);
+        await auditLogService.LogActivityAsync("MasterData", "Users.Edit", $"Updated user: {user.Username}", referenceId: user.Id);
         TempData["Success"] = "User updated successfully.";
 
         return RedirectToAction(nameof(Index));
@@ -723,7 +723,7 @@ public class UsersController(
         user.IsActive = !user.IsActive;
         user.LastModifiedDate = DateTime.Now;
         await dbContext.SaveChangesAsync();
-        await auditLogService.LogAsync("MasterData", "Users.ToggleStatus", $"Toggled user status: {user.Username} => {(user.IsActive ? "Active" : "Inactive")}", user.Id);
+        await auditLogService.LogActivityAsync("MasterData", "Users.ToggleStatus", $"Toggled user status: {user.Username} => {(user.IsActive ? "Active" : "Inactive")}", referenceId: user.Id);
         TempData["Success"] = "User status updated.";
 
         return RedirectToAction(nameof(Index));

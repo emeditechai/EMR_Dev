@@ -144,6 +144,26 @@
                 </div>
             </div>
 
+            @* ── Is Suspended (SQLScripts/2484): switching it on asks for the reason in a popup; the server requires it ── *@
+            <div class="col-md-12">
+                <div class="form-check form-switch">
+                    <input asp-for="IsSuspended" class="form-check-input" type="checkbox" role="switch" />
+                    <label asp-for="IsSuspended" class="form-check-label fw-semibold">Is Suspended</label>
+                    <span class="badge ms-1 @(Model.IsSuspended ? "bg-danger-subtle text-danger border border-danger-subtle" : "bg-secondary-subtle text-secondary border border-secondary-subtle")" id="isSuspendedText">@(Model.IsSuspended ? "Suspended" : "No")</span>
+                    <input type="hidden" asp-for="SuspendReason" />
+                    <div id="suspendInfo" class="alert alert-danger py-2 px-3 mt-2 mb-0 small @(Model.IsSuspended ? "" : "d-none")">
+                        <i class="bi bi-slash-circle me-1"></i><b>Reason:</b> <span id="suspendReasonText">@Model.SuspendReason</span>
+                        @if (Model.SuspendedAt.HasValue)
+                        {
+                            <span class="text-muted ms-1">· suspended on @Model.SuspendedAt.Value.ToString("dd-MMM-yyyy hh:mm tt")@(string.IsNullOrWhiteSpace(Model.SuspendedByName) ? "" : " by " + Model.SuspendedByName)</span>
+                        }
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline" id="btnSuspendReason">Change reason</button>
+                    </div>
+                    <span asp-validation-for="SuspendReason" class="text-danger small d-block"></span>
+                    <div class="form-text text-muted">Suspend the doctor with a reason. The doctor stays in the master; switching it off lifts the suspension.</div>
+                </div>
+            </div>
+
             <div class="col-md-12">
                 <label class="form-label fw-semibold">Assign Branch</label>
                 @if (Model.CanAssignMultipleBranches)

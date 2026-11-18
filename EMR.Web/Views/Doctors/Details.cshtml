@@ -47,6 +47,32 @@
                     </div>
 
                     <div class="col-sm-6 d-flex align-items-center">
+                        <div style="min-width: 120px;" class="text-secondary small fw-semibold">Suspended:</div>
+                        <div>
+                            @if (Model.IsSuspended)
+                            {
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle py-0.5 px-2 small"><i class="bi bi-slash-circle me-1"></i>Suspended</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-0.5 px-2 small">No</span>
+                            }
+                        </div>
+                    </div>
+                    @if (Model.IsSuspended)
+                    {
+                        <div class="col-12">
+                            <div class="alert alert-danger py-2 px-3 mb-0 small">
+                                <b>Reason for suspension:</b> @Model.SuspendReason
+                                @if (Model.SuspendedAt.HasValue)
+                                {
+                                    <span class="text-muted ms-1">· @Model.SuspendedAt.Value.ToString("dd-MMM-yyyy hh:mm tt")@(string.IsNullOrWhiteSpace(Model.SuspendedByName) ? "" : " by " + Model.SuspendedByName)</span>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <div class="col-sm-6 d-flex align-items-center">
                         <div style="min-width: 120px;" class="text-secondary small fw-semibold">Referral Doctor:</div>
                         <div>
                             @if (Model.IsReferralDoctor)

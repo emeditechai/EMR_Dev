@@ -49,6 +49,10 @@ namespace EMR.Web.Controllers
         IPatientPortalLoginService portalLoginService,
         IBillingSubmissionApiClient billingSubmissionApiClient) : Controller
     {
+        /// <summary>SQLScripts/2484: the refusal (with the reason) when the referral doctor is suspended, else null.</summary>
+        private Task<string?> DoctorSuspendedAsync(int? doctorId) =>
+            HttpContext.RequestServices.GetRequiredService<IDoctorService>().SuspensionBlockAsync(doctorId, "the referral doctor");
+
         /// <summary>One bill per booking (SQLScripts/2310): the billed tests / packages / misc lines, to tell a retry of the
         /// same booking from a changed one.</summary>
         private static string LabItemsSignature(IEnumerable<LabOrderItemRequestDto> items, IEnumerable<object>? misc)
@@ -277,6 +281,9 @@ namespace EMR.Web.Controllers
                 ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
             }
             if (LmpError(model) is { } lmpError) ModelState.AddModelError(nameof(model.LmpDate), lmpError);   // 2453
+            // a suspended doctor cannot be the referral doctor of a booking (SQLScripts/2484)
+            if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ReferralDoctorId) is { } suspended)
+                ModelState.AddModelError(nameof(model.ReferralDoctorId), suspended);
 
             if (!ModelState.IsValid)
             {
@@ -978,6 +985,9 @@ namespace EMR.Web.Controllers
                 ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
             }
             if (LmpError(model) is { } lmpError) ModelState.AddModelError(nameof(model.LmpDate), lmpError);   // 2453
+            // a suspended doctor cannot be the referral doctor of a booking (SQLScripts/2484)
+            if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ReferralDoctorId) is { } suspended)
+                ModelState.AddModelError(nameof(model.ReferralDoctorId), suspended);
 
             if (!ModelState.IsValid)
             {
@@ -1225,6 +1235,9 @@ namespace EMR.Web.Controllers
             if (ModelState[nameof(model.AbhaNumber)]?.Errors.Count > 0)
                 return Json(new { success = false, error = "ABHA Number must have 14 digits." });
             if (LmpError(model) is { } lmpErr) return Json(new { success = false, error = lmpErr });   // 2453
+            // a suspended doctor cannot be the referral doctor of a booking (SQLScripts/2484)
+            if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ReferralDoctorId) is { } suspendedRef)
+                return Json(new { success = false, error = suspendedRef });
             // One bill per booking (SQLScripts/2310): the key of this booking form; a retry reuses the bill it created
             Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
             bool keyClaimed = false;      // this request holds the key and has not created the bill yet

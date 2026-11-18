@@ -30,6 +30,7 @@
             const roomInput = document.getElementById('RoomCharge');
             const bedInput = document.getElementById('BedCharge');
             const nursingInput = document.getElementById('NursingCharge');
+            const rmoInput = document.getElementById('RmoCharge');   // SQLScripts/2485
             const attendantInput = document.getElementById('AttendantCharge');
             const isolationInput = document.getElementById('IsolationCharge');
             const gstInput = document.getElementById('GstPercentage');
@@ -43,11 +44,12 @@
                 const r = parseFloat(roomInput.value) || 0;
                 const b = parseFloat(bedInput.value) || 0;
                 const n = parseFloat(nursingInput.value) || 0;
+                const rmo = rmoInput ? (parseFloat(rmoInput.value) || 0) : 0;
                 const a = parseFloat(attendantInput.value) || 0;
                 const iso = parseFloat(isolationInput.value) || 0;
                 const gst = parseFloat(gstInput.value) || 0;
 
-                const base = r + b + n + a + iso;
+                const base = r + b + n + rmo + a + iso;
                 const gstAmt = (base * (gst / 100.0));
                 const gross = base + gstAmt;
 

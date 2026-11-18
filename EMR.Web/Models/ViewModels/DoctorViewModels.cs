@@ -72,6 +72,17 @@ public class DoctorFormViewModel
     [Display(Name = "Is Referral Doctor")]
     public bool IsReferralDoctor { get; set; }
 
+    /// <summary>SQLScripts/2484: a suspended doctor needs a reason (asked in a popup, checked by the server).</summary>
+    [Display(Name = "Is Suspended")]
+    public bool IsSuspended { get; set; }
+
+    [Display(Name = "Reason for suspension"), StringLength(500)]
+    public string? SuspendReason { get; set; }
+
+    /// <summary>Shown on the Edit page: when and by whom the doctor was suspended.</summary>
+    public DateTime? SuspendedAt { get; set; }
+    public string? SuspendedByName { get; set; }
+
     // ── Login Account Section ─────────────────────────────────────────────────
     /// <summary>Flag: if true, create/update a linked User login account for this doctor.</summary>
     [Display(Name = "Is Login Required")]
@@ -155,6 +166,9 @@ public class DoctorListItemViewModel
     /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
     public bool HasOPDDept { get; set; }
     public bool IsReferralDoctor { get; set; }
+    /// <summary>SQLScripts/2484.</summary>
+    public bool IsSuspended { get; set; }
+    public string? SuspendReason { get; set; }
     /// <summary>Marketing executive tagged on the doctor (SQLScripts/2441), shown as a tag.</summary>
     public string? MarketingExecutiveName { get; set; }
     public string? MarketingExecutiveType { get; set; }
@@ -200,6 +214,12 @@ public class DoctorDetailsViewModel
     public DateTime? JoiningDate { get; set; }
     public bool IsActive { get; set; }
     public bool IsReferralDoctor { get; set; }
+
+    // Suspension (SQLScripts/2484)
+    public bool IsSuspended { get; set; }
+    public string? SuspendReason { get; set; }
+    public DateTime? SuspendedAt { get; set; }
+    public string? SuspendedByName { get; set; }
 
     // Marketing executive (SQLScripts/2441)
     public string? MarketingExecutiveName { get; set; }

@@ -45,7 +45,7 @@ public sealed class FollowUpReminderService(IServiceScopeFactory scopeFactory, I
             if (hour >= SendFromHour && hour < SendUntilHour)
             {
                 try { await RunOnceAsync(stoppingToken); }
-                catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogError(ex, "[FollowUp] Reminder run failed"); }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested) { logger.LogError(ex, "[FollowUp] Reminder run failed"); }
             }
             try { await Task.Delay(Interval, stoppingToken); } catch (OperationCanceledException) { return; }
         }

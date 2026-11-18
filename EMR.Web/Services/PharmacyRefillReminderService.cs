@@ -40,7 +40,7 @@ public sealed class PharmacyRefillReminderService(IServiceScopeFactory scopeFact
             if (hour >= SendFromHour && hour < SendUntilHour)
             {
                 try { await RunOnceAsync(stoppingToken); }
-                catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogError(ex, "[PH-REFILL] Reminder run failed"); }
+                catch (Exception ex) when (!stoppingToken.IsCancellationRequested) { logger.LogError(ex, "[PH-REFILL] Reminder run failed"); }
             }
             try { await Task.Delay(Interval, stoppingToken); } catch (OperationCanceledException) { return; }
         }

@@ -310,6 +310,13 @@ public class OPDController(
             return RedirectToAction("AccessDenied", "Account",
                 new { returnUrl = Request.Path + Request.QueryString, page = "OPD.DOCTORROSTER", control = "BOOK_SLOT" });
 
+        // A slot of a suspended doctor (Doctor Master > Is Suspended, SQLScripts/2484) is not opened: back to the roster with the reason
+        if (!id.HasValue && await DoctorSuspendedAsync(doctorId, null) is { } suspended)
+        {
+            TempData["Error"] = suspended;
+            return scheduleId.HasValue ? RedirectToAction("Index", "DoctorRoster") : RedirectToAction(nameof(PatientRegistration));
+        }
+
         // Editing an existing patient's details is Patient Master's own action (Settings > Security: Patient Master > Edit patient, script 2208).
         if (id.HasValue && !await permissionGuard.AllowsAsync(HttpContext, "MASTER.OPD", "EDIT"))
             return RedirectToAction("AccessDenied", "Account",
@@ -395,6 +402,9 @@ public class OPDController(
             if (PastAppointmentError(model) is { } pastError)
                 ModelState.AddModelError(string.Empty, pastError);   // the page shows model-level errors in its summary
         }
+        // a suspended doctor cannot be booked for consulting (SQLScripts/2484); a visit already with that doctor is kept
+        if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ConsultingDoctorId, model.OPDServiceId) is { } suspended)
+            ModelState.AddModelError(nameof(model.ConsultingDoctorId), suspended);
 
         if (!ModelState.IsValid)
         {
@@ -448,30 +458,15 @@ public class OPDController(
             model.PhotoPath = $"/uploads/patients/{fileName}";
         }
 
-        // ── Uniqueness: one active "Self" patient per phone number / e-mail; every other relation (Brother, Son, ...)
-        //    may repeat on the same phone and e-mail (script 2221 applies the same rule in the database) ──
+        // ── Uniqueness (script 2221 / 2330): one active "Self" patient per phone number in the company; other relations
+        //    (Son, Brother, ...) may repeat on the same phone; booking for an existing patient is never blocked ──
         var isSelfRelation = model.RelationId.HasValue && await dbContext.RelationMasters
             .AnyAsync(r => r.RelationId == model.RelationId && r.RelationName == "Self");
-        if (isSelfRelation)
+        if (await PhoneRelationTakenAsync(model.PatientId, model.PhoneNumber, model.RelationId) is { } taken)
         {
-            var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
-                p.PhoneNumber == model.PhoneNumber.Trim() &&
-                p.RelationId  == model.RelationId &&
-                p.IsActive    &&
-                p.CompanyId   == User.GetCompanyId() &&   // per company (script 2330)
-                (model.PatientId == 0 || p.PatientId != model.PatientId));
-
-            if (dupExists)
-            {
-                var relName = await dbContext.RelationMasters
-                    .Where(r => r.RelationId == model.RelationId)
-                    .Select(r => r.RelationName)
-                    .FirstOrDefaultAsync() ?? "selected relation";
-                ModelState.AddModelError("RelationId",
-                    $"A patient with relation \"{relName}\" is already registered for phone {model.PhoneNumber}.");
-                await PopulateSelectLists(model);
-                return View(model);
-            }
+            ModelState.AddModelError("RelationId", taken);
+            await PopulateSelectLists(model);
+            return View(model);
         }
 
         // e-mail: checked for a new registration only; an existing patient's e-mail can always be updated
@@ -717,6 +712,9 @@ public class OPDController(
         // This route does not stop on ModelState: refuse a wrong ABHA Number before anything is saved (SQLScripts/2355)
         if (ModelState[nameof(model.AbhaNumber)]?.Errors.Count > 0)
             return Json(new { success = false, error = "ABHA Number must have 14 digits." });
+        // a suspended doctor cannot be booked for consulting (SQLScripts/2484); a visit already with that doctor is kept
+        if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ConsultingDoctorId, model.OPDServiceId) is { } suspendedDoc)
+            return Json(new { success = false, error = suspendedDoc });
         // One bill per booking (SQLScripts/2310): the key of this registration form; a retry reuses the bill it created
         Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
         bool keyClaimed = false;      // this request holds the key and has not created the bill yet
@@ -872,20 +870,10 @@ public class OPDController(
                 }
             }
 
-            // Uniqueness check: Phone + Relation per active patient (a retry's patient was saved by its first attempt)
-            if (reuse == null && model.RelationId.HasValue)
-            {
-                var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
-                    p.PhoneNumber == model.PhoneNumber.Trim() &&
-                    p.RelationId == model.RelationId &&
-                    p.IsActive &&
-                    p.CompanyId == User.GetCompanyId() &&   // per company (script 2330)
-                    p.PatientId != model.PatientId);
-                if (dupExists)
-                {
-                    return Json(new { success = false, error = "A patient with this Phone Number and Relation already exists." });
-                }
-            }
+            // Uniqueness: the same rule as the registration form and the database (script 2221 / 2330) - one "Self" per phone;
+            // a retry's patient was saved by its first attempt
+            if (reuse == null && await PhoneRelationTakenAsync(model.PatientId, model.PhoneNumber, model.RelationId) is { } taken)
+                return Json(new { success = false, error = taken });
 
             // an existing patient's phone number is changed only in Patient Master > Edit: the booking keeps the stored one
             if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) is { PhoneNumber: { Length: > 0 } storedPhone })
@@ -1112,6 +1100,18 @@ public class OPDController(
             return Json(new { success = false, error = $"An error occurred while saving registration: {ex.Message}" });
         }
     }
+
+    /// <summary>
+    /// Patient uniqueness - the database rule (script 2221 / 2330): ONE active "Self" patient per phone number in a company;
+    /// other relations (Son, Daughter, Brother, Wife, ...) may repeat on the same phone. Checked when a patient is created,
+    /// or an existing one's phone / relation changes - booking for an existing patient is never blocked. Returns the refusal, or null.
+    /// </summary>
+    /// <summary>SQLScripts/2484: the refusal (with the reason) when the consulting doctor is suspended, else null.</summary>
+    private Task<string?> DoctorSuspendedAsync(int? doctorId, int? keepOpdServiceId) =>
+        HttpContext.RequestServices.GetRequiredService<IDoctorService>().SuspensionBlockAsync(doctorId, "the consulting doctor", keepOpdServiceId);
+
+    private Task<string?> PhoneRelationTakenAsync(int patientId, string? phone, int? relationId) =>
+        patientService.SelfPhoneConflictAsync(patientId, phone, relationId, User.GetCompanyId(), User.GetCurrentBranchId());
 
     /// <summary>
     /// One bill per booking (SQLScripts/2310): the registration was saved with its payment already (e.g. the answer was
@@ -1661,6 +1661,12 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> NewServiceBooking(int? doctorId = null, string? date = null, int? scheduleId = null, string? time = null)
     {
+        // a slot of a suspended doctor (SQLScripts/2484) is not opened: back to the roster with the reason
+        if (await DoctorSuspendedAsync(doctorId, null) is { } suspended)
+        {
+            TempData["Error"] = suspended;
+            return scheduleId.HasValue ? RedirectToAction("Index", "DoctorRoster") : RedirectToAction(nameof(NewServiceBooking));
+        }
         ViewData["Title"] = "New Service Booking";
         var model = new PatientRegistrationViewModel 
         { 
@@ -1698,6 +1704,9 @@ public class OPDController(
             ModelState.Remove(key);
         if (PastAppointmentError(model) is { } pastError)
             ModelState.AddModelError(string.Empty, pastError);
+        // a suspended doctor cannot be booked for consulting (SQLScripts/2484)
+        if (await DoctorSuspendedAsync(model.ConsultingDoctorId, model.OPDServiceId) is { } suspended)
+            ModelState.AddModelError(nameof(model.ConsultingDoctorId), suspended);
 
         if (!ModelState.IsValid)
         {
@@ -2705,7 +2714,10 @@ public class OPDController(
         
         if (data == null)
         {
-            return Json(new { success = false, message = "Consultation setup data not found. Ensure doctor has a template mapped to their primary speciality." });
+            // no template (SQLScripts/2483): neither the doctor's own template nor a default of the doctor's speciality
+            var doc = await doctorApiClient.GetByIdAsync(doctorId);
+            var who = doc is null ? "this doctor" : $"Dr {doc.FullName}";
+            return Json(new { success = false, message = $"No EMR template for {who}. In Utility > EMR Templates, create the default template of the doctor's speciality, or a template for this doctor." });
         }
 
         if (data.Booking != null && !string.IsNullOrEmpty(booking.FormattedAge))
@@ -3086,4 +3098,5 @@ public class SaveConsultationRequest
     /// <summary>Follow-Up Date (optional); reminders 7 days and 1 day before when the branch has them on.</summary>
     public DateTime? FollowUpDate { get; set; }
     public int RequestedByUserId { get; set; }
+
 }

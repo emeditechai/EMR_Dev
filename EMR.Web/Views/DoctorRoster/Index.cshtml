@@ -407,6 +407,7 @@
             bookings:  '@Url.Action("MyRosterDateBookings", "OPD")',
             slots:     '@Url.Action("MyRosterSlots", "OPD")',
             register:  '@Url.Action("PatientRegistration", "OPD")',
+            suspension: '@Url.Action("SuspensionStatus", "Doctors")',
             configure: '@Url.Action("Configure", "DoctorSchedules")'
         } : {
             schedules: '@Url.Action("GetDoctorSchedules", "DoctorRoster")',
@@ -414,7 +415,26 @@
             bookings:  '@Url.Action("GetDateBookings", "DoctorRoster")',
             slots:     '@Url.Action("GetAvailableSlots", "OPD")',
             register:  '@Url.Action("PatientRegistration", "OPD")',
+            suspension: '@Url.Action("SuspensionStatus", "Doctors")',
             configure: '@Url.Action("Configure", "DoctorSchedules")'
+        };
+
+        // Doctor Master > Is Suspended (SQLScripts/2484): a slot of a suspended doctor cannot be booked - the reason is
+        // shown and the registration page is not opened (the server refuses it too)
+        window.rosterBookSlot = async function (url, doctorId, btn) {
+            if (btn) btn.disabled = true;
+            let r = null;
+            try {
+                const res = await fetch(`${URLS.suspension}?id=${doctorId}&role=consulting`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                r = res.ok ? await res.json() : null;
+            } catch { r = null; }        // no answer: the registration page checks again
+            if (r && r.suspended) {
+                if (btn) btn.disabled = false;
+                if (window.Swal) await Swal.fire({ icon: 'warning', title: 'Doctor suspended', text: r.message, confirmButtonText: 'OK' });
+                else alert(r.message);
+                return;
+            }
+            window.location.href = url;
         };
         const DOCTORS = @Json.Serialize(doctorMeta);            // [{ id, name, spec }]
         const SPECS = @Json.Serialize(specialityNames);         // { specialityId: name }
@@ -972,7 +992,7 @@
                     col.innerHTML = `
                         <button type="button" data-permission="OPD.DOCTORROSTER:BOOK_SLOT" data-permission-mode="disable"
                             class="btn w-100 slot-btn p-3 text-start h-100 d-flex flex-column justify-content-center shadow-sm border ${isFull ? '' : 'slot-available'} ${isPast ? 'slot-past' : ''}"
-                            ${isFull ? `disabled title="${isPast ? 'This time has passed - book a current or later slot' : 'This slot is full'}"` : `onclick="window.location.href='${bookUrl}'"`}>
+                            ${isFull ? `disabled title="${isPast ? 'This time has passed - book a current or later slot' : 'This slot is full'}"` : `onclick="rosterBookSlot('${bookUrl}', ${s.doctorId}, this)"`}>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="fw-bold fs-6 ${isFull ? 'text-muted' : ''}" style="${isFull ? '' : 'color:#667eea'}">
                                     <i class="bi bi-clock me-1 small"></i>${slot.slotTime}

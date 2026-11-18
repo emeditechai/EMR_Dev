@@ -27,7 +27,7 @@ public sealed class PasswordOtpService(
     private const int CodeMinutes = 10;
     private const int ResetMinutes = 10;
 
-    private sealed record UserRow(int Id, string? FullName, string? Mobile, int? BranchId, bool IsVerified);
+    private sealed record UserRow(int Id, string? FullName, string? Mobile, int? BranchId, bool IsVerified, string AppName);
 
     public async Task RequestAsync(string username, string? ip)
     {
@@ -50,8 +50,8 @@ public sealed class PasswordOtpService(
 
         // an unverified login (first sign-in, SQLScripts/2457) gets the same code as a verification code
         var text = user.IsVerified
-            ? $"Dear {user.FullName}, your eCare360Plus password reset code is {code}. It is valid for {CodeMinutes} minutes. Do not share it with anyone."
-            : $"Dear {user.FullName}, your eCare360Plus verification code is {code}. Enter it in the app to set your password. It is valid for {CodeMinutes} minutes. Do not share it with anyone.";
+            ? $"Dear {user.FullName}, your eCare360Plus {user.AppName} password reset code is {code}. It is valid for {CodeMinutes} minutes. Do not share it with anyone."
+            : $"Dear {user.FullName}, your eCare360Plus {user.AppName} verification code is {code}. Enter it in the app to set your password. It is valid for {CodeMinutes} minutes. Do not share it with anyone.";
         var result = await whatsApp.SendAsync(user.BranchId.Value, user.Mobile, text, "PWD_OTP", user.Id, logText: text.Replace(code, "******"));
         if (result != WhatsAppSendResult.Sent) logger.LogWarning("[PASSWORD-OTP] Code not sent to user {UserId}: {Result}", user.Id, result);
     }
@@ -86,7 +86,10 @@ public sealed class PasswordOtpService(
     private static Task<UserRow?> FindAsync(IDbConnection con, string username) => con.QueryFirstOrDefaultAsync<UserRow>(
         @"SELECT u.Id, COALESCE(u.FullName, u.Username) AS FullName, COALESCE(NULLIF(u.PhoneNumber, N''), NULLIF(u.Phone, N'')) AS Mobile,
                  (SELECT TOP 1 ub.BranchID FROM dbo.UserBranches ub WHERE ub.UserId = u.Id AND ub.IsActive = 1 ORDER BY ub.BranchID) AS BranchId,
-                 u.Is_Verified AS IsVerified
+                 u.Is_Verified AS IsVerified,
+                 -- the app the code is for, named in the message
+                 CASE WHEN ISNULL(u.Is_MarketingExecutive, 0) = 1 THEN 'Marketing app'
+                      WHEN ISNULL(u.IsPhlebotomist, 0) = 1 THEN 'Phlebotomist app' ELSE 'app' END AS AppName
             FROM dbo.Users u
            WHERE u.Username = @username AND u.IsActive = 1 AND ISNULL(u.IsLockedOut, 0) = 0", new { username = username.Trim() });
 

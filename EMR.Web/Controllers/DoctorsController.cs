@@ -103,7 +103,7 @@ public class DoctorsController(
 
         if (page < 1) page = 1;
         if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 25;
-        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" ? status.Trim().ToLowerInvariant() : null;
+        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" or "suspended" ? status.Trim().ToLowerInvariant() : null;   // suspended: 2484
         referral = referral?.Trim().ToLowerInvariant() is "yes" or "no" ? referral.Trim().ToLowerInvariant() : null;
         search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         speciality = string.IsNullOrWhiteSpace(speciality) ? null : speciality.Trim();
@@ -139,6 +139,8 @@ public class DoctorsController(
                     ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
                     HasOPDDept            = d.HasOPDDept,
                     IsReferralDoctor      = d.IsReferralDoctor,
+                    IsSuspended           = d.IsSuspended,
+                    SuspendReason         = d.SuspendReason,
                     MarketingExecutiveName = d.MarketingExecutiveName,
                     MarketingExecutiveType = d.MarketingExecutiveType
                 }).ToList(),
@@ -397,6 +399,10 @@ public class DoctorsController(
             JoiningDate = doctor.JoiningDate,
             IsActive = doctor.IsActive,
             IsReferralDoctor = doctor.IsReferralDoctor,
+            IsSuspended = doctor.IsSuspended,
+            SuspendReason = doctor.SuspendReason,
+            SuspendedAt = doctor.SuspendedAt,
+            SuspendedByName = doctor.SuspendedBy is int sb ? await dbContext.Users.Where(u => u.Id == sb).Select(u => u.FullName).FirstOrDefaultAsync() : null,
             SelectedBranchIds = await doctorService.GetBranchIdsAsync(doctor.DoctorId),
             SelectedDepartmentIds = await doctorService.GetDepartmentIdsAsync(doctor.DoctorId),
             LinkedUserId = doctor.LinkedUserId,
@@ -453,6 +459,12 @@ public class DoctorsController(
 
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
+        // suspension (SQLScripts/2484): a reason is required - the popup asks for it, the server insists
+        model.SuspendReason = string.IsNullOrWhiteSpace(model.SuspendReason) ? null : model.SuspendReason.Trim();
+        if (model.IsSuspended && model.SuspendReason is null)
+            ModelState.AddModelError(nameof(model.SuspendReason), "Enter the reason for suspending the doctor.");
+        if (model.SuspendReason?.Length > 500)
+            ModelState.AddModelError(nameof(model.SuspendReason), "The reason can be at most 500 characters.");
         var currentExecutiveId = (await DoctorExecutiveAsync(model.DoctorId))?.NI("MarketingExecutiveId");
         await ValidateMarketingExecutiveAsync(model, currentExecutiveId);
         if (model.IsLoginRequired)
@@ -476,6 +488,21 @@ public class DoctorsController(
         doctor.JoiningDate = model.JoiningDate;
         doctor.IsActive = model.IsActive;
         doctor.IsReferralDoctor = model.IsReferralDoctor;
+
+        // ── Suspension (SQLScripts/2484): who / when set when the doctor is suspended; cleared when it is lifted ──
+        var wasSuspended = doctor.IsSuspended;
+        var oldReason = doctor.SuspendReason;
+        if (model.IsSuspended)
+        {
+            if (!wasSuspended) { doctor.SuspendedBy = User.GetUserId(); doctor.SuspendedAt = DateTime.Now; }
+            doctor.IsSuspended = true;
+            doctor.SuspendReason = model.SuspendReason;
+        }
+        else
+        {
+            doctor.IsSuspended = false;
+            doctor.SuspendReason = null; doctor.SuspendedBy = null; doctor.SuspendedAt = null;
+        }
 
         // ── Login account management ──────────────────────────────────────────
         if (model.IsLoginRequired)
@@ -511,8 +538,28 @@ public class DoctorsController(
         }
 
         await auditLogService.LogAsync("MasterData", "Doctors.Edit", $"Updated doctor: {doctor.FullName} ({doctor.EmailId})");
+        // suspension history (SQLScripts/2484): suspended / reason changed / lifted
+        if (doctor.IsSuspended != wasSuspended || (doctor.IsSuspended && !string.Equals(oldReason, doctor.SuspendReason, StringComparison.Ordinal)))
+            await auditLogService.LogActivityAsync("MasterData",
+                doctor.IsSuspended ? (wasSuspended ? "Doctors.SuspendReason" : "Doctors.Suspend") : "Doctors.Unsuspend",
+                doctor.IsSuspended
+                    ? $"Doctor {doctor.FullName} {(wasSuspended ? "suspension reason changed" : "suspended")}: {doctor.SuspendReason}"
+                    : $"Doctor {doctor.FullName}: suspension lifted (was: {oldReason})",
+                referenceId: doctor.DoctorId);
         TempData["Success"] = "Doctor updated successfully.";
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// SQLScripts/2484: the booking screens (LAB B2C / B2B referral doctor, OPD consulting doctor) ask when a doctor is
+    /// chosen - suspended doctors are refused with the reason. keepOpdServiceId: an OPD visit being edited (its own doctor is kept).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> SuspensionStatus(int id, string? role, int? keepOpdServiceId)
+    {
+        var label = role == "consulting" ? "the consulting doctor" : "the referral doctor";
+        var msg = await doctorService.SuspensionBlockAsync(id, label, keepOpdServiceId);
+        return Json(new { suspended = msg != null, message = msg });
     }
 
     [HttpGet]
@@ -930,6 +977,7 @@ public class DoctorsController(
         var fees = await consultingFeeService.GetByDoctorAsync(req.DoctorId, branchId.Value);
         return Json(new { success = true, fees });
     }
+
 }
 
 public record ConsultingFeeRequest(int DoctorId, int ServiceId, int? GraceTime);

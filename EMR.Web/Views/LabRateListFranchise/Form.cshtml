@@ -279,9 +279,10 @@
         $('#B2CIdentity_ID').change(function () {
             var $b = $('#Branch_ID'), keep = $b.val();
             $.get('@Url.Action("AvailableBranches")', { franchiseId: $(this).val() || null }, function (list) {
-                var html = '<option value="">Select Branch</option>';
-                list.forEach(function (b) { html += '<option value="' + b.value + '">' + $('<div>').text(b.text).html() + '</option>'; });
-                $b.html(html);
+                // options built with new Option(): an option tag written as a string inside this Razor text block is
+                // parsed as markup, so its value was rendered as the literal text ' + b.value + ' instead of the branch id
+                $b.empty().append(new Option('Select Branch', ''));
+                list.forEach(function (b) { $b.append(new Option(b.text, b.value)); });
                 var still = list.some(function (b) { return b.value === keep; });
                 $b.val(still ? keep : '').trigger(still ? 'change.select2' : 'change');
             });

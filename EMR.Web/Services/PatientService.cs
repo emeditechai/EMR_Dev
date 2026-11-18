@@ -399,6 +399,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
 
     public async Task UpdateDemographicsAsync(PatientMaster patient, int? userId)
     {
+        await EnsureSelfPhoneFreeAsync(patient);   // LAB B2C / B2B, IPD: the same rule as OPD
         using var con = db.CreateConnection();
         await KeepIdentificationAsync(con, patient);
         patient.ModifiedBy   = userId;
@@ -447,6 +448,7 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
 
     public async Task<int> CreateDemographicsOnlyAsync(PatientMaster patient, int? userId)
     {
+        await EnsureSelfPhoneFreeAsync(patient);   // LAB B2C / B2B, IPD, membership: the same rule as OPD
         using var con = db.CreateConnection();
         var p = new DynamicParameters();
         
@@ -860,4 +862,39 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
 
         return (billNo, tokenNo, newSvcId);
     }
+
+    // ─── Patient uniqueness: one "Self" per phone number in a company (scripts 2221 / 2330) ───────────────────────
+    /// <summary>
+    /// The one rule for every module (OPD, LAB B2C / B2B, IPD, membership): ONE active "Self" patient per phone number in a
+    /// company; other relations (Son, Daughter, Brother, Wife, ...) may repeat on the same phone. Checked when a patient is
+    /// created, or an existing one's phone / relation changes - an unchanged patient is never blocked. Null = allowed.
+    /// </summary>
+    public async Task<string?> SelfPhoneConflictAsync(int patientId, string? phone, int? relationId, int? companyId = null, int? branchId = null)
+    {
+        phone = phone?.Trim();
+        if (string.IsNullOrEmpty(phone) || relationId is null) return null;
+        using var con = db.CreateConnection();
+        var holder = await con.QueryFirstOrDefaultAsync<(string? Code, string? First, string? Last, string? Relation)>(@"
+            SELECT TOP 1 p.PatientCode, p.FirstName, p.LastName, r.RelationName
+            FROM dbo.PatientMaster p JOIN dbo.RelationMaster r ON r.RelationId = p.RelationId
+            WHERE r.RelationName = N'Self' AND p.RelationId = @RelationId AND p.PhoneNumber = @Phone AND p.IsActive = 1 AND p.PatientId <> @PatientId
+              -- the patient's company: stored, else the branch's, else the one given
+              AND p.CompanyId = COALESCE((SELECT CompanyId FROM dbo.PatientMaster WHERE PatientId = @PatientId),
+                                         (SELECT CompanyId FROM dbo.BranchMaster WHERE BranchId = @BranchId), NULLIF(@CompanyId, 0), 1)
+              -- an existing patient whose phone and relation are unchanged is not checked
+              AND NOT EXISTS (SELECT 1 FROM dbo.PatientMaster s WHERE s.PatientId = @PatientId AND s.PhoneNumber = @Phone AND s.RelationId = @RelationId)",
+            new { PatientId = patientId, Phone = phone, RelationId = relationId, CompanyId = companyId ?? 0, BranchId = branchId ?? 0 });
+        if (holder.Code is null) return null;
+        return $"Phone {phone} already belongs to {holder.First} {holder.Last} ({holder.Code}) as \"Self\". " +
+               "Search and select that patient, or register this person with their relation (e.g. Son, Wife).";
+    }
+
+    private async Task EnsureSelfPhoneFreeAsync(PatientMaster patient)
+    {
+        if (await SelfPhoneConflictAsync(patient.PatientId, patient.PhoneNumber, patient.RelationId, patient.CompanyId, patient.BranchId) is { } msg)
+            throw new PatientRuleException(msg);
+    }
 }
+
+/// <summary>A patient save refused by the one-"Self"-per-phone rule (its message is meant for the user).</summary>
+public sealed class PatientRuleException(string message) : InvalidOperationException(message);

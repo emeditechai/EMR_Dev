@@ -99,7 +99,7 @@ public class AnalyzersController(
         var createdId = await analyzerApiClient.CreateAsync(request);
         if (createdId > 0)
         {
-            await auditLogService.LogAsync("MasterData", "Analyzers.Create", $"Created Analyzer: {model.Analyzer_Name} (ID: {createdId})", createdId);
+            await auditLogService.LogActivityAsync("MasterData", "Analyzers.Create", $"Created Analyzer: {model.Analyzer_Name} (ID: {createdId})", referenceId: createdId);
             TempData["Success"] = $"Analyzer '{model.Analyzer_Name}' created successfully.";
             return RedirectToAction(nameof(Index));
         }
@@ -166,7 +166,7 @@ public class AnalyzersController(
         var success = await analyzerApiClient.UpdateAsync(request);
         if (success)
         {
-            await auditLogService.LogAsync("MasterData", "Analyzers.Edit", $"Updated Analyzer: {model.Analyzer_Name} (ID: {id})", id);
+            await auditLogService.LogActivityAsync("MasterData", "Analyzers.Edit", $"Updated Analyzer: {model.Analyzer_Name} (ID: {id})", referenceId: id);
             TempData["Success"] = $"Analyzer '{model.Analyzer_Name}' updated successfully.";
             return RedirectToAction(nameof(Index));
         }
@@ -185,7 +185,7 @@ public class AnalyzersController(
         var success = await analyzerApiClient.ToggleStatusAsync(id, User.GetUserId());
         if (success)
         {
-            await auditLogService.LogAsync("MasterData", "Analyzers.ToggleStatus", $"Toggled Status for Analyzer #{id}", id);
+            await auditLogService.LogActivityAsync("MasterData", "Analyzers.ToggleStatus", $"Toggled Status for Analyzer #{id}", referenceId: id);
             TempData["Success"] = "Analyzer status updated successfully.";
         }
         else
@@ -204,7 +204,7 @@ public class AnalyzersController(
         var success = await analyzerApiClient.DeleteAsync(id);
         if (success)
         {
-            await auditLogService.LogAsync("MasterData", "Analyzers.Delete", $"Deleted Analyzer #{id}", id);
+            await auditLogService.LogActivityAsync("MasterData", "Analyzers.Delete", $"Deleted Analyzer #{id}", referenceId: id);
             TempData["Success"] = "Analyzer deleted successfully.";
         }
         else
