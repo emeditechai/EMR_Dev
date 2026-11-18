@@ -39,24 +39,10 @@ public class EmrConsultationService(IDbConnectionFactory db) : IEmrConsultationS
 
         booking.BookedConsultingType = consultingType ?? "Walking";
 
-        // 3. Get Doctor Speciality
-        var specialityId = await con.QueryFirstOrDefaultAsync<int?>(
-            "SELECT PrimarySpecialityId FROM DoctorMaster WHERE DoctorId = @doctorId AND IsActive = 1",
-            new { doctorId });
-
-        if (specialityId == null) return null;
-
-        // 4. Get Template Map
-        var template = await con.QueryFirstOrDefaultAsync<EmrTemplateInfo>(@"
-            SELECT t.TemplateId, t.TemplateName
-            FROM EmrTemplateSpecialityMap m
-            INNER JOIN EmrTemplates t ON m.TemplateId = t.TemplateId
-            WHERE m.SpecialityId = @specialityId AND m.IsActive = 1 AND t.IsActive = 1
-              AND t.CompanyId = (SELECT TOP 1 b.CompanyId FROM PatientOPDService s
-                                   INNER JOIN BranchMaster b ON b.BranchId = s.BranchId
-                                  WHERE s.OPDServiceId = @opdServiceId)   -- the template of the booking's company
-            ORDER BY t.TemplateId", 
-            new { specialityId, opdServiceId });
+        // 3-4. The template (SQLScripts/2480): the consultation's own template once saved, else the doctor's own
+        //      template, else the default template of the doctor's speciality
+        var template = await con.QueryFirstOrDefaultAsync<EmrTemplateInfo>("dbo.usp_Emr_ResolveTemplate",
+            new { OpdServiceId = opdServiceId, DoctorId = doctorId }, commandType: CommandType.StoredProcedure);
 
         if (template == null) return null;
 

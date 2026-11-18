@@ -1,0 +1,21 @@
+/* Create / Edit EMR Template: Template Information + "Who uses this template" (SQLScripts/2480) */
+.et-info { border-radius: 12px; }
+.et-applies { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem; }
+.et-applies-head { font-weight: 700; color: #334155; margin-bottom: .75rem; font-size: .95rem; }
+.et-sum { display: flex; gap: .75rem; align-items: flex-start; border-radius: 10px; padding: .75rem .9rem; border: 1px solid; font-size: .9rem; }
+.et-sum > i { font-size: 1.3rem; line-height: 1; margin-top: .1rem; }
+.et-sum-empty { background: #fff; border-color: #e2e8f0; color: #475569; }
+.et-sum-spec { background: #ecfeff; border-color: #a5f3fc; color: #0e7490; }
+.et-sum-doc { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.et-sum b { color: #0f172a; }
+.et-doc-opt .small { font-size: .78rem; }
+
+/* Start from an existing template (Copy From) */
+.et-copy { border-radius: 12px; border-left: 4px solid #6366f1 !important; }
+.et-copy-list { display: grid; gap: .5rem; }
+.et-copy-card { display: flex; gap: .75rem; align-items: flex-start; border: 1px solid #e2e8f0; border-radius: 10px; padding: .65rem .85rem; cursor: pointer; background: #fff; margin: 0; transition: border-color .15s, box-shadow .15s; }
+.et-copy-card:hover { border-color: #a5b4fc; }
+.et-copy-card.sel { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); background: #f5f7ff; }
+.et-copy-card.inactive { opacity: .75; }
+.et-copy-card input { margin-top: .3rem; }
+.et-sum-bad { background: #fef2f2; border-color: #fecaca; color: #991b1b; }

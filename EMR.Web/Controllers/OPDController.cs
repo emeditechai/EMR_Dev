@@ -448,30 +448,15 @@ public class OPDController(
             model.PhotoPath = $"/uploads/patients/{fileName}";
         }
 
-        // ── Uniqueness: one active "Self" patient per phone number / e-mail; every other relation (Brother, Son, ...)
-        //    may repeat on the same phone and e-mail (script 2221 applies the same rule in the database) ──
+        // ── Uniqueness (script 2221 / 2330): one active "Self" patient per phone number in the company; other relations
+        //    (Son, Brother, ...) may repeat on the same phone; booking for an existing patient is never blocked ──
         var isSelfRelation = model.RelationId.HasValue && await dbContext.RelationMasters
             .AnyAsync(r => r.RelationId == model.RelationId && r.RelationName == "Self");
-        if (isSelfRelation)
+        if (await PhoneRelationTakenAsync(model.PatientId, model.PhoneNumber, model.RelationId) is { } taken)
         {
-            var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
-                p.PhoneNumber == model.PhoneNumber.Trim() &&
-                p.RelationId  == model.RelationId &&
-                p.IsActive    &&
-                p.CompanyId   == User.GetCompanyId() &&   // per company (script 2330)
-                (model.PatientId == 0 || p.PatientId != model.PatientId));
-
-            if (dupExists)
-            {
-                var relName = await dbContext.RelationMasters
-                    .Where(r => r.RelationId == model.RelationId)
-                    .Select(r => r.RelationName)
-                    .FirstOrDefaultAsync() ?? "selected relation";
-                ModelState.AddModelError("RelationId",
-                    $"A patient with relation \"{relName}\" is already registered for phone {model.PhoneNumber}.");
-                await PopulateSelectLists(model);
-                return View(model);
-            }
+            ModelState.AddModelError("RelationId", taken);
+            await PopulateSelectLists(model);
+            return View(model);
         }
 
         // e-mail: checked for a new registration only; an existing patient's e-mail can always be updated
@@ -872,20 +857,10 @@ public class OPDController(
                 }
             }
 
-            // Uniqueness check: Phone + Relation per active patient (a retry's patient was saved by its first attempt)
-            if (reuse == null && model.RelationId.HasValue)
-            {
-                var dupExists = await dbContext.PatientMasters.AnyAsync(p =>
-                    p.PhoneNumber == model.PhoneNumber.Trim() &&
-                    p.RelationId == model.RelationId &&
-                    p.IsActive &&
-                    p.CompanyId == User.GetCompanyId() &&   // per company (script 2330)
-                    p.PatientId != model.PatientId);
-                if (dupExists)
-                {
-                    return Json(new { success = false, error = "A patient with this Phone Number and Relation already exists." });
-                }
-            }
+            // Uniqueness: the same rule as the registration form and the database (script 2221 / 2330) - one "Self" per phone;
+            // a retry's patient was saved by its first attempt
+            if (reuse == null && await PhoneRelationTakenAsync(model.PatientId, model.PhoneNumber, model.RelationId) is { } taken)
+                return Json(new { success = false, error = taken });
 
             // an existing patient's phone number is changed only in Patient Master > Edit: the booking keeps the stored one
             if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) is { PhoneNumber: { Length: > 0 } storedPhone })
@@ -1112,6 +1087,14 @@ public class OPDController(
             return Json(new { success = false, error = $"An error occurred while saving registration: {ex.Message}" });
         }
     }
+
+    /// <summary>
+    /// Patient uniqueness - the database rule (script 2221 / 2330): ONE active "Self" patient per phone number in a company;
+    /// other relations (Son, Daughter, Brother, Wife, ...) may repeat on the same phone. Checked when a patient is created,
+    /// or an existing one's phone / relation changes - booking for an existing patient is never blocked. Returns the refusal, or null.
+    /// </summary>
+    private Task<string?> PhoneRelationTakenAsync(int patientId, string? phone, int? relationId) =>
+        patientService.SelfPhoneConflictAsync(patientId, phone, relationId, User.GetCompanyId(), User.GetCurrentBranchId());
 
     /// <summary>
     /// One bill per booking (SQLScripts/2310): the registration was saved with its payment already (e.g. the answer was
@@ -2705,7 +2688,10 @@ public class OPDController(
         
         if (data == null)
         {
-            return Json(new { success = false, message = "Consultation setup data not found. Ensure doctor has a template mapped to their primary speciality." });
+            // no template (SQLScripts/2480): neither the doctor's own template nor a default of the doctor's speciality
+            var doc = await doctorApiClient.GetByIdAsync(doctorId);
+            var who = doc is null ? "this doctor" : $"Dr {doc.FullName}";
+            return Json(new { success = false, message = $"No EMR template for {who}. In Utility > EMR Templates, create the default template of the doctor's speciality, or a template for this doctor." });
         }
 
         if (data.Booking != null && !string.IsNullOrEmpty(booking.FormattedAge))
@@ -3086,4 +3072,5 @@ public class SaveConsultationRequest
     /// <summary>Follow-Up Date (optional); reminders 7 days and 1 day before when the branch has them on.</summary>
     public DateTime? FollowUpDate { get; set; }
     public int RequestedByUserId { get; set; }
+
 }

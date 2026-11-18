@@ -63,6 +63,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // EMR Templates
     public DbSet<EmrTemplate> EmrTemplates => Set<EmrTemplate>();
     public DbSet<EmrTemplateSpecialityMap> EmrTemplateSpecialityMaps => Set<EmrTemplateSpecialityMap>();
+    public DbSet<EmrTemplateDoctorMap> EmrTemplateDoctorMaps => Set<EmrTemplateDoctorMap>();   // SQLScripts/2480
     public DbSet<EmrTemplateSection> EmrTemplateSections => Set<EmrTemplateSection>();
     public DbSet<EmrTemplateField> EmrTemplateFields => Set<EmrTemplateField>();
     public DbSet<DoctorSpecialityMaster> DoctorSpecialityMasters => Set<DoctorSpecialityMaster>();
@@ -604,6 +605,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<EmrTemplateSpecialityMap>(entity =>
         {
             entity.HasKey(x => new { x.TemplateId, x.SpecialityId });
+        });
+        modelBuilder.Entity<EmrTemplateDoctorMap>(entity =>
+        {
+            entity.HasKey(x => new { x.TemplateId, x.DoctorId });
         });
 
         // ── SMTP Email Configuration ────────────────────────────────────────

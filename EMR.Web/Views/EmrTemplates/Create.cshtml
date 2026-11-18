@@ -8,6 +8,7 @@
     <link href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <link href="~/lib/quill/quill.snow.css" rel="stylesheet" />
     <link rel="stylesheet" href="~/css/views/EmrTemplates/Create.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/views/EmrTemplates/TemplateInfo.css" asp-append-version="true" />
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -29,37 +30,11 @@
     @Html.AntiForgeryToken()
     <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
 
+    @* ── Copy from an existing template (speciality / doctor) ── *@
+    <partial name="_CopyFrom" />
+
     @* ── Template Details Panel ── *@
-    <div class="card border-0 shadow-sm mb-4" style="border-radius: 12px;">
-        <div class="card-header bg-white py-3 border-bottom-0">
-            <h5 class="fw-bold mb-0 text-primary"><i class="bi bi-file-earmark-text me-2"></i>Template Information</h5>
-        </div>
-        <div class="card-body pt-1">
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <label asp-for="TemplateName" class="form-label fw-semibold">Template Name <span class="text-danger">*</span></label>
-                    <input asp-for="TemplateName" class="form-control" placeholder="e.g. Paediatric EMR Template" maxlength="150" />
-                    <span asp-validation-for="TemplateName" class="text-danger small"></span>
-                </div>
-                <div class="col-md-6">
-                    <label asp-for="SelectedSpecialityIds" class="form-label fw-semibold">Map to Specialities <span class="text-danger">*</span></label>
-                    <select asp-for="SelectedSpecialityIds" class="form-select select2-multiple" multiple asp-items="Model.SpecialityOptions" data-placeholder="Choose one or more specialities..."></select>
-                    <span asp-validation-for="SelectedSpecialityIds" class="text-danger small"></span>
-                </div>
-                <div class="col-md-12">
-                    <label asp-for="Description" class="form-label fw-semibold">Description</label>
-                    <textarea asp-for="Description" class="form-control" rows="2" placeholder="Briefly describe the clinical use case of this template..." maxlength="500"></textarea>
-                    <span asp-validation-for="Description" class="text-danger small"></span>
-                </div>
-                <div class="col-md-12">
-                    <div class="form-check form-switch mt-1">
-                        <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" />
-                        <label asp-for="IsActive" class="form-check-label fw-semibold">Active Status</label>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <partial name="_TemplateInfo" model="Model" />
 
     @* ── 2-Column Drag and Drop Editor ── *@
     <div class="row">
@@ -260,6 +235,8 @@
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script src="~/js/emr-template-applies.js" asp-append-version="true"></script>
+    <script src="~/js/emr-template-copyfrom.js" asp-append-version="true"></script>
     <script src="~/lib/quill/quill.min.js"></script>
     <script src="~/js/emr-templates-create.js" asp-append-version="true"></script>
 }
