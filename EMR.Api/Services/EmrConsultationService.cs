@@ -39,7 +39,7 @@ public class EmrConsultationService(IDbConnectionFactory db) : IEmrConsultationS
 
         booking.BookedConsultingType = consultingType ?? "Walking";
 
-        // 3-4. The template (SQLScripts/2480): the consultation's own template once saved, else the doctor's own
+        // 3-4. The template (SQLScripts/2483): the consultation's own template once saved, else the doctor's own
         //      template, else the default template of the doctor's speciality
         var template = await con.QueryFirstOrDefaultAsync<EmrTemplateInfo>("dbo.usp_Emr_ResolveTemplate",
             new { OpdServiceId = opdServiceId, DoctorId = doctorId }, commandType: CommandType.StoredProcedure);

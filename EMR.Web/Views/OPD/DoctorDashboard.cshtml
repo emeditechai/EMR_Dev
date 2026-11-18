@@ -2038,7 +2038,7 @@
                 $('#emrMobileNumber').val(data.booking.mobileNumber || 'N/A');
                 $('#emrVisitDate').val(data.booking.visitDate || 'N/A');
                 
-                // which template (SQLScripts/2480): the consultation's own once saved, else the doctor's own, else the speciality default
+                // which template (SQLScripts/2483): the consultation's own once saved, else the doctor's own, else the speciality default
                 const tplSrc = { SAVED: 'as saved with this consultation', DOCTOR: "doctor's own template", SPECIALITY: 'speciality template' }[data.template.source] || 'speciality template';
                 $('#emrTemplateNameSub').text(data.template.templateName + ' · ' + tplSrc);
 

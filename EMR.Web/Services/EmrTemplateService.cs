@@ -363,7 +363,7 @@ public class EmrTemplateService(ApplicationDbContext db, IHttpContextAccessor ht
         return true;
     }
 
-    // ── doctors (SQLScripts/2480) ──
+    // ── doctors (SQLScripts/2483) ──
     private void SaveDoctorMaps(int templateId, EmrTemplateViewModel model, int userId)
     {
         foreach (var doctorId in (model.SelectedDoctorIds ?? []).Distinct())
@@ -400,7 +400,7 @@ public class EmrTemplateService(ApplicationDbContext db, IHttpContextAccessor ht
         return doctors;
     }
 
-    // ── Copy From (Create): the templates of a speciality, and which one a doctor of it uses (SQLScripts/2480) ──
+    // ── Copy From (Create): the templates of a speciality, and which one a doctor of it uses (SQLScripts/2483) ──
     public async Task<object> CopySourcesAsync(int specialityId, int? doctorId)
     {
         var templates = await (from m in db.EmrTemplateSpecialityMaps.AsNoTracking()
@@ -453,7 +453,7 @@ public class EmrTemplateService(ApplicationDbContext db, IHttpContextAccessor ht
     }
 
     /// <summary>
-    /// The rule the Doctor Dashboard depends on (SQLScripts/2480), checked inside the save transaction just before commit:
+    /// The rule the Doctor Dashboard depends on (SQLScripts/2483), checked inside the save transaction just before commit:
     /// a speciality has at most ONE active default template (a template without doctors); a doctor has at most ONE active
     /// doctor-specific template. Different doctors of the same speciality may each have their own. Throws (the save is undone).
     /// </summary>
@@ -513,5 +513,5 @@ public class EmrTemplateService(ApplicationDbContext db, IHttpContextAccessor ht
     }
 }
 
-/// <summary>A save refused by the one-default-per-speciality / one-template-per-doctor rule (SQLScripts/2480).</summary>
+/// <summary>A save refused by the one-default-per-speciality / one-template-per-doctor rule (SQLScripts/2483).</summary>
 public sealed class EmrTemplateRuleException(string message) : Exception(message);

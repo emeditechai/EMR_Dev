@@ -1,4 +1,4 @@
-/* Create / Edit EMR Template (SQLScripts/2480): "Who uses this template" - one speciality (required) and, optionally, doctors of
+/* Create / Edit EMR Template (SQLScripts/2483): "Who uses this template" - one speciality (required) and, optionally, doctors of
    that speciality. Reloads the doctor list when the specialities change, keeps the doctors still valid, and says in plain
    words who will get the template. */
 $(function () {

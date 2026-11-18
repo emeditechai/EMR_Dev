@@ -1,6 +1,6 @@
 @model EMR.Web.Models.ViewModels.EmrTemplateViewModel
 @{
-    // the same editor serves Create when a template is copied (Copy From) or a Create is returned with its canvas (SQLScripts/2480)
+    // the same editor serves Create when a template is copied (Copy From) or a Create is returned with its canvas (SQLScripts/2483)
     var createMode = ViewData["CreateMode"] as bool? ?? false;
     var copiedFrom = ViewData["CopiedFrom"] as string;
     ViewData["Title"] = createMode ? "Create EMR Template" : "Edit EMR Template";

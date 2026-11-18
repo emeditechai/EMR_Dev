@@ -1,5 +1,5 @@
 -- ============================================================================================================
--- Migration: 2480_emr_template_doctor_map.sql   (application database)
+-- Migration: 2483_emr_template_doctor_map.sql   (application database)
 -- Utility > EMR Templates: a template is mapped to ONE speciality (mandatory) and, optionally, to DOCTORS of that speciality.
 -- Create can start from an existing template (Copy From: by speciality, and the template a doctor uses).
 --   no doctor chosen   = the speciality's DEFAULT template (one active default per speciality, as before)
@@ -95,5 +95,5 @@ CLOSE pc; DEALLOCATE pc;
 GO
 UPDATE dbo.Users SET Permission_Version = Permission_Version + 1;
 GO
-PRINT 'Script 2480 applied: EMR templates by doctor (optional) and template resolution.';
+PRINT 'Script 2483 applied: EMR templates by doctor (optional) and template resolution.';
 GO

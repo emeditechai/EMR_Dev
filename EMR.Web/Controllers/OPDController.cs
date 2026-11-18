@@ -2688,7 +2688,7 @@ public class OPDController(
         
         if (data == null)
         {
-            // no template (SQLScripts/2480): neither the doctor's own template nor a default of the doctor's speciality
+            // no template (SQLScripts/2483): neither the doctor's own template nor a default of the doctor's speciality
             var doc = await doctorApiClient.GetByIdAsync(doctorId);
             var who = doc is null ? "this doctor" : $"Dr {doc.FullName}";
             return Json(new { success = false, message = $"No EMR template for {who}. In Utility > EMR Templates, create the default template of the doctor's speciality, or a template for this doctor." });

@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace EMR.Web.Models.Entities;
 
-/// <summary>EMR template for particular doctors (SQLScripts/2480): a template with doctors is doctor-specific, without them
+/// <summary>EMR template for particular doctors (SQLScripts/2483): a template with doctors is doctor-specific, without them
 /// it is the default of its specialities.</summary>
 [Table("EmrTemplateDoctorMap", Schema = "dbo")]
 public class EmrTemplateDoctorMap

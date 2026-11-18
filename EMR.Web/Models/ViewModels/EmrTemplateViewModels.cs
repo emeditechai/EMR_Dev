@@ -10,7 +10,7 @@ public class EmrTemplateListViewModel
     public string? Description { get; set; }
     public bool IsActive { get; set; }
     public List<string> MappedSpecialityNames { get; set; } = [];
-    /// <summary>Doctors of a doctor-specific template (SQLScripts/2480); empty = the specialities' default template.</summary>
+    /// <summary>Doctors of a doctor-specific template (SQLScripts/2483); empty = the specialities' default template.</summary>
     public List<string> MappedDoctorNames { get; set; } = [];
 }
 
@@ -33,7 +33,7 @@ public class EmrTemplateViewModel
     [Display(Name = "Mapped Specialities")]
     public List<int> SelectedSpecialityIds { get; set; } = [];
 
-    /// <summary>Optional (SQLScripts/2480): doctors of the chosen specialities who get this template; none = the default of the specialities.</summary>
+    /// <summary>Optional (SQLScripts/2483): doctors of the chosen specialities who get this template; none = the default of the specialities.</summary>
     public List<int> SelectedDoctorIds { get; set; } = [];
 
     public List<EmrSectionViewModel> Sections { get; set; } = [];
@@ -74,7 +74,7 @@ public class EmrFieldViewModel
     public int DisplayOrder { get; set; }
 }
 
-/// <summary>A doctor offered on the EMR template form (SQLScripts/2480).</summary>
+/// <summary>A doctor offered on the EMR template form (SQLScripts/2483).</summary>
 public class EmrTemplateDoctorOption
 {
     public int DoctorId { get; set; }

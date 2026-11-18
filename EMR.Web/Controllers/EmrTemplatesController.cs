@@ -52,7 +52,7 @@ public class EmrTemplatesController(
         return View(model);
     }
 
-    /// <summary>Copy From: the templates of a speciality, and the one a doctor of it uses (SQLScripts/2480).</summary>
+    /// <summary>Copy From: the templates of a speciality, and the one a doctor of it uses (SQLScripts/2483).</summary>
     [HttpGet]
     public async Task<IActionResult> CopySources(int specialityId, int? doctorId) =>
         Json(specialityId > 0 ? await emrTemplateService.CopySourcesAsync(specialityId, doctorId) : new { templates = Array.Empty<object>() });
@@ -170,7 +170,7 @@ public class EmrTemplatesController(
         model.DoctorOptions = await emrTemplateService.DoctorOptionsAsync(model.SelectedSpecialityIds ?? [], model.TemplateId, model.SelectedDoctorIds);
     }
 
-    /// <summary>Doctors of the chosen specialities for the "Map to doctors" list (SQLScripts/2480).</summary>
+    /// <summary>Doctors of the chosen specialities for the "Map to doctors" list (SQLScripts/2483).</summary>
     [HttpGet]
     public async Task<IActionResult> Doctors([FromQuery] List<int> specialityIds, int templateId = 0, [FromQuery] List<int>? doctorIds = null)
     {
@@ -186,7 +186,7 @@ public class EmrTemplatesController(
 
     /// <summary>
     /// Specialities are required. Without doctors the template is the specialities' default: one active default per speciality.
-    /// With doctors (SQLScripts/2480) it is doctor-specific: every doctor must be of a chosen speciality, and a doctor has at
+    /// With doctors (SQLScripts/2483) it is doctor-specific: every doctor must be of a chosen speciality, and a doctor has at
     /// most one active doctor-specific template. A doctor-specific template does not take the speciality's default place.
     /// </summary>
     private async Task ValidateSpecialityMappings(EmrTemplateViewModel model)

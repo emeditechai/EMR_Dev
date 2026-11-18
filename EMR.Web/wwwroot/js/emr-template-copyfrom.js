@@ -1,4 +1,4 @@
-/* Create EMR Template > Start from an existing template (SQLScripts/2480): pick a speciality (and, if wanted, a doctor: the
+/* Create EMR Template > Start from an existing template (SQLScripts/2483): pick a speciality (and, if wanted, a doctor: the
    template that doctor uses is chosen for you), then Copy - the editor opens with all sections and fields as a new template. */
 $(function () {
     'use strict';
