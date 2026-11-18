@@ -19,6 +19,8 @@ public class DoctorListItem
     /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
     public bool    HasOPDDept            { get; set; }
     public bool    IsReferralDoctor      { get; set; }
+    public bool    IsSuspended            { get; set; }   // SQLScripts/2484
+    public string? SuspendReason          { get; set; }
     /// <summary>Marketing executive tagged on the doctor (SQLScripts/2441).</summary>
     public string? MarketingExecutiveName { get; set; }
     public string? MarketingExecutiveType { get; set; }

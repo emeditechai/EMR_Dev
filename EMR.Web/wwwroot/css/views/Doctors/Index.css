@@ -13,3 +13,5 @@
     .dm-kpi .dm-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
     .dm-pager .page-link { min-width: 2.25rem; text-align: center; }
     .dm-loading { opacity: .55; pointer-events: none; transition: opacity .15s; }
+
+    .dm-table tbody tr.dm-suspended td:first-child { box-shadow: inset 3px 0 0 #dc2626; }   /* SQLScripts/2484 */

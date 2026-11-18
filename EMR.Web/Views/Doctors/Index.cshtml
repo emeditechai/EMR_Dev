@@ -130,7 +130,7 @@
                 <div class="col-xl-2 col-md-4 col-6">
                     <label class="form-label small fw-semibold text-muted mb-1" for="dmStatus">Status</label>
                     <select id="dmStatus" name="status" class="form-select">
-                        @foreach (var (v, t) in new[] { ("", "All statuses"), ("active", "Active"), ("inactive", "Inactive") })
+                        @foreach (var (v, t) in new[] { ("", "All statuses"), ("active", "Active"), ("inactive", "Inactive"), ("suspended", "Suspended") })
                         {
                             <option value="@v" selected="@((Model.Status ?? "") == v)">@t</option>
                         }
@@ -220,7 +220,7 @@
                             var depts = SplitList(item.DepartmentNames);
                             var cfFees = SplitList(item.ConsultingFeeNames);
 
-                            <tr class="@(item.IsActive ? "" : "dm-inactive")">
+                            <tr class="@(item.IsActive ? "" : "dm-inactive") @(item.IsSuspended ? "dm-suspended" : "")">
                                 <td class="ps-4">
                                     <div class="d-flex align-items-center gap-3">
                                         <span class="dm-avatar" style="background:@color">@initials</span>
@@ -231,6 +231,10 @@
                                                 @if (item.HasOPDDept)
                                                 {
                                                     <span class="badge ms-1" style="background:#ede9fe;color:#5b21b6;font-size:.64rem;">OPD</span>
+                                                }
+                                                @if (item.IsSuspended)
+                                                {
+                                                    <span class="badge ms-1" style="background:#fee2e2;color:#991b1b;font-size:.64rem;" title="Suspended: @item.SuspendReason"><i class="bi bi-slash-circle me-1"></i>Suspended</span>
                                                 }
                                                 @if (item.IsReferralDoctor)
                                                 {
