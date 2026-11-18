@@ -323,5 +323,13 @@
   ],
   "date": "18 Nov 2026",
   "version": "1.25"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "DoctorMaster: new column(s) IsSuspended, SuspendReason, SuspendedBy, SuspendedAt"
+  ],
+  "date": "18 Nov 2026",
+  "version": "1.26"
  }
 ]

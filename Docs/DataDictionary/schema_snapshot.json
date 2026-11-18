@@ -11155,6 +11155,58 @@
    "type": "int"
   },
   {
+   "col": "IsSuspended",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 22,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "DoctorMaster",
+   "type": "bit"
+  },
+  {
+   "col": "SuspendReason",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 1000,
+   "nullable": true,
+   "ord": 23,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "DoctorMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "SuspendedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 24,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorMaster",
+   "type": "int"
+  },
+  {
+   "col": "SuspendedAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 25,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "DoctorMaster",
+   "type": "datetime"
+  },
+  {
    "col": "PayoutProfileId",
    "def": null,
    "descr": null,
@@ -58177,7 +58229,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-18T10:58:18",
+ "extracted_on": "2026-11-18T15:11:03",
  "fk": [
   {
    "col": "LedgerId",
