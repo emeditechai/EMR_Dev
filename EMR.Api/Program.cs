@@ -6,6 +6,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+// warnings / errors also to App_Data/logs/api-yyyyMMdd.log (an intermittent failure leaves a trace); a failing
+// background service is logged and the application keeps running (the .NET default would stop it)
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.AddErrorFile(builder.Logging, builder.Environment.ContentRootPath, "api");
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.KeepRunningOnBackgroundFailure(builder.Services);
 builder.Configuration.DecryptConnectionStrings();
 
 // ── Services ─────────────────────────────────────────────────────────────────

@@ -47,7 +47,7 @@ public sealed class CampaignSenderService(IServiceProvider services, ILogger<Cam
         do
         {
             try { await RunOnceAsync(stoppingToken); }
-            catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogWarning(ex, "Campaign sender: run failed."); }
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested) { logger.LogWarning(ex, "Campaign sender: run failed."); }
         }
         while (await Next(timer, stoppingToken));
     }

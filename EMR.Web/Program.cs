@@ -11,6 +11,10 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+// warnings / errors also to App_Data/logs/web-yyyyMMdd.log (an intermittent failure leaves a trace); a failing
+// background service is logged and the application keeps running (the .NET default would stop it)
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.AddErrorFile(builder.Logging, builder.Environment.ContentRootPath, "web");
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.KeepRunningOnBackgroundFailure(builder.Services);
 builder.Configuration.DecryptConnectionStrings();
 
 // Add services to the container.
