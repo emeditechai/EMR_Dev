@@ -158,6 +158,12 @@
                         </div>
 
                         <div class="col-12">
+                            <label asp-for="RmoCharge" class="form-label fw-semibold">RMO Charge (₹)</label>
+                            <input asp-for="RmoCharge" type="number" step="0.01" min="0" class="form-control text-end rate-input" />
+                            <span asp-validation-for="RmoCharge" class="text-danger small"></span>
+                        </div>
+
+                        <div class="col-12">
                             <label asp-for="AttendantCharge" class="form-label fw-semibold">Attendant / Utility Charge (₹)</label>
                             <input asp-for="AttendantCharge" type="number" step="0.01" min="0" class="form-control text-end rate-input" />
                             <span asp-validation-for="AttendantCharge" class="text-danger small"></span>

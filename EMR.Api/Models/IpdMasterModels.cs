@@ -122,6 +122,7 @@ public class BedRoomTariffListItem
     public decimal RoomCharge { get; set; }
     public decimal BedCharge { get; set; }
     public decimal NursingCharge { get; set; }
+    public decimal RmoCharge { get; set; }          // SQLScripts/2485
     public decimal AttendantCharge { get; set; }
     public decimal IsolationCharge { get; set; }
     public decimal GstPercentage { get; set; }

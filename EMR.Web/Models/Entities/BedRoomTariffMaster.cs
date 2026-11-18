@@ -38,6 +38,8 @@ public class BedRoomTariffMaster
 
     [Column(TypeName = "decimal(18,2)")]
     public decimal NursingCharge { get; set; } = 0;
+    /// <summary>RMO (Resident Medical Officer) charge per day (SQLScripts/2485).</summary>
+    public decimal RmoCharge { get; set; } = 0;
 
     [Column(TypeName = "decimal(18,2)")]
     public decimal AttendantCharge { get; set; } = 0;
@@ -78,7 +80,7 @@ public class BedRoomTariffMaster
     public string? BranchName { get; set; }
 
     // Computed helper properties
-    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + AttendantCharge + IsolationCharge;
+    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + RmoCharge + AttendantCharge + IsolationCharge;
     public decimal TotalGstAmount => Math.Round(TotalBaseCharge * (GstPercentage / 100m), 2);
     public decimal TotalGrossAmount => TotalBaseCharge + TotalGstAmount;
 
