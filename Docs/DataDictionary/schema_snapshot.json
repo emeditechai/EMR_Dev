@@ -13677,6 +13677,84 @@
    "type": "datetime"
   },
   {
+   "col": "TemplateId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "EmrTemplateDoctorMap",
+   "type": "int"
+  },
+  {
+   "col": "DoctorId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "EmrTemplateDoctorMap",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "EmrTemplateDoctorMap",
+   "type": "int"
+  },
+  {
+   "col": "IsActive",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 4,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "EmrTemplateDoctorMap",
+   "type": "bit"
+  },
+  {
+   "col": "CreatedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "EmrTemplateDoctorMap",
+   "type": "int"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 6,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "EmrTemplateDoctorMap",
+   "type": "datetime"
+  },
+  {
    "col": "FieldId",
    "def": null,
    "descr": null,
@@ -35972,6 +36050,32 @@
    "type": "nvarchar"
   },
   {
+   "col": "Is_App_Verified",
+   "def": "((0))",
+   "descr": "0 = the patient has not confirmed a WhatsApp code in the patient app yet and cannot sign in there; 1 = verified. Set when the code is confirmed and the password is set.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 59,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "PatientMaster",
+   "type": "bit"
+  },
+  {
+   "col": "App_Verified_Date",
+   "def": null,
+   "descr": "When the patient was verified by WhatsApp code in the patient app (first sign-in).",
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 60,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PatientMaster",
+   "type": "datetime"
+  },
+  {
    "col": "OPDServiceId",
    "def": null,
    "descr": null,
@@ -43341,6 +43445,19 @@
    "scale": 3,
    "tbl": "PhleboSettings",
    "type": "datetime"
+  },
+  {
+   "col": "RequireDeviceApproval",
+   "def": "((1))",
+   "descr": "1 = a supervisor approves each phone of the Phlebotomist / Marketing app (the first one automatically when AutoApproveFirstDevice is on); 0 = every phone is approved when it registers.",
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 28,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "PhleboSettings",
+   "type": "bit"
   },
   {
    "col": "StartPointId",
@@ -58060,7 +58177,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-17T07:07:35",
+ "extracted_on": "2026-11-18T10:58:18",
  "fk": [
   {
    "col": "LedgerId",
@@ -58700,6 +58817,20 @@
    "tbl": "EmailLogs"
   },
   {
+   "col": "DoctorId",
+   "fk": "FK_EmrTemplateDoctorMap_Doctor",
+   "rcol": "DoctorId",
+   "rtbl": "DoctorMaster",
+   "tbl": "EmrTemplateDoctorMap"
+  },
+  {
+   "col": "TemplateId",
+   "fk": "FK_EmrTemplateDoctorMap_Template",
+   "rcol": "TemplateId",
+   "rtbl": "EmrTemplates",
+   "tbl": "EmrTemplateDoctorMap"
+  },
+  {
    "col": "SectionId",
    "fk": "FK_EmrTemplateFields_Sections",
    "rcol": "SectionId",
@@ -59272,6 +59403,20 @@
    "rcol": "AdmissionId",
    "rtbl": "IpdAdmission",
    "tbl": "IpdMlc"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdPhIndent_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdPhIndent"
+  },
+  {
+   "col": "IndentId",
+   "fk": "FK_IpdPhIndentLine_Indent",
+   "rcol": "IndentId",
+   "rtbl": "IpdPhIndent",
+   "tbl": "IpdPhIndentLine"
   },
   {
    "col": "AdmissionId",
@@ -59930,6 +60075,20 @@
    "rcol": "Menu_ID",
    "rtbl": "MenuMaster",
    "tbl": "PageMaster"
+  },
+  {
+   "col": "Patient_ID",
+   "fk": "FK_PatientApiRefreshToken_PatientMaster",
+   "rcol": "PatientId",
+   "rtbl": "PatientMaster",
+   "tbl": "PatientApiRefreshToken"
+  },
+  {
+   "col": "PatientId",
+   "fk": "FK_PatientAppOtp_PatientMaster",
+   "rcol": "PatientId",
+   "rtbl": "PatientMaster",
+   "tbl": "PatientAppOtp"
   },
   {
    "col": "BranchId",
@@ -62261,6 +62420,16 @@
    "tbl": "EmrPatientConsultation"
   },
   {
+   "col": "TemplateId",
+   "k": 1,
+   "tbl": "EmrTemplateDoctorMap"
+  },
+  {
+   "col": "DoctorId",
+   "k": 2,
+   "tbl": "EmrTemplateDoctorMap"
+  },
+  {
    "col": "FieldId",
    "k": 1,
    "tbl": "EmrTemplateFields"
@@ -62619,6 +62788,16 @@
    "col": "FinYear",
    "k": 3,
    "tbl": "IpdNumberCounter"
+  },
+  {
+   "col": "IndentId",
+   "k": 1,
+   "tbl": "IpdPhIndent"
+  },
+  {
+   "col": "LineId",
+   "k": 1,
+   "tbl": "IpdPhIndentLine"
   },
   {
    "col": "IssueId",
@@ -63179,6 +63358,16 @@
    "col": "Id",
    "k": 1,
    "tbl": "PartyMaster"
+  },
+  {
+   "col": "Token_ID",
+   "k": 1,
+   "tbl": "PatientApiRefreshToken"
+  },
+  {
+   "col": "OtpId",
+   "k": 1,
+   "tbl": "PatientAppOtp"
   },
   {
    "col": "CertificateId",
@@ -64121,6 +64310,7 @@
   "EmrInvestigationMaster",
   "EmrMedicationMaster",
   "EmrPatientConsultation",
+  "EmrTemplateDoctorMap",
   "EmrTemplateFields",
   "EmrTemplateSections",
   "EmrTemplateSpecialityMap",
@@ -64190,6 +64380,8 @@
   "IpdEstimateLine",
   "IpdMlc",
   "IpdNumberCounter",
+  "IpdPhIndent",
+  "IpdPhIndentLine",
   "IpdPhIssue",
   "IpdPhIssueLine",
   "IpdStatusLog",
@@ -64293,6 +64485,8 @@
   "PageEndpointMap",
   "PageMaster",
   "PartyMaster",
+  "PatientApiRefreshToken",
+  "PatientAppOtp",
   "PatientCertificate",
   "PatientCodeCounter",
   "PatientMaster",
@@ -64505,6 +64699,14 @@
   {
    "d": "Marketing executive app rules, one row per company: visit radius, tracking interval, point retention.",
    "tbl": "MarketingSettings"
+  },
+  {
+   "d": "Refresh tokens of the patient app (api/auth/patient-refresh), stored as SHA-256 hashes only; rotated on every use.",
+   "tbl": "PatientApiRefreshToken"
+  },
+  {
+   "d": "Patient app first sign-in and forgot password: WhatsApp codes and the reset token a right code opens. Only hashes are stored.",
+   "tbl": "PatientAppOtp"
   },
   {
    "d": "One duty day per phlebotomist: punch in and out with location, day status and review status.",
@@ -64785,6 +64987,11 @@
    "cols": "TypeName",
    "idx": "UQ_EmployeeTypeMaster_TypeName",
    "tbl": "EmployeeTypeMaster"
+  },
+  {
+   "cols": "TemplateId",
+   "idx": "UX_EmrTemplateSpecialityMap_OneSpeciality",
+   "tbl": "EmrTemplateSpecialityMap"
   },
   {
    "cols": "CategoryName",
@@ -65175,6 +65382,16 @@
    "cols": "Page_Code, CompanyId",
    "idx": "UX_PageMaster_Code",
    "tbl": "PageMaster"
+  },
+  {
+   "cols": "Token_Hash",
+   "idx": "UX_PatientApiRefreshToken_Hash",
+   "tbl": "PatientApiRefreshToken"
+  },
+  {
+   "cols": "ResetTokenHash",
+   "idx": "UX_PatientAppOtp_Token",
+   "tbl": "PatientAppOtp"
   },
   {
    "cols": "VerifyToken",
