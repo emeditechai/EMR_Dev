@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════════════
--- 2472  Marketing visit target: count one visit per doctor per day, and an app visit only when it was Verified.
+-- 2482  Marketing visit target: count one visit per doctor per day, and an app visit only when it was Verified.
 --   New: dbo.fn_Mkt_TargetVisits. Uses it (only the visit count changes, nothing else in them):
 --     usp_Mkt_MyTarget (app My Target), usp_Api_MktTarget_Get (LAB > Marketing Executive Sales Target),
 --     usp_Api_LabReport_MarketingBusiness (Reports > LAB > Marketing Executive Business), usp_Api_LabReport_OwnerMis.
@@ -71,7 +71,7 @@ BEGIN
                      WHERE lo.BranchId = @BranchId AND lo.MarketingExecutiveId = @Exec AND g.FromDate <= @Today
                        AND lo.OrderDate >= g.FromDate AND lo.OrderDate < DATEADD(DAY, 1, CAST(g.ToDate AS DATETIME))) sale
         OUTER APPLY (SELECT COUNT(1) AS Visits FROM dbo.fn_Mkt_TargetVisits(g.FromDate, DATEADD(DAY, 1, CAST(g.ToDate AS DATETIME))) tv
-                 WHERE tv.BranchId = @BranchId AND tv.ExecutiveId = @Exec) v   -- 2472: one per doctor per day, app visits Verified only;
+                 WHERE tv.BranchId = @BranchId AND tv.ExecutiveId = @Exec) v   -- 2482: one per doctor per day, app visits Verified only;
 
     -- RS1 header: the year, the frequency and the year's totals
     SELECT e.ExecutiveName, e.ExecutiveCode, e.ExecutiveType, @IsLab AS IsLab,
@@ -135,7 +135,7 @@ BEGIN
                  WHERE lo.BranchId = @BranchId AND lo.MarketingExecutiveId = @ExecutiveId AND g.FromDate <= @today
                    AND lo.OrderDate >= g.FromDate AND lo.OrderDate < DATEADD(DAY, 1, CAST(g.ToDate AS DATETIME))) sale
     OUTER APPLY (SELECT COUNT(1) AS Visits FROM dbo.fn_Mkt_TargetVisits(g.FromDate, DATEADD(DAY, 1, CAST(g.ToDate AS DATETIME))) tv
-                 WHERE tv.BranchId = @BranchId AND tv.ExecutiveId = @ExecutiveId) v   -- 2472: one per doctor per day, app visits Verified only
+                 WHERE tv.BranchId = @BranchId AND tv.ExecutiveId = @ExecutiveId) v   -- 2482: one per doctor per day, app visits Verified only
     ORDER BY g.BucketNo;
 END;
 GO
@@ -238,7 +238,7 @@ BEGIN
 
     -- 2446: targets from LAB > Marketing Executive Sales Target (this branch): each bucket pro-rated by the days of the period inside it
     UPDATE x SET PeriodTarget = ISNULL(t.Sales, 0), VisitTarget = ISNULL(t.Visit, 0), Frequency = t.Frequency,
-                 VisitCount = (SELECT COUNT(1) FROM dbo.fn_Mkt_TargetVisits(@From, @To) tv   -- 2472
+                 VisitCount = (SELECT COUNT(1) FROM dbo.fn_Mkt_TargetVisits(@From, @To) tv   -- 2482
                                WHERE tv.BranchId = @BranchId AND 'E' + CAST(tv.ExecutiveId AS VARCHAR(10)) = x.ExecKey)
     FROM #E x
     OUTER APPLY (SELECT SUM(b.SalesTarget * o.Days / (DATEDIFF(DAY, b.FromDate, b.ToDate) + 1.0)) AS Sales,
@@ -705,7 +705,7 @@ BEGIN
            ISNULL(pv.PrevNet, 0) AS PrevNet,
            CAST(t.Sales AS DECIMAL(18, 2)) AS Target, CAST(t.Visit AS DECIMAL(18, 1)) AS VisitTarget,
            CASE WHEN x.ExecutiveId IS NULL THEN NULL ELSE
-               (SELECT COUNT(1) FROM dbo.fn_Mkt_TargetVisits(@From, @To) tv INNER JOIN @Br br ON br.BranchId = tv.BranchId   -- 2472
+               (SELECT COUNT(1) FROM dbo.fn_Mkt_TargetVisits(@From, @To) tv INNER JOIN @Br br ON br.BranchId = tv.BranchId   -- 2482
                  WHERE tv.ExecutiveId = x.ExecutiveId) END AS Visits
     FROM x
     LEFT JOIN b ON (b.ExecutiveId = x.ExecutiveId OR (b.ExecutiveId IS NULL AND x.ExecutiveId IS NULL))
@@ -723,5 +723,5 @@ BEGIN
     DROP TABLE #LU; DROP TABLE #O; DROP TABLE #L; DROP TABLE #T; DROP TABLE #Q; DROP TABLE #P; DROP TABLE #D;
 END;
 GO
-PRINT 'Script 2472 applied: visit target counts one Verified visit per doctor per day.';
+PRINT 'Script 2482 applied: visit target counts one Verified visit per doctor per day.';
 GO

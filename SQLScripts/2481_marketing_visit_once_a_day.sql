@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════════════════════════════════════════════
--- 2471  Marketing Executive App: one visit per doctor per day.
+-- 2481  Marketing Executive App: one visit per doctor per day.
 --   usp_Mkt_Visit_Create refuses a second visit to the same doctor on the same day ("Already visited today") once a
 --   visit that day was VERIFIED. If the earlier visit was OUTSIDE / UNCONFIRMED (or no GPS), one more try is allowed,
 --   so at most 2 visits a day. A resend of the same visit (same ClientEventId) still returns the saved visit.
@@ -46,7 +46,7 @@ BEGIN
           FROM dbo.ForecastDoctor WITH (UPDLOCK) WHERE ForecastDoctorId = @ForecastDoctorId AND ExecutiveId = @Exec AND IsActive = 1;
         IF @Stage IS NULL THROW 50000, N'This doctor is not in your list.', 1;
         IF @Stage = 'LOST' THROW 50000, N'This doctor is marked lost. Open the doctor again to log a visit.', 1;
-        -- 2471: one visit per doctor per day. A Verified visit today closes the day; after an Outside / Unconfirmed /
+        -- 2481: one visit per doctor per day. A Verified visit today closes the day; after an Outside / Unconfirmed /
         -- No-GPS visit one more try is allowed (the executive may not have been close enough the first time).
         DECLARE @TodayVisits INT, @TodayVerified INT;
         SELECT @TodayVisits = COUNT(*), @TodayVerified = ISNULL(SUM(CASE WHEN VisitStatus = 'VERIFIED' THEN 1 ELSE 0 END), 0)
@@ -111,5 +111,5 @@ BEGIN
      WHERE v.VisitId = @VisitId;
 END
 GO
-PRINT 'Script 2471 applied: one marketing visit per doctor per day (one retry after a visit that was not verified).';
+PRINT 'Script 2481 applied: one marketing visit per doctor per day (one retry after a visit that was not verified).';
 GO
