@@ -493,11 +493,19 @@ public class CompaniesController(
         var r = await centralUsers.SyncCompanyAsync(id, onlyPending: false);
         if (r.Error is not null) return Json(new { success = false, message = r.Error });
         await auditLogService.LogAsync("Company", "SyncUsers",
-            $"Users of {company.CompanyName} ({company.CompanyCode}) synced to the central user register: {r.Created} added, {r.Updated} updated, {r.Unchanged} unchanged, {r.Failed} not synced.",
+            $"Users of {company.CompanyName} ({company.CompanyCode}) synced to the central user register: {r.Created} added, {r.Updated} updated, {r.Unchanged} unchanged, "
+            + $"{r.Skipped} skipped (username held by another installation), {r.Removed} removed (user deleted here), {r.Failed} not synced.",
             branchId: User.GetCurrentBranchId());
-        return Json(new { success = r.Failed == 0, total = r.Total, created = r.Created, updated = r.Updated, unchanged = r.Unchanged, failed = r.Failed, problems = r.Problems,
+        // SQLScripts/2490: usernames are unique across installations - a user whose username another installation holds is
+        // skipped (listed, not a failure); central rows of users deleted here are removed (kept in Central_Delete_Audit)
+        var msg = r.Total == 0 ? "This company has no users." : $"{r.Created} added, {r.Updated} updated, {r.Unchanged} already registered"
+                  + (r.Skipped > 0 ? $", {r.Skipped} skipped (e-mail registered by another installation)" : "")
+                  + (r.Removed > 0 ? $", {r.Removed} removed (user no longer here)" : "")
+                  + (r.Failed > 0 ? $", {r.Failed} not synced." : ".");
+        return Json(new { success = r.Failed == 0, total = r.Total, created = r.Created, updated = r.Updated, unchanged = r.Unchanged, failed = r.Failed,
+                          skipped = r.Skipped, removed = r.Removed, problems = r.Problems,
                           users = r.Users.Select(u => new { u.UserId, u.Username, u.Status, u.Message, editUrl = Url.Action("Edit", "Users", new { id = u.UserId }) }),
-                          message = r.Total == 0 ? "This company has no users." : $"{r.Created} added, {r.Updated} updated, {r.Unchanged} already registered" + (r.Failed > 0 ? $", {r.Failed} not synced." : ".") });
+                          message = msg });
     }
 
     /// <summary>SQLScripts/2472: Valid From and Valid To are mandatory, Valid To not before Valid From.</summary>
@@ -624,8 +632,8 @@ public class CompaniesController(
     public static readonly (string Key, string Name, string Note)[] PurgeLevels =
     [
         ("TRANSACTIONS", "Transactions only", "Patients, OPD / LAB bills, payments, samples and results, accounting entries, logs and number counters. Branches, users, masters and settings stay - the company starts clean."),
-        ("ALL",          "Everything",        "Also masters, settings, users and branches. Only the company record stays."),
-        ("DELETE",       "Delete the company", "Everything above and the company record itself."),
+        ("ALL",          "Everything",        "Also masters, settings, users and branches. Only the company record stays. The users leave the central register too."),
+        ("DELETE",       "Delete the company", "Everything above and the company record itself - also removed from the central company register with its central users."),
     ];
 
     [HttpGet]
@@ -665,7 +673,8 @@ public class CompaniesController(
     /// <summary>Preview (rolled back) or remove: rows per table. A removal needs the company (or branch) code typed as confirmation.</summary>
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> RemoveDataRun(int id, string level, bool preview, string? confirmCode, int? branchId,
-        [FromServices] EMR.Web.ApiClients.ICompanyPurgeApiClient purgeClient)
+        [FromServices] EMR.Web.ApiClients.ICompanyPurgeApiClient purgeClient,
+        [FromServices] EMR.Web.Services.Licensing.ICentralCompanyRegistry central)
     {
         if (!User.IsSuperAdmin()) return NotFound();
         var isBranch = level == "BRANCH";
@@ -683,21 +692,54 @@ public class CompaniesController(
         if (!preview && !string.Equals((confirmCode ?? "").Trim(), expected, StringComparison.OrdinalIgnoreCase))
             return Json(new { success = false, message = $"Type the {(isBranch ? "branch" : "company")} code {expected} to confirm." });
 
-        var (rows, error) = await purgeClient.PurgeAsync(id, level, preview, User.GetUserId(), branch?.BranchId);
+        // SQLScripts/2487 / 2488: "Everything" removes the company's users and "Delete the company" also the company - both
+        // leave the central register (Central_Company / Central_Users); the users are read before they go
+        var touchesCentral = !isBranch && level is "ALL" or "DELETE";
+        var me = User.GetUserId();
+        var companyUserIds = touchesCentral
+            ? await dbContext.Users.AsNoTracking().Where(u => u.CompanyId == id && u.Id != me).Select(u => u.Id).ToListAsync()
+            : [];
+
+        var (rows, error) = await purgeClient.PurgeAsync(id, level, preview, me, branch?.BranchId);
         if (error is not null) return Json(new { success = false, message = error });
+
+        // central register: (available, companies, users, message) - null when the level does not touch it
+        (bool Available, int Companies, int Users, string Message)? centralResult = null;
+        if (touchesCentral && preview)
+        {
+            var cp = await central.PreviewRemovalAsync(id, level == "DELETE", companyUserIds);
+            centralResult = (cp.Available, cp.Companies, cp.Users,
+                !cp.Available ? cp.Message ?? ""
+                : cp.Companies + cp.Users == 0 ? "Nothing of this company is in the central register."
+                : level == "DELETE"
+                    ? $"Central register: company {cp.CompanyCode ?? company.CompanyCode} and {cp.Users} central user(s) will be removed (a copy is kept in the central delete audit)."
+                    : $"Central register: {cp.Users} central user(s) will be removed (the company stays registered; a copy is kept in the central delete audit).");
+        }
+        else if (touchesCentral)
+        {
+            // queued by the removal itself (same transaction); made now, else retried by the central user sync
+            var cr = await central.ProcessRemovalsAsync();
+            centralResult = (cr.Error is null, cr.Companies, cr.Users,
+                cr.Error ?? (cr.Done == 0 ? "Nothing was queued for the central register." : level == "DELETE"
+                    ? (cr.Companies > 0 ? $"Removed from the central register: the company and {cr.Users} central user(s)."
+                                        : $"The company was not in the central register; {cr.Users} central user(s) removed.")
+                    : $"Removed from the central register: {cr.Users} central user(s)."));
+        }
 
         if (!preview)
         {
             var what = isBranch
                 ? $"Remove branch: {branch!.BranchName} ({branch.BranchCode}, #{branch.BranchId}) of {company.CompanyName}"
                 : $"{PurgeLevels.First(l => l.Key == level).Name}: {company.CompanyName} ({company.CompanyCode}, #{company.CompanyId})";
+            var centralText = centralResult is { } c ? " | " + c.Message : "";
             await auditLogService.LogAsync("Company", isBranch ? "RemoveBranch" : level == "DELETE" ? "DeleteCompany" : "RemoveCompanyData",
-                $"{what} - {rows.Sum(r => r.Rows)} row(s): " + string.Join(", ", rows.Select(r => $"{r.TableName} {r.Rows}")),
+                $"{what} - {rows.Sum(r => r.Rows)} row(s): " + string.Join(", ", rows.Select(r => $"{r.TableName} {r.Rows}")) + centralText,
                 branchId: User.GetCurrentBranchId());
         }
         return Json(new
         {
             success = true, preview, rows,
+            central = centralResult is { } cx ? new { available = cx.Available, companies = cx.Companies, users = cx.Users, message = cx.Message } : null,
             total = rows.Sum(r => r.Rows),
             redirect = preview ? null
                 : level == "DELETE" ? Url.Action(nameof(Index))

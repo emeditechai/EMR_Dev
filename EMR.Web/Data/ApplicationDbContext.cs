@@ -137,7 +137,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<User>(entity =>
         {
-            entity.ToTable("Users");
+            // SQLScripts/2489: a deleted user is queued for the central register by this trigger (EF then avoids OUTPUT on Users)
+            entity.ToTable("Users", tb => tb.HasTrigger("trg_Users_CentralRemoval"));
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.Username).IsUnique();
             entity.Property(x => x.UserType).HasColumnName("User_Type").HasMaxLength(1).IsFixedLength().IsUnicode(false);

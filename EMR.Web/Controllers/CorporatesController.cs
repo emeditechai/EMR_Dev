@@ -557,6 +557,13 @@ public class CorporatesController(
         var lowerEmail = email.ToLower();
         if (await dbContext.Users.AnyAsync(u => u.Username == email || (u.Email != null && u.Email.Trim().ToLower() == lowerEmail)))
             return;
+        // SQLScripts/2490: sign-in e-mails are unique across all eCare360 installations (central user register)
+        if (await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+                .CheckAsync(companyId, email) is { Taken: true } centralTaken)
+        {
+            TempData["Warning"] = $"Corporate saved, but no login was created: {centralTaken.Message}";
+            return;
+        }
 
         var defaultPassword = LoginCredentialsMailer.DefaultPassword;
         var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);

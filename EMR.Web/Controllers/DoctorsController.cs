@@ -632,6 +632,16 @@ public class DoctorsController(
             var others = dbContext.Users.Where(u => !existingUserId.HasValue || u.Id != existingUserId.Value);
             if (emailChanged && await others.AnyAsync(u => (u.Email != null && u.Email.Trim().ToLower() == email) || u.Username == email))
                 ModelState.AddModelError(nameof(model.EmailId), "This e-mail is already used by another sign-in - the doctor's login signs in with this e-mail.");
+            // SQLScripts/2490: sign-in e-mails are unique across all eCare360 installations (central user register)
+            else if (emailChanged)
+            {
+                var own = existingUserId.HasValue
+                    ? await dbContext.Users.AsNoTracking().Where(u => u.Id == existingUserId.Value).Select(u => new { u.CompanyId, u.CentralUserID }).FirstOrDefaultAsync()
+                    : null;
+                if (await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+                        .CheckAsync(own?.CompanyId ?? ((int?)User.GetCompanyId() ?? 0), email, existingUserId, own?.CentralUserID) is { Taken: true } centralTaken)
+                    ModelState.AddModelError(nameof(model.EmailId), centralTaken.Message);
+            }
             // user name = e-mail, unless another login already holds it (only possible for an unchanged, shared e-mail)
             model.LoginUsername = await others.AnyAsync(u => u.Username == email) && stored is not null ? stored.Username : email;
         }
