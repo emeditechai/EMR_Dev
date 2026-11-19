@@ -1,0 +1,22 @@
+@{
+    // IPD > ICU Board (Phase 8, SQLScripts/2493): patients in ICU beds now with their last vitals, ventilator, infusions,
+    // overdue observations and returns to ICU within 48 hours.
+    ViewData["Title"] = "ICU Board";
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-ot-icu.css" asp-append-version="true" />
+}
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-activity me-2 text-danger"></i>ICU Board</h2><p>Patients in ICU beds of this branch, with the latest flowsheet entry. Refreshes every minute. <span id="asOf"></span></p></div>
+    <div class="d-flex gap-2"><button type="button" class="btn btn-sm btn-light border" id="refresh" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button></div>
+</div>
+<div class="ipdx-kpis mb-3" id="kpis" style="grid-template-columns:repeat(5, minmax(0, 1fr))"></div>
+<div id="cards" class="icu-cards"><div class="text-muted small p-3">Loading…</div></div>
+<div class="ipdx-card mt-3"><div class="px-3 pt-3"><h6 class="fw-bold mb-1"><i class="bi bi-arrow-repeat me-1 text-danger"></i>Returns to ICU within 48 hours (last 30 days)</h6><small class="text-muted">NABH quality indicator</small></div>
+    <div class="table-responsive"><table class="table ipdx-table mb-0"><thead><tr><th>Patient</th><th>IP No.</th><th>Left ICU</th><th>Back in ICU</th><th class="text-end">Hours between</th></tr></thead><tbody id="returns"></tbody></table></div></div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.IcuBoard = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdIcu/"), patient = Url.Content("~/IpdAdmission/Patient/"), canPatient = ViewData["CanPatient"] as bool? ?? false }));</script>
+    <script src="~/js/ipd/icu-board.js" asp-append-version="true"></script>
+}

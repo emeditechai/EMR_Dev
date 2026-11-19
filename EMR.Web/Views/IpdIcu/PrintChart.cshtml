@@ -1,0 +1,12 @@
+@{
+    // ICU chart (Phase 8, SQLScripts/2493): rendered by js/ipd/icu-print.js from the data below; landscape for the flowsheet.
+    Layout = "_IpdPrintLayout";
+    ViewData["DocTitle"] = "ICU Chart";
+    ViewData["PageSize"] = "A4 landscape";
+}
+@section Styles { <style>.page { width: 297mm; min-height: 200mm; } .grid td, .grid th { font-size: 10px; padding: 2px 4px; } .abn { color: #b91c1c; font-weight: 700; } .struck { text-decoration: line-through; color: #9ca3af; }</style> }
+<div id="icuPrint"></div>
+@section Scripts {
+    <script>window.IcuPrint = @Html.Raw(ViewData["Print"] as string ?? "{}");</script>
+    <script src="~/js/ipd/icu-print.js" asp-append-version="true"></script>
+}

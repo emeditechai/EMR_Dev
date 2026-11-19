@@ -13,14 +13,13 @@
     {
         ("overview", "Overview", "bi-grid-1x2", null), ("lab", "LAB", "bi-droplet-half", null), ("radiology", "Radiology", "bi-radioactive", null),
         ("indent", "Medicines", "bi-capsule", null), ("consumables", "Consumables", "bi-bandaid", null), ("procedures", "Procedures", "bi-scissors", null),
-        ("ot", "OT", "bi-heart-pulse", "Phase 8"), ("services", "Other Charges", "bi-plus-square", null), ("visits", "Doctor Visits", "bi-person-workspace", null),
+        ("ot", "OT", "bi-heart-pulse", null), ("icu", "ICU Chart", "bi-activity", null), ("services", "Other Charges", "bi-plus-square", null), ("visits", "Doctor Visits", "bi-person-workspace", null),
         ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", null), ("clinical", "Clinical", "bi-journal-medical", "Phase 3"),
         ("nursing", "Nursing", "bi-clipboard2-pulse", "Phase 3"), ("advance", "Advance & Payments", "bi-cash-coin", null), ("billing", "Billing", "bi-receipt", null),
         ("insurance", "Insurance / TPA", "bi-shield-plus", null), ("documents", "Documents & Consents", "bi-folder2-open", null), ("discharge", "Discharge", "bi-door-open", "Phase 7")
     };
     var soonText = new Dictionary<string, string>
     {
-        ["ot"] = "OT booking, surgical safety checklist, anaesthesia record, surgery notes, implants and OT charges.",
         ["clinical"] = "Initial assessment, progress notes, doctor orders (CPOE) with countersign of verbal orders.",
         ["nursing"] = "Vitals with NEWS2, medication administration record, intake / output, nursing notes, risk scores and handover.",
         ["discharge"] = "Discharge advice, clearance checklist, discharge summary, LAMA / DAMA, gate pass and bed release."
@@ -30,6 +29,7 @@
     <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-ot-icu.css" asp-append-version="true" />
     <style>.select2-container { width:100% !important; } .modal .select2-container { z-index:1060; }</style>
 }
 @Html.AntiForgeryToken()
@@ -40,7 +40,7 @@
     {
         ("Summary", new[] { "overview" }),
         ("Orders & charges", new[] { "lab", "radiology", "indent", "consumables", "procedures", "ot", "services", "visits", "package" }),
-        ("Clinical care", new[] { "clinical", "nursing" }),
+        ("Clinical care", new[] { "icu", "clinical", "nursing" }),
         ("Stay", new[] { "bed", "discharge" }),
         ("Billing & payer", new[] { "advance", "billing", "insurance" }),
         ("Records", new[] { "documents" })
@@ -288,6 +288,8 @@
     @await Html.PartialAsync("_Billing", Model)
     @await Html.PartialAsync("_Lab", Model)
     @await Html.PartialAsync("_Pharmacy", Model)
+    @await Html.PartialAsync("_Ot", Model)
+    @await Html.PartialAsync("_Icu", Model)
 
     @* insurance *@
     <div class="tab-pane fade @(Model.Tab == "insurance" ? "show active" : "")" id="tab-insurance" role="tabpanel">
@@ -384,7 +386,7 @@
     <div class="modal-header"><h6 class="modal-title fw-bold"><i class="bi bi-pen me-1"></i>Record Consent</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
     <div class="modal-body">
         <div class="row g-2">
-            <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="cnId">Consent form</label><select id="cnId" class="form-select"></select></div>
+            <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="cnId">Consent form</label><select id="cnId" class="form-select"></select><input type="hidden" id="cnOtBooking" /><div class="small text-primary mt-1 d-none" id="cnOtLabel"></div></div>
             <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="cnBy">Signed by</label><input id="cnBy" class="form-control" maxlength="150" value="@h.S("PatientName")" /></div>
             <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="cnRel">Relation</label><input id="cnRel" class="form-control" maxlength="50" value="Self" /></div>
             <div class="col-12 col-md-6"><label class="form-label small fw-semibold" for="cnWit">Witness</label><input id="cnWit" class="form-control" maxlength="150" /></div>
@@ -467,4 +469,9 @@
     <script>window.IpdPh = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdPharmacy/"), open = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), consultant = h.I("ConsultantDoctorId"), can = new { issue = Can("PH_ISSUE"), ret = Can("PH_RETURN"), indent = Can("PH_INDENT"), receive = Can("PH_RECEIVE") } }));</script>
     <script src="~/js/ipd/pharmacy.js" asp-append-version="true"></script>
     <script src="~/js/ipd/indent.js" asp-append-version="true"></script>
+    <script>window.IpdOt = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdOt/"), open = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), consultant = h.I("ConsultantDoctorId"), diagnosis = h.S("ProvisionalDiagnosis"), can = new { book = Can("OT_BOOK"), checklist = Can("OT_CHECKLIST"), progress = Can("OT_PROGRESS"), anaesthesia = Can("OT_ANAESTHESIA"), note = Can("OT_NOTE"), sign = Can("OT_NOTE_SIGN"), implant = Can("OT_IMPLANT"), charge = Can("OT_CHARGE"), chargeLine = Can("CHARGE"), rate = Can("RATE_EDIT"), reverse = Can("CHARGE_CANCEL"), consent = Can("CONSENT") } }));</script>
+    <script src="~/js/ipd/ot-book.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/ot.js" asp-append-version="true"></script>
+    <script>window.IpdIcu = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdIcu/"), open = open && status != "CANCELLED", billOpen = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), can = new { chart = Can("ICU_CHART"), correct = Can("ICU_CORRECT"), transfer = Can("TRANSFER") } }));</script>
+    <script src="~/js/ipd/icu.js" asp-append-version="true"></script>
 }
