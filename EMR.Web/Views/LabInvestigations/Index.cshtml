@@ -20,6 +20,9 @@
             </h4>
         </div>
         <div class="d-flex gap-2">
+            <button type="button" data-list-export="excel" asp-permission="MASTER.LABINVESTIGATIONS:EXPORT" class="btn btn-outline-secondary px-3 shadow-sm" title="Download the list as Excel"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" data-list-export="csv" asp-permission="MASTER.LABINVESTIGATIONS:EXPORT" class="btn btn-outline-secondary px-3 shadow-sm" title="Download the list as CSV"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+            <button type="button" data-list-export="pdf" asp-permission="MASTER.LABINVESTIGATIONS:EXPORT" class="btn btn-outline-secondary px-3 shadow-sm" title="Download the list as PDF"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
             <button asp-permission="MASTER.LABINVESTIGATIONS:IMPORT" type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
                 <i class="bi bi-file-earmark-excel me-1"></i> Bulk Upload
             </button>
@@ -133,7 +136,7 @@
                 </div>
             </div>
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table id="tblInvestigations" class="table table-hover align-middle mb-0">
                     <thead class="table-light fs-7 text-uppercase text-muted">
                         <tr>
                             <th class="ps-4" style="width: 110px;">Test Code</th>
@@ -331,6 +334,9 @@
 
 @section Scripts {
     <script src="~/js/views/LabInvestigations/Index.js" asp-append-version="true"></script>
+    <script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
+    <script src="~/js/emr-list-export.js" asp-append-version="true"></script>
+    <script>EmrListExport.bind({ table: '#tblInvestigations', title: 'Investigation Master', file: 'Investigations' });</script>
 }
 
 <partial name="_LabBulkUploadModal" model='new EMR.Web.Models.ViewModels.LabBulkUploadModalModel("investigation", "Investigation", "Department, Test Category, Sub Category, Sample Type, Method, Unit")' />

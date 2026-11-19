@@ -17,6 +17,9 @@
         <h5 class="mb-0">@rl</h5>
         <div class="d-flex gap-2">
             @if (rp == "MASTER.LABRATELISTB2C") {<button asp-permission="MASTER.LABRATELISTB2C:IMPORT" type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal"><i class="bi bi-file-earmark-excel"></i> Bulk Upload</button>}
+            <button type="button" data-list-export="excel" asp-permission="@(rp + ":EXPORT")" class="btn btn-outline-secondary btn-sm" title="Download the list as Excel"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" data-list-export="csv" asp-permission="@(rp + ":EXPORT")" class="btn btn-outline-secondary btn-sm" title="Download the list as CSV"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+            <button type="button" data-list-export="pdf" asp-permission="@(rp + ":EXPORT")" class="btn btn-outline-secondary btn-sm" title="Download the list as PDF"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
             <a asp-permission="@(rp + ":ADD")" asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus"></i> Create New</a>
         </div>
     </div>
@@ -63,6 +66,9 @@
 <script src="~/lib/select2/dist/js/select2.min.js"></script>
 <script src="~/lib/datatables/jquery.dataTables.min.js"></script>
 <script src="~/lib/datatables/dataTables.bootstrap5.min.js"></script>
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
+<script src="~/js/emr-list-export.js" asp-append-version="true"></script>
+<script>EmrListExport.bind({ table: '#tblRateCards', title: @Json.Serialize(rl), file: '@(rp == "MASTER.LABRATELISTB2C" ? "RateList_B2C" : "RateList_IPD")' });</script>
 <script>
     $(document).ready(function () {
         $('.select2').select2({ width: '100%' });
