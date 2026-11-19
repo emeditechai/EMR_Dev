@@ -11,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 EMR.Shared.Security.Diagnostics.ErrorFileLogging.AddErrorFile(builder.Logging, builder.Environment.ContentRootPath, "api");
 EMR.Shared.Security.Diagnostics.ErrorFileLogging.KeepRunningOnBackgroundFailure(builder.Services);
 builder.Configuration.DecryptConnectionStrings();
+// Central_Lic_DB (mobile apps: a user's company ID and API address) - built in code, see EMR.Api/Data/CentralLicDb.cs
+CentralLicDb.Initialize(builder.Configuration);
 
 // ── Services ─────────────────────────────────────────────────────────────────
 // ── Authentication: every call carries a token (see EMR.Api/Security/ApiCallerFilter) ──
