@@ -43,9 +43,15 @@ public interface IPatientDocumentService
     /// test prints on the Microbiology Report whatever its parameters' types; Image tests on the Image report page).</summary>
     Task<List<PatientReportTest>> ApprovedTestsAsync(int labOrderId);
 
-    /// <summary>The approved Image report (one test or every Image test of the bill) as a PDF; <paramref name="pageUrl"/>
-    /// is the ticketed patient print page (LabImageReporting/PatientPrint), printed by headless Chrome.</summary>
-    Task<PatientReportFile> ImageReportAsync(int labOrderId, string pageUrl);
+    /// <summary>The approved Image report (one test or every Image test of the bill) as a PDF, drawn with QuestPDF
+    /// (PatientPdfDocuments) from what the Image report print page shows - no browser needed on the server.</summary>
+    Task<PatientReportFile> ImageReportAsync(int labOrderId, long? sampleId = null);
+
+    /// <summary>The LAB bill as a PDF (the figures of LabOrderBooking/PrintBillAnonymous), drawn with QuestPDF.</summary>
+    Task<PatientReportFile> LabBillAsync(int labOrderId);
+
+    /// <summary>The OPD bill as a PDF (the figures of OPD/PrintBillAnonymous), drawn with QuestPDF.</summary>
+    Task<PatientReportFile> OpdBillAsync(int opdServiceId);
 
     /// <summary>The bill's report state for the patient (null when the bill is not found).</summary>
     Task<PatientReportState?> ReportStateAsync(int labOrderId);
@@ -62,7 +68,9 @@ public sealed class PatientDocumentService(
     ILabReportPdfService reportPdfService,
     ILabReportingApiClient labReportingApiClient,
     ILabReportDispatchApiClient dispatchApiClient,
-    IHtmlPdfRenderer pdfRenderer) : IPatientDocumentService
+    ILabOrderApiClient labOrderApiClient,
+    IServiceBookingApiClient serviceBookingApiClient,
+    IPaymentService paymentService) : IPatientDocumentService
 {
     private const int StatusApproved = 5;
 
@@ -127,15 +135,154 @@ public sealed class PatientDocumentService(
 
     public const string ImageType = "Image";
 
-    public async Task<PatientReportFile> ImageReportAsync(int labOrderId, string pageUrl)
+    public async Task<PatientReportFile> ImageReportAsync(int labOrderId, long? sampleId = null)
     {
-        var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
+        var detail = await labReportingApiClient.GetDetailAsync(labOrderId, null, ImageType);
         if (detail == null) return new(null, null, "The report is not available yet.");
         if (detail.BalanceDue > 0)
             return new(null, null, $"Your report will be available once the bill is paid (due Rs. {detail.BalanceDue:N2}).");
-        var pdf = await pdfRenderer.RenderAsync(pageUrl);
-        if (pdf is null) return new(null, null, "The report could not be prepared right now. Please try again.");
-        return new(pdf, $"{(detail.BillNo ?? $"Report-{labOrderId}").Replace('/', '-')}-Image.pdf", null);
+
+        // as LabImageReporting/PatientPrint: the bill's Image tests (or the one asked for), approved only
+        var items = (detail.Items ?? new())
+            .Where(i => string.Equals(i.ReportingType?.Trim(), ImageType, StringComparison.OrdinalIgnoreCase))
+            .Where(i => sampleId is null || i.SamplecollectionID == sampleId)
+            .ToList();
+        if (items.Count == 0 || items.Any(i => i.ReportStatusId != StatusApproved))
+            return new(null, null, sampleId is null ? "The report is not approved yet. Please check again later." : "This test is not approved yet.");
+
+        var signatories = new List<PdfSignatory>();
+        try
+        {
+            foreach (var l in await labReportingApiClient.GetSignoffPanelAsync(labOrderId, detail.BranchId, reportingType: ImageType) ?? new())
+                if (!string.IsNullOrWhiteSpace(l.FullName))
+                    signatories.Add(new(l.FullName!, l.LevelTitle, l.RegistrationNo,
+                        string.IsNullOrWhiteSpace(l.SignaturePath) ? null : reportPdfService.LoadSignature(l.SignaturePath)));
+        }
+        catch { /* the report prints without the sign-off names */ }
+
+        var report = new PdfImageReport
+        {
+            Patient =
+            [
+                ("Patient", detail.PatientName), ("Patient ID", detail.PatientCode),
+                ("Age / Sex", string.Join(" / ", new[] { detail.Age is { } a ? $"{a} Y" : null, detail.Gender }.Where(x => !string.IsNullOrWhiteSpace(x)))),
+                ("Referred by", detail.ReferralDoctorName)
+            ],
+            Order =
+            [
+                ("Bill No", detail.BillNo), ("Bill date", detail.OrderDate.ToString("dd/MMM/yyyy HH:mm")),
+                ("Approved", detail.ApprovedDate?.ToString("dd/MMM/yyyy HH:mm")), ("Branch", detail.BranchName)
+            ],
+            Sections = items.Select(i => new PdfReportSection(i.TestName, i.TemplateHtml)).ToList(),
+            Signatories = signatories
+        };
+        var pdf = PatientPdfDocuments.ImageReport(await LetterheadAsync(detail.BranchId), report);
+        var test = sampleId is null ? "" : $"-{Safe(items[0].TestName)}";
+        return new(pdf, $"{(detail.BillNo ?? $"Report-{labOrderId}").Replace('/', '-')}-Image{test}.pdf", null);
+    }
+
+    public async Task<PatientReportFile> LabBillAsync(int labOrderId)
+    {
+        if (await LabBillPrintBuilder.BuildAnonymousAsync(labOrderApiClient, dbContext, labOrderId) is not { } built)
+            return new(null, null, "The bill was not found.");
+        var (vm, branchId) = built;
+
+        var totals = new List<PdfAmount> { new("Gross amount", vm.GrossAmount) };
+        if (vm.CancelledAmount != 0) totals.Add(new("Less: cancelled tests", -vm.CancelledAmount));
+        if (vm.DiscountAmount != 0) totals.Add(new("Less: discount", -vm.DiscountAmount));
+        if (vm.MembershipDiscountAmount != 0) totals.Add(new("Less: membership benefit", -vm.MembershipDiscountAmount));
+        if (vm.PointsRedeemedAmount != 0) totals.Add(new($"Less: points redeemed ({vm.PointsRedeemed:0.##})", -vm.PointsRedeemedAmount));
+        if (vm.MiscGstAmount != 0) totals.Add(new("GST on charges", vm.MiscGstAmount));
+        if (vm.RoundOffAmount != 0) totals.Add(new("Round off", vm.RoundOffAmount));
+        totals.Add(new("Net amount", vm.GrandTotal, true));
+        totals.Add(new("Received", vm.ReceivedAmount));
+        if (vm.RefundedAmount != 0) totals.Add(new("Refunded", vm.RefundedAmount));
+        totals.Add(new("Balance", vm.Balance, true));
+
+        var bill = new PdfBill
+        {
+            Title = "LAB Bill",
+            Patient =
+            [
+                ("Patient", vm.PatientName), ("Patient ID", vm.PatientCode),
+                ("Age / Sex", string.Join(" / ", new[] { vm.FormattedAge, vm.Gender }.Where(x => !string.IsNullOrWhiteSpace(x)))),
+                ("Mobile", vm.PhoneNumber), ("Referred by", vm.ReferralDoctorName)
+            ],
+            Bill =
+            [
+                ("Bill No", vm.BillNo), ("Bill date", vm.CreatedDate.ToString("dd/MMM/yyyy HH:mm")), ("Token", vm.TokenNo),
+                ("Collection", vm.CollectionType), ("Branch", vm.BranchName), ("Billed by", vm.CreatedByName ?? vm.CreatedByUsername)
+            ],
+            ItemHeader = "Investigation",
+            Lines = vm.LineItems.Select(l => new PdfBillLine(l.TestName ?? "", string.Join(" · ", new[] { l.TestCode, l.SampleType }.Where(x => !string.IsNullOrWhiteSpace(x))),
+                l.MRP, l.DiscountAmount, !l.IsActive)).ToList(),
+            Totals = totals,
+            Payments = vm.Payments.Select(p => new PdfBillPayment(p.MethodName ?? "Payment",
+                string.Join(" · ", new[] { p.ReceiptNo, p.ModeDetails }.Where(x => !string.IsNullOrWhiteSpace(x))), p.PaymentDate, p.PaidAmount)).ToList(),
+            AmountInWords = vm.ReceivedAmount > 0 ? vm.AmountInWords : null,
+            Status = !vm.IsActive ? "CANCELLED" : vm.PaymentStatus switch { "P" => "PAID", "R" => "PARTLY PAID", _ => "UNPAID" },
+            PrintedBy = "Patient app"
+        };
+        return new(PatientPdfDocuments.Bill(await LetterheadAsync(branchId), bill), $"{(vm.BillNo ?? $"LabBill-{labOrderId}").Replace('/', '-')}.pdf", null);
+    }
+
+    public async Task<PatientReportFile> OpdBillAsync(int opdServiceId)
+    {
+        var d = await serviceBookingApiClient.GetByIdAsync(opdServiceId);
+        if (d == null) return new(null, null, "The bill was not found.");
+        var branchId = await dbContext.PatientOPDServices.Where(b => b.OPDServiceId == opdServiceId).Select(b => (int?)b.BranchId).FirstOrDefaultAsync() ?? 1;
+        var pay = await paymentService.GetPaymentForBillAsync("OPD", opdServiceId);
+
+        var gross = d.Items.Sum(i => i.ServiceCharges);
+        var totals = new List<PdfAmount> { new("Gross amount", pay?.SubTotal is > 0 ? pay.SubTotal : gross) };
+        if (pay != null)
+        {
+            if (pay.DiscountAmount != 0) totals.Add(new("Less: discount", -pay.DiscountAmount));
+            var gst = pay.TotalCgstAmount + pay.TotalSgstAmount + pay.TotalIgstAmount;
+            if (gst != 0) totals.Add(new("GST", gst));
+            if (pay.RoundOffAmount != 0) totals.Add(new("Round off", pay.RoundOffAmount));
+            totals.Add(new("Net amount", pay.NetAmount, true));
+            totals.Add(new("Received", pay.TotalPaid));
+            totals.Add(new("Balance", pay.BalanceDue, true));
+        }
+        else totals.Add(new("Net amount", d.TotalAmount, true));
+
+        var bill = new PdfBill
+        {
+            Title = "OPD Bill",
+            Patient =
+            [
+                ("Patient", d.PatientName), ("Patient ID", d.PatientCode),
+                ("Age / Sex", string.Join(" / ", new[] { d.FormattedAge, d.Gender }.Where(x => !string.IsNullOrWhiteSpace(x)))),
+                ("Mobile", d.PhoneNumber), ("Doctor", d.ConsultingDoctorName)
+            ],
+            Bill =
+            [
+                ("Bill No", d.OPDBillNo), ("Bill date", d.CreatedDate.ToString("dd/MMM/yyyy HH:mm")),
+                ("Visit", d.VisitDate.ToString("dd/MMM/yyyy") + (d.AppointmentTime is { } t ? $" {DateTime.Today.Add(t):hh:mm tt}" : "")),
+                ("Token", d.TokenNo), ("Billed by", d.CreatedByUser)
+            ],
+            ItemHeader = "Service",
+            Lines = d.Items.Select(i => new PdfBillLine(i.ItemName ?? "", string.Join(" · ", new[] { i.ServiceType, i.IsGstRequired && i.GstPercentage > 0 ? $"GST {i.GstPercentage:0.##}%" : null }.Where(x => !string.IsNullOrWhiteSpace(x))),
+                i.ServiceCharges, 0, false)).ToList(),
+            Totals = totals,
+            Payments = (pay?.Rows ?? new()).Select(p => new PdfBillPayment(p.MethodName,
+                string.Join(" · ", new[] { p.ReceiptNo, p.TransactionRef, p.UPIRefNo, p.CardLast4 is { Length: > 0 } c ? $"card ••{c}" : null, p.ChequeNo }.Where(x => !string.IsNullOrWhiteSpace(x))), null, p.PaidAmount)).ToList(),
+            Status = string.Equals(d.Status, "Cancelled", StringComparison.OrdinalIgnoreCase) ? "CANCELLED"
+                : pay?.PaymentStatus switch { "P" => "PAID", "R" => "PARTLY PAID", "U" => "UNPAID", _ => null },
+            PrintedBy = "Patient app"
+        };
+        return new(PatientPdfDocuments.Bill(await LetterheadAsync(branchId), bill), $"{(d.OPDBillNo ?? $"OpdBill-{opdServiceId}").Replace('/', '-')}.pdf", null);
+    }
+
+    private async Task<PdfLetterhead> LetterheadAsync(int branchId)
+    {
+        var s = await dbContext.HospitalSettings.Where(x => x.BranchId == branchId && x.IsActive).FirstOrDefaultAsync()
+                ?? await dbContext.HospitalSettings.Where(x => x.BranchId == branchId).FirstOrDefaultAsync();
+        var nabh = string.IsNullOrWhiteSpace(s?.NabhStatus) ? null
+            : $"{s!.NabhStatus}{(string.IsNullOrWhiteSpace(s.NabhCertificateNo) ? "" : $" · {s.NabhCertificateNo}")}";
+        return new(s?.HospitalName ?? "eMeditech Hospital", s?.HospitalType, s?.Address, s?.ContactNumber1, s?.EmailAddress, s?.Website,
+            s?.RegistrationNumber, s?.GSTCode, nabh, reportPdfService.LoadLogo(s?.LogoPath));
     }
 
     private static string Safe(string s) => new string(s.Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray()).Trim('-');

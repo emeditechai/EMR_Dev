@@ -546,7 +546,7 @@ namespace EMR.Web.Controllers
         /// The patient app's copy of the Image report (whole bill or one test): opened by a 10-minute ticket of EMR.Web
         /// api/patient-app (token_use patient_doc, doc = image:{labOrderId}) for the patient the bill belongs to; only
         /// approved tests, always with the letterhead (the patient's digital copy, as the WhatsApp report). EMR.Web prints
-        /// it to PDF for the app (IHtmlPdfRenderer).
+        /// (The app downloads its PDF from api/patient-app, drawn with QuestPDF.)
         /// </summary>
         [HttpGet, AllowAnonymous]
         public async Task<IActionResult> PatientPrint(int labOrderId, long? sampleCollectionId, string? t)
