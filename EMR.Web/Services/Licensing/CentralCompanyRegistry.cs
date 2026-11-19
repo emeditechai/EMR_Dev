@@ -221,11 +221,13 @@ public sealed class CentralCompanyRegistry(
                     CentralCompanyId = byCode.ID, CreatedDate = byCode.CreatedDate, ModifiedDate = byCode.ModifiedDate,
                     Message = stale ? "Registered centrally, but the name, validity, API or web address there is out of date. Push to update it." : "In the central company register." };
             }
+            // another installation's company: nothing about it is shown (SQLScripts/2491)
             if (byCode is not null)
-                return new CentralCompanyStatus { State = "CONFLICT", CentralCompanyName = byCode.CompanyName, CreatedDate = byCode.CreatedDate,
+                return new CentralCompanyStatus { State = "CONFLICT",
+                    CentralCompanyName = byCode.SameInstance ? byCode.CompanyName : null, CreatedDate = byCode.SameInstance ? byCode.CreatedDate : null,
                     Message = byCode.SameInstance
                         ? $"Code {code} is registered centrally for another company of this installation ({byCode.CompanyName})."
-                        : $"Code {code} is already registered centrally by another eCare360 installation ({byCode.CompanyName}). Change this company's code to push it." };
+                        : $"Company code {code} is not available. Company codes must be unique - change this company's code to push it." };
             if (own is not null)
                 return new CentralCompanyStatus { State = "CODE_CHANGED", CentralCompanyId = own.ID, CentralCompanyName = own.CompanyName, WebUrl = own.WebUrl, CreatedDate = own.CreatedDate, ModifiedDate = own.ModifiedDate,
                     Message = $"Registered centrally under the old code {own.CompanyCode}. Push to update it to {code}." };
@@ -271,7 +273,7 @@ public sealed class CentralCompanyRegistry(
         {
             var byCode = (await GetRowsAsync(code, null)).FirstOrDefault(r => r.Match == "CODE");
             return byCode is { SameInstance: false }
-                ? $"This company code is already registered by another eCare360 installation ({byCode.CompanyName}). Company codes must be unique across all installations."
+                ? "This company code is not available. Company codes must be unique - choose a different code."
                 : null;
         }
         catch (Exception ex)

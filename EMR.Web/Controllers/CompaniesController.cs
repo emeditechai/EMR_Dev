@@ -499,7 +499,7 @@ public class CompaniesController(
         // SQLScripts/2490: usernames are unique across installations - a user whose username another installation holds is
         // skipped (listed, not a failure); central rows of users deleted here are removed (kept in Central_Delete_Audit)
         var msg = r.Total == 0 ? "This company has no users." : $"{r.Created} added, {r.Updated} updated, {r.Unchanged} already registered"
-                  + (r.Skipped > 0 ? $", {r.Skipped} skipped (e-mail registered by another installation)" : "")
+                  + (r.Skipped > 0 ? $", {r.Skipped} skipped (e-mail already in use)" : "")
                   + (r.Removed > 0 ? $", {r.Removed} removed (user no longer here)" : "")
                   + (r.Failed > 0 ? $", {r.Failed} not synced." : ".");
         return Json(new { success = r.Failed == 0, total = r.Total, created = r.Created, updated = r.Updated, unchanged = r.Unchanged, failed = r.Failed,

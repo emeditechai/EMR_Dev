@@ -105,7 +105,6 @@ public sealed class CentralUserRegistry(
         public long ID { get; set; }
         public int? ApplicationUserID { get; set; }
         public string? Scope { get; set; }            // INSTALLATION | GLOBAL (SQLScripts/2490)
-        public string? CompanyCode { get; set; }
     }
     private sealed class UserRow
     {
@@ -126,10 +125,8 @@ public sealed class CentralUserRegistry(
 
     private sealed class RemovedRow { public string Status { get; set; } = ""; public int Users { get; set; } }
 
-    private static string GlobalMessage(string name, string? companyCode) =>
-        $"The e-mail {name} is already registered as a sign-in on another eCare360 installation"
-        + (string.IsNullOrWhiteSpace(companyCode) ? "" : $" (company {companyCode})")
-        + ". Sign-in e-mails are unique across all installations - use a different e-mail.";
+    /// <summary>SQLScripts/2491: held by another installation - a standard message; nothing about the other client is told.</summary>
+    private const string GlobalMessage = "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address.";
     private sealed class HolderRow
     {
         public long ID { get; set; }
@@ -261,8 +258,8 @@ public sealed class CentralUserRegistry(
             if (holder is { Scope: not "GLOBAL" } && await ReconcileHolderAsync(holder.ID, name)) holder = await HolderAsync();
             if (holder is null) return new("FREE", "");
             return holder.Scope == "GLOBAL"
-                ? new("DUPLICATE", GlobalMessage(name, holder.CompanyCode))
-                : new("TAKEN", "This e-mail is already registered as a sign-in on this installation (central user register).");
+                ? new("DUPLICATE", GlobalMessage)
+                : new("TAKEN", GlobalMessage);
         }
         catch (Exception ex)
         {
@@ -289,7 +286,7 @@ public sealed class CentralUserRegistry(
                 commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
             if (r.Status == "CONFLICT" && r.Scope == "GLOBAL")
                 // SQLScripts/2490: another installation holds the name - usernames are unique across all installations
-                return new("DUPLICATE", r.Message + " This user is not registered centrally; give it a different e-mail to register it.", r.ID);
+                return new("DUPLICATE", GlobalMessage + " (Not registered centrally until its e-mail is changed.)", r.ID);
             if (r.Status == "CONFLICT")
             {
                 // the name is held by another row of this installation: reconcile it with the application database, retry once
