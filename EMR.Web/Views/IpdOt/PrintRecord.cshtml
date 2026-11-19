@@ -1,0 +1,10 @@
+@{
+    // OT record (Phase 8, SQLScripts/2492): rendered by js/ipd/ot-print.js from the data below.
+    Layout = "_IpdPrintLayout";
+    ViewData["DocTitle"] = "Operation Theatre Record";
+}
+<div id="otPrint"></div>
+@section Scripts {
+    <script>window.OtPrint = @Html.Raw(ViewData["Print"] as string ?? "{}");</script>
+    <script src="~/js/ipd/ot-print.js" asp-append-version="true"></script>
+}

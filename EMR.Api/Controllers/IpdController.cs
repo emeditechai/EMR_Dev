@@ -32,7 +32,8 @@ public record IpdFinaliseRequest(DateTime? UpTo, string? DiscountType, decimal D
 public record IpdCancelRequest(string? Reason, string? RefundMethod, string? RefundRefNo);
 public record IpdAdvanceRequest(string Payments, string? Remarks, string? DiscType = null, decimal DiscValue = 0, string? DiscReason = null, bool RoundOff = false, bool CanDiscount = false);
 public record IpdRefundRequest(decimal Amount, string Method, string? RefNo, string? Reason);
-public record IpdConsentRequest(int ConsentId, string? SignedByName, string? SignedByRelation, string? WitnessName, string? SignaturePath, string? WitnessSignaturePath);
+public record IpdConsentRequest(int ConsentId, string? SignedByName, string? SignedByRelation, string? WitnessName, string? SignaturePath, string? WitnessSignaturePath,
+    int? OtBookingId = null);   // 2492: consent for an OT booking
 public record IpdDocumentRequest(string? DocType, string? Title, string FilePath, string? Remarks);
 public record IpdPreEstimateRequest(int? EstimateId, int? PatientId, string? PatientName, string? Phone, string? AgeText, string? Gender, string PayerType,
     int TariffCategoryId, int? BedCategoryId, int WardDays, int? IcuBedCategoryId, int IcuDays, int? PackageId, int? DoctorId, string? ProcedureNote,
@@ -154,7 +155,7 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     public Task<IActionResult> Consent(int id, [FromBody] IpdConsentRequest r) => Run(async c =>
         Row(await ipd.RowAsync("dbo.usp_Api_IpdConsent_Save", new
         {
-            c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.ConsentId, r.SignedByName, r.SignedByRelation, r.WitnessName, r.SignaturePath, r.WitnessSignaturePath
+            c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.ConsentId, r.SignedByName, r.SignedByRelation, r.WitnessName, r.SignaturePath, r.WitnessSignaturePath, r.OtBookingId
         })));
 
     [HttpGet("consents/{id:int}")]

@@ -20,7 +20,7 @@ public interface IFranchiseLoginService
 }
 
 public class FranchiseLoginService(ApplicationDbContext dbContext, IPasswordHasherService passwordHasher, ILoginCredentialsMailer mailer,
-    ILogger<FranchiseLoginService> logger) : IFranchiseLoginService
+    ILogger<FranchiseLoginService> logger, EMR.Web.Services.Licensing.ICentralUserRegistry centralUsers) : IFranchiseLoginService
 {
     public async Task<string?> EnsureAsync(int franchiseId, string franchiseName, string? email, string? mobile, int branchId, int companyId,
         bool active, int actingUserId, int? fallbackBranchId, string baseUrl)
@@ -38,6 +38,9 @@ public class FranchiseLoginService(ApplicationDbContext dbContext, IPasswordHash
             if (string.Equals(login.Username, email, StringComparison.OrdinalIgnoreCase)) return null;   // already this e-mail
             if (other.Any(TakenByOther))
                 return $"The franchise login was not moved to {email}: that e-mail is used by another sign-in. It still signs in as {login.Username}.";
+            // SQLScripts/2490: unique across all eCare360 installations (central user register)
+            if (await centralUsers.CheckAsync(login.CompanyId ?? companyId, email, login.Id, login.CentralUserID) is { Taken: true } movedTaken)
+                return $"The franchise login was not moved to {email}: {movedTaken.Message} It still signs in as {login.Username}.";
             var old = login.Username;
             login.Username = email; login.Email = email; login.LastModifiedDate = DateTime.Now;
             await dbContext.SaveChangesAsync();
@@ -47,6 +50,8 @@ public class FranchiseLoginService(ApplicationDbContext dbContext, IPasswordHash
 
         if (other.Count > 0)
             return $"No login was created for this franchise: the e-mail {email} is already used by another sign-in.";
+        if (await centralUsers.CheckAsync(companyId, email) is { Taken: true } centralTaken)
+            return $"No login was created for this franchise: {centralTaken.Message}";
 
         var password = LoginCredentialsMailer.DefaultPassword;
         var (hash, salt) = passwordHasher.HashPassword(password);

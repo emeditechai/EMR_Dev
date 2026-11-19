@@ -1,0 +1,70 @@
+/* IPD Phase 8 - OT and ICU (SQLScripts/2492-2494): OT tab, OT Schedule, ICU Chart tab, ICU Board */
+
+/* ── OT booking cards (patient workspace) ─────────────────────────────────── */
+.ot-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+.ot-card-head { display: flex; justify-content: space-between; gap: 12px; padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+.ot-card-head h6 { margin: 0; font-weight: 700; }
+.ot-card-head .meta { font-size: .78rem; color: #64748b; }
+.ot-st { font-size: .68rem; font-weight: 700; padding: .2rem .55rem; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.ot-st.SCHEDULED { background: #dbeafe; color: #1d4ed8; } .ot-st.IN_OT { background: #fee2e2; color: #b91c1c; }
+.ot-st.COMPLETED { background: #dcfce7; color: #15803d; } .ot-st.CANCELLED { background: #f1f5f9; color: #64748b; }
+.ot-steps { display: flex; gap: 6px; padding: 10px 16px; flex-wrap: wrap; border-bottom: 1px solid #f1f5f9; }
+.ot-step { font-size: .74rem; border: 1px solid #e2e8f0; border-radius: 999px; padding: .22rem .65rem; color: #64748b; background: #fff; display: inline-flex; align-items: center; gap: 4px; }
+.ot-step.done { border-color: #86efac; background: #f0fdf4; color: #15803d; }
+.ot-step.next { border-color: #fca5a5; background: #fef2f2; color: #b91c1c; font-weight: 600; }
+.ot-body { padding: 12px 16px; }
+.ot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 18px; font-size: .84rem; }
+.ot-grid .k { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; font-weight: 700; }
+.ot-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid #f1f5f9; background: #fcfcfd; }
+.ot-times { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; font-size: .78rem; margin-top: 8px; }
+.ot-times div { background: #f8fafc; border-radius: 8px; padding: 6px 8px; } .ot-times b { display: block; font-size: .82rem; }
+.ot-check-item { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px dashed #e5e7eb; }
+.ot-check-item .txt { flex: 1; font-size: .86rem; }
+.ot-check-item .btn-group .btn { font-size: .72rem; padding: .15rem .5rem; }
+.ot-check-item.info .txt::after { content: " (record)"; color: #94a3b8; font-size: .72rem; }
+.ot-lines td input { max-width: 120px; }
+.ot-rowtable td, .ot-rowtable th { font-size: .8rem; padding: .25rem .35rem; }
+
+/* ── OT Schedule ──────────────────────────────────────────────────────────── */
+.ot-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.ot-col { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+.ot-col-head { padding: 10px 14px; background: #fff1f2; border-bottom: 1px solid #fecdd3; display: flex; justify-content: space-between; align-items: center; }
+.ot-col-head b { font-size: .92rem; } .ot-col-head small { color: #9f1239; }
+.ot-timeline { position: relative; height: 10px; margin: 8px 14px 0; background: #f1f5f9; border-radius: 6px; overflow: hidden; }
+.ot-timeline i { position: absolute; top: 0; bottom: 0; background: #fda4af; } .ot-timeline i.IN_OT { background: #ef4444; } .ot-timeline i.COMPLETED { background: #22c55e; }
+.ot-slot { padding: 10px 14px; border-top: 1px solid #f1f5f9; cursor: pointer; } .ot-slot:hover { background: #f8fafc; }
+.ot-slot .tm { font-weight: 700; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.ot-slot .pt { font-weight: 600; } .ot-slot .sub { font-size: .76rem; color: #64748b; }
+.ot-slot.CANCELLED { opacity: .55; text-decoration: line-through; }
+.ot-empty { padding: 18px 14px; color: #94a3b8; font-size: .85rem; text-align: center; }
+
+/* ── ICU Chart tab ────────────────────────────────────────────────────────── */
+.icu-state { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.icu-state > div { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; }
+.icu-state small { display: block; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; font-weight: 700; }
+.icu-state b { font-size: 1rem; }
+.icu-flow { font-size: .78rem; } .icu-flow th { position: sticky; left: 0; background: #f8fafc; white-space: nowrap; z-index: 1; }
+.icu-flow td { text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 58px; }
+.icu-flow td.abn { color: #b91c1c; font-weight: 700; background: #fef2f2; }
+.icu-flow td.struck, .icu-flow .struck { text-decoration: line-through; color: #9ca3af; }
+.icu-flow thead th { font-size: .7rem; }
+.icu-flow tr.grp th { background: #eef2ff; color: #3730a3; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; }
+.icu-spark { height: 120px; width: 100%; }
+.icu-badge { font-size: .66rem; font-weight: 700; padding: .15rem .45rem; border-radius: 999px; }
+.icu-badge.vent { background: #ede9fe; color: #6d28d9; } .icu-badge.ret { background: #fee2e2; color: #b91c1c; } .icu-badge.late { background: #fef3c7; color: #b45309; }
+
+/* ── ICU Board ────────────────────────────────────────────────────────────── */
+.icu-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.icu-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; border-left: 4px solid #8b5cf6; cursor: pointer; }
+.icu-card:hover { box-shadow: 0 4px 14px rgba(15, 23, 42, .08); }
+.icu-card.late { border-left-color: #f59e0b; } .icu-card.ret { border-left-color: #ef4444; }
+.icu-card .bed { font-size: .72rem; color: #64748b; font-weight: 700; text-transform: uppercase; }
+.icu-card .name { font-weight: 700; } .icu-card .sub { font-size: .76rem; color: #64748b; }
+.icu-vitals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+.icu-vitals div { background: #f8fafc; border-radius: 6px; padding: 4px 6px; text-align: center; font-size: .78rem; font-variant-numeric: tabular-nums; }
+.icu-vitals small { display: block; font-size: .6rem; color: #94a3b8; text-transform: uppercase; } .icu-vitals .abn { color: #b91c1c; font-weight: 700; }
+
+@media print {
+    .ipdx-section-head .d-flex, nav, header, footer, .navbar { display: none !important; }
+    .ot-board { grid-template-columns: 1fr 1fr; }
+}

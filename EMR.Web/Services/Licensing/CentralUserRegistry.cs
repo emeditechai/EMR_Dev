@@ -7,12 +7,15 @@ using Microsoft.Extensions.Options;
 namespace EMR.Web.Services.Licensing;
 
 /// <summary>Result of a central user check / save: Status FREE / TAKEN (check), CREATED / UPDATED / UNCHANGED / CONFLICT
-/// (save), NO_COMPANY (the user has no company, or its company is not / cannot be in Central_Company - no central user is
+/// (save), DUPLICATE (SQLScripts/2490: the username is held by ANOTHER installation - usernames are unique across all of
+/// them, the platform super admin excepted; the sync skips such a user), NO_COMPANY (the user has no company, or its company is not / cannot be in Central_Company - no central user is
 /// created without its company: FK), UNAVAILABLE (central database not reachable).</summary>
 public sealed record CentralUserResult(string Status, string Message, long? CentralUserId = null)
 {
     public bool Ok => Status is "CREATED" or "UPDATED" or "UNCHANGED";
-    public bool Taken => Status is "TAKEN" or "CONFLICT";
+    public bool Taken => Status is "TAKEN" or "CONFLICT" or "DUPLICATE";
+    /// <summary>SQLScripts/2490: held by another installation (the user is skipped by the sync, not retried).</summary>
+    public bool Duplicate => Status == "DUPLICATE";
     /// <summary>The user cannot be created: its company has no central company.</summary>
     public bool NoCompany => Status == "NO_COMPANY";
 }
@@ -20,6 +23,10 @@ public sealed record CentralUserResult(string Status, string Message, long? Cent
 /// <summary>Result of "Sync Users" for a company.</summary>
 public sealed record CentralUserSyncSummary(int Total, int Created, int Updated, int Unchanged, int Failed, List<string> Problems, string? Error)
 {
+    /// <summary>SQLScripts/2490: users not synced because another installation holds their username (not counted in Failed).</summary>
+    public int Skipped { get; init; }
+    /// <summary>SQLScripts/2489 / 2490: central rows removed because their user no longer exists in this installation.</summary>
+    public int Removed { get; init; }
     /// <summary>The users not synced (id, username, reason) - the profile links each to its Edit page.</summary>
     public List<CentralUserProblem> Users { get; init; } = [];
 }
@@ -27,8 +34,9 @@ public sealed record CentralUserSyncSummary(int Total, int Created, int Updated,
 public sealed record CentralUserProblem(int UserId, string Username, string Status, string Message);
 
 /// <summary>
-/// The central user register (Central_Lic_DB.dbo.Central_Users, SQLScripts/2470): every sign-in, Username unique per
-/// INSTALLATION (Central_Company.InstanceKey - <see cref="ICentralCompanyRegistry.InstanceKey"/>); each row also carries the
+/// The central user register (Central_Lic_DB.dbo.Central_Users, SQLScripts/2470): every sign-in, Username unique across
+/// ALL installations since SQLScripts/2490 (the platform super admin ecare360plusadmin@emeditechplus.com excepted: unique per
+/// installation, each registers it); before that unique per INSTALLATION (Central_Company.InstanceKey - <see cref="ICentralCompanyRegistry.InstanceKey"/>); each row also carries the
 /// user's central company (Central_Company.ID - <see cref="ICentralCompanyRegistry.ResolveAsync"/>). The
 /// application database keeps the central ID in Users.CentralUserID (2471). Authentication is unchanged; this only records.
 /// Uses the licensing connection; never throws.
@@ -59,6 +67,12 @@ public interface ICentralUserRegistry
 
     /// <summary>Background sync's work list: users not registered centrally, or changed while it was unreachable.</summary>
     Task<List<(int UserId, string Username)>> PendingAsync(int top);
+
+    /// <summary>SQLScripts/2489 / 2490: removes the central rows of this installation (optionally of one application company)
+    /// whose user no longer exists here, and abandoned reservations - each kept in Central_Delete_Audit. <paramref name="guard"/>
+    /// (the background run) refuses a mass removal (over half of 10+ rows), which points at a wrong database rather than
+    /// deleted users. Returns the rows removed, or -1 when it could not run. Never throws.</summary>
+    Task<int> RemoveDeletedUsersAsync(int? companyId, string deletedBy, bool guard);
 }
 
 public sealed class CentralUserRegistry(
@@ -85,9 +99,34 @@ public sealed class CentralUserRegistry(
     private static readonly ConcurrentDictionary<int, (int Id, DateTime At)> CompanyCache = new();
 
     private sealed class CompanyRow { public int CompanyId { get; set; } public string CompanyCode { get; set; } = ""; public string CompanyName { get; set; } = ""; }
-    private sealed class CheckRow { public bool Taken { get; set; } public long ID { get; set; } public int? ApplicationUserID { get; set; } }
-    private sealed class UserRow { public int Id { get; set; } public string Username { get; set; } = ""; public int? CompanyId { get; set; } public long? CentralUserID { get; set; } }
-    private sealed class SaveRow { public string Status { get; set; } = ""; public string Message { get; set; } = ""; public long? ID { get; set; } }
+    private sealed class CheckRow
+    {
+        public bool Taken { get; set; }
+        public long ID { get; set; }
+        public int? ApplicationUserID { get; set; }
+        public string? Scope { get; set; }            // INSTALLATION | GLOBAL (SQLScripts/2490)
+    }
+    private sealed class UserRow
+    {
+        public int Id { get; set; }
+        public string Username { get; set; } = "";
+        public int? CompanyId { get; set; }
+        public long? CentralUserID { get; set; }
+        public string? CentralSyncSkipReason { get; set; }
+    }
+    private sealed class SaveRow
+    {
+        public string Status { get; set; } = "";
+        public string Message { get; set; } = "";
+        public long? ID { get; set; }
+        public string? Scope { get; set; }            // INSTALLATION | GLOBAL (SQLScripts/2490)
+    }
+    private sealed class InstanceRow { public long ID { get; set; } public string Username { get; set; } = ""; public int? ApplicationUserID { get; set; } public int AgeMinutes { get; set; } }
+
+    private sealed class RemovedRow { public string Status { get; set; } = ""; public int Users { get; set; } }
+
+    /// <summary>SQLScripts/2491: held by another installation - a standard message; nothing about the other client is told.</summary>
+    private const string GlobalMessage = "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address.";
     private sealed class HolderRow
     {
         public long ID { get; set; }
@@ -205,22 +244,22 @@ public sealed class CentralUserRegistry(
         try
         {
             // uniqueness is per installation: no need for the company to be registered centrally to check
-            async Task<long?> HolderAsync()
+            async Task<CheckRow?> HolderAsync()
             {
                 await using var cn = Central();
-                // the procedure returns a row (Taken, ID, ApplicationUserID) only when another user holds the name
-                var row = await cn.QueryFirstOrDefaultAsync<CheckRow>("dbo.usp_CentralUser_Check",
+                // a row only when another user holds the name: of this installation (INSTALLATION) or another one (GLOBAL, 2490)
+                return await cn.QueryFirstOrDefaultAsync<CheckRow>("dbo.usp_CentralUser_Check",
                     new { companies.InstanceKey, Username = name, CentralUserID = centralUserId, ApplicationUserID = appUserId },
                     commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
-                return row?.ID;
             }
             var holder = await HolderAsync();
-            // held by a stale row (user renamed / removed while the central server was down) or an abandoned reservation:
-            // corrected from the application database, then checked again
-            if (holder is > 0 && await ReconcileHolderAsync(holder.Value, name)) holder = await HolderAsync();
-            return holder is > 0
-                ? new("TAKEN", "This e-mail is already registered as a sign-in on this installation (central user register).")
-                : new("FREE", "");
+            // held here by a stale row (user renamed / removed while the central server was down) or an abandoned reservation:
+            // corrected from the application database, then checked again (another installation's row is never touched)
+            if (holder is { Scope: not "GLOBAL" } && await ReconcileHolderAsync(holder.ID, name)) holder = await HolderAsync();
+            if (holder is null) return new("FREE", "");
+            return holder.Scope == "GLOBAL"
+                ? new("DUPLICATE", GlobalMessage)
+                : new("TAKEN", GlobalMessage);
         }
         catch (Exception ex)
         {
@@ -245,6 +284,9 @@ public sealed class CentralUserRegistry(
             var r = await cn.QueryFirstAsync<SaveRow>("dbo.usp_CentralUser_Save",
                 new { CompanyID = cid, Username = name, ApplicationUserID = appUserId, CentralUserID = centralUserId },
                 commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
+            if (r.Status == "CONFLICT" && r.Scope == "GLOBAL")
+                // SQLScripts/2490: another installation holds the name - usernames are unique across all installations
+                return new("DUPLICATE", GlobalMessage + " (Not registered centrally until its e-mail is changed.)", r.ID);
             if (r.Status == "CONFLICT")
             {
                 // the name is held by another row of this installation: reconcile it with the application database, retry once
@@ -294,6 +336,14 @@ public sealed class CentralUserRegistry(
         if (u.CompanyId is not > 0) return CompanyProblem("the user has no company.", false);
         var r = await SaveCoreAsync(u.CompanyId.Value, u.Username, u.Id, u.CentralUserID, reconcile);
         await using var app = App();
+        if (r.Duplicate)
+        {
+            // SQLScripts/2489 / 2490: the name belongs to another installation - skipped, not retried until the username changes
+            await app.ExecuteAsync("dbo.usp_User_CentralSkip", new { UserId = u.Id, Reason = r.Message }, commandType: CommandType.StoredProcedure);
+            if (u.CentralSyncSkipReason is null)
+                logger.LogInformation("Central user register: user {UserId} ({Username}) skipped - held by another installation", u.Id, u.Username);
+            return r;
+        }
         if (r.Ok && r.CentralUserId is > 0)
             // stores the central ID and clears the pending flag (the procedure writes only when something changes)
             await app.ExecuteAsync("dbo.usp_User_CentralSet", new { UserId = u.Id, CentralUserID = r.CentralUserId }, commandType: CommandType.StoredProcedure);
@@ -323,7 +373,7 @@ public sealed class CentralUserRegistry(
         var (cid, error, unreachable) = await CentralCompanyAsync(companyId, pushIfNeeded: true);
         if (cid is not > 0) return new(users.Count, 0, 0, 0, users.Count, [], CompanyProblem(error, unreachable).Message);
 
-        int created = 0, updated = 0, unchanged = 0, failed = 0;
+        int created = 0, updated = 0, unchanged = 0, failed = 0, skipped = 0;
         var problems = new List<string>();
         var problemUsers = new List<CentralUserProblem>();
         foreach (var u in users)
@@ -334,6 +384,11 @@ public sealed class CentralUserRegistry(
                 case "CREATED": created++; break;
                 case "UPDATED": updated++; break;
                 case "UNCHANGED": unchanged++; break;
+                case "DUPLICATE":
+                    // SQLScripts/2490: another installation holds the username - skipped, listed (not a failure)
+                    skipped++;
+                    if (problemUsers.Count < 50) problemUsers.Add(new(u.Id, u.Username, r.Status, r.Message));
+                    break;
                 default:
                     failed++;
                     if (problems.Count < 50)
@@ -344,6 +399,76 @@ public sealed class CentralUserRegistry(
                     break;
             }
         }
-        return new(users.Count, created, updated, unchanged, failed, problems, null) { Users = problemUsers };
+        // SQLScripts/2489 / 2490: central rows of this company whose user was deleted here (or abandoned reservations) go
+        var removed = await RemoveDeletedUsersAsync(companyId, "Sync Users", guard: false);
+        return new(users.Count, created, updated, unchanged, failed, problems, null)
+        {
+            Users = problemUsers, Skipped = skipped, Removed = Math.Max(0, removed)
+        };
+    }
+
+    public async Task<int> RemoveDeletedUsersAsync(int? companyId, string deletedBy, bool guard)
+    {
+        if (!Configured) return -1;
+        try
+        {
+            int? centralCompanyId = null;
+            if (companyId is > 0)
+            {
+                var (cid, _, _) = await CentralCompanyAsync(companyId.Value, pushIfNeeded: false);
+                if (cid is not > 0) return 0;                                   // the company is not registered: nothing of it centrally
+                centralCompanyId = cid;
+            }
+            List<InstanceRow> rows;
+            await using (var cn = Central())
+                rows = (await cn.QueryAsync<InstanceRow>("dbo.usp_CentralUser_ListInstance",
+                    new { companies.InstanceKey, CompanyID = centralCompanyId },
+                    commandType: CommandType.StoredProcedure, commandTimeout: Timeout)).ToList();
+            if (rows.Count == 0) return 0;
+
+            var linked = rows.Where(r => r.ApplicationUserID is > 0).Select(r => r.ApplicationUserID!.Value).Distinct().ToList();
+            HashSet<int> existing;
+            await using (var app = App())
+                existing = (await app.QueryAsync<int>("dbo.usp_User_CentralExisting",
+                    new { UserIds = "[" + string.Join(",", linked) + "]" }, commandType: CommandType.StoredProcedure)).ToHashSet();
+            var gone = linked.Where(id => !existing.Contains(id)).ToList();
+
+            if (guard && rows.Count >= 10 && gone.Count * 2 > rows.Count)
+            {
+                logger.LogWarning("Central user register: {Gone} of {Total} central users of this installation have no user here - not removed automatically (wrong database?). Use Sync Users on the company profile.",
+                    gone.Count, rows.Count);
+                return 0;
+            }
+
+            var removed = 0;
+            if (gone.Count > 0)
+            {
+                await using var cn = Central();
+                var r = await cn.QueryFirstAsync<RemovedRow>("dbo.usp_CentralUser_RemoveByApp",
+                    new { companies.InstanceKey, ApplicationUserIDs = "[" + string.Join(",", gone) + "]", Preview = false,
+                          DeletedBy = deletedBy, DeletedFrom = (string?)null, Reference = $"{companies.InstanceKey}: user no longer in the installation",
+                          Reason = "USER_DELETED" },
+                    commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
+                removed += r.Users;
+            }
+            // reservations never linked to a user (a create that did not finish)
+            foreach (var res in rows.Where(r => r.ApplicationUserID is null && r.AgeMinutes >= AbandonedReservationMinutes))
+            {
+                UserRow? carrier;
+                await using (var app = App())
+                    carrier = await app.QueryFirstOrDefaultAsync<UserRow>("dbo.usp_User_CentralFindByCentralId", new { CentralUserID = res.ID }, commandType: CommandType.StoredProcedure);
+                if (carrier is not null) { await SyncRowAsync(carrier, reconcile: false); continue; }   // its user exists: link it
+                await ReleaseAsync(res.ID);
+                removed++;
+            }
+            if (removed > 0)
+                logger.LogInformation("Central user register: {Removed} central row(s) of deleted users / abandoned reservations removed ({By})", removed, deletedBy);
+            return removed;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Central user register: deleted users not removed centrally (company {CompanyId})", companyId);
+            return -1;
+        }
     }
 }

@@ -672,6 +672,10 @@ public class LabFranchisesController(
         var lowerEmail = email.ToLower();
         if (await dbContext.Users.AnyAsync(u => u.Username == email || (u.Email != null && u.Email.Trim().ToLower() == lowerEmail)))
             return $"No login was created for this franchise: the e-mail {email} is already used by another sign-in.";
+        // SQLScripts/2490: sign-in e-mails are unique across all eCare360 installations (central user register)
+        if (await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+                .CheckAsync(companyId, email) is { Taken: true } centralTaken)
+            return $"No login was created for this franchise: {centralTaken.Message}";
 
         var defaultPassword = LoginCredentialsMailer.DefaultPassword;
         var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);

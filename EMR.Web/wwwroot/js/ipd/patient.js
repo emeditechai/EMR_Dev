@@ -130,6 +130,10 @@
         cnSig = cnSig || Ipd.signaturePad(document.getElementById('cnSig')); cnWSig = cnWSig || Ipd.signaturePad(document.getElementById('cnWSig'));
         cnSig.fit(); cnWSig.fit();
     });
+    document.getElementById('consentModal')?.addEventListener('hidden.bs.modal', () => {
+        const o = document.getElementById('cnOtBooking'); if (o) { o.value = ''; o.dataset.procedure = ''; }
+        document.getElementById('cnOtLabel')?.classList.add('d-none');
+    });
     document.getElementById('cnClear1')?.addEventListener('click', () => cnSig?.clear());
     document.getElementById('cnClear2')?.addEventListener('click', () => cnWSig?.clear());
     document.getElementById('cnId')?.addEventListener('change', async e => {
@@ -140,7 +144,7 @@
             const map = { PatientName: C.patientName, UHID: C.uhid, IPDNo: C.ipNo, Age: C.age, Gender: C.gender,
                           DoctorName: C.doctor, DepartmentName: C.department,
                           HospitalName: c.HospitalName || '', OPDNo: C.opdNo, Date: Ipd.date(new Date()), Time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-                          Relationship: document.getElementById('cnRel').value, WitnessName: document.getElementById('cnWit').value, ProcedureName: '' };
+                          Relationship: document.getElementById('cnRel').value, WitnessName: document.getElementById('cnWit').value, ProcedureName: document.getElementById('cnOtBooking')?.dataset.procedure || '' };
             box.innerHTML = String(c.ContentHtml || '').replace(/\{\{(\w+)\}\}/g, (m, k) => k in map ? E(map[k]) : m);
             box.classList.remove('text-muted');
         } catch (err) { box.textContent = err.message; }
@@ -151,12 +155,14 @@
         fd.append('signedByName', document.getElementById('cnBy').value); fd.append('signedByRelation', document.getElementById('cnRel').value);
         fd.append('witnessName', document.getElementById('cnWit').value);
         fd.append('signature', cnSig?.dataUrl() || ''); fd.append('witnessSignature', cnWSig?.dataUrl() || '');
+        const otb = document.getElementById('cnOtBooking')?.value; if (otb) fd.append('otBookingId', otb);   // consent of an OT booking (2492)
         if (!document.getElementById('cnId').value) { Ipd.error('Choose the consent form.'); return; }
         e.target.disabled = true;
         const r = await Ipd.postForm(base + 'SaveConsent?id=' + id, fd);
         e.target.disabled = false;
         if (!r.success) { Ipd.error(r.error); return; }
         window.open(base + 'PrintConsent/' + r.data.AdmissionConsentId, '_blank');
+        if (otb) { bootstrap.Modal.getInstance(document.getElementById('consentModal'))?.hide(); document.dispatchEvent(new CustomEvent('ipd:consent-saved', { detail: { otBookingId: Number(otb) } })); return; }
         reloadTab('documents');
     });
 

@@ -331,5 +331,13 @@
   ],
   "date": "18 Nov 2026",
   "version": "1.26"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "Users: new column(s) CentralSyncSkipReason, CentralSyncSkippedUsername, CentralSyncSkippedAt"
+  ],
+  "date": "19 Nov 2026",
+  "version": "1.27"
  }
 ]

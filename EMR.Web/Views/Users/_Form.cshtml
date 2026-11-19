@@ -1986,7 +1986,16 @@ if (isLogisticsBoyToggle) {
     if (!email || email.readOnly) return;
     const original = email.value.trim().toLowerCase();
     let timer = null, seq = 0;
+    // Save stays disabled until the e-mail (the username) is confirmed available - or is this user's own, unchanged one
+    const saveBtns = email.form ? [...email.form.querySelectorAll('button[type="submit"]')] : [];
+    function gate(ok) {
+        saveBtns.forEach(b => {
+            b.disabled = !ok;
+            b.title = ok ? '' : 'Enter an e-mail that is available - Save is enabled once it is confirmed.';
+        });
+    }
     function paint(kind, text) {
+        gate(kind === 'ok');
         email.classList.toggle('uf-ok', kind === 'ok'); email.classList.toggle('uf-bad', kind === 'bad');
         state.className = 'uf-email-state ' + (kind || '');
         state.innerHTML = kind === 'ok' ? '<i class="bi bi-check-circle-fill"></i>' : kind === 'bad' ? '<i class="bi bi-x-circle-fill"></i>'
@@ -2004,17 +2013,24 @@ if (isLogisticsBoyToggle) {
             const r = await (await fetch('@Url.Action("CheckEmail", "Users")?email=' + encodeURIComponent(v) + '&id=' + (email.dataset.userId || 0), { credentials: 'same-origin' })).json();
             if (my !== seq) return;   // a newer check is running
             paint(r.valid && r.available ? 'ok' : 'bad', r.message);
-        } catch (e) { if (my === seq) paint('', ''); }
+        } catch (e) { if (my === seq) paint('bad', 'The e-mail could not be checked. Check the connection and try again.'); }
     }
     email.addEventListener('input', () => {
         if (user && user.dataset.follows === '1') user.value = email.value.trim().toLowerCase();
+        gate(false);                                  // changed: not confirmed until checked again
         clearTimeout(timer); timer = setTimeout(check, 450);
     });
     email.addEventListener('blur', () => { clearTimeout(timer); check(); });
     // the form is not sent while the e-mail is known to be taken
+    // (and never sent unless it is confirmed available, e.g. Enter pressed while the check runs)
     email.form?.addEventListener('submit', e => {
-        if (email.classList.contains('uf-bad')) { e.preventDefault(); email.focus(); email.scrollIntoView({ block: 'center' }); }
+        if (!email.classList.contains('uf-ok')) {
+            e.preventDefault(); email.focus(); email.scrollIntoView({ block: 'center' });
+            if (!email.value.trim()) paint('bad', 'Enter the e-mail the user signs in with.');
+            else check();
+        }
     });
-    if (email.value.trim() && email.value.trim().toLowerCase() !== original) check();
+    // on load: an unchanged e-mail of this user is fine; anything else is checked first (an empty one keeps Save disabled)
+    if (email.value.trim()) check(); else gate(false);
 })();
 </script>

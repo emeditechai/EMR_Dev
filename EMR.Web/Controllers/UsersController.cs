@@ -293,7 +293,7 @@ public class UsersController(
         RequireEmail(model);
         model.Username = (model.Email ?? "").Trim().ToLowerInvariant();
         ModelState.Remove(nameof(model.Username));
-        // SQLScripts/2470: 1) the central user register first (username unique per installation); 2) the application database -
+        // SQLScripts/2470 / 2490: 1) the central user register first (username unique across all installations, the platform super admin excepted); 2) the application database -
         // always, so the name is still unique here when the central server is unreachable (Status UNAVAILABLE never blocks)
         if (model.Username.Length > 0
             && await centralUsers.CheckAsync((int?)User.GetCompanyId() ?? 0, model.Username) is { Taken: true } centralTaken)
@@ -1265,7 +1265,7 @@ public class UsersController(
         if (e.Length > 100 || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(e) || !e.Contains('.'))
             return Json(new { valid = false, available = false, message = "Enter a valid e-mail address." });
         var lower = e.ToLower();
-        // SQLScripts/2470: 1) the central user register first (username unique per installation); 2) this application's database -
+        // SQLScripts/2470 / 2490: 1) the central user register first (username unique across all installations, the platform super admin excepted); 2) this application's database -
         // always; when the central server is unreachable only the application could be checked, and the message says so
         var (checkCompanyId, checkCentralId) = id > 0
             ? await dbContext.Users.AsNoTracking().Where(u => u.Id == id).Select(u => new ValueTuple<int, long?>(u.CompanyId ?? 0, u.CentralUserID)).FirstOrDefaultAsync()

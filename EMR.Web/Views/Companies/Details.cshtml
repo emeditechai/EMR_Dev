@@ -416,12 +416,14 @@
                 fetch(syncBtn.dataset.syncUrl, { method: 'POST', credentials: 'same-origin', headers: { 'RequestVerificationToken': token ? token.value : '' } })
                     .then(r => r.json())
                     .then(r => {
-                        syncOut.className = 'mt-2 small ' + (r.success ? 'text-success' : 'text-danger');
+                        syncOut.className = 'mt-2 small ' + (!r.success ? 'text-danger' : r.skipped ? 'text-warning-emphasis' : 'text-success');
                         syncOut.innerHTML = '<i class="bi ' + (r.success ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(r.message)
                             + (r.users && r.users.length
-                                ? '<ul class="mb-0 mt-1 ps-3 text-body">' + r.users.map(u => '<li><b>' + esc(u.username) + '</b>: ' + esc(u.message)
-                                    + (u.status === 'CONFLICT' ? ' <a href="' + esc(u.editUrl) + '" target="_blank" class="ms-1"><i class="bi bi-pencil-square me-1"></i>Edit username</a>' : '') + '</li>').join('')
-                                  + '</ul>' + (r.users.some(u => u.status === 'CONFLICT') ? '<div class="text-muted mt-1">Change the username and save - the user is registered centrally on save; then Sync Users again.</div>' : '')
+                                ? '<ul class="mb-0 mt-1 ps-3 text-body">' + r.users.map(u => '<li>'
+                                    + (u.status === 'DUPLICATE' ? '<span class="badge bg-warning-subtle text-warning-emphasis border me-1">Skipped</span>' : '')
+                                    + '<b>' + esc(u.username) + '</b>: ' + esc(u.message)
+                                    + (u.status === 'CONFLICT' || u.status === 'DUPLICATE' ? ' <a href="' + esc(u.editUrl) + '" target="_blank" class="ms-1"><i class="bi bi-pencil-square me-1"></i>Edit e-mail</a>' : '') + '</li>').join('')
+                                  + '</ul>' + (r.users.some(u => u.status === 'CONFLICT' || u.status === 'DUPLICATE') ? '<div class="text-muted mt-1">Sign-in e-mails are unique across all eCare360 installations. Change the e-mail and save - the user is registered centrally on save; then Sync Users again.</div>' : '')
                                 : (r.problems && r.problems.length ? '<ul class="mb-0 mt-1 ps-3 text-body">' + r.problems.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : ''));
                         load();
                     })

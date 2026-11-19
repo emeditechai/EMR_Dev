@@ -10,8 +10,14 @@ namespace EMR.Web.Services.Licensing;
 ///   * a user that cannot be registered for a lasting reason (a real username clash, no central company) is retried after
 ///     <see cref="ProblemRetry"/>, or as soon as its username changes - not on every run;
 ///   * first run a minute after start-up, so start-up is not slowed. Never throws; authentication is not involved.
+/// SQLScripts/2487 / 2488: each run first makes the central removals queued by Company > Remove data (a deleted company, the
+/// users of a company cleared, any user deleted - trg_Users_CentralRemoval, 2489) that could not be made at the time - one
+/// small query when none is queued.
+/// SQLScripts/2489 / 2490: a user whose username another installation holds is skipped (marked on the user, not retried
+/// until its username changes); every <see cref="SweepInterval"/> the central rows of users no longer in this installation
+/// are removed (kept in Central_Delete_Audit) - a mass removal is refused (wrong database?).
 /// </summary>
-public sealed class CentralUserSyncWorker(ICentralUserRegistry registry, ILogger<CentralUserSyncWorker> logger) : BackgroundService
+public sealed class CentralUserSyncWorker(ICentralUserRegistry registry, ICentralCompanyRegistry companies, ILogger<CentralUserSyncWorker> logger) : BackgroundService
 {
     private const int BatchSize = 50;
     private static readonly TimeSpan FirstRun = TimeSpan.FromMinutes(1);
@@ -19,6 +25,8 @@ public sealed class CentralUserSyncWorker(ICentralUserRegistry registry, ILogger
     private static readonly TimeSpan BacklogInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(30);
     private static readonly TimeSpan ProblemRetry = TimeSpan.FromHours(6);
+    private static readonly TimeSpan SweepInterval = TimeSpan.FromHours(6);
+    private DateTime _lastSweep = DateTime.MinValue;
 
     // users that failed for a lasting reason: when, and under which username (a new username is tried at once)
     private readonly Dictionary<int, (string Username, DateTime At)> _problems = new();
@@ -57,6 +65,21 @@ public sealed class CentralUserSyncWorker(ICentralUserRegistry registry, ILogger
     /// <summary>One pass; returns how long to wait before the next one.</summary>
     private async Task<TimeSpan> RunOnceAsync(CancellationToken ct)
     {
+        // removals first: a deleted company's code must not stay held centrally
+        var removed = await companies.ProcessRemovalsAsync();
+        if (removed.Done > 0)
+            logger.LogInformation("Central register: {Done} queued removal(s) made ({Companies} company, {Users} user row(s))", removed.Done, removed.Companies, removed.Users);
+        if (removed.Pending > 0 && removed.Error is not null) return NextBackoff();   // the central server is not reachable
+        ct.ThrowIfCancellationRequested();
+
+        // users deleted here without the queue (before 2489, or by a restore): their central rows go, a few times a day
+        if (DateTime.UtcNow - _lastSweep >= SweepInterval)
+        {
+            var swept = await registry.RemoveDeletedUsersAsync(null, "Central user sync (background)", guard: true);
+            if (swept >= 0) _lastSweep = DateTime.UtcNow;
+            ct.ThrowIfCancellationRequested();
+        }
+
         // a few more than one batch, so users parked for a lasting problem do not hide the others
         var pending = await registry.PendingAsync(BatchSize * 4);
         var now = DateTime.UtcNow;
@@ -72,7 +95,7 @@ public sealed class CentralUserSyncWorker(ICentralUserRegistry registry, ILogger
             return NormalInterval;                                  // nothing to do: the central server was not contacted
         }
 
-        int done = 0, parked = 0;
+        int done = 0, parked = 0, skipped = 0;
         foreach (var (userId, username) in due)
         {
             ct.ThrowIfCancellationRequested();
@@ -80,6 +103,13 @@ public sealed class CentralUserSyncWorker(ICentralUserRegistry registry, ILogger
             if (r.Ok)
             {
                 done++;
+                _problems.Remove(userId);
+                continue;
+            }
+            if (r.Duplicate)
+            {
+                // another installation holds the username: marked skipped on the user (it leaves the pending list)
+                skipped++;
                 _problems.Remove(userId);
                 continue;
             }
@@ -96,10 +126,11 @@ public sealed class CentralUserSyncWorker(ICentralUserRegistry registry, ILogger
 
         _backoff = NormalInterval;
         if (done > 0) logger.LogInformation("Central user sync: {Done} user(s) registered in the central user register", done);
+        if (skipped > 0) logger.LogInformation("Central user sync: {Skipped} user(s) skipped - their username is registered by another installation", skipped);
         // forget parked users that are no longer pending (synced from the profile, or fixed)
         var stillPending = pending.Select(p => p.UserId).ToHashSet();
         foreach (var id in _problems.Keys.Where(id => !stillPending.Contains(id)).ToList()) _problems.Remove(id);
         // a full batch went through: more may be waiting
-        return done + parked >= BatchSize ? BacklogInterval : NormalInterval;
+        return done + parked + skipped >= BatchSize ? BacklogInterval : NormalInterval;
     }
 }

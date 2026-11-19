@@ -591,7 +591,9 @@ BEGIN
        OR EXISTS (SELECT 1 FROM dbo.IpdAdmissionAdvice x WHERE x.DoctorId = d.DoctorId)
        OR EXISTS (SELECT 1 FROM dbo.PhSale x WHERE x.DoctorId = d.DoctorId)
        OR EXISTS (SELECT 1 FROM dbo.PatientCertificate x WHERE x.DoctorId = d.DoctorId)
-       OR EXISTS (SELECT 1 FROM dbo.MarketingDoctorVisit x WHERE x.DoctorId = d.DoctorId);
+       OR EXISTS (SELECT 1 FROM dbo.MarketingDoctorVisit x WHERE x.DoctorId = d.DoctorId)
+       -- 2026-11-19: OT bookings (SQLScripts/2492)
+       OR (OBJECT_ID('dbo.IpdOtBooking') IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.IpdOtBooking x WHERE d.DoctorId IN (x.SurgeonId, x.AssistantSurgeonId, x.AnaesthetistId)));
     DELETE d FROM #D d INNER JOIN #Keep k ON k.DoctorId = d.DoctorId;
     SELECT @n = COUNT(1) FROM #Keep;
     IF @n > 0 EXEC cleanup.usp_Report @A, 'DoctorMaster', 'KEPT', @n, 'still referred to by LAB / OPD transactions of another company or not cleared';
@@ -991,6 +993,30 @@ BEGIN
     DELETE x FROM dbo.PhScheduleRegister x INNER JOIN #Iss i ON i.IssueId = x.IpdIssueId;            SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PhScheduleRegister', 'DELETE', @n, 'schedule H / H1 / X register lines of ward issues';
     DELETE x FROM dbo.IpdPhIssueLine x INNER JOIN #Iss i ON i.IssueId = x.IssueId;                   SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdPhIssueLine', 'DELETE', @n, 'ward issue / return lines';
     DELETE x FROM dbo.IpdPhIssue x INNER JOIN #Iss i ON i.IssueId = x.IssueId;                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdPhIssue', 'DELETE', @n, 'pharmacy issues / returns to the ward';
+
+    -- OT and ICU (SQLScripts/2492, 2493): children first; consents lose their OT booking link (they are deleted with the admission below)
+    IF OBJECT_ID('dbo.IpdOtBooking') IS NOT NULL
+    BEGIN
+        UPDATE x SET x.OtBookingId = NULL FROM dbo.IpdAdmissionConsent x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId WHERE x.OtBookingId IS NOT NULL;
+        DELETE x FROM dbo.IpdOtChecklist x INNER JOIN dbo.IpdOtBooking b ON b.OtBookingId = x.OtBookingId INNER JOIN #Ad a ON a.AdmissionId = b.AdmissionId;
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdOtChecklist', 'DELETE', @n, 'OT pre-op / WHO checklists';
+        DELETE x FROM dbo.IpdAnaesthesiaRecord x INNER JOIN dbo.IpdOtBooking b ON b.OtBookingId = x.OtBookingId INNER JOIN #Ad a ON a.AdmissionId = b.AdmissionId;
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdAnaesthesiaRecord', 'DELETE', @n, 'anaesthesia records';
+        DELETE x FROM dbo.IpdSurgeryNoteVersion x INNER JOIN dbo.IpdOtBooking b ON b.OtBookingId = x.OtBookingId INNER JOIN #Ad a ON a.AdmissionId = b.AdmissionId;
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdSurgeryNoteVersion', 'DELETE', @n, 'earlier versions of surgery notes';
+        DELETE x FROM dbo.IpdSurgeryNote x INNER JOIN dbo.IpdOtBooking b ON b.OtBookingId = x.OtBookingId INNER JOIN #Ad a ON a.AdmissionId = b.AdmissionId;
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdSurgeryNote', 'DELETE', @n, 'surgery notes';
+        DELETE x FROM dbo.IpdOtImplant x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdOtImplant', 'DELETE', @n, 'implants / OT consumables';
+        DELETE x FROM dbo.IpdOtBooking x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdOtBooking', 'DELETE', @n, 'OT bookings';
+    END
+    IF OBJECT_ID('dbo.IpdIcuObservation') IS NOT NULL
+    BEGIN
+        DELETE x FROM dbo.IpdIcuInfusionEvent x INNER JOIN dbo.IpdIcuInfusion i ON i.InfusionId = x.InfusionId INNER JOIN #Ad a ON a.AdmissionId = i.AdmissionId;
+                                                                                                       SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdIcuInfusionEvent', 'DELETE', @n, 'infusion rate changes';
+        DELETE x FROM dbo.IpdIcuInfusion x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;           SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdIcuInfusion', 'DELETE', @n, 'ICU infusions';
+        DELETE x FROM dbo.IpdIcuDevice x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdIcuDevice', 'DELETE', @n, 'ICU device use';
+        DELETE x FROM dbo.IpdIcuObservation x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdIcuObservation', 'DELETE', @n, 'ICU flowsheet entries';
+    END
 
     -- bills, charges
     CREATE TABLE #L (TransactionId BIGINT PRIMARY KEY);

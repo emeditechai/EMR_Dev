@@ -59,6 +59,24 @@ public interface ICentralCompanyRegistry
     /// <summary>This installation's key (server|database of DefaultConnection) - Central_Company.InstanceKey; central usernames
     /// are unique per installation (SQLScripts/2470).</summary>
     string InstanceKey { get; }
+
+    /// <summary>SQLScripts/2488: what Company > Remove data would take from the central register - for "Delete the company"
+    /// the company's row and its central users, for "Everything" the central rows of the company's users. Never throws.</summary>
+    Task<CentralRemovalPreview> PreviewRemovalAsync(int companyId, bool deleteCompany, IReadOnlyCollection<int> userIds);
+
+    /// <summary>SQLScripts/2487 / 2488: makes the central removals queued by Company > Remove data (dbo.CentralRegisterRemoval,
+    /// written in the same transaction as the removal). Stops at the first failure (the central database unreachable): the
+    /// rest stay queued for the next call. Never throws.</summary>
+    Task<CentralRemovalSummary> ProcessRemovalsAsync(int top = 20);
+}
+
+/// <summary>Central rows Company > Remove data would take (Available = false: the central register could not be read).</summary>
+public sealed record CentralRemovalPreview(bool Available, int Companies, int Users, string? CompanyCode, string? Message);
+
+/// <summary>Result of making the queued central removals: Pending = still queued afterwards (the central database could not take them).</summary>
+public sealed record CentralRemovalSummary(int Done, int Companies, int Users, int Pending, string? Error)
+{
+    public static readonly CentralRemovalSummary None = new(0, 0, 0, 0, null);
 }
 
 public sealed class CentralCompanyRegistry(
@@ -203,11 +221,13 @@ public sealed class CentralCompanyRegistry(
                     CentralCompanyId = byCode.ID, CreatedDate = byCode.CreatedDate, ModifiedDate = byCode.ModifiedDate,
                     Message = stale ? "Registered centrally, but the name, validity, API or web address there is out of date. Push to update it." : "In the central company register." };
             }
+            // another installation's company: nothing about it is shown (SQLScripts/2491)
             if (byCode is not null)
-                return new CentralCompanyStatus { State = "CONFLICT", CentralCompanyName = byCode.CompanyName, CreatedDate = byCode.CreatedDate,
+                return new CentralCompanyStatus { State = "CONFLICT",
+                    CentralCompanyName = byCode.SameInstance ? byCode.CompanyName : null, CreatedDate = byCode.SameInstance ? byCode.CreatedDate : null,
                     Message = byCode.SameInstance
                         ? $"Code {code} is registered centrally for another company of this installation ({byCode.CompanyName})."
-                        : $"Code {code} is already registered centrally by another eCare360 installation ({byCode.CompanyName}). Change this company's code to push it." };
+                        : $"Company code {code} is not available. Company codes must be unique - change this company's code to push it." };
             if (own is not null)
                 return new CentralCompanyStatus { State = "CODE_CHANGED", CentralCompanyId = own.ID, CentralCompanyName = own.CompanyName, WebUrl = own.WebUrl, CreatedDate = own.CreatedDate, ModifiedDate = own.ModifiedDate,
                     Message = $"Registered centrally under the old code {own.CompanyCode}. Push to update it to {code}." };
@@ -253,13 +273,152 @@ public sealed class CentralCompanyRegistry(
         {
             var byCode = (await GetRowsAsync(code, null)).FirstOrDefault(r => r.Match == "CODE");
             return byCode is { SameInstance: false }
-                ? $"This company code is already registered by another eCare360 installation ({byCode.CompanyName}). Company codes must be unique across all installations."
+                ? "This company code is not available. Company codes must be unique - choose a different code."
                 : null;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Central company register: code {Code} not checked", code);
             return null;
+        }
+    }
+
+    // ── SQLScripts/2487 / 2488: removal from the central register ─────────────────────────────────────────────────
+    private sealed class RemoveCompanyRow { public string Status { get; set; } = ""; public string? CompanyCode { get; set; } public int Companies { get; set; } public int Users { get; set; } }
+    private sealed class RemoveUsersRow { public string Status { get; set; } = ""; public int Users { get; set; } }
+    private sealed class QueueRow
+    {
+        public int RemovalId { get; set; }
+        public string Kind { get; set; } = "";
+        public int ApplicationCompanyID { get; set; }
+        public string? CompanyCode { get; set; }
+        public string? ApplicationUserIDs { get; set; }
+        public int? RequestedBy { get; set; }
+        public string? RequestedByName { get; set; }
+        public string? Reason { get; set; }           // SQLScripts/2489: why the users were deleted
+    }
+
+    private static string UserIdsJson(IEnumerable<int> ids) => "[" + string.Join(",", ids.Distinct()) + "]";
+
+    public async Task<CentralRemovalPreview> PreviewRemovalAsync(int companyId, bool deleteCompany, IReadOnlyCollection<int> userIds)
+    {
+        if (!Configured) return new(false, 0, 0, null, "The central licence database is not configured on this server.");
+        try
+        {
+            await using var cn = Open();
+            if (deleteCompany)
+            {
+                var c = await cn.QueryFirstAsync<RemoveCompanyRow>("dbo.usp_CentralCompany_Remove",
+                    new { InstanceKey, ApplicationCompanyID = companyId, Preview = true },
+                    commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
+                // users registered under another central company row (an old push) are matched by their application ID too
+                var extra = userIds.Count == 0 ? 0 : (await cn.QueryFirstAsync<RemoveUsersRow>("dbo.usp_CentralUser_RemoveByApp",
+                    new { InstanceKey, ApplicationUserIDs = UserIdsJson(userIds), Preview = true },
+                    commandType: CommandType.StoredProcedure, commandTimeout: Timeout)).Users;
+                return new(true, c.Companies, Math.Max(c.Users, extra), c.CompanyCode, null);
+            }
+            if (userIds.Count == 0) return new(true, 0, 0, null, null);
+            var u = await cn.QueryFirstAsync<RemoveUsersRow>("dbo.usp_CentralUser_RemoveByApp",
+                new { InstanceKey, ApplicationUserIDs = UserIdsJson(userIds), Preview = true },
+                commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
+            return new(true, 0, u.Users, null, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Central company register: removal preview of company {CompanyId} not read", companyId);
+            return new(false, 0, 0, null, "The central register could not be reached - its rows are removed automatically once it can be.");
+        }
+    }
+
+    // one run at a time in this application (the profile request and the background sync may both start one)
+    private readonly SemaphoreSlim _removalGate = new(1, 1);
+
+    public async Task<CentralRemovalSummary> ProcessRemovalsAsync(int top = 20)
+    {
+        await _removalGate.WaitAsync();
+        try { return await ProcessRemovalsCoreAsync(top); }
+        finally { _removalGate.Release(); }
+    }
+
+    private async Task<CentralRemovalSummary> ProcessRemovalsCoreAsync(int top)
+    {
+        List<QueueRow> queue;
+        try
+        {
+            await using var app = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
+            queue = (await app.QueryAsync<QueueRow>("dbo.usp_CentralRegisterRemoval_Pending", new { Top = top },
+                commandType: CommandType.StoredProcedure)).ToList();
+        }
+        catch (Exception ex)
+        {
+            // script 2487 not applied yet, or the application database busy: nothing to do now
+            logger.LogDebug(ex, "Central register removals: queue not read");
+            return CentralRemovalSummary.None;
+        }
+        if (queue.Count == 0) return CentralRemovalSummary.None;
+        if (!Configured) return new(0, 0, 0, queue.Count, "The central licence database is not configured on this server.");
+
+        int done = 0, companies = 0, users = 0;
+        foreach (var q in queue)
+        {
+            string message;
+            try
+            {
+                await using var cn = Open();
+                int c = 0, u = 0;
+                // kept in the central delete audit (Central_Delete_Audit, SQLScripts/2488) with the deleted rows
+                var audit = new
+                {
+                    DeletedBy = q.RequestedByName is { Length: > 0 } n ? $"{n} (user #{q.RequestedBy})" : q.RequestedBy is int id ? $"user #{id}" : "eCare360",
+                    DeletedFrom = WebUrl,
+                    Reference = $"{InstanceKey} removal #{q.RemovalId} ({q.Kind}, company #{q.ApplicationCompanyID} {q.CompanyCode})"
+                };
+                if (q.Kind == "COMPANY")
+                {
+                    var r = await cn.QueryFirstAsync<RemoveCompanyRow>("dbo.usp_CentralCompany_Remove",
+                        new { InstanceKey, ApplicationCompanyID = q.ApplicationCompanyID, Preview = false, audit.DeletedBy, audit.DeletedFrom, audit.Reference },
+                        commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
+                    c = r.Companies; u = r.Users;
+                }
+                if (!string.IsNullOrWhiteSpace(q.ApplicationUserIDs))
+                {
+                    var r = await cn.QueryFirstAsync<RemoveUsersRow>("dbo.usp_CentralUser_RemoveByApp",
+                        new { InstanceKey, ApplicationUserIDs = q.ApplicationUserIDs, Preview = false, audit.DeletedBy, audit.DeletedFrom, audit.Reference,
+                              Reason = q.Kind == "COMPANY" ? "COMPANY_DELETED" : q.Reason ?? "USER_DELETED" },
+                        commandType: CommandType.StoredProcedure, commandTimeout: Timeout);
+                    u += r.Users;
+                }
+                companies += c; users += u;
+                message = q.Kind == "COMPANY"
+                    ? (c > 0 ? $"Central company {q.CompanyCode} removed with {u} central user(s)." : $"Company was not in the central register; {u} central user(s) removed.")
+                    : $"{u} central user(s) removed ({q.Reason ?? "USER_DELETED"}).";
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Central register removal {RemovalId} ({Kind}, company {CompanyId}) not made - kept queued", q.RemovalId, q.Kind, q.ApplicationCompanyID);
+                await MarkRemovalAsync(q.RemovalId, false, ex.Message);
+                return new(done, companies, users, queue.Count - done,
+                    "The central register could not be reached - the removal is queued and is retried automatically.");
+            }
+            await MarkRemovalAsync(q.RemovalId, true, message);
+            done++;
+            logger.LogInformation("Central register removal {RemovalId}: {Message}", q.RemovalId, message);
+        }
+        return new(done, companies, users, 0, null);
+    }
+
+    private async Task MarkRemovalAsync(int removalId, bool done, string message)
+    {
+        try
+        {
+            await using var app = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
+            await app.ExecuteAsync("dbo.usp_CentralRegisterRemoval_Done", new { RemovalId = removalId, Done = done, Message = message },
+                commandType: CommandType.StoredProcedure);
+        }
+        catch (Exception ex)
+        {
+            // central rows already gone stay gone; the next run repeats the call harmlessly (NOT_FOUND) and marks it done
+            logger.LogWarning(ex, "Central register removal {RemovalId}: status not saved", removalId);
         }
     }
 
