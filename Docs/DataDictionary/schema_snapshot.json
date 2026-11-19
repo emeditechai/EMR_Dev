@@ -58007,6 +58007,45 @@
    "type": "bit"
   },
   {
+   "col": "CentralSyncSkipReason",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 800,
+   "nullable": true,
+   "ord": 58,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Users",
+   "type": "nvarchar"
+  },
+  {
+   "col": "CentralSyncSkippedUsername",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 512,
+   "nullable": true,
+   "ord": 59,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Users",
+   "type": "nvarchar"
+  },
+  {
+   "col": "CentralSyncSkippedAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 60,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "Users",
+   "type": "datetime"
+  },
+  {
    "col": "VaccineId",
    "def": null,
    "descr": null,
@@ -58229,7 +58268,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-18T15:11:03",
+ "extracted_on": "2026-11-19T10:14:26",
  "fk": [
   {
    "col": "LedgerId",
@@ -62187,6 +62226,11 @@
    "tbl": "CashClosingPetty"
   },
   {
+   "col": "RemovalId",
+   "k": 1,
+   "tbl": "CentralRegisterRemoval"
+  },
+  {
    "col": "DoctorId",
    "k": 1,
    "tbl": "CertificateDoctorProfile"
@@ -64308,6 +64352,7 @@
   "CashClosing",
   "CashClosingLine",
   "CashClosingPetty",
+  "CentralRegisterRemoval",
   "CertificateDoctorProfile",
   "CertificateNotificationLog",
   "CertificatePurposeMaster",
