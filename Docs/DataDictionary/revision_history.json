@@ -339,5 +339,29 @@
   ],
   "date": "19 Nov 2026",
   "version": "1.27"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table InvAdjReason (6 columns, module not yet grouped)",
+   "New table InvConsumptionPosting (8 columns, module not yet grouped)",
+   "New table InvDoc (49 columns, module not yet grouped)",
+   "New table InvDocCounter (4 columns, module not yet grouped)",
+   "New table InvDocLine (29 columns, module not yet grouped)",
+   "New table InvLot (15 columns, module not yet grouped)",
+   "New table InvSettings (9 columns, module not yet grouped)",
+   "New table InvStockBalance (7 columns, module not yet grouped)",
+   "New table InvStockLedger (19 columns, module not yet grouped)",
+   "InvItemCategory: new column(s) RequiresAcceptance",
+   "InvSupplier: new column(s) LedgerId",
+   "QcConsumptionLine: new column(s) StoreId, StockStatus, StockPostedOn, StockNote",
+   "New foreign key InvDocLine.DocId -> InvDoc.DocId",
+   "New foreign key InvDocLine.ItemId -> InvItem.ItemId",
+   "New foreign key InvLot.ItemId -> InvItem.ItemId",
+   "New foreign key InvStockBalance.LotId -> InvLot.LotId",
+   "New foreign key InvStockBalance.StoreId -> InvStore.StoreId"
+  ],
+  "date": "20 Nov 2026",
+  "version": "1.28"
  }
 ]
