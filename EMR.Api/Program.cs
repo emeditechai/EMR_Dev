@@ -120,6 +120,7 @@ builder.Services.AddScoped<IPharmacyMasterService,     PharmacyMasterService>();
 builder.Services.AddScoped<IPharmacyPurchaseService,   PharmacyPurchaseService>(); // Pharmacy > Purchase (SQLScripts/2358)
 builder.Services.AddScoped<IPharmacyProcService,       PharmacyProcService>();     // pharmacy stored procedures for Sales / Inventory (SQLScripts/2359+)
 builder.Services.AddScoped<IIpdProcService,            IpdProcService>();          // IPD transactions api/ipd (SQLScripts/2422-2424)
+builder.Services.AddScoped<IQcStockProcService,        QcStockProcService>();      // Quality & Compliance > Stock Management api/qc/stock (SQLScripts/2498-2500)
 builder.Services.AddSingleton<EMR.Api.Services.BillReader.BillTextSource>();   // pharmacy "Read bill": PdfPig / Tesseract (SQLScripts/2367)
 builder.Services.AddScoped<EMR.Api.Services.BillReader.IBillReaderService, EMR.Api.Services.BillReader.BillReaderService>();
 builder.Services.AddScoped<IAnalyzerService,           AnalyzerService>();

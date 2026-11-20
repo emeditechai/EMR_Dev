@@ -1,0 +1,133 @@
+@using System.Text.Json
+@{
+    Layout = null;
+    var sets = (List<JsonElement>)ViewBag.Sets;
+    var h = sets.First(0);
+    var lines = sets.Count > 1 ? sets[1].Items() : new List<JsonElement>();
+    var type = h.S("DocType");
+    var money = new[] { "PO", "GRN", "PRET" }.Contains(type);
+    var lot = new[] { "GRN", "OPN", "PRET", "ISS", "ADJ", "CNT" }.Contains(type);
+    string Q(decimal v) => v.ToString("0.####");
+    string N(decimal v) => v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("en-IN"));
+    string Lot(JsonElement l) => l.S("LotLabel") is { Length: > 0 } x && x != "NA" ? x : "—";
+}
+@* Quality & Compliance > Stock Management - printable stock document (SQLScripts/2498-2500) *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@h.S("DocTypeName") @h.S("DocNo")</title>
+    <style>
+        body { font: 12.5px/1.45 "Segoe UI", Arial, sans-serif; color: #111; margin: 24px; }
+        h1 { font-size: 18px; margin: 0; } h2 { font-size: 14px; margin: 0 0 4px; }
+        .top { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid #111; padding-bottom: 8px; margin-bottom: 10px; }
+        .muted { color: #555; } .right { text-align: right; } .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 16px; margin-bottom: 10px; }
+        .grid div b { display: block; font-size: 11px; color: #555; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        th, td { border: 1px solid #bbb; padding: 4px 6px; vertical-align: top; }
+        th { background: #f1f3f5; font-size: 11.5px; text-align: left; }
+        .tot { width: 300px; margin-left: auto; } .tot td { border: 0; padding: 2px 6px; } .tot tr.b td { border-top: 1px solid #111; font-weight: 700; }
+        .sign { display: flex; justify-content: space-between; margin-top: 56px; gap: 24px; } .sign div { flex: 1; border-top: 1px solid #111; padding-top: 4px; text-align: center; font-size: 11.5px; }
+        .stamp { display: inline-block; border: 1px solid #111; padding: 1px 8px; font-weight: 700; font-size: 11px; }
+        .btns { margin-bottom: 12px; } @@media print { .btns { display: none; } body { margin: 10mm; } }
+    </style>
+</head>
+<body>
+    <div class="btns"><button type="button" onclick="window.print()">Print</button></div>
+    <div class="top">
+        <div>
+            <h1>@h.S("CompanyName")</h1>
+            <div>@h.S("StoreBranch")</div>
+            <div class="muted">@h.S("BranchAddress")</div>
+        </div>
+        <div class="right">
+            <h2>@(type == "PO" ? "PURCHASE ORDER" : type == "GRN" ? "GOODS RECEIPT NOTE" : type == "PRET" ? "PURCHASE RETURN / DEBIT NOTE" : type == "ISS" ? "STOCK ISSUE / TRANSFER NOTE" : type == "IND" ? "INDENT" : type == "CNT" ? "PHYSICAL STOCK COUNT SHEET" : type == "ADJ" ? "STOCK ADJUSTMENT" : "OPENING STOCK")</h2>
+            <div><b>@h.S("DocNo")</b></div>
+            <div>Date: @h.Dt("DocDate", "dd-MMM-yyyy")</div>
+            <div><span class="stamp">@h.S("Status")</span></div>
+        </div>
+    </div>
+
+    <div class="grid">
+        @if (h.S("SupplierName").Length > 0)
+        {
+            <div><b>@(type == "PO" ? "To (supplier)" : "Supplier")</b>@h.S("SupplierName")<br /><span class="muted">@h.S("SupplierAddress")</span>
+                @if (h.S("SupplierGstin").Length > 0) { <br /><span>GSTIN @h.S("SupplierGstin")</span> }
+                @if (h.S("SupplierPhone").Length > 0) { <br /><span class="muted">@h.S("SupplierPhone")</span> }</div>
+        }
+        <div><b>@(type == "ISS" ? "From store" : type == "IND" ? "Requesting store" : type == "PO" ? "Deliver to" : "Store")</b>@h.S("StoreName")</div>
+        @if (h.S("ToStoreName").Length > 0) { <div><b>@(type == "IND" ? "Asked from" : "To store")</b>@h.S("ToStoreName") · @h.S("ToBranchName")</div> }
+        @if (h.S("RefDocNo").Length > 0) { <div><b>Against</b>@h.S("RefDocNo")</div> }
+        @if (h.S("SupplierInvNo").Length > 0) { <div><b>Supplier bill</b>@h.S("SupplierInvNo") @(h.D("SupplierInvDate") is { } bd ? "· " + bd.ToString("dd-MMM-yyyy") : "")</div> }
+        @if (h.D("ExpectedDate") is { } ed) { <div><b>@(type == "IND" ? "Needed by" : "Expected delivery")</b>@ed.ToString("dd-MMM-yyyy")</div> }
+        @if (h.S("ReasonName").Length > 0 || h.S("ReasonCode").Length > 0) { <div><b>Reason</b>@(h.S("ReasonName").Length > 0 ? h.S("ReasonName") : h.S("ReasonCode"))</div> }
+        @if (h.S("VoucherNo").Length > 0) { <div><b>Voucher</b>@h.S("VoucherNo")</div> }
+    </div>
+
+    <table>
+        <thead><tr>
+            <th>#</th><th>Item</th>
+            @if (lot) { <th>Lot</th><th>Expiry</th> }
+            @if (type == "CNT") { <th class="num">Book stock</th><th class="num">Counted</th><th class="num">Difference</th><th>Unit</th> }
+            else { <th class="num">Qty</th><th>Unit</th> }
+            @if (type == "GRN") { <th class="num">Free</th> }
+            @if (money) { <th class="num">Rate</th><th class="num">Disc %</th><th class="num">Taxable</th><th class="num">GST %</th><th class="num">GST</th><th class="num">Amount</th> }
+            @if (type == "ISS") { <th class="num">Received</th> }
+        </tr></thead>
+        <tbody>
+        @{ var i = 0; }
+        @foreach (var l in lines)
+        {
+            i++;
+            var unit = l.S("UnitMode") == "P" ? l.S("PurchaseUnit") : l.S("ConsumptionUnit");
+            <tr>
+                <td>@i</td>
+                <td>@l.S("ItemName")<div class="muted">@l.S("ItemCode")@(l.S("HsnCode").Length > 0 ? " · HSN " + l.S("HsnCode") : "")</div></td>
+                @if (lot) { <td>@Lot(l)</td><td>@(l.D("LotExpiry")?.ToString("dd-MMM-yyyy") ?? "")</td> }
+                @if (type == "CNT")
+                {
+                    <td class="num">@Q(l.M("SystemBaseQty"))</td>
+                    <td class="num">@(l.Prop("CountedBaseQty") is null ? "" : Q(l.M("CountedBaseQty")))</td>
+                    <td class="num">@(l.Prop("DiffBaseQty") is null ? "" : Q(l.M("DiffBaseQty")))</td>
+                    <td>@l.S("ConsumptionUnit")</td>
+                }
+                else
+                {
+                    <td class="num">@Q(type == "ADJ" ? l.I("Sign") * l.M("Qty") : l.M("Qty"))</td><td>@unit</td>
+                }
+                @if (type == "GRN") { <td class="num">@(l.M("FreeQty") > 0 ? Q(l.M("FreeQty")) : "")</td> }
+                @if (money)
+                {
+                    <td class="num">@N(l.M("Rate"))</td><td class="num">@(l.M("DiscPct") > 0 ? N(l.M("DiscPct")) : "")</td><td class="num">@N(l.M("TaxableAmount"))</td>
+                    <td class="num">@l.M("GstPct").ToString("0.##")</td><td class="num">@N(l.M("GstAmount"))</td><td class="num">@N(l.M("LineAmount"))</td>
+                }
+                @if (type == "ISS") { <td class="num">@(h.S("Status") == "RECEIVED" ? Q(l.M("DoneBaseQty")) + " " + l.S("ConsumptionUnit") : "")</td> }
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    @if (money)
+    {
+        <table class="tot">
+            <tr><td>Taxable</td><td class="num">@N(h.M("TaxableAmount"))</td></tr>
+            @if (h.B("IsInterState")) { <tr><td>IGST</td><td class="num">@N(h.M("GstAmount"))</td></tr> }
+            else { <tr><td>CGST</td><td class="num">@N(Math.Round(h.M("GstAmount") / 2, 2))</td></tr><tr><td>SGST</td><td class="num">@N(h.M("GstAmount") - Math.Round(h.M("GstAmount") / 2, 2))</td></tr> }
+            @if (h.M("OtherCharges") != 0) { <tr><td>Freight / other</td><td class="num">@N(h.M("OtherCharges"))</td></tr> }
+            <tr><td>Round off</td><td class="num">@N(h.M("RoundOff"))</td></tr>
+            <tr class="b"><td>Net amount (₹)</td><td class="num">@N(h.M("NetAmount"))</td></tr>
+        </table>
+    }
+    @if (h.S("Terms").Length > 0) { <p><b>Terms:</b> @h.S("Terms")</p> }
+    @if (h.S("Remarks").Length > 0) { <p><b>Remarks:</b> @h.S("Remarks")</p> }
+
+    <div class="sign">
+        <div>Prepared by<br />@h.S("CreatedByName")</div>
+        <div>@(type == "ISS" ? "Dispatched by" : "Checked by")<br />@(type == "ISS" ? h.S("PostedByName") : "")</div>
+        <div>@(type == "ISS" ? "Received by" : "Approved by")<br />@(type == "ISS" ? h.S("ReceivedByName") : h.S("ApprovedByName"))</div>
+    </div>
+    <p class="muted" style="margin-top:18px">Printed @DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt")</p>
+</body>
+</html>
