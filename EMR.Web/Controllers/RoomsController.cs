@@ -106,7 +106,7 @@ public class RoomsController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Room created successfully.";
-        return RedirectToAction(nameof(Details), new { id = newId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = newId });
     }
 
     [HttpGet]

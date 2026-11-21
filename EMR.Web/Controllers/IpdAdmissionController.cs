@@ -357,7 +357,7 @@ public class IpdAdmissionController(
             return Json(new
             {
                 success = true, admissionId, ipNo = r.S("IpNo"), receiptNo = r.S("ReceiptNo"), advanceId = r.NI("AdvanceId"), patientId,
-                url = Url.Action(nameof(Patient), new { id = admissionId })
+                url = Url.ActionEncrypted(nameof(Patient), new { id = admissionId })
             });
         }
         catch (InvalidOperationException ex) { return Json(new { success = false, error = ex.Message, patientId }); }

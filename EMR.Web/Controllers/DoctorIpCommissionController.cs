@@ -50,7 +50,7 @@ public class DoctorIpCommissionController(
         if (until == null || until.Value < DateTime.UtcNow)
         {
             HttpContext.Session.Remove(UnlockKey);
-            context.Result = RedirectToAction("Unlock", "DoctorIp",
+            context.Result = this.RedirectToActionEncrypted("Unlock", "DoctorIp",
                 new { returnUrl = Request.Method == "GET" ? Request.Path + Request.QueryString : Url.Action(nameof(Index)) });
             return;
         }
@@ -119,12 +119,12 @@ public class DoctorIpCommissionController(
         if ((await RunSettingsAsync(branchId.Value)).Mode == "Automatic")
         {
             TempData["ErrorMessage"] = "Doctor IP commission is set to Automatic in Hospital Settings; it is computed by the scheduled job only.";
-            return RedirectToAction(nameof(Index), new { doctorId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId });
         }
         if (fromDate == default || toDate == default || toDate.Date < fromDate.Date)
         {
             TempData["ErrorMessage"] = "Choose a valid From and To date before calculating.";
-            return RedirectToAction(nameof(Index), new { doctorId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId });
         }
 
         try
@@ -143,7 +143,7 @@ public class DoctorIpCommissionController(
             if (results.Count == 0)
             {
                 TempData["ErrorMessage"] = "No pending lab order items found for the selected doctor and period.";
-                return RedirectToAction(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
+                return this.RedirectToActionEncrypted(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
             }
 
             var items = results.Sum(r => r.Items_Computed);
@@ -153,12 +153,12 @@ public class DoctorIpCommissionController(
                 User.GetUserId(), branchId.Value);
 
             TempData["SuccessMessage"] = $"Commission computed for {results.Count} doctor(s): {items} test(s), total ₹{total:N2}.";
-            return RedirectToAction(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd"), tab = "computed" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd"), tab = "computed" });
         }
         catch (InvalidOperationException ex)
         {
             TempData["ErrorMessage"] = ex.Message;
-            return RedirectToAction(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
         }
         catch (HttpRequestException)
         {
@@ -245,7 +245,7 @@ public class DoctorIpCommissionController(
             if (item == null || (branchId.HasValue && item.Header.Branch_ID != branchId.Value))
             {
                 TempData["ErrorMessage"] = "Commission record not found for this branch.";
-                return RedirectToAction(nameof(Index), new { tab = "computed" });
+                return this.RedirectToActionEncrypted(nameof(Index), new { tab = "computed" });
             }
             return View(item);
         }

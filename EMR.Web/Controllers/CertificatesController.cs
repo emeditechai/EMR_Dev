@@ -50,7 +50,7 @@ public class CertificatesController(
         {
             rec = await certificates.GetAsync(BranchId, id.Value);
             if (rec == null) return NotFound();
-            if (rec.Status != "D") return RedirectToAction(nameof(Print), new { id });
+            if (rec.Status != "D") return this.RedirectToActionEncrypted(nameof(Print), new { id });
             patientId = rec.PatientId; opdServiceId = rec.OPDServiceId; type = rec.TypeCode;
         }
         // from an OPD visit: its patient and doctor
@@ -141,7 +141,7 @@ public class CertificatesController(
         }
         else
             await auditLogService.LogAsync("Certificates", "SaveDraft", $"Certificate draft {id} ({req.TypeCode}) for patient {req.PatientId}", userId, BranchId);
-        return Json(new { success = true, id, certificateNo = no, notified, printUrl = Url.Action(nameof(Print), new { id }) });
+        return Json(new { success = true, id, certificateNo = no, notified, printUrl = Url.ActionEncrypted(nameof(Print), new { id }) });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -151,7 +151,7 @@ public class CertificatesController(
         if (error != null) return Json(new { success = false, message = error });
         await auditLogService.LogAsync("Certificates", "Issue", $"Certificate {no} issued", User.GetUserId(), BranchId);
         var notified = await notifications.QueueOnIssueAsync(BranchId, id, User.GetUserId(), BaseUrl);
-        return Json(new { success = true, certificateNo = no, notified, printUrl = Url.Action(nameof(Print), new { id }) });
+        return Json(new { success = true, certificateNo = no, notified, printUrl = Url.ActionEncrypted(nameof(Print), new { id }) });
     }
 
     /// <summary>Sends an issued certificate to the patient again (WhatsApp + e-mail), when Hospital Settings allows it.</summary>
@@ -184,7 +184,7 @@ public class CertificatesController(
         var (newId, error) = await certificates.ReissueAsync(BranchId, id, User.GetUserId());
         if (error != null) return Json(new { success = false, message = error });
         await auditLogService.LogAsync("Certificates", "Reissue", $"Certificate {id} reissued as draft {newId}", User.GetUserId(), BranchId);
-        return Json(new { success = true, editUrl = Url.Action(nameof(Edit), new { id = newId }) });
+        return Json(new { success = true, editUrl = Url.ActionEncrypted(nameof(Edit), new { id = newId }) });
     }
 
     [HttpGet]

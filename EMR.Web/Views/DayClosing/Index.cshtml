@@ -165,7 +165,7 @@
     let header = null, receiversLoaded = false;
 
     function qs() {
-        const p = new URLSearchParams(location.search);
+        const p = (window.emrQuery || new URLSearchParams(location.search));
         if (p.get('date')) $('dcDate').value = p.get('date');
     }
 

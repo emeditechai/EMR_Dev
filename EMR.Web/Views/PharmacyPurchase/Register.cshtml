@@ -72,7 +72,7 @@
         @for (var i = 0; i < Model.Count; i++)
         {
             var r = Model[i];
-            var url = r.DocType == "Purchase" ? Url.Action("Form", "PhGrns", new { id = r.Id }) : Url.Action("Form", "PhPurchaseReturns", new { id = r.Id });
+            var url = r.DocType == "Purchase" ? Url.ActionEncrypted("Form", "PhGrns", new { id = r.Id }) : Url.ActionEncrypted("Form", "PhPurchaseReturns", new { id = r.Id });
             <tr class="@(r.DocType != "Purchase" ? "dn" : "")" style="cursor:pointer" onclick="location.href='@url'">
                 <td class="text-muted">@(i + 1)</td>
                 <td>@if (r.DocType == "Purchase") { <span class="badge bg-success-subtle text-success border border-success-subtle">Purchase</span> } else { <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Debit note</span> }</td>

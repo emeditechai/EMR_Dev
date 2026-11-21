@@ -35,7 +35,7 @@
                 <td class="text-end">@s.BillsDue.ToString("N2")</td>
                 <td class="text-end @(s.UnadjustedDn > 0 ? "text-success fw-semibold" : "text-muted")">@s.UnadjustedDn.ToString("N2")</td>
                 <td class="text-end @(s.Overdue > 0 ? "text-danger fw-semibold" : "text-muted")">@s.Overdue.ToString("N2")</td><td class="text-end">@s.OpenBills</td>
-                <td class="text-end">@if (s.OpenBills > 0) { <a asp-action="Pay" asp-route-supplierId="@s.SupplierId" asp-permission="@($"{pc}:SAVE")" class="btn btn-sm btn-primary"><i class="bi bi-cash me-1"></i>@(s.UnadjustedDn > 0 ? "Pay / Adjust" : "Pay")</a> }
+                <td class="text-end">@if (s.OpenBills > 0) { <a asp-action="Pay" asp-encrypted-route-supplierId="@s.SupplierId" asp-permission="@($"{pc}:SAVE")" class="btn btn-sm btn-primary"><i class="bi bi-cash me-1"></i>@(s.UnadjustedDn > 0 ? "Pay / Adjust" : "Pay")</a> }
                     else if (s.UnadjustedDn > 0) { <span class="badge bg-success-subtle text-success border" title="No open bill yet: the debit note is set off against this supplier's next bill">DN to adjust on next bill</span> }</td></tr>
         }
         </tbody>

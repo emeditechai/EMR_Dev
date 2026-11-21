@@ -94,7 +94,7 @@ else
                                     <i class="bi bi-star-fill"></i>
                                 </button>
                             }
-                            <a asp-permission="SETTINGS.SMTPCONFIG:EDIT" asp-action="Edit" asp-route-id="@cfg.Id" class="btn btn-outline-primary btn-sm" title="Edit">
+                            <a asp-permission="SETTINGS.SMTPCONFIG:EDIT" asp-action="Edit" asp-encrypted-route-id="@cfg.Id" class="btn btn-outline-primary btn-sm" title="Edit">
                                 <i class="bi bi-pencil-fill"></i>
                             </a>
                             <button asp-permission="SETTINGS.SMTPCONFIG:DELETE" class="btn btn-outline-danger btn-sm" title="Delete" onclick="deleteConfig(@cfg.Id, '@cfg.ConfigName.Replace("'", "\\'")'); return false;">

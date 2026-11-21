@@ -141,7 +141,7 @@ public class LabReportDispatchController(
         if (!await MayOpenAsync(labOrderId)) return Forbid();
 
         await LogPrintAsync(labOrderId, "LAB.BillPrinted", "Lab bill printed from the Report Dispatch dashboard.", null);
-        return RedirectToAction("PrintBill", "LabOrderBooking", new { labOrderId });
+        return this.RedirectToActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId });
     }
 
     /// <summary>

@@ -716,7 +716,7 @@
     {
         <div class="alert alert-info border-info-subtle shadow-sm d-flex flex-wrap align-items-center justify-content-between p-2.5 mb-3 rounded-3 gap-2 fs-8" role="note">
             <span><i class="bi bi-info-circle-fill me-1"></i>@related.Item3 - they are reported on <strong>@related.Item2</strong>.</span>
-            <a asp-controller="@related.Item1" asp-action="Entry" asp-route-labOrderId="@d.LabOrderId" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary fs-8">
+            <a asp-controller="@related.Item1" asp-action="Entry" asp-encrypted-route-labOrderId="@d.LabOrderId" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary fs-8">
                 Open @related.Item2 <i class="bi bi-box-arrow-up-right ms-1"></i>
             </a>
         </div>

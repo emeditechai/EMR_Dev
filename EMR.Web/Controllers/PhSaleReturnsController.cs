@@ -41,10 +41,10 @@ public class PhSaleReturnsController(IPharmacySaleService sales, IPharmacyPurcha
     public async Task<IActionResult> Save(int saleId, Dictionary<int, decimal>? qty, int reasonId, string? refundMode, string? refundRef, string? remarks, Dictionary<int, string?>? batch)
     {
         var (id, no, err) = await sales.SaveReturnAsync(CompanyId, BranchId, saleId, qty ?? [], reasonId, refundMode ?? "", refundRef, remarks, User.GetUserId(), batch);
-        if (err != null) { TempData["Error"] = err; return RedirectToAction(nameof(Form), new { saleId }); }
+        if (err != null) { TempData["Error"] = err; return this.RedirectToActionEncrypted(nameof(Form), new { saleId }); }
         await audit.LogAsync("Pharmacy", "SaleReturn", $"Pharmacy sale return {no} against bill #{saleId}", User.GetUserId(), BranchId);
         TempData["Success"] = $"Return {no} saved: stock taken back.";
-        return RedirectToAction(nameof(Print), new { id });
+        return this.RedirectToActionEncrypted(nameof(Print), new { id });
     }
 
     [HttpGet]

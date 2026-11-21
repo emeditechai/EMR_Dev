@@ -109,7 +109,7 @@ public class BedsController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Bed created successfully.";
-        return RedirectToAction(nameof(Details), new { id = newId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = newId });
     }
 
     [HttpGet]

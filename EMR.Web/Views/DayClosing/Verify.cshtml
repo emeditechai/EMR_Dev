@@ -95,7 +95,7 @@
     const mayReview = c => !!board && c.status === 'S' && board.canVerify && (c.userId !== board.me || board.allowSelf);
     const modal = new bootstrap.Modal($('vbModal'));
 
-    (function () { const p = new URLSearchParams(location.search); if (p.get('date')) $('vbDate').value = p.get('date'); })();
+    (function () { const p = (window.emrQuery || new URLSearchParams(location.search)); if (p.get('date')) $('vbDate').value = p.get('date'); })();
 
     async function load() {
         $('vbError').classList.add('d-none');

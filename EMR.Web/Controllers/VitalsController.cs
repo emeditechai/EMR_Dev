@@ -158,9 +158,9 @@ public class VitalsController(
             : "Vital recorded successfully.";
 
         if (returnAction == "another")
-            return RedirectToAction(nameof(RecordVital), new { patientId = model.PatientId });
+            return this.RedirectToActionEncrypted(nameof(RecordVital), new { patientId = model.PatientId });
 
-        return RedirectToAction(nameof(History), new { patientId = model.PatientId });
+        return this.RedirectToActionEncrypted(nameof(History), new { patientId = model.PatientId });
     }
 
     // ─── GetHistoryTable GET — partial view for AJAX ──────────────────────────
@@ -329,7 +329,7 @@ public class VitalsController(
                 return StatusCode(503, new { success = false, message = "API is currently unavailable." });
             return ApiDown(Request.Path);
         }
-        return RedirectToAction(nameof(History), new { patientId });
+        return this.RedirectToActionEncrypted(nameof(History), new { patientId });
     }
 
     // ─── Patient search JSON — all via API, no direct DB ─────────────────────
@@ -462,7 +462,7 @@ public class VitalsController(
         m.BloodGlucose.HasValue || m.PainScore.HasValue;
 
     private IActionResult ApiDown(string returnUrl) =>
-        RedirectToAction("ApiUnavailable", "Home", new { returnUrl });
+        this.RedirectToActionEncrypted("ApiUnavailable", "Home", new { returnUrl });
 
     private static string CalcAge(DateTime? dob)
     {

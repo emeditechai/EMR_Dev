@@ -93,7 +93,7 @@ public class MembershipCardsController(
                 }
 
                 TempData["Success"] = string.Join(" ", notes);
-                return RedirectToAction(nameof(Details), new { id = result.CardId });
+                return this.RedirectToActionEncrypted(nameof(Details), new { id = result.CardId });
             }
             catch (MembershipApiException ex)
             {
@@ -201,7 +201,7 @@ public class MembershipCardsController(
             }
 
             TempData["Success"] = string.Join(" ", notes);
-            return RedirectToAction(nameof(Details), new { id = result.CardId });
+            return this.RedirectToActionEncrypted(nameof(Details), new { id = result.CardId });
         }
         catch (MembershipApiException ex)
         {
@@ -211,7 +211,7 @@ public class MembershipCardsController(
         {
             TempData["Error"] = "Failed to renew the card. " + ex.Message;
         }
-        return RedirectToAction(nameof(Details), new { id });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id });
     }
 
     /// <summary>The card PDF, shown inline for printing (each open counts as a print) or downloaded with download=true.</summary>
@@ -256,7 +256,7 @@ public class MembershipCardsController(
         {
             TempData["Error"] = "Failed to send the card. " + ex.Message;
         }
-        return RedirectToAction(nameof(Details), new { id });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id });
     }
 
     [HttpPost]
@@ -280,7 +280,7 @@ public class MembershipCardsController(
         {
             TempData["Error"] = "Failed to add the member. " + ex.Message;
         }
-        return RedirectToAction(nameof(Details), new { id });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id });
     }
 
     [HttpPost]
@@ -302,7 +302,7 @@ public class MembershipCardsController(
         {
             TempData["Error"] = "Failed to change the card status. " + ex.Message;
         }
-        return RedirectToAction(nameof(Details), new { id });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id });
     }
 
 

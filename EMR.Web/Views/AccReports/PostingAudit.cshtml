@@ -48,7 +48,7 @@
                             {
                                 <tr>
                                     <td class="ps-3 text-nowrap">@i.Source</td>
-                                    <td class="font-monospace small text-nowrap">@if (i.TransactionId.HasValue) { <a asp-action="Voucher" asp-route-id="@i.TransactionId">@i.DocNo</a> } else { @i.DocNo }</td>
+                                    <td class="font-monospace small text-nowrap">@if (i.TransactionId.HasValue) { <a asp-action="Voucher" asp-encrypted-route-id="@i.TransactionId">@i.DocNo</a> } else { @i.DocNo }</td>
                                     <td class="text-nowrap">@i.DocDate.ToString("dd-MMM-yyyy")</td>
                                     <td>@(i.BranchName ?? "-")</td>
                                     <td class="num">@i.Amount.ToString("N2")</td>

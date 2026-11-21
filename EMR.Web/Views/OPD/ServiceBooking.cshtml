@@ -76,7 +76,7 @@
                         </button>
                         @if (newSvcId > 0)
                         {
-                            <a asp-permission="OPD.SERVICEBOOKING:PRINT" href="@Url.Action("PrintBill", "OPD", new { id = newSvcId })"
+                            <a asp-permission="OPD.SERVICEBOOKING:PRINT" href="@Url.ActionEncrypted("PrintBill", "OPD", new { id = newSvcId })"
                                target="_blank" class="btn btn-success px-4 fw-semibold">
                                 <i class="bi bi-printer-fill me-2"></i>Print Bill
                             </a>
@@ -197,9 +197,9 @@
                     <i class="bi bi-funnel-fill me-1"></i>Filter
                 </button>
                 <a asp-action="ServiceBooking"
-                   asp-route-fromDate="@fromDate"
-                   asp-route-toDate="@toDate"
-                   asp-route-pageSize="@Model.PageSize"
+                   asp-encrypted-route-fromDate="@fromDate"
+                   asp-encrypted-route-toDate="@toDate"
+                   asp-encrypted-route-pageSize="@Model.PageSize"
                    class="btn btn-sm btn-outline-secondary">Reset</a>
             </div>
         </form>
@@ -288,7 +288,7 @@
                                             </li>
                                             <li>
                                                 <a asp-permission="OPD.SERVICEBOOKING:PRINT" class="dropdown-item"
-                                                   href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })"
+                                                   href="@Url.ActionEncrypted("PrintBill", "OPD", new { id = b.OPDServiceId })"
                                                    target="_blank">
                                                     <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
                                                 </a>
@@ -296,7 +296,7 @@
                                             @* OPD > Certificates (SQLScripts/2341): a certificate written from this visit *@
                                             <li>
                                                 <a asp-permission="OPD.CERTIFICATES:DRAFT" class="dropdown-item"
-                                                   href="@Url.Action("Create", "Certificates", new { opdServiceId = b.OPDServiceId })">
+                                                   href="@Url.ActionEncrypted("Create", "Certificates", new { opdServiceId = b.OPDServiceId })">
                                                     <i class="bi bi-patch-check me-2 text-primary"></i>Issue Certificate
                                                 </a>
                                             </li>
@@ -331,11 +331,11 @@
                                 <li class="page-item @(!Model.HasPrev ? "disabled" : "")">
                                     <a class="page-link"
                                        asp-action="ServiceBooking"
-                                       asp-route-page="@(Model.Page - 1)"
-                                       asp-route-pageSize="@Model.PageSize"
-                                       asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus"
-                                       asp-route-search="@Model.Search">
+                                       asp-encrypted-route-page="@(Model.Page - 1)"
+                                       asp-encrypted-route-pageSize="@Model.PageSize"
+                                       asp-encrypted-route-fromDate="@fromDate"
+                                       asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus"
+                                       asp-encrypted-route-search="@Model.Search">
                                         <i class="bi bi-chevron-left"></i>
                                     </a>
                                 </li>
@@ -347,9 +347,9 @@
                                 @if (startPage > 1)
                                 {
                                     <li class="page-item">
-                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="1"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus" asp-route-search="@Model.Search">1</a>
+                                        <a class="page-link" asp-action="ServiceBooking" asp-encrypted-route-page="1"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-fromDate="@fromDate"
+                                           asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus" asp-encrypted-route-search="@Model.Search">1</a>
                                     </li>
                                     @if (startPage > 2)
                                     {
@@ -359,9 +359,9 @@
                                 @for (int pg = startPage; pg <= endPage; pg++)
                                 {
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
-                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="@pg"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus" asp-route-search="@Model.Search">@pg</a>
+                                        <a class="page-link" asp-action="ServiceBooking" asp-encrypted-route-page="@pg"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-fromDate="@fromDate"
+                                           asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus" asp-encrypted-route-search="@Model.Search">@pg</a>
                                     </li>
                                 }
                                 @if (endPage < Model.TotalPages)
@@ -371,19 +371,19 @@
                                         <li class="page-item disabled"><span class="page-link">…</span></li>
                                     }
                                     <li class="page-item">
-                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="@Model.TotalPages"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                        <a class="page-link" asp-action="ServiceBooking" asp-encrypted-route-page="@Model.TotalPages"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-fromDate="@fromDate"
+                                           asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus" asp-encrypted-route-search="@Model.Search">@Model.TotalPages</a>
                                     </li>
                                 }
                                 <li class="page-item @(!Model.HasNext ? "disabled" : "")">
                                     <a class="page-link"
                                        asp-action="ServiceBooking"
-                                       asp-route-page="@(Model.Page + 1)"
-                                       asp-route-pageSize="@Model.PageSize"
-                                       asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate" asp-route-paymentStatus="@Model.PaymentStatus"
-                                       asp-route-search="@Model.Search">
+                                       asp-encrypted-route-page="@(Model.Page + 1)"
+                                       asp-encrypted-route-pageSize="@Model.PageSize"
+                                       asp-encrypted-route-fromDate="@fromDate"
+                                       asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus"
+                                       asp-encrypted-route-search="@Model.Search">
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
                                 </li>

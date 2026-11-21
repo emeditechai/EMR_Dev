@@ -50,7 +50,7 @@ public class DoctorIpController(
                                 || Request.Headers.Accept.ToString().Contains("application/json");
                 context.Result = wantsJson
                     ? new JsonResult(new { success = false, locked = true, message = "Doctor IP is locked. Enter the access code again." }) { StatusCode = 401 }
-                    : RedirectToAction(nameof(Unlock), new { returnUrl = Request.Method == "GET" ? Request.Path + Request.QueryString : null });
+                    : this.RedirectToActionEncrypted(nameof(Unlock), new { returnUrl = Request.Method == "GET" ? Request.Path + Request.QueryString : null });
                 return;
             }
 

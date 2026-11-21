@@ -106,7 +106,7 @@ public class LabWorksheetController(LabWorksheetApiClient api, IActionPermission
             var d = await LoadAsync(dateType, date, channel, values);
             await DecorateAsync(d);
             await AuditAsync("LAB.WorksheetPrint", d);
-            ViewData["PdfUrl"] = Url.Action(nameof(Pdf), new { dateType = d.DateType, date = d.Date.ToString("yyyy-MM-dd"), channel = d.Channel, values = d.ValueFilter });
+            ViewData["PdfUrl"] = Url.ActionEncrypted(nameof(Pdf), new { dateType = d.DateType, date = d.Date.ToString("yyyy-MM-dd"), channel = d.Channel, values = d.ValueFilter });
             return View("~/Views/LabWorksheet/Print.cshtml", d);
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException) { return Content("The work sheet could not be loaded: " + ex.Message); }

@@ -153,7 +153,7 @@
                             </button>
                             @if (Model.SelectedWardId.HasValue || !string.IsNullOrWhiteSpace(Model.SelectedIcuType))
                             {
-                                <a asp-action="Index" asp-route-tab="icus" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                                <a asp-action="Index" asp-encrypted-route-tab="icus" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
                                     <i class="bi bi-x-circle"></i>
                                 </a>
                             }
@@ -235,7 +235,7 @@
                                             }
                                         </td>
                                         <td>
-                                            <a asp-action="Index" asp-route-tab="tariffs" asp-route-icuId="@item.IcuId" class="badge bg-info-subtle text-info-emphasis border text-decoration-none" title="View configured tariffs">
+                                            <a asp-action="Index" asp-encrypted-route-tab="tariffs" asp-encrypted-route-icuId="@item.IcuId" class="badge bg-info-subtle text-info-emphasis border text-decoration-none" title="View configured tariffs">
                                                 <i class="bi bi-cash-coin me-1"></i>@item.ActiveTariffsCount Active (@item.TotalTariffsCount Total)
                                             </a>
                                         </td>
@@ -260,7 +260,7 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditIcuModal(@item.IcuId)" title="Edit ICU">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-permission="MASTER.ICUS:DELETE" asp-action="DeleteIcu" asp-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this ICU configuration?');">
+                                                <form asp-permission="MASTER.ICUS:DELETE" asp-action="DeleteIcu" asp-encrypted-route-id="@item.IcuId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this ICU configuration?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                         <i class="bi bi-trash"></i>
@@ -308,7 +308,7 @@
                             </button>
                             @if (Model.SelectedIcuId.HasValue || Model.SelectedTariffCategoryId.HasValue)
                             {
-                                <a asp-action="Index" asp-route-tab="tariffs" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                                <a asp-action="Index" asp-encrypted-route-tab="tariffs" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
                                     <i class="bi bi-x-circle"></i>
                                 </a>
                             }
@@ -402,7 +402,7 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditTariffModal(@item.IcuTariffId)" title="Edit Tariff">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-permission="MASTER.ICUS:DELETE" asp-action="DeleteTariff" asp-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this dynamic tariff package?');">
+                                                <form asp-permission="MASTER.ICUS:DELETE" asp-action="DeleteTariff" asp-encrypted-route-id="@item.IcuTariffId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this dynamic tariff package?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                         <i class="bi bi-trash"></i>

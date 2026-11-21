@@ -97,6 +97,6 @@ public class CertificateMastersController(
     private IActionResult Done(string tab, string? error)
     {
         if (error != null) TempData["Error"] = error; else TempData["Success"] = "Saved.";
-        return RedirectToAction(nameof(Index), new { tab });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab });
     }
 }

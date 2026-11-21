@@ -17,7 +17,7 @@
     var stats = new List<KeyValuePair<string, int>> { new("Batches", Model.Count), new("Items", Model.Select(m => m.ItemId).Distinct().Count()), new("Expired", expired.Count) };
     string Rs(decimal v) => "₹" + v.ToString("N2", System.Globalization.CultureInfo.GetCultureInfo("en-IN"));
     string Qty(decimal v) => v.ToString("0.##");
-    string Href(string f) => Url.Action("Index", new { search, filter = f, categoryId, storeId = sStore })!;
+    string Href(string f) => Url.ActionEncrypted("Index", new { search, filter = f, categoryId, storeId = sStore })!;
     var chips = new[] { ("instock", "In stock", "bi-box-seam"), ("near", "Expiring ≤ 90 days", "bi-hourglass-split"), ("expired", "Expired", "bi-x-octagon"), ("zero", "Zero stock", "bi-dash-circle"), ("all", "All batches", "bi-list-ul") };
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
@@ -40,7 +40,7 @@
             <div class="input-group input-group-sm" style="max-width:360px">
                 <span class="input-group-text bg-white"><i class="bi bi-upc-scan"></i></span>
                 <input name="search" id="phSearch" value="@search" class="form-control" placeholder="Search item, generic, batch or scan barcode" autocomplete="off" />
-                @if (!string.IsNullOrEmpty(search)) { <a class="btn btn-outline-secondary" title="Clear search" href="@Url.Action("Index", new { filter, categoryId, storeId = sStore })"><i class="bi bi-x-lg"></i></a> }
+                @if (!string.IsNullOrEmpty(search)) { <a class="btn btn-outline-secondary" title="Clear search" href="@Url.ActionEncrypted("Index", new { filter, categoryId, storeId = sStore })"><i class="bi bi-x-lg"></i></a> }
                 <span class="input-group-text bg-white" title="Press / to search"><span class="ph-kbd">/</span></span>
             </div>
             @if (sStores.Count > 1)

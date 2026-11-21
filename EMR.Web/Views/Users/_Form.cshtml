@@ -707,7 +707,7 @@
                     <div class="d-flex align-items-center gap-3 p-2 border rounded-3" style="background:#faf5ff;border-color:#e9d5ff !important;">
                         <div class="sig-preview" id="sigPreviewBox">
                             <img id="sigPreviewImg" alt="Signature preview"
-                                 src="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) && Model.Id > 0 ? Url.Action("Signature", "Users", new { id = Model.Id }) + "?v=" + Uri.EscapeDataString(Model.ExistingSignaturePath) : "")"
+                                 src="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) && Model.Id > 0 ? Url.ActionEncrypted("Signature", "Users", new { id = Model.Id }) + "?v=" + Uri.EscapeDataString(Model.ExistingSignaturePath) : "")"
                                  style="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) && Model.Id > 0 ? "" : "display:none;")" />
                             <span id="sigPreviewEmpty" class="text-muted small" style="@(!string.IsNullOrWhiteSpace(Model.ExistingSignaturePath) && Model.Id > 0 ? "display:none;" : "")">No signature</span>
                         </div>

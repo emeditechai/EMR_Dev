@@ -118,7 +118,7 @@ public class BedRoomTariffsController(
             branchId: branchId);
 
         TempData["Success"] = "Bed/Room Tariff Rate created successfully.";
-        return RedirectToAction(nameof(Details), new { id = newId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = newId });
     }
 
     [HttpGet]
@@ -208,7 +208,7 @@ public class BedRoomTariffsController(
             branchId: branchId);
 
         TempData["Success"] = "Bed/Room Tariff Rate updated and change logged to history.";
-        return RedirectToAction(nameof(Details), new { id = model.BedRateId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = model.BedRateId });
     }
 
     [HttpGet]

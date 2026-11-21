@@ -48,7 +48,7 @@
                         }
                         <div class="small text-muted mt-1 font-monospace text-break" title="SHA-256 checksum, to check the downloaded file">SHA-256: @(latest.Sha256 ?? "—")</div>
                     </div>
-                    <a class="btn btn-success btn-apk-dl text-nowrap" asp-action="Download" asp-route-id="@latest.ApkId">
+                    <a class="btn btn-success btn-apk-dl text-nowrap" asp-action="Download" asp-encrypted-route-id="@latest.ApkId">
                         <i class="bi bi-download me-1"></i>Download
                     </a>
                 </div>
@@ -68,7 +68,7 @@
                                         <td class="text-nowrap">@r.UploadedDate.ToString("dd MMM yyyy, hh:mm tt")</td>
                                         <td class="text-end text-nowrap">@Size(r.FileSizeBytes)</td>
                                         <td>@r.ReleaseNotes</td>
-                                        <td class="text-end"><a class="btn btn-outline-success btn-sm py-0 px-2 btn-apk-dl" asp-action="Download" asp-route-id="@r.ApkId" title="Download this version"><i class="bi bi-download"></i></a></td>
+                                        <td class="text-end"><a class="btn btn-outline-success btn-sm py-0 px-2 btn-apk-dl" asp-action="Download" asp-encrypted-route-id="@r.ApkId" title="Download this version"><i class="bi bi-download"></i></a></td>
                                     </tr>
                                 }
                                 </tbody>

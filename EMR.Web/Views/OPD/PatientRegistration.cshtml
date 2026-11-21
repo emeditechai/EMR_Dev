@@ -732,7 +732,7 @@
                         <i class="bi bi-list-ul me-1"></i>All Patients
                     </button>
                     <a class="btn btn-success btn-sm" id="btnPrintBillSuccess"
-                       href="@(Model.NewOPDServiceId.HasValue && Model.NewOPDServiceId.Value > 0 ? Url.Action("PrintBill", "OPD", new { id = Model.NewOPDServiceId.Value }) : "#")"
+                       href="@(Model.NewOPDServiceId.HasValue && Model.NewOPDServiceId.Value > 0 ? Url.ActionEncrypted("PrintBill", "OPD", new { id = Model.NewOPDServiceId.Value }) : "#")"
                        target="_blank">
                         <i class="bi bi-printer-fill me-1"></i>Print Bill
                     </a>

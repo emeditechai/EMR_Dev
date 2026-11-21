@@ -1,3 +1,4 @@
+using EMR.Web.Extensions;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -35,9 +36,9 @@ public class PhSupplierPaymentsController(IPharmacyPurchaseService purchase, IAu
     public async Task<IActionResult> Save(int supplierId, DateTime paymentDate, string mode, string? reference, string? remarks, Dictionary<int, decimal>? alloc, Dictionary<int, decimal>? adjust)
     {
         var (id, err) = await Purchase.SavePaymentAsync(CompanyId, BranchId, supplierId, paymentDate, mode, reference, remarks, alloc ?? [], UserId, adjust);
-        if (err != null) { TempData["Error"] = err; return RedirectToAction(nameof(Pay), new { supplierId }); }
+        if (err != null) { TempData["Error"] = err; return this.RedirectToActionEncrypted(nameof(Pay), new { supplierId }); }
         TempData["Success"] = "Payment recorded.";
-        return RedirectToAction(nameof(Print), new { id });
+        return this.RedirectToActionEncrypted(nameof(Print), new { id });
     }
 
     [HttpPost, ValidateAntiForgeryToken]

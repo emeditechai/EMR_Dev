@@ -18,7 +18,7 @@
     <div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable">
         <thead><tr><th>#</th><th>Return no.</th><th>Date</th><th>Bill</th><th>Customer</th><th>Reason</th><th>Mode</th><th class="text-end">Value</th><th class="text-end">Refunded</th><th class="text-end">Set off</th><th>By</th></tr></thead>
         <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
-            <tr onclick="window.open('@Url.Action("Print", new { id = r.ReturnId })','_blank')"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@r.ReturnNo</td><td class="small">@r.ReturnDate.ToString("dd-MMM HH:mm")</td><td class="font-monospace small">@r.SaleNo</td>
+            <tr onclick="window.open('@Url.ActionEncrypted("Print", new { id = r.ReturnId })','_blank')"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@r.ReturnNo</td><td class="small">@r.ReturnDate.ToString("dd-MMM HH:mm")</td><td class="font-monospace small">@r.SaleNo</td>
                 <td>@r.CustomerName</td><td class="small">@r.ReasonName</td><td>@r.RefundMode</td><td class="text-end fw-semibold">@r.NetAmount.ToString("N2")</td><td class="text-end">@r.RefundAmount.ToString("N2")</td><td class="text-end">@r.AdjustedAmount.ToString("N2")</td><td class="small">@r.CreatedByName</td></tr> }</tbody>
     </table>
     @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-inbox fs-2 d-block mb-2"></i>No returns in this period.</div> }</div>

@@ -13,7 +13,7 @@
         <h1 class="h3 mb-0 fw-bold text-dark"><i class="bi bi-copy text-primary me-2"></i>Copy Master Data</h1>
         <small class="text-muted">Pull masters from another company into <b>@Model.CompanyName</b> (@Model.CompanyCode).</small>
     </div>
-    <a asp-action="Details" asp-route-id="@Model.CompanyId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Company</a>
+    <a asp-action="Details" asp-encrypted-route-id="@Model.CompanyId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Company</a>
 </div>
 
 <div class="alert alert-light border small mb-4">
@@ -103,7 +103,7 @@
 @section Scripts {
 <script>
     (function () {
-        const runUrl = '@Url.Action("CopyMastersRun", new { id = Model.CompanyId })';
+        const runUrl = '@Url.ActionEncrypted("CopyMastersRun", new { id = Model.CompanyId })';
         const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
         const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
         const cards = [...document.querySelectorAll('.cm-ent')];

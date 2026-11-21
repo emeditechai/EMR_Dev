@@ -46,15 +46,15 @@
 </form>
 <div class="d-flex flex-wrap gap-2 justify-content-end align-items-center">
     <a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
-    @if (!isNew && d.Status != "DRAFT") { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
+    @if (!isNew && d.Status != "DRAFT") { <a asp-action="Print" asp-encrypted-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
     @if (editable) { <button asp-permission="@($"{page}:SAVE")" form="adjForm" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save draft</button> }
-    @if (!isNew && d.Status == "DRAFT") { <form method="post" asp-action="Submit" asp-route-id="@d.Id" asp-permission="@($"{page}:SUBMIT")" data-confirm="Submit for approval? It cannot be changed after that."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form> }
+    @if (!isNew && d.Status == "DRAFT") { <form method="post" asp-action="Submit" asp-encrypted-route-id="@d.Id" asp-permission="@($"{page}:SUBMIT")" data-confirm="Submit for approval? It cannot be changed after that."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form> }
     @if (d.Status == "SUBMITTED" && !mine)
     {
-        <form method="post" asp-action="Reject" asp-route-id="@d.Id" asp-permission="@($"{page}:REJECT")" data-remarks="Reason for rejecting" data-required="1"><button class="btn btn-outline-danger">Reject</button></form>
-        <form method="post" asp-action="Approve" asp-route-id="@d.Id" asp-permission="@($"{page}:APPROVE")" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve</button></form>
+        <form method="post" asp-action="Reject" asp-encrypted-route-id="@d.Id" asp-permission="@($"{page}:REJECT")" data-remarks="Reason for rejecting" data-required="1"><button class="btn btn-outline-danger">Reject</button></form>
+        <form method="post" asp-action="Approve" asp-encrypted-route-id="@d.Id" asp-permission="@($"{page}:APPROVE")" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve</button></form>
     }
-    @if (d.Status is "DRAFT" or "SUBMITTED" && !isNew) { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="@($"{page}:CANCEL")" data-confirm="Cancel this document?"><button class="btn btn-outline-danger">Cancel</button></form> }
+    @if (d.Status is "DRAFT" or "SUBMITTED" && !isNew) { <form method="post" asp-action="Cancel" asp-encrypted-route-id="@d.Id" asp-permission="@($"{page}:CANCEL")" data-confirm="Cancel this document?"><button class="btn btn-outline-danger">Cancel</button></form> }
 </div>
 @section Scripts {
 <script>

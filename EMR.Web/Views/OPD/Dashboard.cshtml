@@ -165,9 +165,9 @@
             </div>
             <div class="d-flex flex-column align-items-end gap-2">
                 <form method="get" asp-action="Dashboard" id="dateFilterForm" class="od-datebar">
-                    <a class="btn btn-sm" href="@Url.Action("Dashboard", new { date = prevDate })" title="Previous day"><i class="bi bi-chevron-left"></i></a>
+                    <a class="btn btn-sm" href="@Url.ActionEncrypted("Dashboard", new { date = prevDate })" title="Previous day"><i class="bi bi-chevron-left"></i></a>
                     <input type="date" name="date" value="@selectedDateStr" onchange="document.getElementById('dateFilterForm').submit()" aria-label="Dashboard date" />
-                    <a class="btn btn-sm" href="@Url.Action("Dashboard", new { date = nextDate })" title="Next day"><i class="bi bi-chevron-right"></i></a>
+                    <a class="btn btn-sm" href="@Url.ActionEncrypted("Dashboard", new { date = nextDate })" title="Next day"><i class="bi bi-chevron-right"></i></a>
                     @if (!isToday)
                     {
                         <a class="btn btn-sm fw-semibold" href="@Url.Action("Dashboard")">Today</a>
@@ -292,7 +292,7 @@
             <div class="od-panel">
                 <div class="od-panel-head">
                     <div><h3><i class="bi bi-list-check me-2 text-primary"></i>OPD visits of the day</h3><small>@bookings.Count visit(s) · walk-ins and appointments in time order</small></div>
-                    <a class="btn btn-sm btn-outline-primary fw-semibold" asp-action="ServiceBooking" asp-route-fromDate="@selectedDateStr" asp-route-toDate="@selectedDateStr">Open booking register <i class="bi bi-arrow-right-short"></i></a>
+                    <a class="btn btn-sm btn-outline-primary fw-semibold" asp-action="ServiceBooking" asp-encrypted-route-fromDate="@selectedDateStr" asp-encrypted-route-toDate="@selectedDateStr">Open booking register <i class="bi bi-arrow-right-short"></i></a>
                 </div>
                 @if (!bookings.Any())
                 {
@@ -365,7 +365,7 @@
                                                     {
                                                         <li><button asp-permission="OPD.DASHBOARD:COLLECT_PAYMENT" type="button" class="dropdown-item" onclick="odCollect(@b.OPDServiceId)"><i class="bi bi-cash-coin me-2 text-info"></i>Collect payment</button></li>
                                                     }
-                                                    <li><a asp-permission="OPD.DASHBOARD:PRINT" class="dropdown-item" href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank"><i class="bi bi-printer-fill me-2 text-success"></i>Print bill</a></li>
+                                                    <li><a asp-permission="OPD.DASHBOARD:PRINT" class="dropdown-item" href="@Url.ActionEncrypted("PrintBill", "OPD", new { id = b.OPDServiceId })" target="_blank"><i class="bi bi-printer-fill me-2 text-success"></i>Print bill</a></li>
                                                 </ul>
                                             </div>
                                         </td>

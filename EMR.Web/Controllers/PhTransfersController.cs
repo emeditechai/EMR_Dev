@@ -1,3 +1,4 @@
+using EMR.Web.Extensions;
 using System.Text.Json;
 using EMR.Web.Services;
 using EMR.Web.Services.Notifications;
@@ -39,7 +40,7 @@ public class PhTransfersController(IPharmacyInventoryService inventory, IPharmac
         var d = string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<PhInvDoc>(json, Json);
         if (d == null) return BadRequest();
         var (id, err) = await Inventory.SaveTransferRequestAsync(CompanyId, BranchId, d, submit, UserId);
-        if (err != null) { TempData["Error"] = err; return d.Id > 0 ? RedirectToAction(nameof(Form), new { id = d.Id }) : RedirectToAction(nameof(Form)); }
+        if (err != null) { TempData["Error"] = err; return d.Id > 0 ? this.RedirectToActionEncrypted(nameof(Form), new { id = d.Id }) : RedirectToAction(nameof(Form)); }
         await LogAsync("TransferRequest", $"Branch indent #{id} {(submit ? "sent" : "saved")}");
         return Back(null, submit ? "Indent sent to the branch." : "Indent saved as draft.", new { id });
     }

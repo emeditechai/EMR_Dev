@@ -75,7 +75,7 @@ public class CampaignController(ICampaignApiClient api, CampaignSenderService se
         {
             var c = await api.GetAsync(source.Value, CompanyId, BranchId, IsHo);
             if (c is null) return NotFound();
-            if (id is > 0 && c.Status != "DRAFT") return RedirectToAction(nameof(Details), new { id });
+            if (id is > 0 && c.Status != "DRAFT") return this.RedirectToActionEncrypted(nameof(Details), new { id });
             form = new CampaignForm
             {
                 CampaignId = id is > 0 ? c.CampaignId : 0,
@@ -210,7 +210,7 @@ public class CampaignController(ICampaignApiClient api, CampaignSenderService se
             _ => $"Campaign #{result.CampaignId} \"{m.Name?.Trim()}\" saved as a draft."
         });
         if (action == "send") _ = Task.Run(() => sender.RunOnceAsync(CancellationToken.None));   // start at once, not at the next tick
-        return Json(new { success = true, id = result.CampaignId, url = action == "draft" ? Url.Action(nameof(Index)) : Url.Action(nameof(Details), new { id = result.CampaignId }) });
+        return Json(new { success = true, id = result.CampaignId, url = action == "draft" ? Url.Action(nameof(Index)) : Url.ActionEncrypted(nameof(Details), new { id = result.CampaignId }) });
     }
 
     // ── a campaign's progress ─────────────────────────────────────────────────────────────────────────────────

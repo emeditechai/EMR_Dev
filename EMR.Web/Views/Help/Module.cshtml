@@ -21,7 +21,7 @@
                         <div class="hp-card p-3 mb-3">
                             <div class="hp-section-title"><i class="bi bi-diagram-3"></i>Workflows - the order of work</div>
                             <ul class="hp-links">
-                                @foreach (var w in Model.Workflows) { <li><a asp-action="Article" asp-route-id="@w.Code"><i class="bi bi-diagram-3 me-1"></i>@w.Title</a> <span class="hp-muted">@w.Summary</span></li> }
+                                @foreach (var w in Model.Workflows) { <li><a asp-action="Article" asp-encrypted-route-id="@w.Code"><i class="bi bi-diagram-3 me-1"></i>@w.Title</a> <span class="hp-muted">@w.Summary</span></li> }
                             </ul>
                         </div>
                     }
@@ -33,7 +33,7 @@
                                 @foreach (var s in Model.Setup)
                                 {
                                     <li><div>
-                                        <div class="hp-setup-title"><a asp-action="Page" asp-route-id="@s.Code">@s.Title</a></div>
+                                        <div class="hp-setup-title"><a asp-action="Page" asp-encrypted-route-id="@s.Code">@s.Title</a></div>
                                         <div class="hp-muted">@s.Note · <span>@s.Path</span></div>
                                     </div></li>
                                 }
@@ -47,7 +47,7 @@
                             @foreach (var g in Model.Guides)
                             {
                                 <div class="col-12 col-md-6">
-                                    <a asp-action="Article" asp-route-id="@g.Code" class="hp-card hp-mod">
+                                    <a asp-action="Article" asp-encrypted-route-id="@g.Code" class="hp-card hp-mod">
                                         <span class="hp-mod-title">@g.Title</span>
                                         <span class="hp-mod-sum">@g.Summary</span>
                                     </a>
@@ -61,7 +61,7 @@
                         {
                             <div class="hp-group-title">@g.Title</div>
                             <div class="hp-pagelist">
-                                @foreach (var p in g.Pages) { <a asp-action="Page" asp-route-id="@p.Code"><i class="bi bi-question-circle me-1"></i>@p.Title</a> }
+                                @foreach (var p in g.Pages) { <a asp-action="Page" asp-encrypted-route-id="@p.Code"><i class="bi bi-question-circle me-1"></i>@p.Title</a> }
                             </div>
                         }
                     </div>
@@ -74,7 +74,7 @@
                             @foreach (var t in Model.Troubles)
                             {
                                 <details class="hp-faq"><summary>@t.Title</summary>
-                                    <div class="hp-faq-body">@t.Summary <a asp-action="Article" asp-route-id="@t.Code" class="d-block mt-1">How to fix it &rsaquo;</a></div></details>
+                                    <div class="hp-faq-body">@t.Summary <a asp-action="Article" asp-encrypted-route-id="@t.Code" class="d-block mt-1">How to fix it &rsaquo;</a></div></details>
                             }
                         </div>
                     }

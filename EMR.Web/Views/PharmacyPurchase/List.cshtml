@@ -24,7 +24,7 @@
         "return" => ("Reason", "Remarks", "Supplier"),
         _ => ("Mode / ref.", "Remarks", "Supplier")
     };
-    string Open(PhDocListRow r) => kind == "payment" ? Url.Action("Print", new { id = r.Id })! : Url.Action("Form", new { id = r.Id })!;
+    string Open(PhDocListRow r) => kind == "payment" ? Url.ActionEncrypted("Print", new { id = r.Id })! : Url.ActionEncrypted("Form", new { id = r.Id })!;
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
 
@@ -90,7 +90,7 @@
                     <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" href="@Open(r)" title="Open"><i class="bi @(r.Status == "DRAFT" ? "bi-pencil" : kind == "payment" ? "bi-printer" : "bi-eye")"></i></a>
                         @if (kind == "payment" && r.Status == "POSTED")
                         {
-                            <form method="post" asp-action="Cancel" asp-route-id="@r.Id" asp-permission="@($"{page}:CANCEL")" class="d-inline ph-cancel"><button class="btn btn-sm btn-outline-danger" title="Cancel payment"><i class="bi bi-x-circle"></i></button></form>
+                            <form method="post" asp-action="Cancel" asp-encrypted-route-id="@r.Id" asp-permission="@($"{page}:CANCEL")" class="d-inline ph-cancel"><button class="btn btn-sm btn-outline-danger" title="Cancel payment"><i class="bi bi-x-circle"></i></button></form>
                         }
                     </td>
                 </tr>

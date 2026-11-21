@@ -15,7 +15,7 @@
     <div class="ph-wrap"><table class="table table-hover mb-0 ph-table ph-editable">
         <thead><tr><th>#</th><th>Number</th><th>Date</th><th>From (gives)</th><th>To (asks)</th><th class="text-end">Items</th><th class="text-end">Issued (cost)</th><th class="text-end">Short</th><th>By</th><th>Status</th></tr></thead>
         <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
-            <tr onclick="location.href='@Url.Action("Form", new { id = r.Id })'"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@(r.DocNo ?? "Draft #" + r.Id)</td><td class="small">@r.DocDate.ToString("dd-MMM HH:mm")</td>
+            <tr onclick="location.href='@Url.ActionEncrypted("Form", new { id = r.Id })'"><td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@(r.DocNo ?? "Draft #" + r.Id)</td><td class="small">@r.DocDate.ToString("dd-MMM HH:mm")</td>
                 <td>@r.FromStore</td><td>@r.ToStore</td><td class="text-end">@r.Lines</td><td class="text-end">@r.CostValue.ToString("N2")</td><td class="text-end @(r.VarianceValue != 0 ? "text-danger" : "")">@(r.VarianceValue != 0 ? r.VarianceValue.ToString("N2") : "")</td>
                 <td class="small">@r.CreatedByName</td><td><partial name="~/Views/PharmacyInventory/_InvStatus.cshtml" model="r.Status" /></td></tr> }</tbody>
     </table>

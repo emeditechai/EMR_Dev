@@ -85,11 +85,11 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-permission="MASTER.DISCOUNTTYPES:EDIT" asp-action="Edit" asp-route-id="@item.DiscountTypeId" class="btn btn-light text-primary" title="Edit"><i class="bi bi-pencil-square"></i></a>
-                                        <a asp-permission="MASTER.DISCOUNTTYPES:DETAILS" asp-action="Details" asp-route-id="@item.DiscountTypeId" class="btn btn-light text-info" title="Details"><i class="bi bi-eye"></i></a>
+                                        <a asp-permission="MASTER.DISCOUNTTYPES:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.DiscountTypeId" class="btn btn-light text-primary" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                        <a asp-permission="MASTER.DISCOUNTTYPES:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.DiscountTypeId" class="btn btn-light text-info" title="Details"><i class="bi bi-eye"></i></a>
                                         <button asp-permission="MASTER.DISCOUNTTYPES:DELETE" type="button" class="btn btn-light text-danger" title="Delete" onclick="confirmDelete(@item.DiscountTypeId, '@item.DiscountTypeName')"><i class="bi bi-trash"></i></button>
                                     </div>
-                                    <form asp-permission="MASTER.DISCOUNTTYPES:DELETE" id="deleteForm-@item.DiscountTypeId" asp-action="Delete" asp-route-id="@item.DiscountTypeId" method="post" style="display:none;"></form>
+                                    <form asp-permission="MASTER.DISCOUNTTYPES:DELETE" id="deleteForm-@item.DiscountTypeId" asp-action="Delete" asp-encrypted-route-id="@item.DiscountTypeId" method="post" style="display:none;"></form>
                                 </td>
                             </tr>
                         }

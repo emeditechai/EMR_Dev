@@ -145,7 +145,7 @@
                             </td>
                             <td>
                                 <div class="fw-bold text-dark">
-                                    <a asp-permission="SETTINGS.COMPANIES:DETAILS" asp-action="Details" asp-route-id="@item.CompanyId" class="text-decoration-none text-dark hover-primary">
+                                    <a asp-permission="SETTINGS.COMPANIES:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.CompanyId" class="text-decoration-none text-dark hover-primary">
                                         @item.CompanyName
                                     </a>
                                 </div>
@@ -162,7 +162,7 @@
                                 <div class="small text-muted mt-1"><i class="bi bi-geo-alt me-1 text-muted"></i>@string.Join(", ", new[] { item.City, item.State }.Where(s => !string.IsNullOrWhiteSpace(s)))</div>
                             </td>
                             <td class="text-center">
-                                <a asp-controller="Branches" asp-action="Index" asp-route-companyId="@item.CompanyId" class="badge bg-info bg-opacity-10 text-info text-decoration-none px-3 py-2 border border-info border-opacity-25 rounded-pill fw-semibold">
+                                <a asp-controller="Branches" asp-action="Index" asp-encrypted-route-companyId="@item.CompanyId" class="badge bg-info bg-opacity-10 text-info text-decoration-none px-3 py-2 border border-info border-opacity-25 rounded-pill fw-semibold">
                                     <i class="bi bi-diagram-3-fill me-1"></i>@item.TotalBranches Branches
                                 </a>
                             </td>
@@ -187,13 +187,13 @@
                             </td>
                             <td class="text-end pe-4">
                                 <div class="btn-group btn-group-sm">
-                                    <a asp-permission="SETTINGS.COMPANIES:DETAILS" asp-action="Details" asp-route-id="@item.CompanyId" class="btn btn-outline-secondary" title="View Details">
+                                    <a asp-permission="SETTINGS.COMPANIES:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.CompanyId" class="btn btn-outline-secondary" title="View Details">
                                         <i class="bi bi-eye-fill"></i>
                                     </a>
-                                    <a asp-permission="SETTINGS.COMPANIES:EDIT" asp-action="Edit" asp-route-id="@item.CompanyId" class="btn btn-outline-primary" title="Edit Company">
+                                    <a asp-permission="SETTINGS.COMPANIES:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.CompanyId" class="btn btn-outline-primary" title="Edit Company">
                                         <i class="bi bi-pencil-fill"></i>
                                     </a>
-                                    <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@item.CompanyId" class="btn btn-outline-success" title="Add Branch">
+                                    <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-encrypted-route-companyId="@item.CompanyId" class="btn btn-outline-success" title="Add Branch">
                                         <i class="bi bi-plus-lg"></i>
                                     </a>
                                 </div>

@@ -15,7 +15,7 @@
             <span id="asOf" class="ipd-pill info"></span></div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-        <a class="btn btn-outline-secondary" asp-controller="IpdAdmission" asp-action="Patient" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-person-badge me-1"></i>Patient</a>
+        <a class="btn btn-outline-secondary" asp-controller="IpdAdmission" asp-action="Patient" asp-encrypted-route-id="@h.I("AdmissionId")"><i class="bi bi-person-badge me-1"></i>Patient</a>
         <div class="btn-group">
             <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-printer me-1"></i>Print</button>
             <ul class="dropdown-menu dropdown-menu-end" id="printMenu">

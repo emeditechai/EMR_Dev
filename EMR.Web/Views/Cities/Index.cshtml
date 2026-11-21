@@ -141,10 +141,10 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.CITIES:DETAILS" asp-action="Details" asp-route-id="@item.CityId" class="btn btn-sm btn-outline-secondary me-1" title="Details">
+                        <a asp-permission="MASTER.CITIES:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.CityId" class="btn btn-sm btn-outline-secondary me-1" title="Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.CITIES:EDIT" asp-action="Edit" asp-route-id="@item.CityId" class="btn btn-sm btn-outline-primary" title="Edit">
+                        <a asp-permission="MASTER.CITIES:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.CityId" class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
                     </td>

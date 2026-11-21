@@ -76,7 +76,7 @@ public abstract class DayClosingControllerBase(IDayClosingService closings, INot
                 $"{ModuleTitle} day closing to verify · {who}",
                 $"{who} closed the {ModuleTitle} cash of {form.BusinessDate:dd-MMM-yyyy}: expected ₹{r.ExpectedCash:N2}, counted ₹{r.CountedCash:N2} ({diff}). " +
                 $"Handed over ₹{form.HandedAmount:N2}" + (form.HandoverMode == "BANK" ? " by bank deposit" : "") + $", float kept ₹{form.RetainedFloat:N2}.",
-                Url.Action("Verify", new { date = form.BusinessDate.ToString("yyyy-MM-dd") }), "CASH", r.CashClosingId,
+                Url.ActionEncrypted("Verify", new { date = form.BusinessDate.ToString("yyyy-MM-dd") }), "CASH", r.CashClosingId,
                 $"DAY_CLOSING_SUBMIT:{r.CashClosingId}:{DateTime.Now:yyyyMMddHHmmss}", branchId, UserId);
 
             await closings.ClearPendingNoticesIfDoneAsync(UserId);   // the last open day closed: its old reminders go
@@ -141,7 +141,7 @@ public abstract class DayClosingControllerBase(IDayClosingService closings, INot
                     ? $"{who} verified your {ModuleTitle} cash closing {r.ClosingNo}." +
                       (c.Difference < 0 ? $" The shortage of ₹{Math.Abs(c.Difference):N2} is recoverable from you." : c.Difference > 0 ? $" The excess of ₹{c.Difference:N2} is taken to income." : "")
                     : $"{who} sent back your {ModuleTitle} cash closing {r.ClosingNo}: {remarks}. Correct it and submit again.",
-                Url.Action("Index", new { date = c.BusinessDate.ToString("yyyy-MM-dd") }), "CASH", id,
+                Url.ActionEncrypted("Index", new { date = c.BusinessDate.ToString("yyyy-MM-dd") }), "CASH", id,
                 $"DAY_CLOSING_{act}:{id}:{DateTime.Now:yyyyMMddHHmmss}", c.BranchId, UserId);
 
             return Json(new { success = true, message = $"{ModuleTitle} day closing {r.ClosingNo} {what}." + (r.VoucherNo != null ? $" Difference posted: {r.VoucherNo}." : "") });

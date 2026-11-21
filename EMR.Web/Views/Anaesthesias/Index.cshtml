@@ -140,7 +140,7 @@
                             </button>
                             @if (Model.SelectedProcedureId.HasValue || Model.SelectedAnaesthesiaTypeId.HasValue)
                             {
-                                <a asp-action="Index" asp-route-tab="rates" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
+                                <a asp-action="Index" asp-encrypted-route-tab="rates" class="btn btn-sm btn-outline-secondary" title="Clear Filters">
                                     <i class="bi bi-x-circle"></i>
                                 </a>
                             }
@@ -227,7 +227,7 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditRateModal(@item.AnaesthesiaRateId)" title="Edit Rate">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-permission="MASTER.ANAESTHESIAS:DELETE" asp-action="DeleteRate" asp-route-id="@item.AnaesthesiaRateId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this anaesthesia rate?');">
+                                                <form asp-permission="MASTER.ANAESTHESIAS:DELETE" asp-action="DeleteRate" asp-encrypted-route-id="@item.AnaesthesiaRateId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this anaesthesia rate?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                         <i class="bi bi-trash"></i>
@@ -301,7 +301,7 @@
                                                 <button type="button" class="btn btn-outline-primary" onclick="openEditTypeModal(@t.AnaesthesiaTypeId)" title="Edit Type">
                                                     <i class="bi bi-pencil"></i>
                                                 </button>
-                                                <form asp-permission="MASTER.ANAESTHESIAS:DELETE" asp-action="DeleteType" asp-route-id="@t.AnaesthesiaTypeId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this type?');">
+                                                <form asp-permission="MASTER.ANAESTHESIAS:DELETE" asp-action="DeleteType" asp-encrypted-route-id="@t.AnaesthesiaTypeId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to remove this type?');">
                                                     @Html.AntiForgeryToken()
                                                     <button type="submit" class="btn btn-outline-danger" title="Delete">
                                                         <i class="bi bi-trash"></i>

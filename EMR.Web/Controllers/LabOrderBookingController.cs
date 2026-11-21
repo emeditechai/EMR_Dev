@@ -426,7 +426,7 @@ namespace EMR.Web.Controllers
             if (model.DemographicsOnly)
             {
                 TempData["Success"] = $"Patient demographics updated successfully.";
-                return RedirectToAction(nameof(B2BBooking), new { patientId = actualPatientId });
+                return this.RedirectToActionEncrypted(nameof(B2BBooking), new { patientId = actualPatientId });
             }
 
             decimal totalAmount = lineItems!.Sum(x => x.Price);
@@ -811,7 +811,7 @@ namespace EMR.Web.Controllers
             TempData["BookingNo"]        = labOrderRes.BookingNo;   // 2384
             TempData["PaymentMode"]      = paymentModeUsed;
             TempData["ShowPrintBarcode"] = b2bShowPrintBarcode ? "true" : "false"; // BarcodeGenerateAtBilling (B2B parity)
-            return RedirectToAction(nameof(B2BBooking), new { registered = true });
+            return this.RedirectToActionEncrypted(nameof(B2BBooking), new { registered = true });
         }
 
         /// <summary>A test with no price (Rs 0) cannot be billed.</summary>
@@ -1112,7 +1112,7 @@ namespace EMR.Web.Controllers
             if (model.DemographicsOnly)
             {
                 TempData["Success"] = $"Patient demographics updated successfully.";
-                return RedirectToAction(nameof(B2CBooking), new { patientId = actualPatientId });
+                return this.RedirectToActionEncrypted(nameof(B2CBooking), new { patientId = actualPatientId });
             }
 
             // Create Lab Order
@@ -1184,7 +1184,7 @@ namespace EMR.Web.Controllers
             TempData["NewPatientName"]  = patientFullName;
             TempData["BillNo"]          = labOrderRes.BillNo;
             TempData["NewLabOrderId"]   = labOrderRes.LabOrderId.ToString();
-            return RedirectToAction(nameof(B2CBooking), new { registered = true });
+            return this.RedirectToActionEncrypted(nameof(B2CBooking), new { registered = true });
         }
 
         /// <summary>

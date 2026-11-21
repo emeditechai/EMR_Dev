@@ -244,15 +244,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.INSURANCES:DETAILS" asp-action="Details" asp-route-id="@item.InsuranceTPA_ID"
+                        <a asp-permission="MASTER.INSURANCES:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.InsuranceTPA_ID"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.INSURANCES:EDIT" asp-action="Edit" asp-route-id="@item.InsuranceTPA_ID"
+                        <a asp-permission="MASTER.INSURANCES:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.InsuranceTPA_ID"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-permission="MASTER.INSURANCES:DELETE" asp-action="Delete" asp-route-id="@item.InsuranceTPA_ID" method="post" class="d-inline"
+                        <form asp-permission="MASTER.INSURANCES:DELETE" asp-action="Delete" asp-encrypted-route-id="@item.InsuranceTPA_ID" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.Name?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

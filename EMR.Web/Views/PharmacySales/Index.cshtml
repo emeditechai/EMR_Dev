@@ -28,7 +28,7 @@
         @for (var i = 0; i < Model.Count; i++)
         {
             var r = Model[i];
-            <tr class="@(r.Status == "CANCELLED" ? "inactive" : "")" data-href="@(r.Status == "HOLD" ? Url.Action("Pos", new { recall = r.SaleId }) : Url.Action("Bill", new { id = r.SaleId }))">
+            <tr class="@(r.Status == "CANCELLED" ? "inactive" : "")" data-href="@(r.Status == "HOLD" ? Url.ActionEncrypted("Pos", new { recall = r.SaleId }) : Url.ActionEncrypted("Bill", new { id = r.SaleId }))">
                 <td class="text-muted small">@(i + 1)</td><td class="font-monospace small fw-semibold">@(r.SaleNo ?? "Held: " + r.HoldLabel)</td><td class="text-nowrap small">@r.SaleDate.ToString("dd-MMM HH:mm")</td>
                 <td>@r.CustomerName</td><td>@r.Mobile</td><td class="small">@r.DoctorName</td><td class="text-end">@r.Lines</td><td class="text-end fw-semibold">@r.NetAmount.ToString("N2")</td>
                 <td class="text-end">@r.PaidAmount.ToString("N2")</td><td class="text-end">@(r.ReturnedAmount > 0 ? r.ReturnedAmount.ToString("N2") : "—")</td>

@@ -15,7 +15,7 @@
         <a asp-controller="Buildings" asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-building me-1"></i>Building Master
         </a>
-        <a asp-permission="MASTER.FLOORS:ADD" asp-action="Create" asp-route-buildingId="@ViewBag.BuildingId" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.FLOORS:ADD" asp-action="Create" asp-encrypted-route-buildingId="@ViewBag.BuildingId" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Floor
         </a>
     </div>
@@ -79,7 +79,7 @@
                     <td>
                         @if (!string.IsNullOrWhiteSpace(item.BuildingName))
                         {
-                            <a asp-controller="Buildings" asp-action="Details" asp-route-id="@item.BuildingId" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 text-decoration-none px-2 py-1">
+                            <a asp-controller="Buildings" asp-action="Details" asp-encrypted-route-id="@item.BuildingId" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 text-decoration-none px-2 py-1">
                                 <i class="bi bi-building me-1"></i>@item.BuildingName (@item.BuildingCode)
                             </a>
                         }
@@ -100,11 +100,11 @@
                     </td>
                     <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.FLOORS:DETAILS" asp-action="Details" asp-route-id="@item.FloorId"
+                        <a asp-permission="MASTER.FLOORS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.FloorId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.FLOORS:EDIT" asp-action="Edit" asp-route-id="@item.FloorId"
+                        <a asp-permission="MASTER.FLOORS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.FloorId"
                            class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>

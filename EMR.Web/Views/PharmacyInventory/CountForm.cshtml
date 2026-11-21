@@ -18,12 +18,12 @@
 @if (counting && d.BlindCount) { <div class="alert alert-info small py-1"><i class="bi bi-eye-slash me-1"></i>Blind count: the system stock is shown to the approver after you submit.</div> }
 <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
     <partial name="_InvStatus" model="d.Status" />
-    <a asp-action="Sheet" asp-route-id="@d.Id" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>Count sheet (blind)</a>
-    @if (counting && !d.BlindCount) { <a asp-action="Form" asp-route-id="@d.Id" asp-route-variance="@(!showSystem)" class="btn btn-sm btn-outline-secondary">@(showSystem ? "Hide system stock" : "Show variance")</a> }
+    <a asp-action="Sheet" asp-encrypted-route-id="@d.Id" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>Count sheet (blind)</a>
+    @if (counting && !d.BlindCount) { <a asp-action="Form" asp-encrypted-route-id="@d.Id" asp-encrypted-route-variance="@(!showSystem)" class="btn btn-sm btn-outline-secondary">@(showSystem ? "Hide system stock" : "Show variance")</a> }
     <input id="q" class="form-control form-control-sm" style="max-width:260px" placeholder="Find item / batch / rack" />
     @if (showSystem) { <span class="ms-auto small">Difference at cost <b class="@(diffValue < 0 ? "text-danger" : "text-success")">₹ @diffValue.ToString("N2")</b></span> }
 </div>
-<form method="post" asp-action="SaveCounts" asp-route-id="@d.Id" id="cntForm">
+<form method="post" asp-action="SaveCounts" asp-encrypted-route-id="@d.Id" id="cntForm">
 @Html.AntiForgeryToken()
 <div class="card shadow-sm border-0 mb-3"><div class="ph-wrap" style="max-height:calc(100vh - 340px)"><table class="table table-sm mb-0 ph-table" id="tbl">
     <thead><tr><th>Rack</th><th>Item</th><th>Batch · exp.</th>@if (showSystem) { <th class="text-end">System</th> }<th class="text-end" style="width:130px">Counted</th>@if (d.Lines.Any(l => l.RecountRequired)) { <th class="text-end">1st count</th> }@if (showSystem) { <th class="text-end">Difference</th><th class="text-end">Value</th> }</tr></thead>
@@ -40,14 +40,14 @@
     @if (counting)
     {
         <button asp-permission="PHARMACY.STOCKCOUNT:COUNT" form="cntForm" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save counts</button>
-        <form method="post" asp-action="Submit" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:SUBMIT" data-confirm="Submit the counts for approval? Save your counts first."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form>
+        <form method="post" asp-action="Submit" asp-encrypted-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:SUBMIT" data-confirm="Submit the counts for approval? Save your counts first."><button class="btn btn-primary"><i class="bi bi-send me-1"></i>Submit</button></form>
     }
     @if (d.Status == "SUBMITTED" && !mine)
     {
-        <form method="post" asp-action="Reject" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:REJECT" data-remarks="What is to be recounted" data-required="1"><button class="btn btn-outline-warning">Send back for recount</button></form>
-        <form method="post" asp-action="Approve" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:APPROVE" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve &amp; adjust</button></form>
+        <form method="post" asp-action="Reject" asp-encrypted-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:REJECT" data-remarks="What is to be recounted" data-required="1"><button class="btn btn-outline-warning">Send back for recount</button></form>
+        <form method="post" asp-action="Approve" asp-encrypted-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:APPROVE" data-remarks="Approver's note (optional)"><button class="btn btn-success"><i class="bi bi-check2-circle me-1"></i>Approve &amp; adjust</button></form>
     }
-    @if (d.Status is "COUNTING" or "SUBMITTED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:CANCEL" data-remarks="Reason for cancelling"><button class="btn btn-outline-danger">Cancel</button></form> }
+    @if (d.Status is "COUNTING" or "SUBMITTED") { <form method="post" asp-action="Cancel" asp-encrypted-route-id="@d.Id" asp-permission="PHARMACY.STOCKCOUNT:CANCEL" data-remarks="Reason for cancelling"><button class="btn btn-outline-danger">Cancel</button></form> }
 </div>
 @section Scripts {
 <script src="~/js/views/PharmacyInventory/CountForm.js" asp-append-version="true"></script>

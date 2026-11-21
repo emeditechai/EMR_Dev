@@ -92,12 +92,12 @@
                                 </td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-permission="MASTER.MEMBERSHIPPLANS:EDIT" asp-action="Edit" asp-route-id="@item.PlanId" class="btn btn-light text-primary" title="Edit"><i class="bi bi-pencil-square"></i></a>
-                                        <a asp-permission="MASTER.MEMBERSHIPPLANS:DETAILS" asp-action="Details" asp-route-id="@item.PlanId" class="btn btn-light text-info" title="Details"><i class="bi bi-eye"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPPLANS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.PlanId" class="btn btn-light text-primary" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPPLANS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.PlanId" class="btn btn-light text-info" title="Details"><i class="bi bi-eye"></i></a>
                                         <button asp-permission="MASTER.MEMBERSHIPPLANS:DELETE" type="button" class="btn btn-light text-danger" title="Delete"
                                                 data-id="@item.PlanId" data-name="@item.PlanName" data-cards="@item.CardsIssued" onclick="confirmDelete(this)"><i class="bi bi-trash"></i></button>
                                     </div>
-                                    <form asp-permission="MASTER.MEMBERSHIPPLANS:DELETE" id="deleteForm-@item.PlanId" asp-action="Delete" asp-route-id="@item.PlanId" method="post" style="display:none;"></form>
+                                    <form asp-permission="MASTER.MEMBERSHIPPLANS:DELETE" id="deleteForm-@item.PlanId" asp-action="Delete" asp-encrypted-route-id="@item.PlanId" method="post" style="display:none;"></form>
                                 </td>
                             </tr>
                         }

@@ -154,10 +154,10 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.AREAS:DETAILS" asp-action="Details" asp-route-id="@item.AreaId" class="btn btn-sm btn-outline-secondary me-1" title="Details">
+                        <a asp-permission="MASTER.AREAS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.AreaId" class="btn btn-sm btn-outline-secondary me-1" title="Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.AREAS:EDIT" asp-action="Edit" asp-route-id="@item.AreaId" class="btn btn-sm btn-outline-primary" title="Edit">
+                        <a asp-permission="MASTER.AREAS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.AreaId" class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
                     </td>

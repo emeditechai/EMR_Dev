@@ -8,8 +8,8 @@
     int? dept = ViewBag.DepartmentId, open = ViewBag.Open;
     var p = Model.Page;
     var pages = Math.Max(1, (int)Math.Ceiling(p.TotalCount / (double)Math.Max(1, p.PageSize)));
-    string PageUrl(int pg) => Url.Action("Mapping", new { search, state, departmentId = dept, page = pg, pageSize = p.PageSize })!;
-    string StateUrl(string? st) => Url.Action("Mapping", new { search, state = st, departmentId = dept, pageSize = p.PageSize })!;
+    string PageUrl(int pg) => Url.ActionEncrypted("Mapping", new { search, state, departmentId = dept, page = pg, pageSize = p.PageSize })!;
+    string StateUrl(string? st) => Url.ActionEncrypted("Mapping", new { search, state = st, departmentId = dept, pageSize = p.PageSize })!;
 }
 
 <link rel="stylesheet" href="~/css/views/LabTerminology/Mapping.css" asp-append-version="true" />

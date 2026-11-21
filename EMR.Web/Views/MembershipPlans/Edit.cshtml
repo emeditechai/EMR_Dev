@@ -8,7 +8,7 @@
 
 <div class="card emr-card">
     <div class="card-body">
-        <form asp-action="Edit" asp-route-id="@Model.PlanId" method="post" id="planForm">
+        <form asp-action="Edit" asp-encrypted-route-id="@Model.PlanId" method="post" id="planForm">
             <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
             @if (Model.CardsIssued > 0)

@@ -32,7 +32,7 @@
                 </div>
 
                 <div class="card-body p-4">
-                    <form asp-action="Edit" asp-route-id="@Model.ProcessConfigId" method="post" id="processConfigForm" novalidate>
+                    <form asp-action="Edit" asp-encrypted-route-id="@Model.ProcessConfigId" method="post" id="processConfigForm" novalidate>
                         @Html.AntiForgeryToken()
                         <input type="hidden" asp-for="ProcessConfigId" />
                         <input type="hidden" asp-for="CompanyId" />

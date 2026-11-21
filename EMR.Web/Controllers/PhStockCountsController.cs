@@ -1,3 +1,4 @@
+using EMR.Web.Extensions;
 using EMR.Web.Services;
 using EMR.Web.Services.Notifications;
 using Microsoft.AspNetCore.Mvc;
@@ -50,7 +51,7 @@ public class PhStockCountsController(IPharmacyInventoryService inventory, IPharm
     [HttpGet]
     public async Task<IActionResult> CyclePlan() => Json(await Inventory.CycleCountPlanAsync(CompanyId, BranchId));
 
-    [HttpGet] public IActionResult Variance(int id) => RedirectToAction(nameof(Form), new { id, variance = true });
+    [HttpGet] public IActionResult Variance(int id) => this.RedirectToActionEncrypted(nameof(Form), new { id, variance = true });
 
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveCounts(int id, Dictionary<int, string?>? count)
@@ -63,7 +64,7 @@ public class PhStockCountsController(IPharmacyInventoryService inventory, IPharm
     public async Task<IActionResult> Submit(int id)
     {
         var err = await Inventory.CountActionAsync(CompanyId, BranchId, id, "submit", null, UserId);
-        if (err == null) await NotifyApproversAsync(Module, "Physical stock verification to approve", $"{User.Identity?.Name} submitted a pharmacy stock count for approval.", Url.Action(nameof(Form), new { id })!, id);
+        if (err == null) await NotifyApproversAsync(Module, "Physical stock verification to approve", $"{User.Identity?.Name} submitted a pharmacy stock count for approval.", Url.ActionEncrypted(nameof(Form), new { id })!, id);
         return Back(err, "Submitted for approval.", new { id });
     }
 

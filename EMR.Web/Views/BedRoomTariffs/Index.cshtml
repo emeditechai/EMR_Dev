@@ -18,7 +18,7 @@
         <a asp-controller="BedCategories" asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-bookmark-star me-1"></i>Bed Categories
         </a>
-        <a asp-permission="MASTER.BEDROOMTARIFFS:ADD" asp-action="Create" asp-route-wardId="@ViewBag.WardId" asp-route-roomId="@ViewBag.RoomId" asp-route-bedCategoryId="@ViewBag.BedCategoryId" asp-route-tariffCategoryId="@ViewBag.TariffCategoryId" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.BEDROOMTARIFFS:ADD" asp-action="Create" asp-encrypted-route-wardId="@ViewBag.WardId" asp-encrypted-route-roomId="@ViewBag.RoomId" asp-encrypted-route-bedCategoryId="@ViewBag.BedCategoryId" asp-encrypted-route-tariffCategoryId="@ViewBag.TariffCategoryId" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Tariff Rate
         </a>
     </div>
@@ -199,15 +199,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.BEDROOMTARIFFS:DETAILS" asp-action="Details" asp-route-id="@item.BedRateId"
+                        <a asp-permission="MASTER.BEDROOMTARIFFS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.BedRateId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details & History">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.BEDROOMTARIFFS:EDIT" asp-action="Edit" asp-route-id="@item.BedRateId"
+                        <a asp-permission="MASTER.BEDROOMTARIFFS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.BedRateId"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit Rate">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-permission="MASTER.BEDROOMTARIFFS:DELETE" asp-action="Delete" asp-route-id="@item.BedRateId" method="post" class="d-inline"
+                        <form asp-permission="MASTER.BEDROOMTARIFFS:DELETE" asp-action="Delete" asp-encrypted-route-id="@item.BedRateId" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete this Tariff Schedule?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

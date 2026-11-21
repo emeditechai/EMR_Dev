@@ -57,7 +57,7 @@ public class PhPurchaseIndentsController(IPharmacyPurchaseService purchase, IAud
         var to = approvers.Where(u => u != UserId).ToList();
         if (to.Count > 0)
             await notifications.NotifyUsersAsync(to, "PHARMACY_APPROVAL", "INFO", "Purchase indent to approve", $"{User.Identity?.Name} submitted a purchase indent for approval.",
-                Url.Action(nameof(Form), new { id })!, "PHARMACY", id, $"{Module}:{id}:{DateTime.Now:yyyyMMddHHmmss}", BranchId, UserId);
+                Url.ActionEncrypted(nameof(Form), new { id })!, "PHARMACY", id, $"{Module}:{id}:{DateTime.Now:yyyyMMddHHmmss}", BranchId, UserId);
         return await Done(id, null, "Submit", "Indent submitted for approval (Approval Matrix).");
     }
 

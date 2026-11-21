@@ -33,12 +33,12 @@
                 <ul class="dropdown-menu dropdown-menu-end">
                     @if (isReport)
                     {
-                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.Action("PreviewReport", new { id = Model.TemplateId })">On a real lab report (PDF)</a></li>
+                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.ActionEncrypted("PreviewReport", new { id = Model.TemplateId })">On a real lab report (PDF)</a></li>
                     }
                     else
                     {
-                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.Action("PreviewBill", new { id = Model.TemplateId })">On a real LAB bill</a></li>
-                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.Action("PreviewBill", new { id = Model.TemplateId, doc = "opd" })">On a real OPD bill</a></li>
+                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.ActionEncrypted("PreviewBill", new { id = Model.TemplateId })">On a real LAB bill</a></li>
+                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.ActionEncrypted("PreviewBill", new { id = Model.TemplateId, doc = "opd" })">On a real OPD bill</a></li>
                     }
                     <li><hr class="dropdown-divider"></li>
                     <li><span class="dropdown-item-text small text-muted">Saves the draft first. Nobody else sees the draft.</span></li>

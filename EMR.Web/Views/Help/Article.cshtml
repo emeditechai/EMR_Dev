@@ -12,7 +12,7 @@
         <div class="col-12 col-lg-3 col-xxl-2 d-none d-lg-block"><partial name="_Sidebar" model="(modules, (string?)Model.Module)" /></div>
         <div class="col-12 col-lg-9 col-xxl-10">
             @if (ViewBag.AskAi as bool? ?? false) { <div class="hp-topask"><div class="hp-topask-title"><i class="bi bi-stars"></i>AI Help Assistant - ask in plain words</div><div id="hpAsk"></div></div> }
-            <div class="hp-crumb"><a asp-action="Index">Help Center</a> &rsaquo; <a asp-action="Module" asp-route-id="@Model.Module">@Model.ModuleTitle</a> &rsaquo; @kind</div>
+            <div class="hp-crumb"><a asp-action="Index">Help Center</a> &rsaquo; <a asp-action="Module" asp-encrypted-route-id="@Model.Module">@Model.ModuleTitle</a> &rsaquo; @kind</div>
             <h1 class="hp-title">@Model.Title</h1>
             <p class="hp-lead">@Model.Summary</p>
 
@@ -23,7 +23,7 @@
                         <div class="hp-box hp-box-before mb-3">
                             <div class="hp-box-title"><i class="bi bi-signpost-split"></i>Before you start - these must be ready</div>
                             <ul class="hp-links">
-                                @foreach (var p in Model.Prereq) { <li><a asp-action="Page" asp-route-id="@p.Code">@p.Title</a> <span class="hp-muted">@p.Path</span></li> }
+                                @foreach (var p in Model.Prereq) { <li><a asp-action="Page" asp-encrypted-route-id="@p.Code">@p.Title</a> <span class="hp-muted">@p.Path</span></li> }
                             </ul>
                         </div>
                     }
@@ -57,7 +57,7 @@
                         <div class="hp-box hp-box-next mb-3">
                             <div class="hp-box-title"><i class="bi bi-arrow-right-circle"></i>What usually comes next</div>
                             <ul class="hp-links">
-                                @foreach (var p in Model.Next) { <li><a asp-action="Page" asp-route-id="@p.Code">@p.Title</a> <span class="hp-muted">@p.Path</span></li> }
+                                @foreach (var p in Model.Next) { <li><a asp-action="Page" asp-encrypted-route-id="@p.Code">@p.Title</a> <span class="hp-muted">@p.Path</span></li> }
                             </ul>
                         </div>
                     }
@@ -85,7 +85,7 @@
                     {
                         <div class="hp-card p-3 mb-3">
                             <div class="hp-section-title"><i class="bi bi-link-45deg"></i>Related</div>
-                            <ul class="hp-links">@foreach (var r in Model.Related) { <li><a asp-action="Article" asp-route-id="@r.Code">@r.Title</a></li> }</ul>
+                            <ul class="hp-links">@foreach (var r in Model.Related) { <li><a asp-action="Article" asp-encrypted-route-id="@r.Code">@r.Title</a></li> }</ul>
                         </div>
                     }
                 </div>

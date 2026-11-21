@@ -1006,7 +1006,7 @@
                     renderQueueTable();
 
                     // Auto-select patient from URL if present
-                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlParams = (window.emrQuery || new URLSearchParams(location.search));
                     const autoPatientId = urlParams.get('patientId');
                     if (autoPatientId && !window._autoSelected) {
                         window._autoSelected = true;

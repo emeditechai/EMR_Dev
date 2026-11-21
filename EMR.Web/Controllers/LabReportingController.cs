@@ -312,7 +312,7 @@ namespace EMR.Web.Controllers
             if (detail.Items.Count == 0)
             {
                 if (hasTemplateTests)
-                    return RedirectToAction("Entry", "MicrobiologyReporting", new { labOrderId });
+                    return this.RedirectToActionEncrypted("Entry", "MicrobiologyReporting", new { labOrderId });
                 TempData["ErrorMessage"] = "This order does not contain any eligible Numeric report tests.";
                 return RedirectToAction(nameof(Index));
             }

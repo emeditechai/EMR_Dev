@@ -6,7 +6,7 @@
     string? q = ViewBag.Q, cls = ViewBag.ClassName, status = ViewBag.Status, orderObs = ViewBag.OrderObs;
     bool all = ViewBag.All, retired = ViewBag.Retired;
     var pages = Math.Max(1, (int)Math.Ceiling(Model.TotalCount / (double)Math.Max(1, Model.PageSize)));
-    string PageUrl(int p) => Url.Action("Search", new { q, className = cls, status, orderObs, all, retired, page = p, pageSize = Model.PageSize })!;
+    string PageUrl(int p) => Url.ActionEncrypted("Search", new { q, className = cls, status, orderObs, all, retired, page = p, pageSize = Model.PageSize })!;
     string StatusPill(string? s) => s switch { "ACTIVE" => "green", "TRIAL" => "blue", "DISCOURAGED" => "amber", "DEPRECATED" => "red", _ => "grey" };
 }
 

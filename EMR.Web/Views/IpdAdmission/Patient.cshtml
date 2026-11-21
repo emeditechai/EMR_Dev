@@ -94,7 +94,7 @@
     <div class="ipdx-actions">
         @if ((bool)(ViewData["CanEstimate"] ?? false))
         {
-            <a class="btn btn-sm btn-primary" asp-controller="IpdEstimation" asp-action="Patient" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-calculator me-1"></i>Current Bill</a>
+            <a class="btn btn-sm btn-primary" asp-controller="IpdEstimation" asp-action="Patient" asp-encrypted-route-id="@h.I("AdmissionId")"><i class="bi bi-calculator me-1"></i>Current Bill</a>
         }
         @if (open && Can("ADVANCE")) { <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#advanceModal"><i class="bi bi-cash-coin me-1"></i>Collect Advance</button> }
         @if (open && Can("TRANSFER")) { <button type="button" class="btn btn-sm btn-light border btn-transfer"><i class="bi bi-arrow-left-right me-1"></i>Transfer Bed</button> }
@@ -102,9 +102,9 @@
         <div class="btn-group">
             <button type="button" class="btn btn-sm btn-light border dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-printer me-1"></i>Print</button>
             <ul class="dropdown-menu">
-                <li><a class="dropdown-item" target="_blank" asp-action="PrintFaceSheet" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-file-earmark-text me-2"></i>Admission form / face sheet</a></li>
-                <li><a class="dropdown-item" target="_blank" asp-action="PrintWristband" asp-route-id="@h.I("AdmissionId")"><i class="bi bi-upc me-2"></i>Wristband</a></li>
-                <li><a class="dropdown-item" target="_blank" asp-controller="IpdEstimation" asp-action="Print" asp-route-id="@h.I("AdmissionId")" asp-route-format="summary"><i class="bi bi-receipt me-2"></i>Current estimate</a></li>
+                <li><a class="dropdown-item" target="_blank" asp-action="PrintFaceSheet" asp-encrypted-route-id="@h.I("AdmissionId")"><i class="bi bi-file-earmark-text me-2"></i>Admission form / face sheet</a></li>
+                <li><a class="dropdown-item" target="_blank" asp-action="PrintWristband" asp-encrypted-route-id="@h.I("AdmissionId")"><i class="bi bi-upc me-2"></i>Wristband</a></li>
+                <li><a class="dropdown-item" target="_blank" asp-controller="IpdEstimation" asp-action="Print" asp-encrypted-route-id="@h.I("AdmissionId")" asp-encrypted-route-format="summary"><i class="bi bi-receipt me-2"></i>Current estimate</a></li>
             </ul>
         </div>
         <span class="ms-auto"></span>
@@ -113,7 +113,7 @@
             <ul class="dropdown-menu dropdown-menu-end">
                 @if (open && Can("TRANSFER")) { <li><button type="button" class="dropdown-item btn-transfer"><i class="bi bi-arrow-left-right me-2"></i>Transfer bed / ICU shift</button></li> }
                 <li><a class="dropdown-item" asp-controller="IpdBeds" asp-action="Index"><i class="bi bi-grid-3x3-gap me-2"></i>Bed board</a></li>
-                <li><a class="dropdown-item" asp-action="New" asp-route-patientId="@h.I("PatientId")"><i class="bi bi-person me-2"></i>Patient admission page</a></li>
+                <li><a class="dropdown-item" asp-action="New" asp-encrypted-route-patientId="@h.I("PatientId")"><i class="bi bi-person me-2"></i>Patient admission page</a></li>
                 <li><a class="dropdown-item" asp-action="Index"><i class="bi bi-card-list me-2"></i>Admission list</a></li>
                 @if (status == "ADMITTED" && Can("CANCEL"))
                 {
@@ -210,7 +210,7 @@
     {
         <div class="tab-pane fade @(Model.Tab == t.Key ? "show active" : "")" id="tab-@t.Key" role="tabpanel">
             <div class="ipd-soon"><div class="fs-3 mb-2"><i class="bi @t.Icon"></i></div><div class="fw-semibold mb-1">@t.Title comes in @t.Phase</div><div class="small">@soonText[t.Key]</div>
-                <div class="small mt-2">Charges from this tab will appear on the <a asp-controller="IpdEstimation" asp-action="Patient" asp-route-id="@h.I("AdmissionId")">current bill</a> as soon as they are posted.</div></div>
+                <div class="small mt-2">Charges from this tab will appear on the <a asp-controller="IpdEstimation" asp-action="Patient" asp-encrypted-route-id="@h.I("AdmissionId")">current bill</a> as soon as they are posted.</div></div>
         </div>
     }
 
@@ -267,7 +267,7 @@
                         <td class="text-muted">@(string.IsNullOrWhiteSpace(a2.S("Remarks")) ? "—" : a2.S("Remarks"))</td>
                         <td>@a2.S("CreatedByName")</td>
                         <td class="text-end num fw-semibold @(refund ? "text-danger" : "text-success")">@(refund ? "− " : "+ ")@a2.M("Amount").Rs()</td>
-                        <td class="text-end"><a class="btn btn-sm btn-light border" target="_blank" asp-action="PrintReceipt" asp-route-id="@a2.I("AdvanceId")" title="Print @(refund ? "refund voucher" : "money receipt")"><i class="bi bi-printer"></i></a></td>
+                        <td class="text-end"><a class="btn btn-sm btn-light border" target="_blank" asp-action="PrintReceipt" asp-encrypted-route-id="@a2.I("AdvanceId")" title="Print @(refund ? "refund voucher" : "money receipt")"><i class="bi bi-printer"></i></a></td>
                     </tr>
                 }
                 @if (advRows.Count == 0)
@@ -320,7 +320,7 @@
                 {
                     <tr><td>@c.Dt("SignedAt")</td><td class="fw-semibold">@c.S("ConsentType") <span class="small text-muted">@c.S("Language") v@(c.S("Version"))</span></td>
                         <td>@c.S("SignedByName") @(string.IsNullOrWhiteSpace(c.S("SignedByRelation")) ? "" : "(" + c.S("SignedByRelation") + ")")</td><td>@c.S("WitnessName")</td><td class="small text-muted">@c.S("CapturedByName")</td>
-                        <td><a class="btn btn-sm btn-outline-secondary" target="_blank" asp-action="PrintConsent" asp-route-id="@c.I("AdmissionConsentId")"><i class="bi bi-printer"></i></a></td></tr>
+                        <td><a class="btn btn-sm btn-outline-secondary" target="_blank" asp-action="PrintConsent" asp-encrypted-route-id="@c.I("AdmissionConsentId")"><i class="bi bi-printer"></i></a></td></tr>
                 }
                 @if (Model.Consents.Count == 0) { <tr><td colspan="6" class="text-center text-muted py-3">No consent recorded.</td></tr> }
                 </tbody></table>

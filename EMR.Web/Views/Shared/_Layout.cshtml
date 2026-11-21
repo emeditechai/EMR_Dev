@@ -6,6 +6,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - eClinicPlus+</title>
     <script type="importmap"></script>
+    @* Encrypted query strings (QUERY_STRING_ENCRYPTION_ARCHITECTURE.md): the address bar holds only ?q=token, so page scripts
+       read the page's parameters from window.emrQuery (decrypted by QueryStringDecryptionMiddleware), not location.search. *@
+    @{
+        var emrQs = Microsoft.AspNetCore.Http.QueryString.Create(Context.Request.Query
+            .Where(k => !k.Key.Equals("q", StringComparison.OrdinalIgnoreCase) && !k.Key.Equals("enc", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(k => k.Value.Select(v => new KeyValuePair<string, string?>(k.Key, v)))).Value ?? string.Empty;
+    }
+    <script>window.emrQuery = new URLSearchParams(@Json.Serialize(emrQs));</script>
     <emr-permission-script />
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" asp-append-version="true" />

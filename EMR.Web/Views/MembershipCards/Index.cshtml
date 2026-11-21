@@ -102,8 +102,8 @@
                                 <td><span class="badge bg-@badge-subtle text-@badge border border-@badge-subtle">@c.Status</span></td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:DETAILS" asp-action="Details" asp-route-id="@c.CardId" class="btn btn-light text-info" title="Open card"><i class="bi bi-eye"></i></a>
-                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-route-id="@c.CardId" target="_blank" class="btn btn-light text-dark" title="Print card"><i class="bi bi-printer"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:DETAILS" asp-action="Details" asp-encrypted-route-id="@c.CardId" class="btn btn-light text-info" title="Open card"><i class="bi bi-eye"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-encrypted-route-id="@c.CardId" target="_blank" class="btn btn-light text-dark" title="Print card"><i class="bi bi-printer"></i></a>
                                     </div>
                                 </td>
                             </tr>

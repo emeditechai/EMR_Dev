@@ -240,7 +240,7 @@
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-1.5 fs-8 @(showApprovedBadge ? "" : "d-none")" id="badgeHeaderApproved">
                 <i class="bi bi-patch-check-fill me-1"></i>@(isPartialApproved ? $"Partially Approved ({approvedCount}/{totalCount})" : "Report Approved")
             </span>
-            <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
+            <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-encrypted-route-labOrderId="@d.LabOrderId" target="_blank"
                class="btn btn-dark px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-print-all @(showPrintAll ? "" : "d-none")" id="btnHeaderPrintAll"
                title="Print every approved image report of this order">
                 <i class="bi bi-printer-fill me-1"></i>Print All Reports
@@ -359,7 +359,7 @@
 
                                         @if (item.ReportStatusId == 5)
                                         {
-                                        <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
+                                        <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-encrypted-route-labOrderId="@d.LabOrderId" asp-encrypted-route-sampleCollectionId="@item.SamplecollectionID"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-dark px-2.5 d-inline-flex align-items-center gap-1"
                                            title="Print this report">
@@ -368,7 +368,7 @@
                                         }
                                         else if (item.ReportStatusId == 3)
                                         {
-                                        <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" asp-route-sampleCollectionId="@item.SamplecollectionID"
+                                        <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-encrypted-route-labOrderId="@d.LabOrderId" asp-encrypted-route-sampleCollectionId="@item.SamplecollectionID"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-warning text-warning-emphasis px-2.5 d-inline-flex align-items-center gap-1"
                                            title="Validated, not yet approved: prints with a PROVISIONAL watermark">
@@ -518,7 +518,7 @@
             <span class="badge bg-info-subtle text-info border border-info-subtle px-3 py-2 fs-8 @(isAllApproved ? "" : "d-none")" id="badgeApprovedFooter">
                 <i class="bi bi-patch-check-fill me-1"></i>Report Approved
             </span>
-            <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-route-labOrderId="@d.LabOrderId" target="_blank"
+            <a asp-permission="LAB.LABIMAGEREPORTING:PRINT" asp-action="Print" asp-encrypted-route-labOrderId="@d.LabOrderId" target="_blank"
                class="btn btn-sm btn-dark px-3 fw-semibold btn-print-all @(showPrintAll ? "" : "d-none")" id="btnStickyPrintAll"
                title="Print every approved image report of this order">
                 <i class="bi bi-printer-fill me-1"></i>Print All Reports

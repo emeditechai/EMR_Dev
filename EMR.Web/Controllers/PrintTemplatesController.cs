@@ -68,7 +68,7 @@ public class PrintTemplatesController(
         var (id, err) = await api.SaveAsync(CompanyId, 0, kind, (name ?? "").Trim(), layout.ToJson(), UserId);
         if (err is not null) { TempData["ErrorMessage"] = err; return RedirectToAction(nameof(Index)); }
         await audit.LogAsync("UTILITY", "PrintTemplates.Create", $"{KindTitle(kind)} print template \"{name}\" created ({start}).");
-        return RedirectToAction(nameof(Designer), new { id });
+        return this.RedirectToActionEncrypted(nameof(Designer), new { id });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -85,7 +85,7 @@ public class PrintTemplatesController(
             (newId, err) = await api.SaveAsync(CompanyId, 0, t.Kind, $"{name} (copy{(n == 1 ? "" : " " + n)})", t.DraftJson, UserId);
         if (err is not null) { TempData["ErrorMessage"] = err; return RedirectToAction(nameof(Index)); }
         await audit.LogAsync("UTILITY", "PrintTemplates.Copy", $"Print template \"{t.Name}\" copied.");
-        return RedirectToAction(nameof(Designer), new { id = newId });
+        return this.RedirectToActionEncrypted(nameof(Designer), new { id = newId });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -198,11 +198,11 @@ public class PrintTemplatesController(
     [RequiresPermission(PageCode, PermissionControls.Edit)]
     public async Task<IActionResult> Restore(int id, int versionNo)
     {
-        if (!CanManage) { TempData["ErrorMessage"] = HoOnly; return RedirectToAction(nameof(Designer), new { id }); }
+        if (!CanManage) { TempData["ErrorMessage"] = HoOnly; return this.RedirectToActionEncrypted(nameof(Designer), new { id }); }
         var err = await api.RestoreAsync(CompanyId, id, versionNo, UserId);
         if (err is null) await audit.LogAsync("UTILITY", "PrintTemplates.Restore", $"Print template #{id}: version {versionNo} brought back into the draft.");
         TempData[err is null ? "SuccessMessage" : "ErrorMessage"] = err ?? $"Version {versionNo} is back in the draft. Publish it to make it live.";
-        return RedirectToAction(nameof(Designer), new { id });
+        return this.RedirectToActionEncrypted(nameof(Designer), new { id });
     }
 
     /// <summary>An image for an Image block (seal, accreditation logo): PNG or JPG up to 2 MB, kept in wwwroot/uploads/printtemplates.</summary>
@@ -238,12 +238,12 @@ public class PrintTemplatesController(
             var opd = await con.ExecuteScalarAsync<int?>(
                 "SELECT TOP 1 OPDServiceId FROM dbo.PatientOPDService WHERE BranchId = @branch AND IsActive = 1 AND OPDBillNo IS NOT NULL ORDER BY OPDServiceId DESC", new { branch });
             if (opd is null) return Content("This branch has no OPD bill yet to preview with.");
-            return Redirect(Url.Action("PrintBill", "OPD", new { id = opd, previewTemplateId = id })!);
+            return Redirect(Url.ActionEncrypted("PrintBill", "OPD", new { id = opd, previewTemplateId = id })!);
         }
         var lab = await con.ExecuteScalarAsync<int?>(
             "SELECT TOP 1 LabOrderId FROM dbo.LabOrder WHERE BranchId = @branch AND IsActive = 1 AND ISNULL(IsB2B, 0) = 0 ORDER BY LabOrderId DESC", new { branch });
         if (lab is null) return Content("This branch has no LAB bill yet to preview with.");
-        return Redirect(Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = lab, previewTemplateId = id })!);
+        return Redirect(Url.ActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId = lab, previewTemplateId = id })!);
     }
 
     /// <summary>The newest reported bill of the branch as a lab report PDF with this template's draft.</summary>

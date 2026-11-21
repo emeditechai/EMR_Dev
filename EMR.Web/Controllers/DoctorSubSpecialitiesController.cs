@@ -82,7 +82,7 @@ public class DoctorSubSpecialitiesController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Doctor Sub-Speciality created successfully.";
-        return RedirectToAction(nameof(Index), new { specialityId = model.SpecialityId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { specialityId = model.SpecialityId });
     }
 
     [HttpGet]
@@ -151,7 +151,7 @@ public class DoctorSubSpecialitiesController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Doctor Sub-Speciality updated successfully.";
-        return RedirectToAction(nameof(Index), new { specialityId = model.SpecialityId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { specialityId = model.SpecialityId });
     }
 
     [HttpGet]

@@ -223,7 +223,7 @@ public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseServ
     {
         var res = await notifier.SendAsync(CompanyId, BranchId, id);
         TempData["Success"] = string.Join(" ", res);
-        return RedirectToAction(nameof(Bill), new { id });
+        return this.RedirectToActionEncrypted(nameof(Bill), new { id });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -236,6 +236,6 @@ public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseServ
             TempData["Success"] = "Bill cancelled: stock put back and the money taken is shown as a refund in your day closing.";
             await audit.LogAsync("Pharmacy", "SaleCancel", $"Pharmacy bill #{id} cancelled: {reason}", UserId, BranchId);
         }
-        return RedirectToAction(nameof(Bill), new { id });
+        return this.RedirectToActionEncrypted(nameof(Bill), new { id });
     }
 }

@@ -30,7 +30,7 @@
                 <div class="ar-step-ico"><i class="bi bi-envelope-dash"></i></div>
                 <h2 class="auth-right-title">Unsubscribe from campaign emails?</h2>
                 <p class="auth-right-sub">Stop campaign emails (news, health camps, offers) to <strong>@email</strong>. Emails about your own visits, bills and reports continue.</p>
-                <form method="post" asp-action="Unsubscribe" asp-route-id="@ViewBag.Token" class="mt-3">
+                <form method="post" asp-action="Unsubscribe" asp-encrypted-route-id="@ViewBag.Token" class="mt-3">
                     @Html.AntiForgeryToken()
                     <button type="submit" class="btn auth-signin-btn w-100"><i class="bi bi-envelope-dash me-2"></i>Yes, unsubscribe me</button>
                 </form>

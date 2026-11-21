@@ -179,7 +179,7 @@
                     @if (subs.Count == 0) { <div class="list-group-item text-muted">None in the master.</div> }
                     @foreach (var s in subs)
                     {
-                        <a class="list-group-item list-group-item-action" asp-action="Form" asp-route-id="@s.ItemId"><div class="fw-semibold">@s.FormShort @s.ItemName</div><div class="text-muted">@s.ManufacturerName · @s.PackSize</div></a>
+                        <a class="list-group-item list-group-item-action" asp-action="Form" asp-encrypted-route-id="@s.ItemId"><div class="fw-semibold">@s.FormShort @s.ItemName</div><div class="text-muted">@s.ManufacturerName · @s.PackSize</div></a>
                     }
                 </div>
             </div>
@@ -191,7 +191,7 @@
 <div class="ph-actions py-2 px-3 mt-3 d-flex flex-wrap gap-2 justify-content-end rounded-3">
     <span class="me-auto small text-muted align-self-center"><span class="ph-kbd">Ctrl+S</span> save · <span class="ph-kbd">Esc</span> back to list</span>
     <a asp-action="Index" class="btn btn-outline-secondary" id="btnBack">Cancel</a>
-    @if (!isNew && canEdit) { <a asp-action="Form" asp-route-copyOf="@Model.ItemId" class="btn btn-outline-secondary"><i class="bi bi-copy me-1"></i>Copy to new item</a> }
+    @if (!isNew && canEdit) { <a asp-action="Form" asp-encrypted-route-copyOf="@Model.ItemId" class="btn btn-outline-secondary"><i class="bi bi-copy me-1"></i>Copy to new item</a> }
     @if (canEdit)
     {
         <button class="btn btn-outline-primary" data-next="copy"><i class="bi bi-copy me-1"></i>Save &amp; copy</button>

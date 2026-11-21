@@ -89,16 +89,16 @@
                                         <td class="text-end pe-3 text-nowrap">
                                             @if (c.Status == "DRAFT")
                                             {
-                                                <a asp-action="Create" asp-route-id="@c.CampaignId" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Continue</a>
-                                                <form asp-action="Delete" asp-route-id="@c.CampaignId" method="post" class="d-inline" onsubmit="return confirm('Delete this draft?');">
+                                                <a asp-action="Create" asp-encrypted-route-id="@c.CampaignId" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Continue</a>
+                                                <form asp-action="Delete" asp-encrypted-route-id="@c.CampaignId" method="post" class="d-inline" onsubmit="return confirm('Delete this draft?');">
                                                     <button class="btn btn-sm btn-outline-danger" title="Delete draft"><i class="bi bi-trash"></i></button>
                                                 </form>
                                             }
                                             else
                                             {
-                                                <a asp-action="Details" asp-route-id="@c.CampaignId" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Results</a>
+                                                <a asp-action="Details" asp-encrypted-route-id="@c.CampaignId" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Results</a>
                                             }
-                                            <a asp-action="Create" asp-route-copy="@c.CampaignId" class="btn btn-sm btn-outline-secondary" title="Send again as a new campaign"><i class="bi bi-copy"></i></a>
+                                            <a asp-action="Create" asp-encrypted-route-copy="@c.CampaignId" class="btn btn-sm btn-outline-secondary" title="Send again as a new campaign"><i class="bi bi-copy"></i></a>
                                         </td>
                                     </tr>
                                 }
@@ -127,9 +127,9 @@
                                         <td>@if (t.IsActive) { <span class="cp-pill cp-done">Active</span> } else { <span class="cp-pill cp-draft">Inactive</span> }</td>
                                         <td class="small">@t.Used campaign(s)</td>
                                         <td class="text-end pe-3 text-nowrap">
-                                            <a asp-action="Create" asp-route-type="@t.AudienceType" asp-route-template="@t.TemplateId" class="btn btn-sm btn-outline-primary"><i class="bi bi-send"></i> Use</a>
-                                            <a asp-action="TemplateEdit" asp-route-id="@t.TemplateId" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
-                                            <form asp-action="TemplateDelete" asp-route-id="@t.TemplateId" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                            <a asp-action="Create" asp-encrypted-route-type="@t.AudienceType" asp-encrypted-route-template="@t.TemplateId" class="btn btn-sm btn-outline-primary"><i class="bi bi-send"></i> Use</a>
+                                            <a asp-action="TemplateEdit" asp-encrypted-route-id="@t.TemplateId" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+                                            <form asp-action="TemplateDelete" asp-encrypted-route-id="@t.TemplateId" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
                                                 <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                                             </form>
                                         </td>

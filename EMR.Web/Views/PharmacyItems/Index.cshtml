@@ -60,7 +60,7 @@
             @for (var i = 0; i < Model.Count; i++)
             {
                 var r = Model[i];
-                <tr class="@(r.IsActive ? "" : "inactive")" data-href="@Url.Action("Form", new { id = r.ItemId })">
+                <tr class="@(r.IsActive ? "" : "inactive")" data-href="@Url.ActionEncrypted("Form", new { id = r.ItemId })">
                     <td class="text-muted small">@(first + i + 1)</td>
                     <td class="font-monospace small">@r.ItemCode</td>
                     <td><div class="fw-semibold">@if (!string.IsNullOrEmpty(r.FormShort)) { <span class="ph-form-tag">@r.FormShort</span> }@r.ItemName</div><div class="small text-muted">@r.Strength@(string.IsNullOrEmpty(r.PackSize) ? "" : " · " + r.PackSize)</div></td>
@@ -78,7 +78,7 @@
                         @if (!r.IsColdChain && !r.IsHighAlert && !r.IsLasa) { <span class="text-muted">—</span> }
                     </td>
                     <td>@Html.Raw(r.IsActive ? "<span class=\"badge bg-success-subtle text-success border border-success-subtle\">Active</span>" : "<span class=\"badge bg-light text-secondary border\">Inactive</span>")</td>
-                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="@Url.Action("Form", new { id = r.ItemId })" title="@(canEdit ? "Edit" : "View")"><i class="bi @(canEdit ? "bi-pencil" : "bi-eye")"></i></a></td>
+                    <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="@Url.ActionEncrypted("Form", new { id = r.ItemId })" title="@(canEdit ? "Edit" : "View")"><i class="bi @(canEdit ? "bi-pencil" : "bi-eye")"></i></a></td>
                 </tr>
             }
             </tbody>

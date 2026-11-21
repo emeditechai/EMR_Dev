@@ -1,3 +1,4 @@
+using EMR.Web.Extensions;
 using EMR.Shared.Security;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
@@ -52,7 +53,7 @@ public class AccOpeningController(IAccountsService accounts, IAuditLogService au
         if (form.Lines.Any(l => l.Debit < 0 || l.Credit < 0))
         {
             TempData["ErrorMessage"] = "Opening amounts cannot be negative - enter them on the other side.";
-            return RedirectToAction(nameof(Index), new { branchId = form.BranchId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { branchId = form.BranchId });
         }
         try
         {
@@ -71,6 +72,6 @@ public class AccOpeningController(IAccountsService accounts, IAuditLogService au
             logger.LogWarning(ex, "Opening balances of branch {BranchId} could not be saved", form.BranchId);
             TempData["ErrorMessage"] = Msg(ex);
         }
-        return RedirectToAction(nameof(Index), new { branchId = form.BranchId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { branchId = form.BranchId });
     }
 }

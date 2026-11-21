@@ -416,7 +416,7 @@
                                      .Where(s => Model.AllowedClientTypes.Contains(s.Item1)))
                         {
                             <a class="lab-seg-btn @(Model.ClientType == seg.Item1 ? "active" : "")"
-                               href="@Url.Action("Index", new { date = selectedDateStr, clientType = seg.Item1 })"
+                               href="@Url.ActionEncrypted("Index", new { date = selectedDateStr, clientType = seg.Item1 })"
                                title="Show @seg.Item2 only">
                                 <i class="bi @seg.Item3"></i>@seg.Item2
                             </a>
@@ -441,7 +441,7 @@
                     <input type="hidden" name="clientType" value="@Model.ClientType" />
                 </form>
 
-                <a href="@Url.Action("Index", new { date = DateTime.Today.ToString("yyyy-MM-dd"), clientType = Model.ClientType })" class="btn btn-outline-light btn-sm fw-semibold px-3 py-2">
+                <a href="@Url.ActionEncrypted("Index", new { date = DateTime.Today.ToString("yyyy-MM-dd"), clientType = Model.ClientType })" class="btn btn-outline-light btn-sm fw-semibold px-3 py-2">
                     Today
                 </a>
                 <button type="button" class="btn btn-outline-light btn-sm rounded-circle p-2" title="Refresh Dashboard" onclick="location.reload();">

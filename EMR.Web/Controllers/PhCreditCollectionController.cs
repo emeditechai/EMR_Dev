@@ -30,9 +30,9 @@ public class PhCreditCollectionController(IPharmacySaleService sales, IPharmacyP
     public async Task<IActionResult> Save(int customerId, string mode, string? reference, Dictionary<int, decimal>? alloc)
     {
         var (receipt, err) = await sales.CollectAsync(CompanyId, BranchId, customerId, mode ?? "", reference, alloc ?? [], User.GetUserId());
-        if (err != null) { TempData["Error"] = err; return RedirectToAction(nameof(Collect), new { customerId }); }
+        if (err != null) { TempData["Error"] = err; return this.RedirectToActionEncrypted(nameof(Collect), new { customerId }); }
         await audit.LogAsync("Pharmacy", "CreditCollection", $"Pharmacy credit collection {receipt} from customer #{customerId}", User.GetUserId(), BranchId);
-        return RedirectToAction(nameof(Receipt), new { receiptNo = receipt });
+        return this.RedirectToActionEncrypted(nameof(Receipt), new { receiptNo = receipt });
     }
 
     [HttpGet]

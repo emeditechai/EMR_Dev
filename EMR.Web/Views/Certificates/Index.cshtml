@@ -37,7 +37,7 @@
         <ul class="dropdown-menu dropdown-menu-end shadow-sm">
             @foreach (var t in types.Where(t => t.IsActive))
             {
-                <li><a class="dropdown-item" asp-action="Create" asp-route-type="@t.TypeCode"><i class="bi bi-file-earmark-medical"></i>@t.TypeName</a></li>
+                <li><a class="dropdown-item" asp-action="Create" asp-encrypted-route-type="@t.TypeCode"><i class="bi bi-file-earmark-medical"></i>@t.TypeName</a></li>
             }
         </ul>
     </div>
@@ -100,9 +100,9 @@
                         <td class="text-end text-nowrap">
                             @if (c.Status == "D")
                             {
-                                <a asp-permission="OPD.CERTIFICATES:DRAFT" asp-action="Edit" asp-route-id="@c.CertificateId" class="btn btn-sm btn-outline-primary" title="Edit draft"><i class="bi bi-pencil"></i></a>
+                                <a asp-permission="OPD.CERTIFICATES:DRAFT" asp-action="Edit" asp-encrypted-route-id="@c.CertificateId" class="btn btn-sm btn-outline-primary" title="Edit draft"><i class="bi bi-pencil"></i></a>
                             }
-                            <a asp-action="Print" asp-route-id="@c.CertificateId" target="_blank" class="btn btn-sm btn-outline-success" title="View / print"><i class="bi bi-printer"></i></a>
+                            <a asp-action="Print" asp-encrypted-route-id="@c.CertificateId" target="_blank" class="btn btn-sm btn-outline-success" title="View / print"><i class="bi bi-printer"></i></a>
                         </td>
                     </tr>
                 }
@@ -116,8 +116,8 @@
                 @for (var i = 1; i <= pages; i++)
                 {
                     <li class="page-item @(i == page ? "active" : "")">
-                        <a class="page-link" asp-route-page="@i" asp-route-from="@from.ToString("yyyy-MM-dd")" asp-route-to="@to.ToString("yyyy-MM-dd")"
-                           asp-route-type="@ViewBag.Type" asp-route-status="@ViewBag.Status" asp-route-search="@ViewBag.Search">@i</a>
+                        <a class="page-link" asp-encrypted-route-page="@i" asp-encrypted-route-from="@from.ToString("yyyy-MM-dd")" asp-encrypted-route-to="@to.ToString("yyyy-MM-dd")"
+                           asp-encrypted-route-type="@ViewBag.Type" asp-encrypted-route-status="@ViewBag.Status" asp-encrypted-route-search="@ViewBag.Search">@i</a>
                     </li>
                 }
             </ul></nav>

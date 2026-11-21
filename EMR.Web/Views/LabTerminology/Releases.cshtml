@@ -122,7 +122,7 @@
                                     <td class="text-end pe-3 text-nowrap">
                                         @if (r.Status is "Validated" or "Published")
                                         {
-                                            <a asp-action="Changes" asp-route-releaseId="@r.ReleaseId" class="btn btn-sm btn-outline-secondary" title="Release changes"><i class="bi bi-arrow-left-right"></i></a>
+                                            <a asp-action="Changes" asp-encrypted-route-releaseId="@r.ReleaseId" class="btn btn-sm btn-outline-secondary" title="Release changes"><i class="bi bi-arrow-left-right"></i></a>
                                         }
                                         @if (r.Status == "Validated" && r.JobStatus == "Validated")
                                         {

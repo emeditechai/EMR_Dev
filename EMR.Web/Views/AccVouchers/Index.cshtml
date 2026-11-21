@@ -12,12 +12,12 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div><partial name="_AccHeader" /></div>
         <div class="btn-group shadow-sm" asp-permission="@(Page + ":CREATE")">
-            <a asp-action="Create" asp-route-type="PMT" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>New Voucher</a>
+            <a asp-action="Create" asp-encrypted-route-type="PMT" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>New Voucher</a>
             <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false"></button>
             <ul class="dropdown-menu dropdown-menu-end">
                 @foreach (var t in AccVouchersController.Types)
                 {
-                    <li><a class="dropdown-item" asp-action="Create" asp-route-type="@t.Code">@t.Name</a></li>
+                    <li><a class="dropdown-item" asp-action="Create" asp-encrypted-route-type="@t.Code">@t.Name</a></li>
                 }
             </ul>
         </div>

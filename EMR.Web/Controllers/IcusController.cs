@@ -59,13 +59,13 @@ public class IcusController(
         if (await icuService.IsIcuCodeExistsAsync(model.IcuCode, branchId))
         {
             TempData["Error"] = $"ICU Code '{model.IcuCode}' already exists.";
-            return RedirectToAction(nameof(Index), new { tab = "icus" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
         }
 
         if (!ModelState.IsValid)
         {
             TempData["Error"] = "Please fill in all required ICU fields.";
-            return RedirectToAction(nameof(Index), new { tab = "icus" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
         }
 
         var newId = await icuService.CreateIcuAsync(model, User.GetUserId());
@@ -75,7 +75,7 @@ public class IcusController(
             branchId: branchId);
 
         TempData["Success"] = $"ICU '{model.IcuName}' configured successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "icus" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -88,20 +88,20 @@ public class IcusController(
         if (await icuService.IsIcuCodeExistsAsync(model.IcuCode, branchId, model.IcuId))
         {
             TempData["Error"] = $"ICU Code '{model.IcuCode}' already exists.";
-            return RedirectToAction(nameof(Index), new { tab = "icus" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
         }
 
         if (!ModelState.IsValid)
         {
             TempData["Error"] = "Please verify all ICU fields.";
-            return RedirectToAction(nameof(Index), new { tab = "icus" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
         }
 
         var updated = await icuService.UpdateIcuAsync(model, User.GetUserId());
         if (!updated)
         {
             TempData["Error"] = "ICU Configuration not found.";
-            return RedirectToAction(nameof(Index), new { tab = "icus" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
         }
 
         await auditLogService.LogAsync("MasterData", "Icu.Edit",
@@ -109,7 +109,7 @@ public class IcusController(
             branchId: branchId);
 
         TempData["Success"] = $"ICU '{model.IcuName}' updated successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "icus" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -125,7 +125,7 @@ public class IcusController(
             branchId: entity.BranchId);
 
         TempData["Success"] = $"Status updated for '{entity.IcuName}'.";
-        return RedirectToAction(nameof(Index), new { tab = "icus" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -141,7 +141,7 @@ public class IcusController(
             branchId: entity.BranchId);
 
         TempData["Success"] = $"ICU '{entity.IcuName}' removed.";
-        return RedirectToAction(nameof(Index), new { tab = "icus" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "icus" });
     }
 
     [HttpGet]
@@ -164,20 +164,20 @@ public class IcusController(
         if (model.EffectiveTo.HasValue && model.EffectiveTo.Value < model.EffectiveFrom)
         {
             TempData["Error"] = "Effective To date cannot be earlier than Effective From date.";
-            return RedirectToAction(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
         }
 
         if (model.IsActive && await icuService.HasActiveTariffAsync(branchId, model.TariffCategoryId, model.IcuId))
         {
             TempData["Error"] = "An active tariff package already exists for this ICU and Tariff Category. Only one package can be active at a time.";
-            return RedirectToAction(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
         }
 
         var validDetails = model.Details.Where(d => !string.IsNullOrWhiteSpace(d.RateHeadName)).ToList();
         if (validDetails.Count == 0)
         {
             TempData["Error"] = "Please add at least one dynamic rate head component to the tariff package.";
-            return RedirectToAction(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
         }
         model.Details = validDetails;
 
@@ -188,7 +188,7 @@ public class IcusController(
             branchId: branchId);
 
         TempData["Success"] = "Dynamic ICU Tariff package configured successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs", icuId = model.IcuId });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -201,20 +201,20 @@ public class IcusController(
         if (model.EffectiveTo.HasValue && model.EffectiveTo.Value < model.EffectiveFrom)
         {
             TempData["Error"] = "Effective To date cannot be earlier than Effective From date.";
-            return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
         }
 
         if (model.IsActive && await icuService.HasActiveTariffAsync(branchId, model.TariffCategoryId, model.IcuId, model.IcuTariffId))
         {
             TempData["Error"] = "Another active tariff package already exists for this ICU and Tariff Category. Only one package can be active at a time.";
-            return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
         }
 
         var validDetails = model.Details.Where(d => !string.IsNullOrWhiteSpace(d.RateHeadName)).ToList();
         if (validDetails.Count == 0)
         {
             TempData["Error"] = "Please add at least one dynamic rate head component.";
-            return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
         }
         model.Details = validDetails;
 
@@ -222,7 +222,7 @@ public class IcusController(
         if (!updated)
         {
             TempData["Error"] = "ICU Tariff record not found.";
-            return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
         }
 
         await auditLogService.LogAsync("MasterData", "IcuTariff.Edit",
@@ -230,7 +230,7 @@ public class IcusController(
             branchId: branchId);
 
         TempData["Success"] = "Dynamic ICU Tariff package updated successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -245,7 +245,7 @@ public class IcusController(
             if (hasActive)
             {
                 TempData["Error"] = "Cannot activate: An active tariff already exists for this ICU and Tariff Category.";
-                return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+                return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
             }
         }
 
@@ -256,7 +256,7 @@ public class IcusController(
             branchId: entity.BranchId);
 
         TempData["Success"] = "Status updated successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -272,7 +272,7 @@ public class IcusController(
             branchId: entity.BranchId);
 
         TempData["Success"] = "ICU Tariff package deleted successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "tariffs" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "tariffs" });
     }
 
     [HttpGet]

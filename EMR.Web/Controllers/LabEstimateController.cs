@@ -151,7 +151,7 @@ public class LabEstimateController(LabEstimateApiClient api, ILabOrderApiClient 
     {
         var d = await LoadAsync(id);
         if (d is null) return NotFound("Estimate not found in your branch.");
-        ViewData["PdfUrl"] = Url.Action("Pdf", new { id });
+        ViewData["PdfUrl"] = Url.ActionEncrypted("Pdf", new { id });
         return View("Print", d);
     }
 
@@ -172,7 +172,7 @@ public class LabEstimateController(LabEstimateApiClient api, ILabOrderApiClient 
         {
             var d = await LoadPublicAsync(t);
             if (d is null) return NotFound("This estimate link is not valid.");
-            ViewData["PdfUrl"] = Url.Action("PublicPdf", new { t });
+            ViewData["PdfUrl"] = Url.ActionEncrypted("PublicPdf", new { t });
             ViewData["Public"] = true;
             return View("Print", d);
         }

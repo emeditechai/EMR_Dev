@@ -46,11 +46,11 @@
         <button asp-permission="PHARMACY.STOREISSUE:REQUEST" form="reqForm" class="btn btn-primary" data-sub="true"><i class="bi bi-send me-1"></i>Send to store</button>
     </div>
     </form>
-    @if (!isNew) { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnDraft">@Html.AntiForgeryToken()</form> }
+    @if (!isNew) { <form method="post" asp-action="Cancel" asp-encrypted-route-id="@d.Id" id="cnDraft">@Html.AntiForgeryToken()</form> }
 }
 else if (canIssue)
 {
-    <form method="post" asp-action="Issue" asp-route-id="@d.Id" id="issForm">
+    <form method="post" asp-action="Issue" asp-encrypted-route-id="@d.Id" id="issForm">
     @Html.AntiForgeryToken()
     <input type="hidden" name="json" id="json" />
     <div class="card shadow-sm border-0 mb-3"><div class="card-body py-2 small fw-semibold">Issue from @d.FromStore: batches are filled first expiry first; change them if needed.</div>
@@ -60,11 +60,11 @@ else if (canIssue)
         <button asp-permission="PHARMACY.STOREISSUE:CANCEL" form="cnForm" class="btn btn-outline-danger">Decline</button>
         <button asp-permission="PHARMACY.STOREISSUE:ISSUE" class="btn btn-success"><i class="bi bi-box-arrow-right me-1"></i>Issue</button></div>
     </form>
-    <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnForm">@Html.AntiForgeryToken()</form>
+    <form method="post" asp-action="Cancel" asp-encrypted-route-id="@d.Id" id="cnForm">@Html.AntiForgeryToken()</form>
 }
 else
 {
-    <form method="post" asp-action="Receive" asp-route-id="@d.Id">
+    <form method="post" asp-action="Receive" asp-encrypted-route-id="@d.Id">
     @Html.AntiForgeryToken()
     <div class="card shadow-sm border-0 mb-3"><table class="table table-sm mb-0 ph-table">
         <thead><tr><th>Item</th><th>Batch · exp.</th><th class="text-end">Asked</th><th class="text-end">Issued</th><th class="text-end">Received</th><th>Short reason</th><th class="text-end">Cost</th></tr></thead>
@@ -83,7 +83,7 @@ else
         }
         </tbody></table></div>
     <div class="d-flex gap-2 align-items-center no-print"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
-        @if (!print && d.Status is not ("DRAFT" or "CANCELLED")) { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
+        @if (!print && d.Status is not ("DRAFT" or "CANCELLED")) { <a asp-action="Print" asp-encrypted-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
         @if (canReceive) { <input name="remarks" class="form-control" style="max-width:320px" placeholder="Receipt remarks" /><button asp-permission="PHARMACY.STOREISSUE:RECEIVE" class="btn btn-success"><i class="bi bi-box-arrow-in-down me-1"></i>Receive into @d.ToStore</button> }
     </div>
     </form>

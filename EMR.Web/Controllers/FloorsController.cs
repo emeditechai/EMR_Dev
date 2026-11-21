@@ -66,7 +66,7 @@ public class FloorsController(
 
         await auditLogService.LogAsync("MasterData", "Floors.Create", $"Created floor: {model.FloorCode} - {model.FloorName.Trim()} for Building ID {model.BuildingId}");
         TempData["Success"] = "Floor created successfully.";
-        return RedirectToAction(nameof(Index), new { buildingId = model.BuildingId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { buildingId = model.BuildingId });
     }
 
     [HttpGet]
@@ -112,7 +112,7 @@ public class FloorsController(
 
         await auditLogService.LogAsync("MasterData", "Floors.Edit", $"Updated floor: {model.FloorCode} - {model.FloorName.Trim()}");
         TempData["Success"] = "Floor updated successfully.";
-        return RedirectToAction(nameof(Index), new { buildingId = model.BuildingId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { buildingId = model.BuildingId });
     }
 
     [HttpGet]

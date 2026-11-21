@@ -1,3 +1,4 @@
+using EMR.Web.Extensions;
 using System.Text.Json;
 using EMR.Web.Services;
 using EMR.Web.Services.Notifications;
@@ -42,7 +43,7 @@ public abstract class PharmacyAdjustControllerBase(IPharmacyInventoryService inv
         if (d == null) return BadRequest();
         d.Kind = Kind;
         var (id, err) = await Inventory.SaveAdjustmentAsync(CompanyId, BranchId, d, UserId);
-        if (err != null) { TempData["Error"] = err; return d.Id > 0 ? RedirectToAction(nameof(Form), new { id = d.Id }) : RedirectToAction(nameof(Form)); }
+        if (err != null) { TempData["Error"] = err; return d.Id > 0 ? this.RedirectToActionEncrypted(nameof(Form), new { id = d.Id }) : RedirectToAction(nameof(Form)); }
         return Back(null, "Saved as draft.", new { id });
     }
 
@@ -53,7 +54,7 @@ public abstract class PharmacyAdjustControllerBase(IPharmacyInventoryService inv
         if (err == null)
         {
             await LogAsync(Kind + "Submit", $"{Title} #{id} submitted");
-            await NotifyApproversAsync(Module, $"{Title} to approve", $"{User.Identity?.Name} submitted a pharmacy {Title.ToLower()} for approval.", Url.Action(nameof(Form), new { id })!, id);
+            await NotifyApproversAsync(Module, $"{Title} to approve", $"{User.Identity?.Name} submitted a pharmacy {Title.ToLower()} for approval.", Url.ActionEncrypted(nameof(Form), new { id })!, id);
         }
         return Back(err, "Submitted for approval.", new { id });
     }

@@ -37,7 +37,7 @@
                 <div class="col-md-5 small text-muted">
                     @if (Model.Header is { } h)
                     {
-                        <div><i class="bi bi-check-circle text-success me-1"></i>Posted as <a asp-controller="AccReports" asp-action="Voucher" asp-route-id="@h.TransactionId" class="font-monospace">@h.VoucherNo</a>
+                        <div><i class="bi bi-check-circle text-success me-1"></i>Posted as <a asp-controller="AccReports" asp-action="Voucher" asp-encrypted-route-id="@h.TransactionId" class="font-monospace">@h.VoucherNo</a>
                             on @h.CreatedDate.ToString("dd-MMM-yyyy HH:mm")@(h.ByUser is null ? "" : " by " + h.ByUser).</div>
                         <div>Saving again replaces it (the old entry is cancelled, not deleted).</div>
                     }

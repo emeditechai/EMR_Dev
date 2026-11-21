@@ -10,7 +10,7 @@
     var opdDoctors = Model.OpdDoctors;
     var firstRow = Model.FilteredCount == 0 ? 0 : (Model.Page - 1) * Model.PageSize + 1;
     var lastRow = Math.Min(Model.Page * Model.PageSize, Model.FilteredCount);
-    string PageUrl(int p, int? size = null) => Url.Action("Index", new { search = Model.Search, status = Model.Status, referral = Model.Referral, speciality = Model.Speciality, department = Model.Department, deptType = Model.DeptType, doctorId = Model.DoctorId, page = p, pageSize = size ?? Model.PageSize })!;
+    string PageUrl(int p, int? size = null) => Url.ActionEncrypted("Index", new { search = Model.Search, status = Model.Status, referral = Model.Referral, speciality = Model.Speciality, department = Model.Department, deptType = Model.DeptType, doctorId = Model.DoctorId, page = p, pageSize = size ?? Model.PageSize })!;
     var avatarColors = new[] { "#2563eb", "#7c3aed", "#0d9488", "#d97706", "#db2777", "#0891b2" };
     static string[] SplitList(string? s) => (s ?? string.Empty).Split(", ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     var specialities = Model.Specialities;
@@ -176,7 +176,7 @@
                     </select>
                 </div>
                 <div class="col-xl-1 col-md-4 col-6 d-flex gap-2">
-                    <a href="@Url.Action("Index", new { pageSize = Model.PageSize })" id="dmReset" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</a>
+                    <a href="@Url.ActionEncrypted("Index", new { pageSize = Model.PageSize })" id="dmReset" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</a>
                 </div>
             </form>
         </div>
@@ -303,8 +303,8 @@
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group btn-group-sm shadow-sm doctor-action-dropdown" role="group">
-                                        <a asp-permission="MASTER.DOCTORS:DETAILS" asp-action="Details" asp-route-id="@item.DoctorId" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
-                                        <a asp-permission="MASTER.DOCTORS:EDIT" asp-action="Edit" asp-route-id="@item.DoctorId" class="btn btn-outline-primary" title="Edit Doctor"><i class="bi bi-pencil"></i></a>
+                                        <a asp-permission="MASTER.DOCTORS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.DoctorId" class="btn btn-outline-info" title="View Details"><i class="bi bi-eye"></i></a>
+                                        <a asp-permission="MASTER.DOCTORS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.DoctorId" class="btn btn-outline-primary" title="Edit Doctor"><i class="bi bi-pencil"></i></a>
                                         <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" title="More actions"
                                                 data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-strategy="fixed" aria-expanded="false">
                                             <span class="visually-hidden">More actions</span>
@@ -319,7 +319,7 @@
                                             @if (item.HasOPDDept)
                                             {
                                                 <li>
-                                                    <a asp-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="dropdown-item" asp-controller="DoctorSchedules" asp-action="Configure" asp-route-doctorId="@item.DoctorId">
+                                                    <a asp-permission="MASTER.DOCTORS:CONFIGURE_SCHEDULER" class="dropdown-item" asp-controller="DoctorSchedules" asp-action="Configure" asp-encrypted-route-doctorId="@item.DoctorId">
                                                         <i class="bi bi-calendar-week me-2 text-info"></i>Configure Scheduler
                                                     </a>
                                                 </li>

@@ -33,7 +33,7 @@
 <ul class="nav nav-tabs cm-tabs mb-3">
     @foreach (var (k, label) in new[] { ("types", "Certificate Types"), ("purposes", "Purposes"), ("vaccines", "Vaccines"), ("doctors", "Signing Doctors"), ("disability", "Disability Types") })
     {
-        <li class="nav-item"><a class="nav-link @(tab == k ? "active" : "")" asp-route-tab="@k">@label</a></li>
+        <li class="nav-item"><a class="nav-link @(tab == k ? "active" : "")" asp-encrypted-route-tab="@k">@label</a></li>
     }
 </ul>
 

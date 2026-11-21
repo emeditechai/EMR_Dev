@@ -91,7 +91,7 @@
                         <span class="text-muted small">/ @item.NumberOfFloors expected</span>
                         @if (item.TotalFloorsConfigured > 0)
                         {
-                            <a asp-controller="Floors" asp-action="Index" asp-route-buildingId="@item.BuildingId" class="badge bg-info bg-opacity-10 text-info text-decoration-none ms-1">
+                            <a asp-controller="Floors" asp-action="Index" asp-encrypted-route-buildingId="@item.BuildingId" class="badge bg-info bg-opacity-10 text-info text-decoration-none ms-1">
                                 View Floors
                             </a>
                         }
@@ -111,11 +111,11 @@
                     </td>
                     <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.BUILDINGS:DETAILS" asp-action="Details" asp-route-id="@item.BuildingId"
+                        <a asp-permission="MASTER.BUILDINGS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.BuildingId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.BUILDINGS:EDIT" asp-action="Edit" asp-route-id="@item.BuildingId"
+                        <a asp-permission="MASTER.BUILDINGS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.BuildingId"
                            class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>

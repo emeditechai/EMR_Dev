@@ -72,7 +72,7 @@
 <body>
     <div class="bar">
         <a href="@Url.Action("Index")">&larr; Register</a>
-        @if (c.Status == "D") { <a href="@Url.Action("Edit", new { id = c.CertificateId })">Edit draft</a> }
+        @if (c.Status == "D") { <a href="@Url.ActionEncrypted("Edit", new { id = c.CertificateId })">Edit draft</a> }
         @if (c.Status != "C" && (bool)ViewBag.CanCancel) { <button type="button" class="dan" id="btnCancel">Cancel certificate</button> }
         @if (c.Status == "C" && (bool)ViewBag.CanReissue) { <button type="button" id="btnReissue">Reissue</button> }
         @if (c.Status == "I" && notifyEnabled && canNotify) { <button type="button" id="btnNotify">Send to patient</button> }

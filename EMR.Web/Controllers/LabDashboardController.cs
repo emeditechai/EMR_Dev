@@ -63,7 +63,7 @@ public class LabDashboardController(
         if (client is null)
         {
             // none of the tabs: every figure on the page belongs to one of them
-            return RedirectToAction("AccessDenied", "Account",
+            return this.RedirectToActionEncrypted("AccessDenied", "Account",
                 new { returnUrl = Request.Path + Request.QueryString, page = PageCode,
                       control = ClientTabs.FirstOrDefault(t => t.Client == requested).Control ?? ClientTabs[0].Control });
         }

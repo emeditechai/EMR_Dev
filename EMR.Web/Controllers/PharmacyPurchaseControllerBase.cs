@@ -120,7 +120,7 @@ public abstract class PharmacyPurchaseControllerBase(IPharmacyPurchaseService pu
         await audit.LogAsync("Pharmacy" + Kind, "Save", $"{Title} draft #{id} saved", UserId, BranchId);
         TempData["Success"] = $"{what} saved as draft.";
         if (warnings is { Count: > 0 }) TempData["Warning"] = string.Join(" ", warnings);
-        return RedirectToAction("Form", new { id });
+        return this.RedirectToActionEncrypted("Form", new { id });
     }
 
     protected async Task<IActionResult> Done(int id, string? error, string action, string okMessage)
@@ -131,6 +131,6 @@ public abstract class PharmacyPurchaseControllerBase(IPharmacyPurchaseService pu
             TempData["Success"] = okMessage;
             await audit.LogAsync("Pharmacy" + Kind, action, $"{Title} #{id}: {okMessage}", UserId, BranchId);
         }
-        return RedirectToAction("Form", new { id });
+        return this.RedirectToActionEncrypted("Form", new { id });
     }
 }

@@ -23,7 +23,7 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
             <a asp-action="Index" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Campaigns</a>
-            <a asp-action="Create" asp-route-copy="@c.CampaignId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-copy me-1"></i>Send again</a>
+            <a asp-action="Create" asp-encrypted-route-copy="@c.CampaignId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-copy me-1"></i>Send again</a>
             <button type="button" class="btn btn-outline-warning btn-sm" id="cdRetry" style="display:none"><i class="bi bi-arrow-repeat me-1"></i>Retry failed</button>
             <button type="button" class="btn btn-outline-danger btn-sm" id="cdCancel" style="display:none"><i class="bi bi-x-circle me-1"></i>Cancel campaign</button>
         </div>

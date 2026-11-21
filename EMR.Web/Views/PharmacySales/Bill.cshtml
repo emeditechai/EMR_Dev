@@ -25,7 +25,7 @@
         @if (b.Returns.Count > 0)
         {
             <div class="card shadow-sm border-0"><div class="card-body py-2 fw-bold small">Returns</div><table class="table table-sm mb-0 small"><tbody>
-            @foreach (var r in b.Returns) { <tr><td><a asp-controller="PhSaleReturns" asp-action="Print" asp-route-id="@r.ReturnId" target="_blank">@r.ReturnNo</a></td><td>@r.ReturnDate.ToString("dd-MMM HH:mm")</td><td>@r.ReasonName</td><td>@r.RefundMode</td><td class="text-end">₹ @r.NetAmount.ToString("N2")</td><td>@r.CreatedByName</td></tr> }
+            @foreach (var r in b.Returns) { <tr><td><a asp-controller="PhSaleReturns" asp-action="Print" asp-encrypted-route-id="@r.ReturnId" target="_blank">@r.ReturnNo</a></td><td>@r.ReturnDate.ToString("dd-MMM HH:mm")</td><td>@r.ReasonName</td><td>@r.RefundMode</td><td class="text-end">₹ @r.NetAmount.ToString("N2")</td><td>@r.CreatedByName</td></tr> }
             </tbody></table></div>
         }
     </div>
@@ -46,19 +46,19 @@
             @if (b.Status != "HOLD")
             {
                 <div class="btn-group" asp-permission="PHARMACY.SALEBILLS:PRINT">
-                    <a asp-action="Print" asp-route-id="@b.SaleId" asp-route-format="80MM" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>80 mm</a>
-                    <a asp-action="Print" asp-route-id="@b.SaleId" asp-route-format="A5" target="_blank" class="btn btn-outline-secondary">A5</a>
-                    <a asp-action="Print" asp-route-id="@b.SaleId" asp-route-format="A4" target="_blank" class="btn btn-outline-secondary">A4</a>
-                    <a asp-action="Pdf" asp-route-id="@b.SaleId" class="btn btn-outline-secondary"><i class="bi bi-filetype-pdf"></i></a>
+                    <a asp-action="Print" asp-encrypted-route-id="@b.SaleId" asp-encrypted-route-format="80MM" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>80 mm</a>
+                    <a asp-action="Print" asp-encrypted-route-id="@b.SaleId" asp-encrypted-route-format="A5" target="_blank" class="btn btn-outline-secondary">A5</a>
+                    <a asp-action="Print" asp-encrypted-route-id="@b.SaleId" asp-encrypted-route-format="A4" target="_blank" class="btn btn-outline-secondary">A4</a>
+                    <a asp-action="Pdf" asp-encrypted-route-id="@b.SaleId" class="btn btn-outline-secondary"><i class="bi bi-filetype-pdf"></i></a>
                 </div>
-                <form method="post" asp-action="Send" asp-route-id="@b.SaleId" asp-permission="PHARMACY.SALEBILLS:SEND" class="d-grid"><button class="btn btn-outline-primary"><i class="bi bi-whatsapp me-1"></i>Send by WhatsApp / e-mail</button></form>
+                <form method="post" asp-action="Send" asp-encrypted-route-id="@b.SaleId" asp-permission="PHARMACY.SALEBILLS:SEND" class="d-grid"><button class="btn btn-outline-primary"><i class="bi bi-whatsapp me-1"></i>Send by WhatsApp / e-mail</button></form>
             }
             @if (b.Status == "POSTED")
             {
-                <a asp-controller="PhSaleReturns" asp-action="Form" asp-route-saleId="@b.SaleId" asp-permission="PHARMACY.SALERETURN:SAVE" class="btn btn-outline-warning"><i class="bi bi-arrow-return-left me-1"></i>Sale return</a>
+                <a asp-controller="PhSaleReturns" asp-action="Form" asp-encrypted-route-saleId="@b.SaleId" asp-permission="PHARMACY.SALERETURN:SAVE" class="btn btn-outline-warning"><i class="bi bi-arrow-return-left me-1"></i>Sale return</a>
                 if (b.SaleDate.Date == DateTime.Today && b.ReturnedAmount == 0)
                 {
-                    <form method="post" asp-action="Cancel" asp-route-id="@b.SaleId" asp-permission="PHARMACY.SALEBILLS:CANCEL" id="cancelForm" class="d-grid"><input type="hidden" name="reason" /><button class="btn btn-outline-danger"><i class="bi bi-x-octagon me-1"></i>Cancel bill</button></form>
+                    <form method="post" asp-action="Cancel" asp-encrypted-route-id="@b.SaleId" asp-permission="PHARMACY.SALEBILLS:CANCEL" id="cancelForm" class="d-grid"><input type="hidden" name="reason" /><button class="btn btn-outline-danger"><i class="bi bi-x-octagon me-1"></i>Cancel bill</button></form>
                 }
             }
             <a asp-action="Index" class="btn btn-light"><i class="bi bi-arrow-left me-1"></i>Back to bills</a>

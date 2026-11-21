@@ -307,6 +307,6 @@ document.getElementById('ePayer')?.addEventListener('change', () => { ePayerUi()
         if (d.PharmacyRepriced) notes.push(`${d.PharmacyRepriced} medicine / consumable line(s) re-priced for the new payer`);
         if (d.PackageChanged) notes.push('charges re-checked against the package');
         if (notes.length && window.Swal) await Swal.fire({ icon: 'success', title: 'Admission updated', html: '<div class="text-start small">' + notes.map(n => '• ' + n).join('<br>') + '</div>' });
-        reloadTab(new URLSearchParams(location.search).get('tab') || 'overview');
+        reloadTab((window.emrQuery || new URLSearchParams(location.search)).get('tab') || 'overview');
     });
 })();

@@ -60,8 +60,8 @@ public class PharmacyItemsController(
         return next switch
         {
             "new" => RedirectToAction(nameof(Form)),
-            "copy" => RedirectToAction(nameof(Form), new { copyOf = id }),
-            "stay" => RedirectToAction(nameof(Form), new { id }),
+            "copy" => this.RedirectToActionEncrypted(nameof(Form), new { copyOf = id }),
+            "stay" => this.RedirectToActionEncrypted(nameof(Form), new { id }),
             _ => RedirectToAction(nameof(Index))
         };
     }

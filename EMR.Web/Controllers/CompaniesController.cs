@@ -177,7 +177,7 @@ public class CompaniesController(
         TempData["Success"] = $"Company '{company.CompanyName}' created successfully. You can now add branches under this company.";
         await PushToCentralAfterSaveAsync(central, company.CompanyId, company.CompanyCode, company.CompanyName);
 
-        return RedirectToAction(nameof(Details), new { id = company.CompanyId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = company.CompanyId });
     }
 
     [HttpGet]
@@ -273,7 +273,7 @@ public class CompaniesController(
         TempData["Success"] = "Company details updated successfully.";
         await PushToCentralAfterSaveAsync(central, company.CompanyId, company.CompanyCode, company.CompanyName);   // keeps code / name in step
 
-        return RedirectToAction(nameof(Details), new { id = company.CompanyId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = company.CompanyId });
     }
 
     [HttpPost]
@@ -398,7 +398,7 @@ public class CompaniesController(
         await PushToCentralAfterSaveAsync(central, result.CompanyId, model.CompanyCode, model.CompanyName.Trim());
         // 2470: the administrator was created by the onboarding procedure: register it in the central user register too
         await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>().SyncCompanyAsync(result.CompanyId, onlyPending: true);
-        return RedirectToAction(nameof(Onboarded), new { id = result.CompanyId });
+        return this.RedirectToActionEncrypted(nameof(Onboarded), new { id = result.CompanyId });
     }
 
     /// <summary>Wizard: are the company code, branch code and username free?</summary>
@@ -504,7 +504,7 @@ public class CompaniesController(
                   + (r.Failed > 0 ? $", {r.Failed} not synced." : ".");
         return Json(new { success = r.Failed == 0, total = r.Total, created = r.Created, updated = r.Updated, unchanged = r.Unchanged, failed = r.Failed,
                           skipped = r.Skipped, removed = r.Removed, problems = r.Problems,
-                          users = r.Users.Select(u => new { u.UserId, u.Username, u.Status, u.Message, editUrl = Url.Action("Edit", "Users", new { id = u.UserId }) }),
+                          users = r.Users.Select(u => new { u.UserId, u.Username, u.Status, u.Message, editUrl = Url.ActionEncrypted("Edit", "Users", new { id = u.UserId }) }),
                           message = msg });
     }
 
@@ -743,7 +743,7 @@ public class CompaniesController(
             total = rows.Sum(r => r.Rows),
             redirect = preview ? null
                 : level == "DELETE" ? Url.Action(nameof(Index))
-                : isBranch ? Url.Action(nameof(Details), new { id }) : null
+                : isBranch ? Url.ActionEncrypted(nameof(Details), new { id }) : null
         });
     }
 }

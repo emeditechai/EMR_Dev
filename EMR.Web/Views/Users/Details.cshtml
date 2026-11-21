@@ -9,7 +9,7 @@
         <h1 class="h3 mb-0">User Details</h1>
     </div>
     <div class="d-flex gap-2">
-        <a asp-permission="SETTINGS.USERS:EDIT" asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">
+        <a asp-permission="SETTINGS.USERS:EDIT" asp-action="Edit" asp-encrypted-route-id="@Model.Id" class="btn btn-primary">
             <i class="bi bi-pencil-square me-1"></i>Edit
         </a>
         <a asp-action="Index" class="btn btn-outline-secondary">
@@ -242,7 +242,7 @@
                             @if (Model.HasSignature)
                             {
                                 <div class="p-2 bg-white border rounded-3 d-inline-block">
-                                    <img src="@Url.Action("Signature", "Users", new { id = Model.Id })" alt="Signature of @Model.FirstName @Model.LastName" style="max-height:90px;max-width:280px;" />
+                                    <img src="@Url.ActionEncrypted("Signature", "Users", new { id = Model.Id })" alt="Signature of @Model.FirstName @Model.LastName" style="max-height:90px;max-width:280px;" />
                                 </div>
                             }
                             else

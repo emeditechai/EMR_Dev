@@ -699,7 +699,7 @@
 
     // ── start ─────────────────────────────────────────────────────────────────────────────────────────────────
     load().then(() => {
-        const q = new URLSearchParams(location.search);
+        const q = (window.emrQuery || new URLSearchParams(location.search));
         if (C.open) view(+C.open);
         else if (T === 'GRN' && q.get('fromPo') && P.ADD) { openEditor(null); ed.head.RefDocId = +q.get('fromPo'); loadOrder(+q.get('fromPo')); }
         else if (T === 'ISS' && q.get('fromIndent') && P.ADD) { openEditor(null); ed.head.RefDocId = +q.get('fromIndent'); loadIndent(+q.get('fromIndent')); }

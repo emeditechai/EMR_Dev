@@ -26,7 +26,7 @@
             <small class="text-muted"><b>@Model.CompanyName</b> (@Model.CompanyCode) &middot; super admin only</small>
         }
     </div>
-    <a asp-action="Details" asp-route-id="@Model.CompanyId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Company</a>
+    <a asp-action="Details" asp-encrypted-route-id="@Model.CompanyId" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Company</a>
 </div>
 
 @if (blocked is not null)
@@ -113,7 +113,7 @@ else
 {
 <script>
     (function () {
-        const runUrl = '@Url.Action("RemoveDataRun", new { id = Model.CompanyId })';
+        const runUrl = '@Url.ActionEncrypted("RemoveDataRun", new { id = Model.CompanyId })';
         const code = '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(confirmCode ?? ""))';
         const branchId = '@(branch?.BranchId)';
         const token = document.querySelector('input[name="__RequestVerificationToken"]').value;

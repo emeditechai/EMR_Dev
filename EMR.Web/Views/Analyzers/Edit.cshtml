@@ -13,7 +13,7 @@
     </div>
 </div>
 
-<form asp-action="Edit" asp-route-id="@Model.Analyzer_ID" method="post" novalidate>
+<form asp-action="Edit" asp-encrypted-route-id="@Model.Analyzer_ID" method="post" novalidate>
     @Html.AntiForgeryToken()
     <input type="hidden" asp-for="Analyzer_ID" />
     <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3 rounded-3"></div>

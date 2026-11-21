@@ -149,7 +149,7 @@
                 {
                     <table class="table table-sm mb-0">
                         <thead><tr><th>Topic</th><th class="text-end">Helpful</th><th class="text-end">Not helpful</th></tr></thead>
-                        <tbody>@foreach (var s in Model.Scores) { <tr><td class="small"><a asp-action="Article" asp-route-id="@s.Code">@s.Title</a></td><td class="text-end">@s.Helpful</td><td class="text-end">@s.NotHelpful</td></tr> }</tbody>
+                        <tbody>@foreach (var s in Model.Scores) { <tr><td class="small"><a asp-action="Article" asp-encrypted-route-id="@s.Code">@s.Title</a></td><td class="text-end">@s.Helpful</td><td class="text-end">@s.NotHelpful</td></tr> }</tbody>
                     </table>
                 }
             </div>

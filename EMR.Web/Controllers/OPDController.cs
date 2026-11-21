@@ -307,7 +307,7 @@ public class OPDController(
         // Booking a slot from the Doctor Roster is its own action there (Settings > Security: Doctor Roster > Book slot).
         if (scheduleId.HasValue && !string.IsNullOrWhiteSpace(time)
             && !await permissionGuard.AllowsAsync(HttpContext, "OPD.DOCTORROSTER", "BOOK_SLOT"))
-            return RedirectToAction("AccessDenied", "Account",
+            return this.RedirectToActionEncrypted("AccessDenied", "Account",
                 new { returnUrl = Request.Path + Request.QueryString, page = "OPD.DOCTORROSTER", control = "BOOK_SLOT" });
 
         // A slot of a suspended doctor (Doctor Master > Is Suspended, SQLScripts/2484) is not opened: back to the roster with the reason
@@ -319,7 +319,7 @@ public class OPDController(
 
         // Editing an existing patient's details is Patient Master's own action (Settings > Security: Patient Master > Edit patient, script 2208).
         if (id.HasValue && !await permissionGuard.AllowsAsync(HttpContext, "MASTER.OPD", "EDIT"))
-            return RedirectToAction("AccessDenied", "Account",
+            return this.RedirectToActionEncrypted("AccessDenied", "Account",
                 new { returnUrl = Request.Path + Request.QueryString, page = "MASTER.OPD", control = "EDIT" });
 
         ViewData["Title"] = id.HasValue ? "Edit Patient" : "Patient Registration";
@@ -366,8 +366,8 @@ public class OPDController(
 
         // Saving an existing patient's details (the Edit screen opened from Patient Master) needs Patient Master > Edit patient (script 2208).
         if (model.DemographicsOnly && model.PatientId > 0 && !await permissionGuard.AllowsAsync(HttpContext, "MASTER.OPD", "EDIT"))
-            return RedirectToAction("AccessDenied", "Account",
-                new { returnUrl = Url.Action(nameof(PatientRegistration), new { id = model.PatientId }), page = "MASTER.OPD", control = "EDIT" });
+            return this.RedirectToActionEncrypted("AccessDenied", "Account",
+                new { returnUrl = Url.ActionEncrypted(nameof(PatientRegistration), new { id = model.PatientId }), page = "MASTER.OPD", control = "EDIT" });
 
         var branchId = User.GetCurrentBranchId();
         if (branchId is null)
@@ -594,7 +594,7 @@ public class OPDController(
             TempData["TokenNo"]         = tokenNo;                          // null unless ₹0 bill
             TempData["TokenPending"]    = string.IsNullOrEmpty(tokenNo);    // true = needs payment
             TempData["NewOPDServiceId"] = newSvcId.ToString();
-            return RedirectToAction(nameof(PatientRegistration), new { registered = true });
+            return this.RedirectToActionEncrypted(nameof(PatientRegistration), new { registered = true });
         }
         else   // UPDATE — existing patient
         {
@@ -689,7 +689,7 @@ public class OPDController(
                 TempData["TokenPending"]    = string.IsNullOrEmpty(tokenNo);    // true = needs payment
                 TempData["IsBooking"]       = true;
                 TempData["NewOPDServiceId"] = newSvcId.ToString();
-                return RedirectToAction(nameof(PatientRegistration), new { registered = true });
+                return this.RedirectToActionEncrypted(nameof(PatientRegistration), new { registered = true });
             }
 
             TempData["Success"] = "Patient record updated successfully.";

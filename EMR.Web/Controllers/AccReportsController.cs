@@ -109,7 +109,7 @@ public class AccReportsController(IAccountsService accounts) : AccountsControlle
         {
             TempData["ErrorMessage"] = Msg(ex);
         }
-        return RedirectToAction(nameof(Reconciliation), new { branchId });
+        return this.RedirectToActionEncrypted(nameof(Reconciliation), new { branchId });
     }
 
     /// <summary>The report on screen, with the same filters, as Excel (format = xlsx) or PDF (format = pdf).</summary>

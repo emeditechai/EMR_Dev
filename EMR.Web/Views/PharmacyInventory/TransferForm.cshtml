@@ -36,11 +36,11 @@
         <button asp-permission="PHARMACY.TRANSFER:REQUEST" form="reqForm" class="btn btn-primary" data-sub="true"><i class="bi bi-send me-1"></i>Send to branch</button>
     </div>
     </form>
-    @if (!isNew) { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnDraft">@Html.AntiForgeryToken()</form> }
+    @if (!isNew) { <form method="post" asp-action="Cancel" asp-encrypted-route-id="@d.Id" id="cnDraft">@Html.AntiForgeryToken()</form> }
 }
 else if (canDispatch)
 {
-    <form method="post" asp-action="Dispatch" asp-route-id="@d.Id" id="dspForm">
+    <form method="post" asp-action="Dispatch" asp-encrypted-route-id="@d.Id" id="dspForm">
     @Html.AntiForgeryToken()
     <input type="hidden" name="json" id="json" />
     @{ var outStores = ViewBag.Stores as List<EMR.Web.Services.PhStoreOption> ?? new(); }
@@ -54,11 +54,11 @@ else if (canDispatch)
         <button asp-permission="PHARMACY.TRANSFER:CANCEL" form="cnForm" class="btn btn-outline-danger">Decline</button>
         <button asp-permission="PHARMACY.TRANSFER:DISPATCH" class="btn btn-success"><i class="bi bi-truck me-1"></i>Dispatch</button></div>
     </form>
-    <form method="post" asp-action="Cancel" asp-route-id="@d.Id" id="cnForm">@Html.AntiForgeryToken()</form>
+    <form method="post" asp-action="Cancel" asp-encrypted-route-id="@d.Id" id="cnForm">@Html.AntiForgeryToken()</form>
 }
 else
 {
-    <form method="post" asp-action="Receive" asp-route-id="@d.Id">
+    <form method="post" asp-action="Receive" asp-encrypted-route-id="@d.Id">
     @Html.AntiForgeryToken()
     <div class="card shadow-sm border-0 mb-3"><table class="table table-sm mb-0 ph-table">
         <thead><tr><th>Item</th><th>Batch · exp.</th><th class="text-end">Asked</th><th class="text-end">Sent</th><th class="text-end">Received</th><th>Short reason</th><th class="text-end">Cost</th></tr></thead>
@@ -76,7 +76,7 @@ else
         }
         </tbody></table></div>
     <div class="d-flex gap-2 align-items-center"><a asp-action="Index" class="btn btn-outline-secondary me-auto">Back</a>
-        @if (d.Status != "DRAFT" && d.Status != "CANCELLED") { <a asp-action="Print" asp-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
+        @if (d.Status != "DRAFT" && d.Status != "CANCELLED") { <a asp-action="Print" asp-encrypted-route-id="@d.Id" target="_blank" class="btn btn-outline-secondary"><i class="bi bi-printer me-1"></i>Print</a> }
         @if (canReceive)
         {
             var inStores = ViewBag.ReceiveStores as List<EMR.Web.Services.PhStoreOption> ?? new();
@@ -85,7 +85,7 @@ else
             <input name="remarks" class="form-control" style="max-width:320px" placeholder="Receipt remarks" /><button asp-permission="PHARMACY.TRANSFER:RECEIVE" class="btn btn-success"><i class="bi bi-box-arrow-in-down me-1"></i>Receive</button> }
     </div>
     </form>
-    @if (asker && d.Status == "REQUESTED") { <form method="post" asp-action="Cancel" asp-route-id="@d.Id" asp-permission="PHARMACY.TRANSFER:CANCEL" class="mt-2 text-end">@Html.AntiForgeryToken()<button class="btn btn-sm btn-outline-danger">Cancel indent</button></form> }
+    @if (asker && d.Status == "REQUESTED") { <form method="post" asp-action="Cancel" asp-encrypted-route-id="@d.Id" asp-permission="PHARMACY.TRANSFER:CANCEL" class="mt-2 text-end">@Html.AntiForgeryToken()<button class="btn btn-sm btn-outline-danger">Cancel indent</button></form> }
 }
 
 @section Scripts {

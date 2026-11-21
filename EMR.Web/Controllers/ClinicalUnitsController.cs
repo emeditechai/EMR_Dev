@@ -89,7 +89,7 @@ public class ClinicalUnitsController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Clinical Unit created successfully.";
-        return RedirectToAction(nameof(Index), new { departmentId = model.DepartmentId, specialityId = model.SpecialityId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { departmentId = model.DepartmentId, specialityId = model.SpecialityId });
     }
 
     [HttpGet]
@@ -156,7 +156,7 @@ public class ClinicalUnitsController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Clinical Unit updated successfully.";
-        return RedirectToAction(nameof(Index), new { departmentId = model.DepartmentId, specialityId = model.SpecialityId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { departmentId = model.DepartmentId, specialityId = model.SpecialityId });
     }
 
     [HttpGet]

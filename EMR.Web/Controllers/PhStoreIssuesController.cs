@@ -1,3 +1,4 @@
+using EMR.Web.Extensions;
 using System.Text.Json;
 using EMR.Web.Services;
 using EMR.Web.Services.Notifications;
@@ -44,7 +45,7 @@ public class PhStoreIssuesController(IPharmacyInventoryService inventory, IPharm
         var d = string.IsNullOrWhiteSpace(json) ? null : JsonSerializer.Deserialize<PhIssueDoc>(json, Json);
         if (d == null) return BadRequest();
         var (id, err) = await Inventory.SaveIssueRequestAsync(CompanyId, BranchId, d, submit, UserId);
-        if (err != null) { TempData["Error"] = err; return d.Id > 0 ? RedirectToAction(nameof(Form), new { id = d.Id }) : RedirectToAction(nameof(Form)); }
+        if (err != null) { TempData["Error"] = err; return d.Id > 0 ? this.RedirectToActionEncrypted(nameof(Form), new { id = d.Id }) : RedirectToAction(nameof(Form)); }
         await LogAsync("StoreIssueRequest", $"Store request #{id} {(submit ? "sent" : "saved")}");
         return Back(null, submit ? "Request sent to the store." : "Request saved as draft.", new { id });
     }

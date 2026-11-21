@@ -7,7 +7,7 @@
     string? type = ViewBag.Type, search = ViewBag.Search;
     var p = Model.Page;
     var pages = Math.Max(1, (int)Math.Ceiling(p.TotalCount / (double)Math.Max(1, p.PageSize)));
-    string Url_(string? t, int pg = 1) => Url.Action("Changes", new { releaseId = rid, type = t, search, page = pg })!;
+    string Url_(string? t, int pg = 1) => Url.ActionEncrypted("Changes", new { releaseId = rid, type = t, search, page = pg })!;
     int C(string t) => Model.Counts.TryGetValue(t, out var n) ? n : 0;
     var rel = releases.FirstOrDefault(r => r.ReleaseId == rid);
 }
@@ -38,7 +38,7 @@
                     <input name="search" value="@search" class="form-control" placeholder="LOINC code or name" />
                 </div>
                 <div class="col-lg-2 col-6"><button class="btn btn-primary w-100"><i class="bi bi-funnel me-1"></i>Filter</button></div>
-                <div class="col-lg-2 col-6"><a asp-action="Changes" asp-route-releaseId="@rid" class="btn btn-outline-secondary w-100">Reset</a></div>
+                <div class="col-lg-2 col-6"><a asp-action="Changes" asp-encrypted-route-releaseId="@rid" class="btn btn-outline-secondary w-100">Reset</a></div>
             </form>
             @if (rel?.Status == "Validated")
             {
@@ -78,7 +78,7 @@
                                 <td class="text-center pe-3">
                                     @if (c.LocalMappings > 0)
                                     {
-                                        <a asp-action="Mapping" asp-route-state="REVIEW" class="ad-pill red text-decoration-none" title="Local investigations mapped to this code">@c.LocalMappings to review</a>
+                                        <a asp-action="Mapping" asp-encrypted-route-state="REVIEW" class="ad-pill red text-decoration-none" title="Local investigations mapped to this code">@c.LocalMappings to review</a>
                                     }
                                     else { <span class="text-muted small">—</span> }
                                 </td>

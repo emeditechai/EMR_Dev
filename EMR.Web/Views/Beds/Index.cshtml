@@ -20,7 +20,7 @@
         <a asp-controller="BedCategories" asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-bookmark-star me-1"></i>Bed Categories
         </a>
-        <a asp-permission="MASTER.BEDS:ADD" asp-action="Create" asp-route-buildingId="@ViewBag.BuildingId" asp-route-wardId="@ViewBag.WardId" asp-route-roomId="@ViewBag.RoomId" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.BEDS:ADD" asp-action="Create" asp-encrypted-route-buildingId="@ViewBag.BuildingId" asp-encrypted-route-wardId="@ViewBag.WardId" asp-encrypted-route-roomId="@ViewBag.RoomId" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Bed
         </a>
     </div>
@@ -174,7 +174,7 @@
                         <span class="fw-semibold text-dark">
                             <i class="bi bi-door-open text-primary me-1"></i>Room @item.RoomNumber
                         </span>
-                        <a asp-controller="Wards" asp-action="Details" asp-route-id="@item.WardId" class="badge bg-secondary bg-opacity-10 text-dark border d-block mt-1 text-decoration-none" style="width: fit-content;">
+                        <a asp-controller="Wards" asp-action="Details" asp-encrypted-route-id="@item.WardId" class="badge bg-secondary bg-opacity-10 text-dark border d-block mt-1 text-decoration-none" style="width: fit-content;">
                             <i class="bi bi-hospital me-1"></i>@item.WardName
                         </a>
                     </td>
@@ -249,15 +249,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.BEDS:DETAILS" asp-action="Details" asp-route-id="@item.BedId"
+                        <a asp-permission="MASTER.BEDS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.BedId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.BEDS:EDIT" asp-action="Edit" asp-route-id="@item.BedId"
+                        <a asp-permission="MASTER.BEDS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.BedId"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-permission="MASTER.BEDS:DELETE" asp-action="Delete" asp-route-id="@item.BedId" method="post" class="d-inline"
+                        <form asp-permission="MASTER.BEDS:DELETE" asp-action="Delete" asp-encrypted-route-id="@item.BedId" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete Bed @item.BedNumber?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

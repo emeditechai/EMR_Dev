@@ -11,7 +11,7 @@
         <div class="d-flex flex-wrap gap-2 mb-2">
             @foreach (var a in Model.Items)
             {
-                var url = Url.Action("Attachment", Model.Controller, new { id = a.AttachmentId });
+                var url = Url.ActionEncrypted("Attachment", Model.Controller, new { id = a.AttachmentId });
                 <div class="border rounded p-1 text-center position-relative" style="width:118px;">
                     <a href="@url" target="_blank" title="@a.FileName - added by @a.CreatedByName, @a.CreatedDate.ToString("dd-MMM-yyyy HH:mm")" class="text-decoration-none d-block">
                         @if (a.IsImage) { <img src="@url" alt="@a.FileName" loading="lazy" style="width:100%;height:78px;object-fit:cover;border-radius:4px;" /> }

@@ -20,9 +20,9 @@
     string Age(DateTime since) { var t = now - since; return t.TotalMinutes < 60 ? $"{Math.Max(1, (int)t.TotalMinutes)} min" : t.TotalHours < 24 ? $"{(int)t.TotalHours} h" : $"{(int)t.TotalDays} d"; }
     string Link(PhPendingRequest p) => p.Kind switch
     {
-        "PURCHASE" => Url.Action("Form", "PhPurchaseIndents", new { id = p.Id })!,
-        "BRANCH_OUT" or "BRANCH_IN" => Url.Action("Form", "PhTransfers", new { id = p.Id })!,
-        _ => Url.Action("Form", "PhStoreIssues", new { id = p.Id })!
+        "PURCHASE" => Url.ActionEncrypted("Form", "PhPurchaseIndents", new { id = p.Id })!,
+        "BRANCH_OUT" or "BRANCH_IN" => Url.ActionEncrypted("Form", "PhTransfers", new { id = p.Id })!,
+        _ => Url.ActionEncrypted("Form", "PhStoreIssues", new { id = p.Id })!
     };
     string Icon(string kind) => kind switch { "PURCHASE" => "bi-clipboard-check", "BRANCH_OUT" => "bi-truck", "BRANCH_IN" => "bi-box-arrow-in-down", "STORE_ISSUE" => "bi-box-arrow-right", _ => "bi-box-arrow-in-right" };
     var todo = new (string Title, int Count, string Ctl, string Act, object? Route, string Icon, string Tone)[]
@@ -198,7 +198,7 @@
             <div class="bd">
                 @foreach (var (label, n, v, color, days) in new (string, int, decimal, string, int)[] { ("Expired, in stock", d.Expired, d.ExpiredValue, "var(--rose)", 0), ("In 30 days", d.Exp30, d.Exp30Value, "#f97316", 30), ("31 - 60 days", d.Exp60, d.Exp60Value, "var(--amber)", 60), ("61 - 90 days", d.Exp90, d.Exp90Value, "#eab308", 90) })
                 {
-                    <a class="d-block text-decoration-none text-reset mb-2" asp-controller="PhWriteOffs" asp-action="Expiry" asp-route-days="@days">
+                    <a class="d-block text-decoration-none text-reset mb-2" asp-controller="PhWriteOffs" asp-action="Expiry" asp-encrypted-route-days="@days">
                         <div class="d-flex small"><span>@label <span class="text-muted">· @n batch@(n == 1 ? "" : "es")</span></span><span class="ms-auto num fw-semibold">@N(v)</span></div>
                         <div class="meter"><span style="width:@((int)Math.Round(v * 100 / expTotal))%;background:@color"></span></div>
                     </a>
