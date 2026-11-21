@@ -36,7 +36,10 @@ public sealed class AuthController(
     private const string InvalidCredentials = "Invalid username or password.";
     private static readonly Lazy<string> DummyHash = new(() => BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString(), 12));
 
-    public sealed record LoginRequest(string Username, string Password, int? BranchId = null, string? Role = null);
+    public sealed record LoginRequest(string Username, string Password, int? BranchId = null, string? Role = null,
+        int? CompanyId = null, int? ApplicationUserId = null);   // from locate (central register): the login must be that user
+    public sealed record LocateRequest(string Username);
+    private sealed record LocateRow(string? ApiUrl, int ApplicationCompanyID, int? ApplicationUserID, DateTime? ValidTo, string Code);
     public sealed record ContextRequest(string Ticket, int BranchId, string? Role = null);
     public sealed record RefreshRequest(string RefreshToken);
     public sealed record SwitchBranchRequest(string RefreshToken, int BranchId, string? Role = null);
@@ -62,6 +65,52 @@ public sealed class AuthController(
     }
     private sealed record BranchRow(int BranchId, string BranchName, int CompanyId);
 
+    // ── which client's API (mobile apps, before sign-in) ─────────────────────
+    /// <summary>
+    /// The mobile apps are one build for every client: they send the sign-in name here (the central API) first and get
+    /// the client's own API address. Central_Lic_DB (EMR.Api/Data/CentralLicDb): Central_Users.Username -> CompanyID and
+    /// ApplicationUserID -> Central_Company -> ApplicationCompanyID and ApiUrl (central script 2496,
+    /// usp_CentralUser_Locate). The app then signs in on that API with the company and user IDs, and login checks them.
+    /// </summary>
+    [HttpPost("locate")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> Locate([FromBody] LocateRequest request)
+    {
+        var username = request.Username?.Trim() ?? string.Empty;
+        if (username.Length is 0 or > 256) return BadRequest(Fail("USERNAME_REQUIRED", "Enter your e-mail."));
+        if (!CentralLicDb.IsConfigured)
+        {
+            logger.LogError("[API-AUTH] locate: {Problem}", CentralLicDb.Problem);
+            return StatusCode(503, Fail("LOCATE_UNAVAILABLE", "Sign-in is not available right now. Try again later."));
+        }
+
+        LocateRow? row;
+        try
+        {
+            using var central = CentralLicDb.CreateConnection();
+            row = await central.QueryFirstOrDefaultAsync<LocateRow>("dbo.usp_CentralUser_Locate", new { Username = username },
+                commandType: CommandType.StoredProcedure, commandTimeout: 15);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[API-AUTH] locate: central register not reachable");
+            return StatusCode(503, Fail("LOCATE_UNAVAILABLE", "Sign-in is not available right now. Try again later."));
+        }
+
+        if (row is null || row.Code == "NOT_LINKED" || row.ApplicationUserID is null)
+            return NotFound(Fail("NOT_REGISTERED", "This e-mail is not registered for the app. Check it, or contact the office."));
+        if (row.Code == "EXPIRED")
+            return StatusCode(403, Fail("LICENCE_EXPIRED", "Your organisation's licence has expired. Contact the office."));
+        if (row.Code == "NO_ADDRESS" || string.IsNullOrWhiteSpace(row.ApiUrl)
+            || !Uri.TryCreate(row.ApiUrl, UriKind.Absolute, out var api) || api.Scheme is not ("http" or "https"))
+        {
+            logger.LogWarning("[API-AUTH] locate: company {CompanyId} has no phone-usable address (Central_Company.ApiUrl is empty or localhost)", row.ApplicationCompanyID);
+            return StatusCode(503, Fail("NO_ADDRESS", "The app is not set up for your organisation yet. Contact the office."));
+        }
+        return Ok(new { success = true, apiUrl = row.ApiUrl.TrimEnd('/'), companyId = row.ApplicationCompanyID, applicationUserId = row.ApplicationUserID });
+    }
+
     // ── sign-in ──────────────────────────────────────────────────────────
     [HttpPost("login")]
     [EnableRateLimiting(RateLimitPolicy)]
@@ -83,6 +132,13 @@ public sealed class AuthController(
         {
             BCrypt.Net.BCrypt.Verify(request.Password, DummyHash.Value);
             return Unauthorized(Fail("INVALID_CREDENTIALS", InvalidCredentials));
+        }
+        // located through the central register: this server's login must be the same user of the same company
+        if ((request.ApplicationUserId is { } appUser && appUser != user.Id) || (request.CompanyId is { } company && company != user.CompanyId))
+        {
+            logger.LogWarning("[API-AUTH] Central register mismatch for {User}: central user {Central} / company {Company}, here {Id} / {HereCompany}",
+                user.Username, request.ApplicationUserId, request.CompanyId, user.Id, user.CompanyId);
+            return Unauthorized(Fail("ACCOUNT_MISMATCH", "This account does not match the registered one. Contact the office."));
         }
         if (await loginSecurity.LockedUntilAsync(user.Id) is { } until)
             return StatusCode(423, Fail("LOCKED_OUT", $"Too many wrong passwords. Try again after {until:HH:mm}."));
