@@ -16,6 +16,14 @@
         <div class="col-md-2"><label class="form-label small fw-semibold text-muted">From</label><input type="date" id="fFrom" class="form-control" /></div>
         <div class="col-md-2"><label class="form-label small fw-semibold text-muted">To</label><input type="date" id="fTo" class="form-control" /></div>
     </div></div></div>
+    <div class="alert alert-info d-none" id="ljEmpty">
+        <div class="fw-semibold mb-1"><i class="bi bi-info-circle me-1"></i>No QC control is set up yet, so there is nothing to chart.</div>
+        <div class="small mb-2">A Levey-Jennings chart needs, in this order: a <b>control material</b> (e.g. Biochemistry control level 1), its <b>lot</b> with expiry,
+            and a <b>target</b> per analyzer and parameter (mean and SD from the insert or the lab). Then the daily control runs entered in IQC Entry appear here.</div>
+        <a class="btn btn-sm btn-primary" asp-controller="IqcSetup" asp-action="Index"><i class="bi bi-gear me-1"></i>Open IQC Setup</a>
+        <a class="btn btn-sm btn-outline-primary ms-1" asp-controller="IqcEntry" asp-action="Index"><i class="bi bi-pencil-square me-1"></i>Enter QC runs</a>
+    </div>
+    <div class="alert alert-danger d-none" id="ljError"></div>
     <div class="row g-3">
         <div class="col-xl-9"><div class="card border-0 shadow-sm"><div class="card-body">
             <div class="fw-semibold mb-1" id="cTitle">Choose a control.</div><div class="small text-muted mb-2" id="cSub"></div>
@@ -40,23 +48,49 @@
     const t0 = new Date(); $('fTo').value = iso(t0); const f0 = new Date(); f0.setDate(f0.getDate() - 30); $('fFrom').value = iso(f0);
     const uniq = (arr, k, n) => [...new Map(arr.map(x => [x[k], { Id: x[k], Name: x[n] }])).values()].sort((a, b) => String(a.Name).localeCompare(String(b.Name)));
 
-    function fillTests(sel) { const t = all.filter(x => String(x.AnalyzerId) === $('fAnalyzer').value); $('fTest').innerHTML = QC.options(uniq(t, 'TestId', 'TestName'), sel, '-- Parameter --'); }
+    const one = list => list.length === 1 ? list[0].Id : '';
+    function reset(msg) {
+        if (chart) { chart.destroy(); chart = null; }
+        $('cTitle').textContent = msg || 'Choose a control.'; $('cSub').textContent = '';
+        $('stats').innerHTML = '<span class="text-muted">Statistics appear here.</span>'; $('pRows').innerHTML = '';
+    }
+    function fillTests(sel) {
+        const t = uniq(all.filter(x => String(x.AnalyzerId) === $('fAnalyzer').value), 'TestId', 'TestName');
+        $('fTest').innerHTML = QC.options(t, sel || one(t), '-- Parameter --');
+        fillTargets();
+    }
     function fillTargets(sel) {
-        const t = all.filter(x => String(x.AnalyzerId) === $('fAnalyzer').value && String(x.TestId) === $('fTest').value);
-        $('fTarget').innerHTML = t.map(x => `<option value="${x.TargetId}" ${String(x.TargetId) === String(sel || '') ? 'selected' : ''}>${QC.esc(x.ControlLevel)} · ${QC.esc(x.LotNo)}${x.IsActive ? '' : ' (inactive)'}</option>`).join('');
+        const t = all.filter(x => String(x.AnalyzerId) === $('fAnalyzer').value && String(x.TestId) === $('fTest').value)
+            .sort((a, b) => (b.IsActive ? 1 : 0) - (a.IsActive ? 1 : 0) || String(a.ControlLevel).localeCompare(String(b.ControlLevel)));
+        $('fTarget').innerHTML = t.length ? (t.length > 1 ? '<option value="">-- Control --</option>' : '') + t.map(x => `<option value="${x.TargetId}" ${String(x.TargetId) === String(sel || '') ? 'selected' : ''}>${QC.esc(x.ControlLevel)} · lot ${QC.esc(x.LotNo)}${x.IsActive ? '' : ' (inactive)'} · ${x.Points || 0} run(s)</option>`).join('') : '';
+        if ($('fTarget').value) load(); else reset($('fTest').value ? 'Choose the control level / lot.' : $('fAnalyzer').value ? 'Choose a parameter.' : 'Choose an analyzer.');
     }
     async function init() {
         const r = await QC.get('@Url.Action("Targets", "IqcChart")');
-        if (!r.success) return QC.fail(r.message);
-        all = r.data;
+        if (!r.success) { $('ljError').textContent = r.message || 'The QC targets could not be loaded.'; $('ljError').classList.remove('d-none'); reset('QC targets could not be loaded.'); return; }
+        all = r.data || [];
+        if (!all.length) {
+            $('ljEmpty').classList.remove('d-none');
+            ['fAnalyzer', 'fTest', 'fTarget', 'fFrom', 'fTo'].forEach(k => $(k).disabled = true);
+            $('fAnalyzer').innerHTML = '<option>No QC targets set up</option>';
+            reset('No QC control set up yet.');
+            return;
+        }
         const pre = all.find(x => x.TargetId === preTarget);
-        $('fAnalyzer').innerHTML = QC.options(uniq(all, 'AnalyzerId', 'AnalyzerName'), pre ? pre.AnalyzerId : '', '-- Analyzer --');
-        if (pre) { fillTests(pre.TestId); fillTargets(pre.TargetId); load(); }
+        const analyzers = [...new Map(all.map(x => [x.AnalyzerId, x.AnalyzerName])).entries()]
+            .map(([id, name]) => ({ Id: id, Name: `${name} (${all.filter(x => x.AnalyzerId === id).length} control${all.filter(x => x.AnalyzerId === id).length > 1 ? 's' : ''})` }))
+            .sort((a, b) => a.Name.localeCompare(b.Name));
+        $('fAnalyzer').innerHTML = QC.options(analyzers, pre ? pre.AnalyzerId : one(analyzers), '-- Analyzer --');
+        if (pre) { const t = uniq(all.filter(x => x.AnalyzerId === pre.AnalyzerId), 'TestId', 'TestName'); $('fTest').innerHTML = QC.options(t, pre.TestId, '-- Parameter --'); fillTargets(pre.TargetId); }
+        else if ($('fAnalyzer').value) fillTests();
+        else reset('Choose an analyzer.');
     }
     async function load() {
         const id = $('fTarget').value; if (!id) return;
+        if ($('fFrom').value && $('fTo').value && $('fFrom').value > $('fTo').value) return QC.fail('The From date is after the To date.');
+        $('ljError').classList.add('d-none');
         const r = await QC.get('@Url.Action("Data", "IqcChart")', { targetId: id, from: $('fFrom').value, to: $('fTo').value });
-        if (!r.success) return QC.fail(r.message);
+        if (!r.success) { reset('The chart could not be loaded.'); $('ljError').textContent = r.message || 'The chart could not be loaded.'; $('ljError').classList.remove('d-none'); return; }
         const { target: t, points: pts, stats: s } = r.data;
         const m = Number(t.Mean), sd = Number(t.Sd);
         $('cTitle').textContent = `${t.TestName} · ${t.ControlLevel} (lot ${t.LotNo}) · ${t.AnalyzerName}`;
@@ -88,9 +122,10 @@
             <td class="small">${QC.esc(p.CorrectiveAction || '')}</td><td class="small">${QC.esc(p.EnteredByName || '')}</td></tr>`).join('')
             : '<tr><td colspan="7" class="text-center text-muted py-3">No QC run in the period.</td></tr>';
     }
-    $('fAnalyzer').addEventListener('change', () => { fillTests(); $('fTarget').innerHTML = ''; });
-    $('fTest').addEventListener('change', () => { fillTargets(); load(); });
-    ['fTarget', 'fFrom', 'fTo'].forEach(k => $(k).addEventListener('change', load));
+    $('fAnalyzer').addEventListener('change', () => fillTests());
+    $('fTest').addEventListener('change', () => fillTargets());
+    $('fTarget').addEventListener('change', () => { if ($('fTarget').value) load(); else reset('Choose the control level / lot.'); });
+    ['fFrom', 'fTo'].forEach(k => $(k).addEventListener('change', load));
     init();
 })();
 </script>
