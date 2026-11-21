@@ -122,7 +122,7 @@ namespace EMR.Web.Controllers
                     model.DateOfBirth = patient.DateOfBirth;
                     if (patient.DateOfBirth.HasValue)
                     {
-                        var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
+                        var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
                         model.AgeYears = y;
                         model.AgeMonths = m;
                         model.AgeDays = d;
@@ -259,7 +259,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                    model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
                 }
             }
             else if (model.DateOfBirth.HasValue)
@@ -270,7 +270,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                    var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                     model.AgeYears = y;
                     model.AgeMonths = m;
                     model.AgeDays = d;
@@ -856,7 +856,7 @@ namespace EMR.Web.Controllers
                     model.DateOfBirth = patient.DateOfBirth;
                     if (patient.DateOfBirth.HasValue)
                     {
-                        var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
+                        var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
                         model.AgeYears = y;
                         model.AgeMonths = m;
                         model.AgeDays = d;
@@ -963,7 +963,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                    model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
                 }
             }
             else if (model.DateOfBirth.HasValue)
@@ -974,7 +974,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                    var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                     model.AgeYears = y;
                     model.AgeMonths = m;
                     model.AgeDays = d;
@@ -1361,12 +1361,12 @@ namespace EMR.Web.Controllers
                 int d = model.AgeDays ?? 0;
                 if (y > 0 || m > 0 || d > 0)
                 {
-                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                    model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
                 }
             }
             else if (model.DateOfBirth.HasValue)
             {
-                var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                 model.AgeYears = y;
                 model.AgeMonths = m;
                 model.AgeDays = d;
@@ -2793,8 +2793,8 @@ namespace EMR.Web.Controllers
             var branchId = User.GetCurrentBranchId();
             if (req == null || req.PatientId <= 0 || branchId == null) return Json(new { success = true, data = (object?)null });
             var lines = (req.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.ItemId > 0)
-                .Select(i => new EMR.Web.Services.LabBenefitLineInput(i.Key, (i.Kind ?? "T").ToUpperInvariant() is "P" or "M" ? i.Kind!.ToUpperInvariant() : "T", i.ItemId, i.Price));
-            var b = await EMR.Web.Services.LabMembershipBenefits.ComputeAsync(dbContext.Database.GetDbConnection(), req.PatientId, branchId.Value, lines);
+                .Select(i => new EMR.Common.LabBenefitLineInput(i.Key, (i.Kind ?? "T").ToUpperInvariant() is "P" or "M" ? i.Kind!.ToUpperInvariant() : "T", i.ItemId, i.Price));
+            var b = await EMR.Common.LabMembershipBenefits.ComputeAsync(dbContext.Database.GetDbConnection(), req.PatientId, branchId.Value, lines);
             if (b == null) return Json(new { success = true, data = (object?)null });
             return Json(new
             {
@@ -3939,24 +3939,4 @@ namespace EMR.Web.Controllers
         public int Score { get; set; }
     }
 
-    /// <summary>The "your lab bill" email (bill PDF attached), in the common email layout.</summary>
-    internal static class LabBillEmail
-    {
-        public static string Body(string? hospitalName, string? patientName, string? billNo, string? address)
-        {
-            static string H(string? v) => System.Net.WebUtility.HtmlEncode(v ?? string.Empty);
-            var hospital = string.IsNullOrWhiteSpace(hospitalName) ? "our hospital" : hospitalName.Trim();
-            return EmailLayout.Wrap(
-                EmailLayout.Greeting(patientName ?? "Patient")
-                + EmailLayout.P($"Thank you for choosing <strong>{H(hospital)}</strong> for your healthcare needs.")
-                + EmailLayout.Details(("Bill No", H(billNo)), ("Date", DateTime.Now.ToString("dd MMM yyyy")))
-                + EmailLayout.P("Please find your detailed lab order bill attached to this email as a PDF document.")
-                + EmailLayout.P("If you have any questions or require further assistance, please do not hesitate to contact us.")
-                + EmailLayout.P($"Wishing you the best of health,<br/><strong>The {H(hospital)} Team</strong>"),
-                heading: "Your lab bill",
-                organisation: hospital,
-                footerHtml: $"&copy; {DateTime.Now.Year} {H(hospital)}. All rights reserved."
-                            + (string.IsNullOrWhiteSpace(address) ? "" : $"<br/>{H(address)}"));
-        }
-    }
 }

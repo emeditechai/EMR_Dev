@@ -131,7 +131,7 @@ public class LabReportEmailService(
                     email, claim.IsRevised, user, trigger);
 
             // One PDF per report of the bill: the Lab Report and/or the Microbiology Report (Reporting Type Template).
-            var reports = new List<(string Type, EMR.Web.Models.ViewModels.LabReportPrintViewModel Vm, byte[] Pdf)>();
+            var reports = new List<(string Type, EMR.Common.LabReportPrintViewModel Vm, byte[] Pdf)>();
             foreach (var type in new[] { LabReportTypes.Numeric, LabReportTypes.Template })
             {
                 var rvm = await reportPdfService.BuildAsync(labOrderId, user, LabReportPrintBuilder.ScopeApproved, type);

@@ -12,11 +12,11 @@
     var firstName = string.IsNullOrWhiteSpace(p.FirstName) ? fullName : p.FirstName;
     var initials = ((p.FirstName?.Length > 0 ? p.FirstName[0].ToString() : "") + (p.LastName?.Length > 0 ? p.LastName[0].ToString() : "")).ToUpper();
     if (string.IsNullOrEmpty(initials)) initials = "?";
-    var age = EMR.Web.Utils.AgeCalculator.FormatAgePattern(p.DateOfBirth);
+    var age = EMR.Common.AgeCalculator.FormatAgePattern(p.DateOfBirth);
     var greeting = DateTime.Now.Hour < 12 ? "Good morning" : DateTime.Now.Hour < 17 ? "Good afternoon" : "Good evening";
 
     var card = Model.CurrentCard;
-    var cardMembers = card == null ? new List<EMR.Web.Models.ViewModels.PatientCardMemberItem>() : Model.CardMembers.Where(m => m.CardId == card.CardId && m.IsActive).ToList();
+    var cardMembers = card == null ? new List<EMR.Common.PatientCardMemberItem>() : Model.CardMembers.Where(m => m.CardId == card.CardId && m.IsActive).ToList();
     string CardTone(string s) => s switch { "Active" => "ok", "Expired" => "warn", "Blocked" => "bad", _ => "muted" };
     var isHead = p.RelationId == 1;
     var headOfFamily = isHead ? null : Model.Family.FirstOrDefault(f => f.IsSelf);
@@ -34,7 +34,7 @@
     string Initials(string name) => string.Concat(name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => !w.EndsWith(".")).Take(2).Select(w => char.ToUpper(w[0])));
     string Money(decimal v) => "₹" + v.ToString("N2");
 
-    var labs = Model.LabOrderHistory ?? new List<EMR.Web.Models.ViewModels.PatientLabOrderHistoryItem>();
+    var labs = Model.LabOrderHistory ?? new List<EMR.Common.PatientLabOrderHistoryItem>();
     var readyReports = labs.Where(l => l.ApprovedTestCount > 0 && IsPaid(l.PaymentStatus)).ToList();
     var upcoming = Model.VisitHistory
         .Where(v => v.VisitDate.Date >= DateTime.Today && !string.Equals(v.Status, "Completed", StringComparison.OrdinalIgnoreCase)
@@ -45,8 +45,8 @@
     var lastLab = labs.OrderByDescending(l => l.OrderDate).FirstOrDefault();
 
     // recent activity: OPD visits and LAB bills, newest first
-    var activity = Model.VisitHistory.Select(v => (Date: v.VisitDate, Kind: "opd", Opd: v, Lab: (EMR.Web.Models.ViewModels.PatientLabOrderHistoryItem?)null))
-        .Concat(labs.Select(l => (Date: l.OrderDate, Kind: "lab", Opd: (EMR.Web.Models.ViewModels.PatientVisitHistoryItem?)null, Lab: (EMR.Web.Models.ViewModels.PatientLabOrderHistoryItem?)l)))
+    var activity = Model.VisitHistory.Select(v => (Date: v.VisitDate, Kind: "opd", Opd: v, Lab: (EMR.Common.PatientLabOrderHistoryItem?)null))
+        .Concat(labs.Select(l => (Date: l.OrderDate, Kind: "lab", Opd: (EMR.Common.PatientVisitHistoryItem?)null, Lab: (EMR.Common.PatientLabOrderHistoryItem?)l)))
         .OrderByDescending(a => a.Date).Take(6).ToList();
 }
 
@@ -755,7 +755,7 @@
                             {
                                 foreach (var f in family)
                                 {
-                                    var fAge = EMR.Web.Utils.AgeCalculator.FormatAgePattern(f.DateOfBirth);
+                                    var fAge = EMR.Common.AgeCalculator.FormatAgePattern(f.DateOfBirth);
                                     <div class="person">
                                         <div class="av">@Initials(f.FullName)</div>
                                         <div class="flex-grow-1" style="min-width:0"><div class="fw-semibold">@f.FullName</div>

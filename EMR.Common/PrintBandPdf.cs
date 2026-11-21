@@ -1,9 +1,8 @@
-using EMR.Web.Models.ViewModels;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
-namespace EMR.Web.Services;
+namespace EMR.Common;
 
 /// <summary>
 /// Draws a Print Templates band (SQLScripts/2324) in a QuestPDF document - the lab report header and footer.
@@ -103,7 +102,7 @@ public static class PrintBandPdf
             }
             case "barcode":
             {
-                var svg = MembershipCardPdfDocument.Code39Svg(values.GetValueOrDefault("docNo") ?? "");
+                var svg = Code39.Svg(values.GetValueOrDefault("docNo") ?? "");
                 if (svg is null) break;
                 var h = (float)(b.HeightMm > 0 ? b.HeightMm : 8);
                 // an SVG needs a width to stretch to: the block takes WidthPct of the column, placed by its alignment

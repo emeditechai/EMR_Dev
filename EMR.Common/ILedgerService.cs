@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
-using EMR.Web.Models.DTOs;
 
-namespace EMR.Web.Services;
+namespace EMR.Common;
 
 public interface ILedgerService
 {

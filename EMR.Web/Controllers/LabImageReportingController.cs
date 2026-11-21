@@ -542,28 +542,6 @@ namespace EMR.Web.Controllers
                 User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System", patientCopy: false);
         }
 
-        /// <summary>
-        /// The patient app's copy of the Image report (whole bill or one test): opened by a 10-minute ticket of EMR.Web
-        /// api/patient-app (token_use patient_doc, doc = image:{labOrderId}) for the patient the bill belongs to; only
-        /// approved tests, always with the letterhead (the patient's digital copy, as the WhatsApp report). EMR.Web prints
-        /// (The app downloads its PDF from api/patient-app, drawn with QuestPDF.)
-        /// </summary>
-        [HttpGet, AllowAnonymous]
-        public async Task<IActionResult> PatientPrint(int labOrderId, long? sampleCollectionId, string? t)
-        {
-            var ticket = await apiTokens.ValidateAsync(t ?? "", EMR.Shared.Security.TokenUse.PatientDocument);
-            if (ticket?.FindFirst(EMR.Shared.Security.TokenUse.DocumentClaim)?.Value != $"image:{labOrderId}"
-                || !int.TryParse(ticket.FindFirst(EMR.Shared.Security.TokenUse.PatientIdClaim)?.Value, out var patientId)
-                || await Dapper.SqlMapper.ExecuteScalarAsync<int>(dbContext.Database.GetDbConnection(),
-                       "SELECT COUNT(1) FROM dbo.LabOrder WHERE LabOrderId = @Id AND PatientId = @P AND IsActive = 1",
-                       new { Id = labOrderId, P = patientId }) == 0)
-                return Content("This link has expired. Open the report again from the app.", "text/plain");
-
-            var detail = await labReportingApiClient.GetDetailAsync(labOrderId, null, "Image");
-            if (detail == null) return Content("The report is not available.", "text/plain");
-            return await PrintViewAsync(detail, labOrderId, sampleCollectionId, false, detail.BranchId, "Patient Portal", patientCopy: true);
-        }
-
         private async Task<IActionResult> PrintViewAsync(LabReportingOrderDetailDto detail, int labOrderId, long? sampleCollectionId, bool embed,
             int branchId, string printedBy, bool patientCopy)
         {

@@ -7,14 +7,14 @@
     var initials = ((p.FirstName?.Length > 0 ? p.FirstName[0].ToString() : "") + (p.LastName?.Length > 0 ? p.LastName[0].ToString() : "")).ToUpper();
     if (string.IsNullOrEmpty(initials)) initials = "?";
 
-    var age = EMR.Web.Utils.AgeCalculator.FormatAgePattern(p.DateOfBirth);
+    var age = EMR.Common.AgeCalculator.FormatAgePattern(p.DateOfBirth);
     // Edit opens Patient Registration: Patient Master > Edit patient (script 2208) and that screen are both needed
     var canEdit = await PermissionGuard.ShowsAsync(Context, "MASTER.OPD", "EDIT")
                   && await PermissionGuard.ShowsAsync(Context, "OPD.PATIENTREGISTRATION", "VIEW");
     var canOpenCard = await PermissionGuard.ShowsAsync(Context, "MASTER.MEMBERSHIPCARDS", "VIEW");
 
     var card = Model.CurrentCard;
-    var cardMembers = card == null ? new List<EMR.Web.Models.ViewModels.PatientCardMemberItem>() : Model.CardMembers.Where(m => m.CardId == card.CardId).ToList();
+    var cardMembers = card == null ? new List<EMR.Common.PatientCardMemberItem>() : Model.CardMembers.Where(m => m.CardId == card.CardId).ToList();
     var otherCards = Model.MembershipCards.Where(c => card == null || c.CardId != card.CardId).ToList();
     string CardTone(string s) => s switch { "Active" => "success", "Expired" => "warning", "Blocked" => "danger", "Cancelled" => "secondary", _ => "secondary" };
     var isHead = p.RelationId == 1;
@@ -322,7 +322,7 @@
                 {
                     @foreach (var f in Model.Family)
                     {
-                        var fAge = EMR.Web.Utils.AgeCalculator.FormatAgePattern(f.DateOfBirth);
+                        var fAge = EMR.Common.AgeCalculator.FormatAgePattern(f.DateOfBirth);
                         var onCard = card != null && cardMembers.Any(m => m.PatientId == f.PatientId && m.IsActive);
                         <div class="pp-row @(f.IsActive ? "" : "opacity-50")">
                             <div class="pp-av" style="@(f.IsSelf ? "background:#dbeafe;color:#1d4ed8" : "")">@string.Concat(f.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => !w.EndsWith(".")).Take(2).Select(w => char.ToUpper(w[0])))</div>

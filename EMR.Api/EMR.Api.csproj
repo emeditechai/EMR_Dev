@@ -11,6 +11,8 @@
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
     <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="FluentFTP" Version="55.1.0" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
     <PackageReference Include="Microsoft.ML" Version="4.0.2" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
@@ -21,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EMR.Shared.Security\EMR.Shared.Security.csproj" />
+    <ProjectReference Include="..\EMR.Common\EMR.Common.csproj" />
   </ItemGroup>
 
 </Project>

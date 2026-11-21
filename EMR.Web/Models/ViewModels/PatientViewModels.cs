@@ -42,7 +42,7 @@ public class PatientListItemViewModel
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public DateTime CreatedDate { get; set; }
     public bool IsActive { get; set; }
     public string? ConsultingDoctorName { get; set; }
@@ -301,7 +301,7 @@ public class PatientQuickSearchResult
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
 }
 
 // ─── OPD Service Line Item DTO (used for JSON serialization) ─────────────────
@@ -326,7 +326,7 @@ public class ServiceBookingListItem
     public string? Gender { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public int? Age { get; set; }
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public string? ConsultingDoctorName { get; set; }
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -382,7 +382,7 @@ public class ServiceBookingDetailViewModel
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public string? ConsultingDoctorName { get; set; }
     public DateTime VisitDate { get; set; }
     public TimeSpan? AppointmentTime { get; set; }
@@ -391,20 +391,6 @@ public class ServiceBookingDetailViewModel
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<ServiceBookingDetailItem> Items { get; set; } = [];
-}
-
-// ─── Patient Visit History Item ──────────────────────────────────────────────
-public class PatientVisitHistoryItem
-{
-    public int OPDServiceId { get; set; }
-    public DateTime VisitDate { get; set; }
-    public string? OPDBillNo { get; set; }
-    public string? TokenNo { get; set; }
-    public decimal TotalAmount { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public string PaymentStatus { get; set; } = string.Empty;
-    public string? ConsultingDoctorName { get; set; }
-    public string ServiceTypesSummary { get; set; } = string.Empty;
 }
 
 // ─── Comprehensive Patient Details View Model ──────────────────────────────────
@@ -444,94 +430,6 @@ public class PatientDetailsViewModel
     public PatientMembershipCardItem? CurrentCard =>
         MembershipCards.FirstOrDefault(c => c.EffectiveStatus == "Active") ?? MembershipCards.FirstOrDefault();
 }
-
-/// <summary>A patient registered on the same mobile number (family / dependents, by relation).</summary>
-public class PatientFamilyItem
-{
-    public int PatientId { get; set; }
-    public string? PatientCode { get; set; }
-    public string FullName { get; set; } = "";
-    public string? Gender { get; set; }
-    public DateTime? DateOfBirth { get; set; }
-    public int? RelationId { get; set; }
-    public string? RelationName { get; set; }
-    public bool IsActive { get; set; }
-    public bool IsSelf => RelationId == 1;
-}
-
-public class PatientMembershipCardItem
-{
-    public int CardId { get; set; }
-    public string CardNo { get; set; } = "";
-    public string? PlanName { get; set; }
-    public string? PlanType { get; set; }
-    public string Status { get; set; } = "";
-    public DateTime ValidFrom { get; set; }
-    public DateTime ValidTo { get; set; }
-    public decimal PointsBalance { get; set; }
-    public decimal PointValue { get; set; }
-    public int MaxMembers { get; set; }
-    public decimal FeeAmount { get; set; }
-    public string? ReceiptNo { get; set; }
-    public string? IssueBranchName { get; set; }
-    public DateTime CreatedDate { get; set; }
-    public bool IsPrimary { get; set; }
-    public string? MemberRelation { get; set; }
-    public int PrimaryPatientId { get; set; }
-    public string? PrimaryName { get; set; }
-    public string? PrimaryCode { get; set; }
-    public bool MemberActive { get; set; }
-
-    /// <summary>Active / Expired / Blocked / Cancelled / Renewed - expiry comes from ValidTo.</summary>
-    public string EffectiveStatus => Status == "Active" && ValidTo.Date < DateTime.Today ? "Expired" : Status;
-}
-
-public class PatientCardMemberItem
-{
-    public int CardId { get; set; }
-    public int PatientId { get; set; }
-    public string? PatientCode { get; set; }
-    public string FullName { get; set; } = "";
-    public string? Relation { get; set; }
-    public bool IsPrimary { get; set; }
-    public bool IsActive { get; set; }
-}
-
-public class PatientPointsItem
-{
-    public DateTime CreatedDate { get; set; }
-    public string? CardNo { get; set; }
-    public string TxnType { get; set; } = "";
-    public decimal Points { get; set; }
-    public decimal? Amount { get; set; }
-    public decimal BalanceAfter { get; set; }
-    public string? ReceiptNo { get; set; }
-    public string? Narration { get; set; }
-    public string? PatientName { get; set; }
-}
-
-public class PatientBillingSummaryItem
-{
-    public string ModuleCode { get; set; } = "";
-    public int Bills { get; set; }
-    public decimal NetAmount { get; set; }
-    public decimal Paid { get; set; }
-    public decimal Due { get; set; }
-}
-
-public class PatientLabOrderHistoryItem
-{
-    public int LabOrderId { get; set; }
-    public DateTime OrderDate { get; set; }
-    public string BillNo { get; set; } = null!;
-    public decimal TotalAmount { get; set; }
-    public decimal DiscountAmount { get; set; }
-    public decimal PaidAmount { get; set; }
-    public string PaymentStatus { get; set; } = null!;
-    /// <summary>Tests already approved; &gt;0 means the approved lab report can be printed.</summary>
-    public int ApprovedTestCount { get; set; }
-}
-
 
 /// <summary>The UPI payment QR printed on a B2B tax invoice (SQLScripts/2452). Amount null = the payer enters it.</summary>
 public sealed record InvoicePayQr(string ImageDataUri, string UpiId, string PayeeName, decimal? Amount, string? Caption, string? Reference);

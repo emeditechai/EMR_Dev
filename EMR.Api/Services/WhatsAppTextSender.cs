@@ -16,6 +16,13 @@ public interface IWhatsAppTextSender
     /// in the message can be left out of it.
     /// </summary>
     Task<WhatsAppSendResult> SendAsync(int branchId, string? phoneNumber, string text, string moduleCode, int? moduleRefId = null, string? logText = null);
+
+    /// <summary>The same, with a document (a PDF uploaded with <see cref="UploadMediaAsync"/>) attached to the message.</summary>
+    Task<WhatsAppSendResult> SendDocumentAsync(int branchId, string? phoneNumber, string text, string moduleCode, int? moduleRefId,
+        string? documentUrl, string? fileName);
+
+    /// <summary>Uploads a file to the WhatsApp provider (WaSender /api/upload) and gives its public URL, or null.</summary>
+    Task<string?> UploadMediaAsync(byte[] fileBytes, string mimeType, int branchId);
 }
 
 public sealed class WhatsAppTextSender(
@@ -23,14 +30,56 @@ public sealed class WhatsAppTextSender(
     IHttpClientFactory httpClientFactory,
     ILogger<WhatsAppTextSender> logger) : IWhatsAppTextSender
 {
-    public async Task<WhatsAppSendResult> SendAsync(int branchId, string? phoneNumber, string text, string moduleCode, int? moduleRefId = null, string? logText = null)
+    public Task<WhatsAppSendResult> SendAsync(int branchId, string? phoneNumber, string text, string moduleCode, int? moduleRefId = null, string? logText = null) =>
+        SendCoreAsync(branchId, phoneNumber, text, moduleCode, moduleRefId, logText, null, null);
+
+    public Task<WhatsAppSendResult> SendDocumentAsync(int branchId, string? phoneNumber, string text, string moduleCode, int? moduleRefId,
+        string? documentUrl, string? fileName) =>
+        SendCoreAsync(branchId, phoneNumber, text, moduleCode, moduleRefId, null, documentUrl, fileName);
+
+    public async Task<string?> UploadMediaAsync(byte[] fileBytes, string mimeType, int branchId)
     {
         using var con = db.CreateConnection();
-        var config = await con.QueryFirstOrDefaultAsync<WhatsAppConfig>(
+        var config = await ConfigAsync(con, branchId);
+        if (config is null || string.IsNullOrWhiteSpace(config.ApiKey)) return null;
+        var token = config.ApiKey.Trim();
+        if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) token = token[7..].Trim();
+        var uploadUrl = !string.IsNullOrWhiteSpace(config.ApiUrl) && config.ApiUrl.Contains("/api/")
+            ? config.ApiUrl[..config.ApiUrl.IndexOf("/api/")] + "/api/upload"
+            : "https://wasenderapi.com/api/upload";
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, uploadUrl)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(new { mimetype = mimeType, base64 = Convert.ToBase64String(fileBytes) }),
+                    Encoding.UTF8, "application/json")
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            var client = httpClientFactory.CreateClient();
+            client.Timeout = TimeSpan.FromSeconds(35);
+            var response = await client.SendAsync(request);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("success", out var ok) && ok.ValueKind == JsonValueKind.True
+                && doc.RootElement.TryGetProperty("publicUrl", out var url)) return url.GetString();
+            logger.LogWarning("[WHATSAPP] Media upload failed for branch {BranchId}: {Response}", branchId, json);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "[WHATSAPP] Media upload failed for branch {BranchId}", branchId); }
+        return null;
+    }
+
+    private static Task<WhatsAppConfig?> ConfigAsync(System.Data.IDbConnection con, int branchId) =>
+        con.QueryFirstOrDefaultAsync<WhatsAppConfig?>(
             @"SELECT TOP 1 w.Id, w.ApiUrl, w.AuthHeaderKey, w.ApiKey, w.DefaultCountryCode
                 FROM dbo.WhatsAppConfiguration w JOIN dbo.Branchmaster b ON b.BranchID = @branchId
                WHERE w.IsActive = 1 AND w.IsEnabled = 1 AND (w.BranchId = @branchId OR (w.IsDefault = 1 AND w.CompanyId = b.CompanyId))
                ORDER BY CASE WHEN w.BranchId = @branchId THEN 0 ELSE 1 END, w.BranchId", new { branchId });
+
+    private async Task<WhatsAppSendResult> SendCoreAsync(int branchId, string? phoneNumber, string text, string moduleCode, int? moduleRefId,
+        string? logText, string? documentUrl, string? fileName)
+    {
+        using var con = db.CreateConnection();
+        var config = await ConfigAsync(con, branchId);
         if (config is null || string.IsNullOrWhiteSpace(config.ApiKey)) return WhatsAppSendResult.NotConfigured;
 
         var to = Normalize(phoneNumber, config.DefaultCountryCode);
@@ -41,13 +90,13 @@ public sealed class WhatsAppTextSender(
             return WhatsAppSendResult.InvalidNumber;
         }
 
-        var (result, body, error, status) = await PostAsync(config, to, text, branchId);
+        var (result, body, error, status) = await PostAsync(config, to, text, branchId, documentUrl, fileName);
         if (result == WhatsAppSendResult.Busy)
         {
             // the account allows one message every few seconds: wait for it once, then try again
             var wait = RetryAfterSeconds(body);
             await Task.Delay(TimeSpan.FromSeconds(wait + 1));
-            (result, body, error, status) = await PostAsync(config, to, text, branchId);
+            (result, body, error, status) = await PostAsync(config, to, text, branchId, documentUrl, fileName);
         }
 
         await WriteLogAsync(con, log with { Success = result == WhatsAppSendResult.Sent, Body = body, Error = error, Status = status,
@@ -55,14 +104,17 @@ public sealed class WhatsAppTextSender(
         return result;
     }
 
-    private async Task<(WhatsAppSendResult Result, string? Body, string? Error, string? Status)> PostAsync(WhatsAppConfig config, string to, string text, int branchId)
+    private async Task<(WhatsAppSendResult Result, string? Body, string? Error, string? Status)> PostAsync(WhatsAppConfig config, string to, string text, int branchId,
+        string? documentUrl = null, string? fileName = null)
     {
         var token = config.ApiKey.Trim();
         if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)) token = token[7..].Trim();
         var headerKey = string.IsNullOrWhiteSpace(config.AuthHeaderKey) ? "Authorization" : config.AuthHeaderKey.Trim();
         var message = new HttpRequestMessage(HttpMethod.Post, config.ApiUrl)
         {
-            Content = new StringContent(JsonSerializer.Serialize(new { to, text }), Encoding.UTF8, "application/json")
+            Content = new StringContent(string.IsNullOrWhiteSpace(documentUrl)
+                ? JsonSerializer.Serialize(new { to, text })
+                : JsonSerializer.Serialize(new { to, text, documentUrl, fileName = fileName ?? "document.pdf" }), Encoding.UTF8, "application/json")
         };
         if (headerKey.Equals("Authorization", StringComparison.OrdinalIgnoreCase)) message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         else message.Headers.TryAddWithoutValidation(headerKey, "Bearer " + token);

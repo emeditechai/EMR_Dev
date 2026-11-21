@@ -2,7 +2,7 @@ using System.Data;
 using System.Text.Json;
 using Dapper;
 
-namespace EMR.Web.Services;
+namespace EMR.Common;
 
 /// <summary>A bill line the membership benefits are worked out for. Kind: T = test / profile, P = package, M = misc charge.</summary>
 public sealed record LabBenefitLineInput(string Key, string Kind, int ItemId, decimal Price);

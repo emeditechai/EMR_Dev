@@ -50,7 +50,7 @@ public sealed class ApiCallerFilter(
         // The patient app: only the patient's own records ([PatientOwnData] then checks the id in the route).
         if (use is TokenUse.Patient)
         {
-            if (context.ActionDescriptor.EndpointMetadata.Any(m => m is PatientOwnDataAttribute)) return;
+            if (context.ActionDescriptor.EndpointMetadata.Any(m => m is PatientOwnDataAttribute or PatientAppAttribute)) return;
             context.Result = new ObjectResult(new { success = false, code = "FORBIDDEN", message = "This is not available in the patient app." })
                 { StatusCode = StatusCodes.Status403Forbidden };
             return;
@@ -110,5 +110,43 @@ public sealed class PatientOwnDataAttribute : Attribute, IAuthorizationFilter
 
         context.Result = new ObjectResult(new { success = false, code = "FORBIDDEN", message = "You can only see your own records." })
             { StatusCode = StatusCodes.Status403Forbidden };
+    }
+}
+
+/// <summary>
+/// The patient app's own endpoints (api/patient-app): a patient token only. Whose records: the token's patient, or the
+/// dependent X-Patient-Id names when the token opens that patient (patient_family, a head of family). The patient id is
+/// left in HttpContext.Items[PatientAppAttribute.PatientIdItem] for the action.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
+public sealed class PatientAppAttribute : Attribute, IAuthorizationFilter
+{
+    public const string PatientIdItem = "PatientApp.PatientId";
+
+    public void OnAuthorization(AuthorizationFilterContext context)
+    {
+        // a document link opened by its ticket, not by the patient's token (files/*)
+        if (context.ActionDescriptor.EndpointMetadata.Any(m => m is IAllowAnonymous)) return;
+        var http = context.HttpContext;
+        var user = http.User;
+        if (user.Identity?.IsAuthenticated != true || user.FindFirstValue(TokenUse.ClaimType) != TokenUse.Patient
+            || !int.TryParse(user.FindFirstValue(TokenUse.PatientIdClaim), out var patientId) || patientId <= 0)
+        {
+            http.Response.Headers.WWWAuthenticate = "Bearer";
+            context.Result = new ObjectResult(new { success = false, code = "UNAUTHENTICATED", message = "Please sign in again." })
+                { StatusCode = StatusCodes.Status401Unauthorized };
+            return;
+        }
+        var asked = http.Request.Headers["X-Patient-Id"].ToString();
+        if (asked.Length > 0 && asked != patientId.ToString())
+        {
+            if (!TokenUse.PatientIds(user).Contains(asked) || !int.TryParse(asked, out patientId))
+            {
+                context.Result = new ObjectResult(new { success = false, code = "FORBIDDEN", message = "You can only see your own and your family's records." })
+                    { StatusCode = StatusCodes.Status403Forbidden };
+                return;
+            }
+        }
+        http.Items[PatientIdItem] = patientId;
     }
 }
