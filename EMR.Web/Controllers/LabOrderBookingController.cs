@@ -2797,7 +2797,7 @@ namespace EMR.Web.Controllers
             if (req is { LabOrderId: > 0 })
             {
                 var con = dbContext.Database.GetDbConnection();
-                var saved = await EMR.Web.Services.LabMembershipBenefits.ForOrderAsync(con, req.LabOrderId.Value);
+                var saved = await EMR.Common.LabMembershipBenefits.ForOrderAsync(con, req.LabOrderId.Value);
                 if (saved == null) return Json(new { success = true, data = (object?)null });
                 // the bill's ids behind each key: I<LabOrderItemId> (test id too), M<LabOrderMiscChargeId> (misc charge id too)
                 var ids = (await con.QueryAsync<(string Key, int RefId, int AltId)>(@"
