@@ -1,4 +1,4 @@
-@model EMR.Web.Models.ViewModels.PrintBandView
+@model EMR.Common.PrintBandView
 @using EMR.Web.Models.ViewModels
 @{
     // Utility > Print Templates (SQLScripts/2324): one band (header or footer) of a template, drawn in a bill page and on
@@ -59,7 +59,7 @@
                             @switch (b.Type)
                             {
                                 case "field":
-                                    var words = empty ? $"[{PrintFields.Find(b.Field)?.Label ?? "choose a field"} - empty for this branch]" : EMR.Web.Services.PrintBandPdf.FieldText(b, v);
+                                    var words = empty ? $"[{PrintFields.Find(b.Field)?.Label ?? "choose a field"} - empty for this branch]" : EMR.Common.PrintBandPdf.FieldText(b, v);
                                     if (b.Style == "badge") { <span class="ptpl-badge" style="border-color:@b.Color">@words</span> } else { <span>@words</span> }
                                     break;
                                 case "text":
@@ -77,7 +77,7 @@
                                     else if (Model.DesignMode) { <span class="ptpl-ph" style="height:@(Css(h))mm">@(b.Type == "logo" ? "Logo (Hospital Settings)" : "Upload an image")</span> }
                                     break;
                                 case "barcode":
-                                    var svg = EMR.Web.Services.MembershipCardPdfDocument.Code39Svg(v.GetValueOrDefault("docNo") ?? "");
+                                    var svg = EMR.Common.Code39.Svg(v.GetValueOrDefault("docNo") ?? "");
                                     if (svg is not null)
                                     {
                                         <div class="ptpl-barcode" style="height:@(Css(b.HeightMm > 0 ? b.HeightMm : 8))mm;width:@(Css(b.WidthPct))%;display:inline-block">@Html.Raw(svg)</div>

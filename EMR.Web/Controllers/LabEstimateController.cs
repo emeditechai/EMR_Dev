@@ -71,7 +71,7 @@ public class LabEstimateController(LabEstimateApiClient api, ILabOrderApiClient 
     {
         var p = await patientService.GetByIdAsync(id);
         if (p is null) return Fail("The patient was not found.");
-        int? age = p.DateOfBirth is DateTime dob ? EMR.Web.Utils.AgeCalculator.FromDateOfBirth(dob).Item1 : null;
+        int? age = p.DateOfBirth is DateTime dob ? EMR.Common.AgeCalculator.FromDateOfBirth(dob).Item1 : null;
         return Json(new { success = true, data = new { p.PatientId, p.PatientCode, p.Salutation, p.FirstName, p.LastName, p.PhoneNumber, p.EmailId, p.Gender, AgeYears = age } });
     }
 

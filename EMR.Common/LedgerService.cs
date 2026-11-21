@@ -2,13 +2,11 @@ using System;
 using System.Data;
 using System.Threading.Tasks;
 using Dapper;
-using EMR.Web.Data;
-using EMR.Web.Models.DTOs;
 using Microsoft.Extensions.Logging;
 
-namespace EMR.Web.Services;
+namespace EMR.Common;
 
-public class LedgerService(IDbConnectionFactory db, ILogger<LedgerService> logger) : ILedgerService
+public class LedgerService(IDbConnections db, ILogger<LedgerService> logger) : ILedgerService
 {
     public async Task<long> PostLedgerEntryAsync(LedgerEntryDto entry)
     {

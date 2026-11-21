@@ -166,7 +166,7 @@ public class IpdAdmissionController(
     {
         var p = await patientService.GetByIdAsync(id);
         if (p is null) return NotFound();
-        var (y, m, d) = p.DateOfBirth.HasValue ? EMR.Web.Utils.AgeCalculator.FromDateOfBirth(p.DateOfBirth.Value) : (0, 0, 0);
+        var (y, m, d) = p.DateOfBirth.HasValue ? EMR.Common.AgeCalculator.FromDateOfBirth(p.DateOfBirth.Value) : (0, 0, 0);
         var split = PatientAddress.Split(p.Address);
         return Json(new
         {
@@ -269,7 +269,7 @@ public class IpdAdmissionController(
 
         // age / date of birth, as OPD / LAB registration
         if ((model.AgeYears ?? 0) + (model.AgeMonths ?? 0) + (model.AgeDays ?? 0) > 0)
-            model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(model.AgeYears ?? 0, model.AgeMonths ?? 0, model.AgeDays ?? 0);
+            model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(model.AgeYears ?? 0, model.AgeMonths ?? 0, model.AgeDays ?? 0);
 
         // ── the patient: Patient Master, exactly like OPD / LAB (an existing patient's phone is changed only in Patient Master) ──
         PatientMaster? existing = null;

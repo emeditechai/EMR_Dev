@@ -1,6 +1,6 @@
 using System;
 
-namespace EMR.Web.Models.DTOs;
+namespace EMR.Common;
 
 public class LedgerEntryDto
 {

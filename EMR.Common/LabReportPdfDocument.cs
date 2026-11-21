@@ -1,9 +1,8 @@
-using EMR.Web.Models.ViewModels;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
-namespace EMR.Web.Services;
+namespace EMR.Common;
 
 /// <summary>
 /// Lab Report PDF (QuestPDF). Layout follows the reference lab-report template:

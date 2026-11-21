@@ -2,8 +2,8 @@
 @{
     Layout = null;
     var d = Model;
-    var header = d.Template is null ? null : new EMR.Web.Models.ViewModels.PrintBandView { Band = d.Template.Header, Values = d.Values, LogoUrl = d.LogoUrl };
-    var footer = d.Template is null ? null : new EMR.Web.Models.ViewModels.PrintBandView { Band = d.Template.Footer, IsFooter = true, Values = d.Values, LogoUrl = d.LogoUrl };
+    var header = d.Template is null ? null : new EMR.Common.PrintBandView { Band = d.Template.Header, Values = d.Values, LogoUrl = d.LogoUrl };
+    var footer = d.Template is null ? null : new EMR.Common.PrintBandView { Band = d.Template.Footer, IsFooter = true, Values = d.Values, LogoUrl = d.LogoUrl };
     var n = 0;
 }
 <!DOCTYPE html>

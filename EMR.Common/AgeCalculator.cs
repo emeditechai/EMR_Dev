@@ -1,6 +1,6 @@
 using System;
 
-namespace EMR.Web.Utils;
+namespace EMR.Common;
 
 public static class AgeCalculator
 {

@@ -4,7 +4,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
-namespace EMR.Web.Services;
+namespace EMR.Common;
 
 // The patient app's bill and Image report PDFs, drawn in code with QuestPDF (as the LAB report is,
 // LabReportPdfDocument), so the server needs no browser to make them. They follow the print pages

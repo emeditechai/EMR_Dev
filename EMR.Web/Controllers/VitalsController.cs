@@ -467,6 +467,6 @@ public class VitalsController(
     private static string CalcAge(DateTime? dob)
     {
         if (dob is null) return "";
-        return EMR.Web.Utils.AgeCalculator.FormatAgePattern(dob);
+        return EMR.Common.AgeCalculator.FormatAgePattern(dob);
     }
 }

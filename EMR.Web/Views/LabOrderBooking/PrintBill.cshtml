@@ -13,7 +13,7 @@
                         ? (!string.IsNullOrEmpty(Model.Gender) ? $"{ageStr} / {Model.Gender}" : ageStr)
                         : (Model.Gender ?? "—");
     // Utility > Print Templates (SQLScripts/2324): set by the controller when the branch has a Bill template (else Classic)
-    var printTemplate = ViewData["PrintTemplate"] as EMR.Web.Models.ViewModels.PrintLayout;
+    var printTemplate = ViewData["PrintTemplate"] as EMR.Common.PrintLayout;
     var printValues   = ViewData["PrintValues"] as Dictionary<string, string?>;
     var printLogoUrl  = ViewData["PrintLogoUrl"] as string;
 }
@@ -388,7 +388,7 @@
     else if (printTemplate is not null)
     {
         @* Utility > Print Templates (SQLScripts/2324): the branch's Bill template *@
-        <partial name="_PrintBand" model="new EMR.Web.Models.ViewModels.PrintBandView { Band = printTemplate.Header, Values = printValues!, LogoUrl = printLogoUrl }" />
+        <partial name="_PrintBand" model="new EMR.Common.PrintBandView { Band = printTemplate.Header, Values = printValues!, LogoUrl = printLogoUrl }" />
     }
     else
     {
@@ -753,7 +753,7 @@
     @if (Model.ShowHeaderFooter && printTemplate is not null)
     {
         <div style="margin-top:5mm;">
-            <partial name="_PrintBand" model="new EMR.Web.Models.ViewModels.PrintBandView { Band = printTemplate.Footer, IsFooter = true, Values = printValues!, LogoUrl = printLogoUrl }" />
+            <partial name="_PrintBand" model="new EMR.Common.PrintBandView { Band = printTemplate.Footer, IsFooter = true, Values = printValues!, LogoUrl = printLogoUrl }" />
         </div>
     }
     else if (Model.ShowHeaderFooter)

@@ -512,7 +512,7 @@ public class OPDController(
             }
             else
             {
-                model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
             }
         }
         else if (model.DateOfBirth.HasValue)
@@ -523,7 +523,7 @@ public class OPDController(
             }
             else
             {
-                var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                 model.AgeYears = y;
                 model.AgeMonths = m;
                 model.AgeDays = d;
@@ -827,12 +827,12 @@ public class OPDController(
                 int d = model.AgeDays ?? 0;
                 if (y > 0 || m > 0 || d > 0)
                 {
-                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                    model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
                 }
             }
             else if (model.DateOfBirth.HasValue)
             {
-                var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                 model.AgeYears = y;
                 model.AgeMonths = m;
                 model.AgeDays = d;
@@ -1897,7 +1897,7 @@ public class OPDController(
         var names = await patientService.GetDemographicNamesAsync(id);
 
         var (ageY, ageM, ageD) = patient.DateOfBirth.HasValue
-            ? EMR.Web.Utils.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value)
+            ? EMR.Common.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value)
             : (0, 0, 0);
 
         return Json(new
@@ -1914,7 +1914,7 @@ public class OPDController(
             AgeYears  = patient.DateOfBirth.HasValue ? ageY : (int?)null,
             AgeMonths = patient.DateOfBirth.HasValue ? ageM : (int?)null,
             AgeDays   = patient.DateOfBirth.HasValue ? ageD : (int?)null,
-            FormattedAge = EMR.Web.Utils.AgeCalculator.FormatAgePattern(patient.DateOfBirth),
+            FormattedAge = EMR.Common.AgeCalculator.FormatAgePattern(patient.DateOfBirth),
             // Resolved display names (replace raw IDs)
             ReligionName      = names.ReligionName,
             MaritalStatusName = names.MaritalStatusName,
@@ -2607,7 +2607,7 @@ public class OPDController(
         };
         if (p.DateOfBirth.HasValue)
         {
-            var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(p.DateOfBirth.Value);
+            var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(p.DateOfBirth.Value);
             vm.AgeYears = y;
             vm.AgeMonths = m;
             vm.AgeDays = d;

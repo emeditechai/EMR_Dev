@@ -1,4 +1,4 @@
-namespace EMR.Web.Models.ViewModels;
+namespace EMR.Common;
 
 /// <summary>Everything the printable Lab Report page needs (letterhead, patient/specimen/client boxes, results and signatories).</summary>
 public class LabReportPrintViewModel

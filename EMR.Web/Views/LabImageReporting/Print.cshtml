@@ -324,9 +324,9 @@
         var printItems = d.Items ?? new List<EMR.Web.Models.DTOs.LabReportingItemDto>();
         int pageNo = 0;
         // SQLScripts/2391: an approved test's external document (PDF pages / JPG / PNG), merged after its report
-        var externalDocs = ViewBag.ExternalDocs as Dictionary<int, EMR.Web.Models.ViewModels.LabReportExternalDoc>
-                           ?? new Dictionary<int, EMR.Web.Models.ViewModels.LabReportExternalDoc>();
-        EMR.Web.Models.ViewModels.LabReportExternalDoc? DocOf(EMR.Web.Models.DTOs.LabReportingItemDto it)
+        var externalDocs = ViewBag.ExternalDocs as Dictionary<int, EMR.Common.LabReportExternalDoc>
+                           ?? new Dictionary<int, EMR.Common.LabReportExternalDoc>();
+        EMR.Common.LabReportExternalDoc? DocOf(EMR.Web.Models.DTOs.LabReportingItemDto it)
             => it.ReportStatusId == 5 && externalDocs.TryGetValue(it.InvestigationID, out var x) ? x : null;
         int totalPages = printItems.Count + printItems.Sum(it => DocOf(it)?.Pages.Count ?? 0);
         string ImageSrc(byte[] b) => (b.Length > 3 && b[0] == 0x89 && b[1] == 0x50 ? "data:image/png;base64," : "data:image/jpeg;base64,") + Convert.ToBase64String(b);

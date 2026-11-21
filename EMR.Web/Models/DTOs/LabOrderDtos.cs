@@ -154,7 +154,7 @@ namespace EMR.Web.Models.DTOs
         public string? Gender { get; set; }
         public DateTime? DateOfBirth { get; set; }
         public int? Age { get; set; }
-        public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+        public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
         public int? PaymentHeaderId { get; set; }
         public string PaymentStatus { get; set; } = "U";
         public decimal TotalPaid { get; set; }
@@ -217,7 +217,7 @@ namespace EMR.Web.Models.DTOs
         public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public System.DateTime? DateOfBirth { get; set; }
         public int? Age { get; set; }
-        public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+        public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
         public string? Address { get; set; }
         public int? PaymentHeaderId { get; set; }
         public string PaymentStatus { get; set; } = "U";

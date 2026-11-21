@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace EMR.Web.Services;
+namespace EMR.Common;
 
 /// <summary>
 /// The one look of every email the application sends: the eCare360Plus+ header (brand plate on the purple-magenta

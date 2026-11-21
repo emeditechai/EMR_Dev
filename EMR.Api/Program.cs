@@ -69,6 +69,8 @@ builder.Services.AddSwaggerGen(c =>
 
 // ── Data & Application services ───────────────────────────────────────────────
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+builder.Services.AddSingleton<EMR.Common.IDbConnections>(sp => sp.GetRequiredService<IDbConnectionFactory>());
+builder.Services.AddScoped<EMR.Common.ILedgerService, EMR.Common.LedgerService>();   // the bill ledger postings, as EMR.Web makes them
 builder.Services.AddScoped<IDoctorService,           DoctorService>();
 
 builder.Services.AddScoped<IDiscountTypeService,     DiscountTypeService>();
@@ -162,6 +164,17 @@ builder.Services.AddScoped<ICompanyCopyService,            CompanyCopyService>()
 builder.Services.AddScoped<ICompanyPurgeService,           CompanyPurgeService>();    // Company > Remove data / Delete company (SQLScripts/2337)
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IWhatsAppTextSender,            WhatsAppTextSender>();
+builder.Services.AddScoped<ISmtpEmailSender, SmtpEmailSender>();                 // e-mail with EMR.Web's SMTP configuration
+builder.Services.AddSingleton<IPatientAppNotices, PatientAppNotices>();          // the patient app's booking WhatsApp / e-mail
+// the patient app's report and bill PDFs (copies of EMR.Web's report code, fed by this API's services)
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<EMR.Api.PatientApp.PatientAppFiles>();
+builder.Services.AddScoped<EMR.Api.PatientApp.PatientReportData>();
+builder.Services.AddScoped<EMR.Api.PatientApp.ILabFtpService>(sp => new EMR.Api.PatientApp.LabFtpService(sp.GetRequiredService<IDbConnectionFactory>(),
+    WebKeyRing.Provider(sp.GetRequiredService<IDbConnectionFactory>()), sp.GetRequiredService<ILogger<EMR.Api.PatientApp.LabFtpService>>()));
+builder.Services.AddScoped<EMR.Api.PatientApp.ILabReportPdfService, EMR.Api.PatientApp.LabReportPdfService>();
+builder.Services.AddScoped<EMR.Api.PatientApp.IPatientDocumentService, EMR.Api.PatientApp.PatientDocumentService>();
+builder.Services.AddScoped<IPatientBillPdfs, EMR.Api.PatientApp.PatientBillPdfs>();   // the bill attached to the booking messages
 builder.Services.AddScoped<IPasswordOtpService,            PasswordOtpService>();     // Forgot password by WhatsApp code (SQLScripts/2384)
 builder.Services.AddScoped<IPatientOtpService,             PatientOtpService>();      // Patient app first sign-in / forgot password by WhatsApp code (SQLScripts/2486)
 builder.Services.AddScoped<IPhleboService,                 PhleboService>();          // Phlebotomist app (SQLScripts/2373, 2374)

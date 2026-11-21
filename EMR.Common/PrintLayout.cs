@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace EMR.Web.Models.ViewModels;
+namespace EMR.Common;
 
 /// <summary>
 /// Utility > Print Templates (SQLScripts/2324): a header and a footer, each a band of rows; a row is split into columns
