@@ -63,6 +63,11 @@ public class HospitalSettings
     // ── OPD Module Settings ──────────────────────────────────────────────────
     public int? OpdRegistrationValidityDays { get; set; }
 
+    /// <summary>Yes: an OPD consultation can be billed without the Registration service even when the patient's registration
+    /// has lapsed (it stays an optional line). No (default): the Registration service is mandatory with the consultation
+    /// whenever Registration Charges Validity is set and the registration has lapsed. SQLScripts/2501.</summary>
+    public bool OpdRegistrationChargesNotRequired { get; set; } = false;
+
     public bool GlobalPatientSearchRequired { get; set; } = false;
     /// <summary>SQLScripts/2355: optional ABHA fields on OPD registration and LAB booking; per company, default off.</summary>
     public bool EnableAbha { get; set; } = false;

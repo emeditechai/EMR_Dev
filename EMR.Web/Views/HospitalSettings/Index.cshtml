@@ -214,6 +214,16 @@ else
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-receipt-cutoff"></i></div>
+                        <div>
+                            <div class="lp-label">Registration Charges Not Required</div>
+                            <div class="lp-desc">@(Model.OpdRegistrationChargesNotRequired ? "OPD consultation can be billed without the registration charge." : "Registration charge is mandatory with consultation once the validity has lapsed.")</div>
+                            <span class="lp-pill @(Model.OpdRegistrationChargesNotRequired ? "yes" : "no")"><i class="bi @(Model.OpdRegistrationChargesNotRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.OpdRegistrationChargesNotRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
                         <div class="lp-icon"><i class="bi bi-search"></i></div>
                         <div>

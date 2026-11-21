@@ -663,6 +663,12 @@
                     (days != null ? ` · <strong>${days}</strong>d left` : '');
                 el.title = 'Registration Charges Not Applied' + (days != null ? ` - ${days} day${days === 1 ? '' : 's'} remaining` : '');
                 el.classList.remove('d-none');
+            } else if (rv.registrationNotRequired) {
+                // Expired or never registered, but the branch does not require the charge (Hospital Settings > OPD, SQLScripts/2501)
+                el.className = 'badge text-bg-info text-dark d-none';
+                el.innerHTML = '<i class="bi bi-receipt me-1"></i>Registration Charge Optional';
+                el.title = 'Registration has lapsed; Hospital Settings allow consultation without the registration charge.';
+                el.classList.remove('d-none');
             } else {
                 // Expired or never registered — registration charge will be applied
                 el.className = 'badge text-bg-success d-none';

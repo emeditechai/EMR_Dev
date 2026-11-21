@@ -1280,7 +1280,8 @@
                 return false;
             }
 
-            if (window._registrationValidityConfigured && !window._registrationValid) {
+            // Registration Charges Not Required = Yes (Hospital Settings > OPD): the registration charge is optional
+            if (window._registrationValidityConfigured && !window._registrationValid && !window._registrationNotRequired) {
                 const hasConsultation = lineItems.some(item => item.serviceType === 'Consulting');
                 if (hasConsultation) {
                     const hasReg = lineItems.some(item => item.isRegistration);
@@ -1628,6 +1629,7 @@
         // ── Registration Validity check ───────────────────────────────────────
         window._registrationValid = false;
         window._registrationValidityConfigured = false;
+        window._registrationNotRequired = false;   // Hospital Settings > OPD > Registration Charges Not Required (SQLScripts/2501)
 
         function clearRegValidityBadge() {
             window._registrationValid = false;
@@ -1658,6 +1660,7 @@
             clearRegValidityBadge();
             showLastVisit(patientId);
             const rv = await fetchJson(opdBase + 'GetRegistrationValidity?patientId=' + patientId);
+            window._registrationNotRequired = !!(rv && rv.registrationNotRequired);
             if (!rv || !rv.validityConfigured) return;  // no validity set — always allow registration
 
             window._registrationValidityConfigured = true;
@@ -1673,6 +1676,13 @@
                     '<i class="bi bi-shield-check me-1"></i>No reg. charge' +
                     (days != null ? ` · <strong>${days}</strong>d left` : '');
                 el.title = 'Registration Charges Not Applied' + (days != null ? ` - ${days} day${days === 1 ? '' : 's'} remaining` : '');
+                el.classList.remove('d-none');
+            } else if (window._registrationNotRequired) {
+                // Expired or never registered, but the branch does not require the charge: it is optional
+                window._registrationValid = false;
+                el.className = 'badge text-bg-info text-dark ms-2';
+                el.innerHTML = '<i class="bi bi-receipt me-1"></i>Registration Charge Optional';
+                el.title = 'Registration has lapsed; Hospital Settings allow consultation without the registration charge.';
                 el.classList.remove('d-none');
             } else {
                 // Expired or never registered — registration charge will be applied

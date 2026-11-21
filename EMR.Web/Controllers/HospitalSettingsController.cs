@@ -567,6 +567,7 @@ public class HospitalSettingsController(
             existing.CheckInTime = TimeSpan.TryParse(model.CheckInTime, out var cin) ? cin : null;
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
             existing.OpdRegistrationValidityDays = model.OpdRegistrationValidityDays;
+            existing.OpdRegistrationChargesNotRequired = model.OpdRegistrationChargesNotRequired;
             existing.GlobalPatientSearchRequired = model.GlobalPatientSearchRequired;
             existing.EnableAbha = model.EnableAbha;
             existing.EnableAyushmanBharat = model.EnableAyushmanBharat;
@@ -767,6 +768,7 @@ public class HospitalSettingsController(
             CheckOutTime = s.CheckOutTime.HasValue
                 ? s.CheckOutTime.Value.ToString(@"hh\:mm") : null,
             OpdRegistrationValidityDays = s.OpdRegistrationValidityDays,
+            OpdRegistrationChargesNotRequired = s.OpdRegistrationChargesNotRequired,
             GlobalPatientSearchRequired = s.GlobalPatientSearchRequired,
             EnableAbha = s.EnableAbha,
             EnableAyushmanBharat = s.EnableAyushmanBharat,
@@ -912,6 +914,7 @@ public class HospitalSettingsController(
             CheckInTime = TimeSpan.TryParse(m.CheckInTime, out var cin) ? cin : null,
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
             OpdRegistrationValidityDays = m.OpdRegistrationValidityDays,
+            OpdRegistrationChargesNotRequired = m.OpdRegistrationChargesNotRequired,
             GlobalPatientSearchRequired = m.GlobalPatientSearchRequired,
             EnableAbha = m.EnableAbha,
             EnableAyushmanBharat = m.EnableAyushmanBharat,

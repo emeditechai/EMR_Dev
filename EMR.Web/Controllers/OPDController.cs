@@ -768,6 +768,9 @@ public class OPDController(
             {
                 return Json(new { success = false, error = "Please select a Type and Item/Service Name for all rows." });
             }
+            // registration charge with a consultation (Hospital Settings > OPD: Registration Charges Validity / Not Required)
+            if (await RegistrationChargeRuleErrorAsync(model.PatientId, branchId, lineItems) is string regError)
+                return Json(new { success = false, error = regError });
 
             // Save uploaded files
             if (identificationFile is { Length: > 0 })
@@ -1994,14 +1997,16 @@ public class OPDController(
     [HttpGet]
     public async Task<IActionResult> GetRegistrationValidity(int patientId)
     {
-
         var branchId = User.GetCurrentBranchId();
         var settings = await dbContext.HospitalSettings
             .FirstOrDefaultAsync(s => s.BranchId == branchId);
         int? validityDays = settings?.OpdRegistrationValidityDays;
+        // Hospital Settings > OPD > Registration Charges Not Required (SQLScripts/2501): Yes = a consultation may be billed
+        // without the Registration service; the screens then do not make it mandatory
+        bool notRequired = settings?.OpdRegistrationChargesNotRequired ?? false;
 
         if (validityDays == null || validityDays <= 0)
-            return Json(new { validityConfigured = false });
+            return Json(new { validityConfigured = false, registrationNotRequired = notRequired });
 
         var lastRegDate = await patientService.GetLastRegistrationDateAsync(patientId);
         if (lastRegDate == null)
@@ -2011,7 +2016,8 @@ public class OPDController(
                 isRegistrationValid     = false,
                 remainingDays           = (int?)null,
                 lastRegistrationDate    = (string?)null,
-                validityDays
+                validityDays,
+                registrationNotRequired = notRequired
             });
 
         // CreatedDate is stored as UTC
@@ -2025,8 +2031,38 @@ public class OPDController(
             isRegistrationValid     = isValid,
             remainingDays           = isValid ? remaining : (int?)null,
             lastRegistrationDate    = lastRegDate.Value.ToString("dd MMM yyyy"),
-            validityDays
+            validityDays,
+            registrationNotRequired = notRequired
         });
+    }
+
+    public const string RegistrationMandatoryMessage =
+        "Registration service is mandatory to take along with consultation as per Hospital Settings.";
+
+    /// <summary>
+    /// The server side of Patient Registration's registration-charge rule (the same rule its screen applies): when the
+    /// branch has Registration Charges Validity set, Registration Charges Not Required is No (SQLScripts/2501), the patient
+    /// has no registration within the validity (or is new) and the bill has a consultation, the bill must carry the
+    /// Registration service. Returns the refusal, or null when the bill may be saved.
+    /// </summary>
+    private async Task<string?> RegistrationChargeRuleErrorAsync(int patientId, int? branchId, IReadOnlyCollection<OPDServiceLineItem> lineItems)
+    {
+        if (!lineItems.Any(li => string.Equals(li.ServiceType, "Consulting", StringComparison.OrdinalIgnoreCase))) return null;
+        var settings = await dbContext.HospitalSettings.AsNoTracking().FirstOrDefaultAsync(s => s.BranchId == branchId);
+        if (settings == null || settings.OpdRegistrationChargesNotRequired) return null;
+        int? validityDays = settings.OpdRegistrationValidityDays;
+        if (validityDays == null || validityDays <= 0) return null;
+
+        if (patientId > 0)
+        {
+            var lastRegDate = await patientService.GetLastRegistrationDateAsync(patientId);
+            if (lastRegDate != null && (DateTime.UtcNow - lastRegDate.Value).TotalDays < validityDays.Value) return null;   // still valid
+        }
+
+        var ids = lineItems.Where(li => li.ServiceId is > 0).Select(li => li.ServiceId!.Value).Distinct().ToList();
+        bool hasRegistration = ids.Count > 0 && await dbContext.Database.GetDbConnection().ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM ServiceMaster WHERE ServiceId IN @Ids AND IsRegistration = 1", new { Ids = ids }) > 0;
+        return hasRegistration ? null : RegistrationMandatoryMessage;
     }
 
     [HttpGet]

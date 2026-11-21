@@ -327,6 +327,20 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-receipt-cutoff"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Registration Charges Not Required</div>
+                            <div class="lp-desc">Yes: an OPD consultation can be billed without the Registration service (it stays optional). No: when Registration Charges Validity is set and the patient's registration has lapsed, the Registration service is mandatory with the consultation.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="OpdRegistrationChargesNotRequired">
+                                <label class="form-check-label" asp-for="OpdRegistrationChargesNotRequired">Allow consultation without registration charge</label>
+                            </div>
+                            <span asp-validation-for="OpdRegistrationChargesNotRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
                         <div class="lp-icon"><i class="bi bi-search"></i></div>
                         <div class="lp-body">
