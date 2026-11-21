@@ -2778,6 +2778,9 @@ namespace EMR.Web.Controllers
         {
             public int PatientId { get; set; }
             public List<MemberBenefitPreviewLine> Items { get; set; } = [];
+            /// <summary>A saved bill not paid yet (due collection): the benefit of its saved lines, worked out exactly as the
+            /// first payment will (LabMembershipBenefits.ForOrderAsync). Each line comes back with its bill ids to match.</summary>
+            public int? LabOrderId { get; set; }
         }
         public sealed class MemberBenefitPreviewLine
         {
@@ -2791,6 +2794,32 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> MembershipBenefitPreview([FromBody] MemberBenefitPreviewRequest req)
         {
             var branchId = User.GetCurrentBranchId();
+            if (req is { LabOrderId: > 0 })
+            {
+                var con = dbContext.Database.GetDbConnection();
+                var saved = await EMR.Web.Services.LabMembershipBenefits.ForOrderAsync(con, req.LabOrderId.Value);
+                if (saved == null) return Json(new { success = true, data = (object?)null });
+                // the bill's ids behind each key: I<LabOrderItemId> (test id too), M<LabOrderMiscChargeId> (misc charge id too)
+                var ids = (await con.QueryAsync<(string Key, int RefId, int AltId)>(@"
+                    SELECT 'I' + CAST(LabOrderItemId AS VARCHAR(12)), LabOrderItemId, InvestigationId FROM dbo.LabOrderItem WHERE LabOrderId = @Id AND IsActive = 1
+                    UNION ALL
+                    SELECT 'M' + CAST(LabOrderMiscChargeId AS VARCHAR(12)), LabOrderMiscChargeId, MiscChargeId FROM dbo.LabOrderMiscCharge WHERE LabOrderId = @Id AND IsActive = 1",
+                    new { Id = req.LabOrderId.Value })).ToDictionary(x => x.Key);
+                return Json(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        saved.CardNo, saved.PlanName, saved.FreeHomeCollection, saved.TestDiscount, saved.MiscDiscount, saved.Total,
+                        lines = saved.Lines.Select(kv => new
+                        {
+                            key = kv.Key, discount = kv.Value.Discount, rule = kv.Value.Rule,
+                            kind = kv.Key.StartsWith('M') ? "M" : "T",
+                            refId = ids.TryGetValue(kv.Key, out var x) ? x.RefId : 0, altId = ids.TryGetValue(kv.Key, out var y) ? y.AltId : 0
+                        })
+                    }
+                });
+            }
             if (req == null || req.PatientId <= 0 || branchId == null) return Json(new { success = true, data = (object?)null });
             var lines = (req.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.ItemId > 0)
                 .Select(i => new EMR.Web.Services.LabBenefitLineInput(i.Key, (i.Kind ?? "T").ToUpperInvariant() is "P" or "M" ? i.Kind!.ToUpperInvariant() : "T", i.ItemId, i.Price));

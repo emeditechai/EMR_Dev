@@ -939,6 +939,9 @@ document.addEventListener('DOMContentLoaded', function () {
     async function loadMemberBenefits() {
         _memBen = null;
         (_summary?.items || []).forEach(it => { it.membershipDiscount = 0; it.membershipRule = null; });
+        // a saved B2C bill with nothing paid yet (due collection): the first payment applies the plan's benefit to the saved
+        // bill, so the screen shows the same (LabOrderBooking/MembershipBenefitPreview with labOrderId)
+        if (!_isPreSave && _moduleCode === 'LAB' && !_summary?.hasExistingPayment) { await loadSavedBillBenefits(); return; }
         if (!_isPreSave || _moduleCode !== 'LAB' || !_isB2CHint || !((_summary?.patientId || 0) > 0)) return;
         const items = (_summary.items || []).map((it, i) => ({
             key: 'L' + i,
@@ -963,6 +966,34 @@ document.addEventListener('DOMContentLoaded', function () {
                     it.membershipRule = l ? l.rule : null;
                 });
             }
+        } catch (e) { _memBen = null; }
+        if (memBlocksManual()) { document.getElementById('pmDiscValue').value = ''; _deptDisc = null; }
+        applyDiscountLock();
+        refreshDeptUi();
+        recalcDiscount();
+    }
+
+    async function loadSavedBillBenefits() {
+        const id = _summary?.moduleRefId ?? _moduleRefId;
+        if (!(id > 0)) return;
+        try {
+            const r = await fetch('/LabOrderBooking/MembershipBenefitPreview', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labOrderId: id })
+            });
+            const d = r.ok ? await r.json() : null;
+            const b = d && d.data;
+            if (b && b.total > 0) {
+                _memBen = { cardNo: b.cardNo, planName: b.planName, testDiscount: b.testDiscount, miscDiscount: b.miscDiscount, total: b.total };
+                const isMisc = it => it.serviceType === 'Misc' || (parseInt(it.lineRefId) || 0) < 0;
+                (_summary.items || []).forEach(it => {
+                    const ref = parseInt(it.lineRefId) || 0;
+                    const l = (b.lines || []).find(x => isMisc(it)
+                        ? x.kind === 'M' && (x.refId === -ref || x.refId === ref || x.altId === ref)
+                        : x.kind === 'T' && (x.refId === ref || x.altId === ref));
+                    it.membershipDiscount = l ? Math.min(parseFloat(l.discount) || 0, parseFloat(it.originalAmount) || 0) : 0;
+                    it.membershipRule = l ? l.rule : null;
+                });
+            } else if (b) _memBen = { cardNo: b.cardNo, planName: b.planName, testDiscount: 0, miscDiscount: 0, total: 0 };
         } catch (e) { _memBen = null; }
         if (memBlocksManual()) { document.getElementById('pmDiscValue').value = ''; _deptDisc = null; }
         applyDiscountLock();
