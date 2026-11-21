@@ -4,17 +4,13 @@
 -- The script refuses to run anywhere else. Needs 2467, 2470 and 2490 (usernames unique across installations).
 --
 -- Mobile apps find their client's API from the sign-in name: one app build serves every client.
---   Central_Users.Username -> CompanyID + ApplicationUserID -> Central_Company (ID) -> ApplicationCompanyID + API address.
--- Central_Company.MobileApiUrl: the API address phones use (e.g. http://103.178.113.61:9011). Set by hand once per
--- installation; no push overwrites it. ApiUrl (ApiSettings:BaseUrl, pushed by the web application) is often a
--- localhost address the web server uses for itself, which a phone cannot reach - it is used only when MobileApiUrl is
--- empty and ApiUrl is not a localhost address.
---   usp_CentralUser_Locate : one row for a username (none when unknown): ApiUrl (NULL when no phone-usable address),
+--   Central_Users.Username -> CompanyID + ApplicationUserID -> Central_Company (ID) -> ApplicationCompanyID + ApiUrl.
+-- Central_Company.ApiUrl (ApiSettings:BaseUrl, pushed by the web application) must be an address phones can reach,
+-- e.g. http://103.178.113.61:9011 - not localhost. A localhost / 127.x / [::1] or empty ApiUrl gives Code NO_ADDRESS,
+-- so the app shows "not set up for your organisation" instead of trying an address it cannot reach.
+--   usp_CentralUser_Locate : one row for a username (none when unknown): ApiUrl (NULL when not phone-usable),
 --                            ApplicationCompanyID, ApplicationUserID, ValidTo, plus the code for the reason.
--- Safe to re-run.
---
--- After running, set the phone address of each installation, e.g.:
---   UPDATE dbo.Central_Company SET MobileApiUrl = N'http://103.178.113.61:9011' WHERE InstanceKey = N'103.178.113.61,1232|dev_emr';
+-- Safe to re-run. Removes Central_Company.MobileApiUrl if an earlier draft of this script added it (only when empty).
 -- ============================================================================================================
 SET NOCOUNT ON;
 GO
@@ -27,8 +23,9 @@ GO
 SET QUOTED_IDENTIFIER ON;
 GO
 
-IF COL_LENGTH(N'dbo.Central_Company', N'MobileApiUrl') IS NULL
-    ALTER TABLE dbo.Central_Company ADD MobileApiUrl NVARCHAR(500) NULL;
+IF COL_LENGTH(N'dbo.Central_Company', N'MobileApiUrl') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM dbo.Central_Company WHERE NULLIF(LTRIM(RTRIM(MobileApiUrl)), N'') IS NOT NULL)
+    EXEC (N'ALTER TABLE dbo.Central_Company DROP COLUMN MobileApiUrl;');
 GO
 
 CREATE OR ALTER PROCEDURE dbo.usp_CentralUser_Locate
@@ -40,26 +37,25 @@ BEGIN
     IF @Username = N'' RETURN;
 
     SELECT TOP (1)
-           CASE WHEN NULLIF(LTRIM(RTRIM(c.MobileApiUrl)), N'') IS NOT NULL THEN LTRIM(RTRIM(c.MobileApiUrl))
-                WHEN c.ApiUrl LIKE N'%://localhost%' OR c.ApiUrl LIKE N'%://127.%' OR c.ApiUrl LIKE N'%://[[]::1]%'
-                  OR NULLIF(LTRIM(RTRIM(c.ApiUrl)), N'') IS NULL THEN NULL
-                ELSE LTRIM(RTRIM(c.ApiUrl)) END AS ApiUrl,
+           CASE WHEN x.PhoneUsable = 1 THEN x.Url END AS ApiUrl,
            c.ApplicationCompanyID,
            u.ApplicationUserID,
            c.ValidTo,
            CASE WHEN c.ValidTo IS NOT NULL AND c.ValidTo < CAST(GETDATE() AS DATE) THEN 'EXPIRED'
-                WHEN NULLIF(LTRIM(RTRIM(c.MobileApiUrl)), N'') IS NULL
-                 AND (c.ApiUrl LIKE N'%://localhost%' OR c.ApiUrl LIKE N'%://127.%' OR c.ApiUrl LIKE N'%://[[]::1]%'
-                      OR NULLIF(LTRIM(RTRIM(c.ApiUrl)), N'') IS NULL) THEN 'NO_ADDRESS'
+                WHEN x.PhoneUsable = 0 THEN 'NO_ADDRESS'
                 WHEN u.ApplicationUserID IS NULL THEN 'NOT_LINKED'
                 ELSE 'OK' END AS Code
       FROM dbo.Central_Users u
       JOIN dbo.Central_Company c ON c.ID = u.CompanyID
+     CROSS APPLY (SELECT NULLIF(LTRIM(RTRIM(c.ApiUrl)), N'') AS Url) a
+     CROSS APPLY (SELECT a.Url,
+                         CASE WHEN a.Url IS NULL OR a.Url LIKE N'%://localhost%' OR a.Url LIKE N'%://127.%' OR a.Url LIKE N'%://[[]::1]%'
+                              THEN 0 ELSE 1 END AS PhoneUsable) x
      WHERE u.Username = @Username
      ORDER BY u.ID;
 END
 GO
-PRINT 'Script 2496 applied on ' + DB_NAME() + ': Central_Company.MobileApiUrl, usp_CentralUser_Locate (mobile apps find their API).';
+PRINT 'Script 2496 applied on ' + DB_NAME() + ': usp_CentralUser_Locate (mobile apps find their API from Central_Company.ApiUrl).';
 GO
 SET NOEXEC OFF;
 GO
