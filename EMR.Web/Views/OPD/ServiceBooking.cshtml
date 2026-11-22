@@ -80,6 +80,11 @@
                                target="_blank" class="btn btn-success px-4 fw-semibold">
                                 <i class="bi bi-printer-fill me-2"></i>Print Bill
                             </a>
+                            @* SQLScripts/2527: the doctor's prescription pad of this visit *@
+                            <a asp-permission="OPD.SERVICEBOOKING:PRINT_PRESCRIPTION" href="@Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = newSvcId })"
+                               target="_blank" class="btn btn-outline-primary px-4 fw-semibold">
+                                <i class="bi bi-file-earmark-medical me-2"></i>Print Dr. Prescription
+                            </a>
                         }
                     </div>
                 </div>
@@ -293,6 +298,17 @@
                                                     <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
                                                 </a>
                                             </li>
+                                            @* SQLScripts/2527: the doctor's prescription pad - a visit with a consultation *@
+                                            @if ((b.ServiceTypesSummary ?? "").Contains("Consulting", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <li>
+                                                    <a asp-permission="OPD.SERVICEBOOKING:PRINT_PRESCRIPTION" class="dropdown-item"
+                                                       href="@Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = b.OPDServiceId })"
+                                                       target="_blank">
+                                                        <i class="bi bi-file-earmark-medical me-2 text-primary"></i>Print Dr. Prescription
+                                                    </a>
+                                                </li>
+                                            }
                                             @* OPD > Certificates (SQLScripts/2341): a certificate written from this visit *@
                                             <li>
                                                 <a asp-permission="OPD.CERTIFICATES:DRAFT" class="dropdown-item"
@@ -413,6 +429,14 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <a asp-permission="OPD.SERVICEBOOKING:PRINT" class="btn btn-success btn-sm fw-semibold" id="btnPrintBillFromModal"
+                   style="display:none" target="_blank" href="#">
+                    <i class="bi bi-printer-fill me-1"></i>Print Bill
+                </a>
+                <a asp-permission="OPD.SERVICEBOOKING:PRINT_PRESCRIPTION" class="btn btn-outline-primary btn-sm fw-semibold" id="btnPrintRxFromModal"
+                   style="display:none" target="_blank" href="#">
+                    <i class="bi bi-file-earmark-medical me-1"></i>Print Dr. Prescription
+                </a>
                 <button class="btn btn-info btn-sm fw-semibold text-white" id="btnCollectPayFromModal"
                         style="display:none" onclick="collectPaymentFromModal()">
                     <i class="bi bi-cash-coin me-1"></i><span id="btnCollectPayLabel">Collect Payment</span>
@@ -493,7 +517,9 @@
         // Reset buttons while loading
         const printBtn    = document.getElementById('btnPrintBillFromModal');
         const collectBtn  = document.getElementById('btnCollectPayFromModal');
-        if (printBtn)   { printBtn.style.display   = 'none'; printBtn.dataset.svcId = ''; }
+        const rxBtn       = document.getElementById('btnPrintRxFromModal');
+        if (printBtn)   { printBtn.style.display   = 'none'; printBtn.href = '#'; }
+        if (rxBtn)      { rxBtn.style.display      = 'none'; rxBtn.href = '#'; }
         if (collectBtn) { collectBtn.style.display  = 'none'; }
         _currentViewBookingId = id;
 
@@ -509,7 +535,9 @@
             const pay = rPay.ok ? ((await rPay.json())?.data ?? null) : null;
 
             // Show print button
-            if (printBtn) { printBtn.style.display = ''; printBtn.dataset.svcId = id; }
+            // the print links (encrypted, from the server); the prescription pad only for a consultation visit
+            if (printBtn && d.printBillUrl) { printBtn.href = d.printBillUrl; printBtn.style.display = ''; }
+            if (rxBtn && d.prescriptionUrl && d.hasConsultation) { rxBtn.href = d.prescriptionUrl; rxBtn.style.display = ''; }
 
             // Show collect payment button if not fully paid
             if (collectBtn) {
@@ -674,10 +702,5 @@
         }, 350);
     }
 
-    function printBillFromModal() {
-        const btn = document.getElementById('btnPrintBillFromModal');
-        const svcId = btn?.dataset?.svcId;
-        if (svcId) window.open('@Url.Action("PrintBill", "OPD")?id=' + svcId, '_blank');
-    }
     </script>
 }

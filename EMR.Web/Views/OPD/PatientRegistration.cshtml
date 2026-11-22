@@ -736,6 +736,12 @@
                        target="_blank">
                         <i class="bi bi-printer-fill me-1"></i>Print Bill
                     </a>
+                    @* SQLScripts/2527: the consulting doctor's prescription pad of this visit *@
+                    <a asp-permission="OPD.PATIENTREGISTRATION:PRINT_PRESCRIPTION" class="btn btn-outline-primary btn-sm" id="btnPrintRxSuccess"
+                       href="@(Model.NewOPDServiceId.HasValue && Model.NewOPDServiceId.Value > 0 ? Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = Model.NewOPDServiceId.Value }) : "#")"
+                       target="_blank" title="Print the doctor's prescription pad">
+                        <i class="bi bi-file-earmark-medical me-1"></i>Print Dr. Prescription
+                    </a>
                     <button class="btn btn-primary btn-sm"
                             onclick="location.href='@Url.Action("PatientRegistration")'">
                         <i class="bi bi-person-plus-fill me-1"></i>Register Another
@@ -1990,8 +1996,10 @@
                     $('#successTokenNo').html('<div class="d-flex align-items-center gap-1 justify-content-center"><i class="bi bi-hourglass-split text-warning-emphasis" style="font-size:.95rem"></i><span class="fw-semibold text-warning-emphasis font-monospace" style="font-size:.92rem">Pending Payment</span></div>');
                 }
 
-                var printUrl = '@Url.Action("PrintBill", "OPD")' + '?id=' + result.opdServiceId;
+                // the print links come from the server (encrypted query string)
+                var printUrl = result.printBillUrl || '#';
                 $('#btnPrintBillSuccess').attr('href', printUrl);
+                $('#btnPrintRxSuccess').attr('href', result.prescriptionUrl || '#');
 
                 // Saved: the button must not stay on "Processing..." nor allow the same booking to be sent again
                 var doneBtn = document.getElementById('btnSave');
@@ -2004,7 +2012,7 @@
                 var successModal = new bootstrap.Modal(document.getElementById('registrationSuccessModal'));
                 successModal.show();
 
-                if (result.paymentStatus === 'P') {
+                if (result.paymentStatus === 'P' && result.printBillUrl) {
                     window.open(printUrl, '_blank');
                 }
             } catch (err) {

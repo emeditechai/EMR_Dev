@@ -1091,7 +1091,9 @@ public class OPDController(
                 netAmount = paymentResult?.NetAmount ?? totalAmount,
                 totalPaid = paymentResult?.TotalPaid ?? 0,
                 balanceDue = paymentResult?.BalanceDue ?? totalAmount,
-                paymentStatus = paymentResult?.PaymentStatus ?? (totalAmount == 0 ? "P" : "U")
+                paymentStatus = paymentResult?.PaymentStatus ?? (totalAmount == 0 ? "P" : "U"),
+                printBillUrl = Url.ActionEncrypted("PrintBill", "OPD", new { id = newSvcId }),
+                prescriptionUrl = Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = newSvcId })
             });
         }
         catch (Exception ex)
@@ -1144,7 +1146,9 @@ public class OPDController(
             netAmount = ph.NetAmount,
             totalPaid = ph.TotalPaid,
             balanceDue = ph.BalanceDue,
-            paymentStatus = ph.PaymentStatus
+            paymentStatus = ph.PaymentStatus,
+            printBillUrl = Url.ActionEncrypted("PrintBill", "OPD", new { id = svcId }),
+            prescriptionUrl = Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = svcId })
         });
     }
 
@@ -1591,7 +1595,11 @@ public class OPDController(
                     i.ServiceType,
                     i.ItemName,
                     i.ServiceCharges
-                })
+                }),
+                // the popup's print links (encrypted query strings) - the prescription pad for a consultation visit (2527)
+                PrintBillUrl = Url.ActionEncrypted("PrintBill", "OPD", new { id = detail.OPDServiceId }),
+                PrescriptionUrl = Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = detail.OPDServiceId }),
+                HasConsultation = detail.Items.Any(i => string.Equals(i.ServiceType, "Consulting", StringComparison.OrdinalIgnoreCase))
             });
         }
         catch (HttpRequestException)
@@ -2297,6 +2305,49 @@ public class OPDController(
         catch (HttpRequestException)
         {
             ViewData["PageName"] = "Print Bill";
+            return View("ApiDown");
+        }
+    }
+
+    // ─── Doctor prescription pad (SQLScripts/2527) ────────────────────────────
+    /// <summary>
+    /// "Print Dr. Prescription": the consulting doctor's prescription pad for a visit, filled in with the visit (patient,
+    /// visit, doctor) - the prescription is written by hand. Header: the branch's Bill print template (Utility > Print
+    /// Templates) like the OPD bill, or blank space when the bill prints on pre-printed letterhead.
+    /// Allowed with PRINT_PRESCRIPTION on Service Booking or Patient Registration.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> PrintPrescriptionPad(int id)
+    {
+        if (!await permissionGuard.AllowsAsync(HttpContext, "OPD.SERVICEBOOKING", "PRINT_PRESCRIPTION")
+            && !await permissionGuard.AllowsAsync(HttpContext, "OPD.PATIENTREGISTRATION", "PRINT_PRESCRIPTION"))
+            return Forbid();
+        try
+        {
+            var branchId = User.GetCurrentBranchId();
+            var pad = await serviceBookingApiClient.GetPrescriptionPadAsync(id, branchId);
+            if (pad is null) return NotFound();
+
+            var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == pad.BranchId);
+            var branch = await dbContext.BranchMasters.FindAsync(pad.BranchId);
+            ViewBag.Settings = settings;
+            ViewBag.BranchName = branch?.BranchName ?? string.Empty;
+            ViewBag.ShowHeaderFooter = settings?.LabB2CBillPrintHeaderRequired ?? true;
+            var runtime = HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>();
+            await runtime.ApplyToBillAsync(ViewData, User, pad.BranchId, new PrintDocInfo
+            {
+                DocNo = pad.OPDBillNo,
+                DocDate = pad.VisitDate.ToString("dd-MMM-yyyy"),
+                TokenNo = pad.TokenNo,
+                CopyLabel = "Prescription",
+                PrintedBy = User?.FindFirst("DisplayName")?.Value ?? User?.Identity?.Name,
+                CreatedBy = pad.CreatedByUser
+            }, null);
+            return View(pad);
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "Print Prescription";
             return View("ApiDown");
         }
     }

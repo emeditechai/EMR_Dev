@@ -9,6 +9,7 @@ public interface IServiceBookingService
         int page, int pageSize, string? search, string? paymentFilter = null);
 
     Task<ServiceBookingDetail?> GetByIdAsync(int opdServiceId);
+    Task<PrescriptionPadInfo?> GetPrescriptionPadAsync(int opdServiceId, int? branchId);
     Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId);
     Task<DoctorDashboardQueueResult> GetDoctorDashboardQueueAsync(int branchId, int? doctorId, DateTime? date);
 }

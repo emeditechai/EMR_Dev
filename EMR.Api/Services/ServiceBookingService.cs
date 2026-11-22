@@ -57,6 +57,16 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
         return header;
     }
 
+    // ─── Doctor prescription pad (SQLScripts/2527) ─────────────────────────────
+    public async Task<PrescriptionPadInfo?> GetPrescriptionPadAsync(int opdServiceId, int? branchId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QuerySingleOrDefaultAsync<PrescriptionPadInfo>(
+            "usp_Api_ServiceBooking_PrescriptionPad",
+            new { OPDServiceId = opdServiceId, BranchId = branchId },
+            commandType: System.Data.CommandType.StoredProcedure);
+    }
+
     // ─── Update Status ────────────────────────────────────────────────────────
     public async Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId)
     {

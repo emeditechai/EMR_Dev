@@ -40,6 +40,16 @@ public class ServiceBookingsController(IServiceBookingService svc) : ControllerB
         return Ok(ApiResponse<ServiceBookingDetail>.Ok(detail));
     }
 
+    // GET /api/servicebookings/{id}/prescription-pad?branchId=1 - the doctor prescription pad of a visit (SQLScripts/2527)
+    [HttpGet("{id:int}/prescription-pad")]
+    public async Task<IActionResult> GetPrescriptionPad(int id, [FromQuery] int? branchId = null)
+    {
+        var pad = await svc.GetPrescriptionPadAsync(id, branchId);
+        if (pad is null)
+            return NotFound(ApiResponse<PrescriptionPadInfo>.Fail($"Service booking {id} not found."));
+        return Ok(ApiResponse<PrescriptionPadInfo>.Ok(pad));
+    }
+
     // PUT /api/servicebookings/{id}/status?status=Completed&userId=1
     [HttpPut("{id:int}/status")]
     public async Task<IActionResult> UpdateStatus(int id, [FromQuery] string status, [FromQuery] int userId = 0)

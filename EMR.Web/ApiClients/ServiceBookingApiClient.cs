@@ -33,6 +33,16 @@ public class ServiceBookingApiClient(IHttpClientFactory factory) : IServiceBooki
         return response?.Data;
     }
 
+    public async Task<PrescriptionPadInfo?> GetPrescriptionPadAsync(int opdServiceId, int? branchId)
+    {
+        var url = $"api/servicebookings/{opdServiceId}/prescription-pad" + (branchId.HasValue ? $"?branchId={branchId.Value}" : "");
+        using var res = await _http.GetAsync(url);
+        if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        var response = await res.Content.ReadFromJsonAsync<ApiResponse<PrescriptionPadInfo>>();
+        return response?.Data;
+    }
+
     public async Task<bool> UpdateStatusAsync(int opdServiceId, string status, int userId)
     {
         var response = await _http.PutAsync($"api/servicebookings/{opdServiceId}/status?status={HttpUtility.UrlEncode(status)}&userId={userId}", null);
