@@ -11,7 +11,8 @@ namespace EMR.Web.Controllers;
 public class RoomDoctorAssignmentController(
     IRoomDoctorAssignmentService assignmentService,
     IAuditLogService auditLogService,
-    IOpdMasterApiClient opdApiClient) : Controller
+    IOpdMasterApiClient opdApiClient,
+    IDoctorRosterNotificationService rosterNotify) : Controller
 {
     public async Task<IActionResult> Index()
     {
@@ -47,7 +48,10 @@ public class RoomDoctorAssignmentController(
 
         try
         {
+            var before = await rosterNotify.GetDoctorRoomAsync(dto.DoctorId, branchId.Value);   // SQLScripts/2528: the old room
             await assignmentService.AssignDoctorAsync(dto.RoomId, dto.DoctorId, User.GetUserId());
+            // OPD Doctor Roster Notification: the doctor and the chosen users are told (in the background, when it is on)
+            rosterNotify.QueueRoomChange(dto.DoctorId, branchId.Value, before, User.FindFirst("DisplayName")?.Value, User.GetUserId());
             
             await auditLogService.LogAsync(
                 "Assign", 
@@ -78,7 +82,9 @@ public class RoomDoctorAssignmentController(
 
         try
         {
+            var before = await rosterNotify.GetDoctorRoomAsync(dto.DoctorId, branchId.Value);   // SQLScripts/2528: the old room
             await assignmentService.UnassignDoctorAsync(dto.DoctorId);
+            rosterNotify.QueueRoomChange(dto.DoctorId, branchId.Value, before, User.FindFirst("DisplayName")?.Value, User.GetUserId());
             
             await auditLogService.LogAsync(
                 "Unassign", 
