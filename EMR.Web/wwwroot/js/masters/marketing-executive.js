@@ -50,7 +50,7 @@
             gateSave(emailState.ok);
             $('meEmail').classList.toggle('is-invalid', !emailState.ok);
             $('meEmailMsg').textContent = emailState.ok ? 'Enter a valid e-mail ID.' : r.data.Message;
-            if (emailState.ok) $('meEmailHint').innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + E(r.data.Message) + '</span>';
+            $('meEmailHint').innerHTML = emailState.ok ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + E(r.data.Message) + '</span>' : '';
             return emailState.ok;
         } catch { $('meEmailHint').textContent = 'The e-mail could not be checked. Check the connection and try again.'; return false; }
     }

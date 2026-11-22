@@ -1229,7 +1229,7 @@ public class UsersController(
                 .Select(u => new { u.Username, u.CompanyId }).FirstOrDefaultAsync();
             if (taken is not null)
                 ModelState.AddModelError(nameof(model.Email), taken.CompanyId == companyId
-                    ? $"This e-mail is already used by user '{taken.Username}'."
+                    ? "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address."
                     : "This e-mail is already registered to another account.");
         }
 
@@ -1243,7 +1243,7 @@ public class UsersController(
                 .Select(u => new { u.Username, u.PhoneNumber }).ToListAsync();
             var taken = candidates.FirstOrDefault(u => Phone10(u.PhoneNumber) == phone);
             if (taken is not null)
-                ModelState.AddModelError(nameof(model.PhoneNumber), $"This phone number is already used by user '{taken.Username}' in this company.");
+                ModelState.AddModelError(nameof(model.PhoneNumber), "This phone number is already used by another user in this company.");
         }
     }
 
@@ -1287,7 +1287,7 @@ public class UsersController(
         return Json(new
         {
             valid = true, available = false,
-            message = taken.CompanyId == User.GetCompanyId() ? $"Already used by user '{taken.Username}'." : "Already registered to another account."
+            message = "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address."
         });
     }
 

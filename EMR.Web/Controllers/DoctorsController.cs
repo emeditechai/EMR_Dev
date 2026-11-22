@@ -224,7 +224,7 @@ public class DoctorsController(
             .Where(u => (ownUserId == null || u.Id != ownUserId) && ((u.Email != null && u.Email.Trim().ToLower() == e) || u.Username == e))
             .Select(u => u.Username).FirstOrDefaultAsync();
         if (taken is not null)
-            return Json(new { valid = true, available = false, message = $"Already used by the sign-in '{taken}' - choose another e-mail." });
+            return Json(new { valid = true, available = false, message = "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address." });   // who holds it is never told
         // SQLScripts/2490: sign-in e-mails are unique across all installations (central user register) - same check as User Master
         var ownCentral = ownUserId is int cu ? await dbContext.Users.AsNoTracking().Where(u => u.Id == cu).Select(u => new { u.CompanyId, u.CentralUserID }).FirstOrDefaultAsync() : null;
         var central = await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
