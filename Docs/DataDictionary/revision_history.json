@@ -388,5 +388,13 @@
   ],
   "date": "22 Nov 2026",
   "version": "1.30"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table DoctorIpAccessOtp (11 columns, module not yet grouped)"
+  ],
+  "date": "22 Nov 2026",
+  "version": "1.31"
  }
 ]
