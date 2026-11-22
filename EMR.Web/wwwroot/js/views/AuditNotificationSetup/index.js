@@ -47,6 +47,10 @@
             <label class="an-chip ${e.sendWhatsApp ? 'on' : ''}"><input type="checkbox" class="an-wa" ${e.sendWhatsApp ? 'checked' : ''} ${e.supportsEmail ? '' : 'disabled'}><i class="bi bi-whatsapp"></i> WhatsApp</label>
             ${e.supportsEmail ? `<label class="an-chip ${e.sendEmail ? 'on' : ''}"><input type="checkbox" class="an-mail" ${e.sendEmail ? 'checked' : ''}><i class="bi bi-envelope"></i> E-mail</label>` : ''}
         </div>`);
+        if (e.hasThreshold)
+            parts.push(`<div class="an-opt"><span class="an-opt-l">Alert when discount is above</span>
+                <div class="input-group input-group-sm an-pct-group"><input type="number" min="0.01" max="99.99" step="0.01" class="form-control an-pct text-end" value="${esc(e.thresholdPct ?? 10)}"><span class="input-group-text">%</span></div>
+                <span class="small text-muted">of the bill amount - discount given by % or by ₹; membership discount not counted. OPD and LAB B2C bills.</span></div>`);
         if (e.supportsDoctor)
             parts.push(`<div class="an-opt"><div class="form-check form-switch m-0">
                 <input class="form-check-input an-doctor" type="checkbox" role="switch" id="doc_${esc(e.eventCode)}" ${e.notifyDoctor ? 'checked' : ''}>
@@ -164,7 +168,7 @@
         dirty(this);
     });
     $('#anEvents').on('change', '.an-wa, .an-mail', function () { $(this).closest('.an-chip').toggleClass('on', this.checked); dirty(this); });
-    $('#anEvents').on('change', '.an-users, .an-doctor, .an-time', function () { dirty(this); });
+    $('#anEvents').on('change input', '.an-users, .an-doctor, .an-time, .an-pct', function () { dirty(this); });
 
     $('#anEvents').on('click', '.an-save', async function () {
         const $c = $(this).closest('.an-event'), code = $c.data('code'), e = data.events.find(x => x.eventCode === code) || {};
@@ -172,6 +176,11 @@
         if (e.supportsEmail) { body.sendWhatsApp = $c.find('.an-wa').is(':checked'); body.sendEmail = $c.find('.an-mail').is(':checked'); }
         if (e.supportsDoctor) body.notifyDoctor = $c.find('.an-doctor').is(':checked');
         if (e.isDaily) body.sendTime = $c.find('.an-time').val() || '07:00';
+        if (e.hasThreshold) {
+            const pct = Number($c.find('.an-pct').val());
+            if (!(pct > 0 && pct < 100)) { note($c, 'Enter the discount percentage (more than 0, less than 100).', 'text-danger'); $c.find('.an-pct').focus(); return; }
+            body.thresholdPct = pct;
+        }
         const r = await post(U.saveUrl, body, $c, $(this));
         if (r.success) { await load(); note($(`.an-event[data-code="${code}"]`), r.message, 'text-success'); }
     });

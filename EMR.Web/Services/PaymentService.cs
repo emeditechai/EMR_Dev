@@ -6,7 +6,7 @@ using EMR.Web.Models.ViewModels;
 namespace EMR.Web.Services;
 
 public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppService pointsWhatsApp,
-    EMR.Web.Services.Notifications.INotificationService notifications) : IPaymentService
+    EMR.Web.Services.Notifications.INotificationService notifications, IAuditNotificationService auditNotify) : IPaymentService
 {
     // ─── Get active payment methods ──────────────────────────────────────────
     public async Task<IEnumerable<PaymentMethodViewModel>> GetActiveMethodsAsync()
@@ -408,6 +408,9 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
         if (result.Success && result.PaymentHeaderId is int headerId && request.DiscountApprovedBy is > 0
             && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0))
             await notifications.NotifyDiscountApprovalAsync(headerId, userId);
+        // Discount Given Alert (SQLScripts/2529): above the branch's percentage -> WhatsApp to the chosen users (background)
+        if (result.Success && HasDiscount(request))
+            auditNotify.QueueDiscount(request.ModuleCode, request.ModuleRefId, userId);
         return result;
     }
 

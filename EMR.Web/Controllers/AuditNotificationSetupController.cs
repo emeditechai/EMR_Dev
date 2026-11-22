@@ -45,7 +45,7 @@ public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNot
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(string eventCode, bool isEnabled, string? userIds,
-        bool? sendWhatsApp = null, bool? sendEmail = null, bool? notifyDoctor = null, string? sendTime = null)
+        bool? sendWhatsApp = null, bool? sendEmail = null, bool? notifyDoctor = null, string? sendTime = null, decimal? thresholdPct = null)
     {
         if (string.IsNullOrWhiteSpace(eventCode) || eventCode.Length > 40) return Json(new { success = false, message = "Unknown event." });
         if (!string.IsNullOrWhiteSpace(sendTime) && !TimeSpan.TryParseExact(sendTime, @"hh\:mm", null, out _))
@@ -57,7 +57,7 @@ public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNot
             using var con = db.CreateConnection();
             await con.ExecuteAsync("dbo.usp_AuditNotify_SaveEvent",
                 new { CompanyId = User.GetCompanyId(), BranchId, EventCode = eventCode, IsEnabled = isEnabled, UserIds = userIds, UserId = User.GetUserId(),
-                      SendWhatsApp = sendWhatsApp, SendEmail = sendEmail, NotifyDoctor = notifyDoctor, SendTime = sendTime },
+                      SendWhatsApp = sendWhatsApp, SendEmail = sendEmail, NotifyDoctor = notifyDoctor, SendTime = sendTime, ThresholdPct = thresholdPct },
                 commandType: CommandType.StoredProcedure);
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50000)
@@ -67,7 +67,8 @@ public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNot
         await audit.LogAsync("Update", "AuditNotificationSetup",
             $"Notification {eventCode} (branch {BranchId}) {(isEnabled ? "on" : "off")}, users: {(string.IsNullOrEmpty(userIds) ? "none" : userIds)}" +
             (sendWhatsApp is null ? "" : $", WhatsApp {(sendWhatsApp == true ? "on" : "off")}") + (sendEmail is null ? "" : $", e-mail {(sendEmail == true ? "on" : "off")}") +
-            (notifyDoctor is null ? "" : $", doctor {(notifyDoctor == true ? "yes" : "no")}") + (string.IsNullOrWhiteSpace(sendTime) ? "" : $", at {sendTime}"), User.GetUserId(), User.GetCurrentBranchId());
+            (notifyDoctor is null ? "" : $", doctor {(notifyDoctor == true ? "yes" : "no")}") + (string.IsNullOrWhiteSpace(sendTime) ? "" : $", at {sendTime}") +
+            (thresholdPct is null ? "" : $", above {thresholdPct:0.##}%"), User.GetUserId(), User.GetCurrentBranchId());
         return Json(new { success = true, message = isEnabled ? "Saved - the alert is on." : "Saved - the alert is off." });
     }
 

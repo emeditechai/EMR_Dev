@@ -13,6 +13,7 @@ public static class AuditNotifyEvents
     public const string OpdBillCancel = "OPD_BILL_CANCEL";
     public const string OpdRefund = "OPD_REFUND";
     public const string LabReportUnauthorised = "LAB_REPORT_UNAUTH";
+    public const string DiscountGiven = "DISCOUNT_GIVEN";   // SQLScripts/2529: OPD / LAB B2C bill discounted above the branch's percentage
 
     public static string Cancel(string moduleCode) => string.Equals(moduleCode, "OPD", StringComparison.OrdinalIgnoreCase) ? OpdBillCancel : LabBillCancel;
     public static string Refund(string moduleCode) => string.Equals(moduleCode, "OPD", StringComparison.OrdinalIgnoreCase) ? OpdRefund : LabRefund;
@@ -38,6 +39,12 @@ public interface IAuditNotificationService
 
     /// <summary>A refund against a cancellation (LAB or OPD).</summary>
     void QueueRefund(string moduleCode, int moduleRefId, int cancellationId, decimal amount, string? mode, string? reference, string? actorName, int? actorUserId);
+
+    /// <summary>
+    /// Discount Given Alert (SQLScripts/2529): after an OPD / LAB bill's payment is saved - when the bill (OPD or LAB B2C) is
+    /// discounted above the branch's percentage, and more than already alerted on it, the chosen users get a WhatsApp.
+    /// </summary>
+    void QueueDiscount(string moduleCode, int moduleRefId, int? actorUserId);
 
     Task<(int Sent, int Skipped, string Message)> SendNowAsync(AuditNotice notice);
 
@@ -116,6 +123,52 @@ public class AuditNotificationService(IServiceScopeFactory scopeFactory, IDbConn
         var module = string.Equals(moduleCode, "OPD", StringComparison.OrdinalIgnoreCase) ? "OPD" : "LAB";
         await svc.SendNowAsync(new AuditNotice(AuditNotifyEvents.Refund(module), module, moduleRefId, $"{module} refund", lines, actorName, actorUserId));
     }, "REFUND");
+
+    private sealed class DiscountRow
+    {
+        public decimal BillAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public decimal DiscountPct { get; set; }
+        public decimal ThresholdPct { get; set; }
+        public decimal? NetAmount { get; set; }
+        public string? Reason { get; set; }
+        public string? DiscountMode { get; set; }          // Amount / Percentage (the bill discount as entered)
+        public decimal? DiscountEntered { get; set; }
+        public decimal MembershipDiscount { get; set; }    // not counted - shown for information
+        public int? GivenByUserId { get; set; }
+        public string? GivenBy { get; set; }
+        public string? ApprovedBy { get; set; }
+        public bool IsIncrease { get; set; }
+        public decimal? PreviousDiscount { get; set; }
+    }
+
+    public void QueueDiscount(string moduleCode, int moduleRefId, int? actorUserId) => Background(async svc =>
+    {
+        var module = string.Equals(moduleCode, "OPD", StringComparison.OrdinalIgnoreCase) ? "OPD"
+                   : string.Equals(moduleCode, "LAB", StringComparison.OrdinalIgnoreCase) ? "LAB" : null;
+        if (module is null || moduleRefId <= 0) return;
+        DiscountRow? d;
+        using (var con = db.CreateConnection())
+            d = await con.QueryFirstOrDefaultAsync<DiscountRow>("dbo.usp_AuditNotify_DiscountCheck",
+                new { ModuleCode = module, ModuleRefId = moduleRefId }, commandType: CommandType.StoredProcedure);
+        if (d is null) return;                                                   // under the percentage, off, B2B or already alerted
+        var lines = new List<(string, string)>
+        {
+            ("Bill amount", Rs(d.BillAmount)),
+            ("Discount", $"{d.DiscountPct.ToString("0.##", In)}% · {Rs(d.DiscountAmount)}" +
+                         (d.DiscountMode == "Amount" && d.DiscountEntered is > 0 ? $" (given as {Rs(d.DiscountEntered.Value)})"
+                          : d.DiscountMode == "Percentage" && d.DiscountEntered is > 0 ? $" (given as {d.DiscountEntered.Value.ToString("0.##", In)}%)" : "") +
+                         (d.IsIncrease && d.PreviousDiscount is > 0 ? $" (raised from {Rs(d.PreviousDiscount.Value)})" : "")),
+            ("Net amount", d.NetAmount is { } n ? Rs(n) : "-"),
+            ("Reason", d.Reason ?? "-")
+        };
+        if (d.MembershipDiscount > 0) lines.Insert(2, ("Membership discount", Rs(d.MembershipDiscount) + " (not counted)"));
+        if (!string.IsNullOrWhiteSpace(d.ApprovedBy)) lines.Add(("Approved by", d.ApprovedBy!));
+        lines.Add(("Discount given by", d.GivenBy ?? "-"));
+        await svc.SendNowAsync(new AuditNotice(AuditNotifyEvents.DiscountGiven, module, moduleRefId,
+            $"Discount {d.DiscountPct.ToString("0.##", In)}% given (above {d.ThresholdPct.ToString("0.##", In)}%)", lines,
+            d.GivenBy, d.GivenByUserId ?? actorUserId));
+    }, "DISCOUNT");
 
     private void Background(Func<IAuditNotificationService, Task> work, string what)
     {
