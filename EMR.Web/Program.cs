@@ -283,6 +283,7 @@ builder.Services.AddScoped<PaymentQrApiClient>();   // Settings > Payment QR Con
 builder.Services.AddScoped<LabEstimateApiClient>();   // LAB > B2C Bill Estimate (SQLScripts/2451)
 builder.Services.AddScoped<LabWorksheetApiClient>();  // LAB > Work Sheet (SQLScripts/2477)
 builder.Services.AddScoped<LabSerialNoApiClient>();  // Lab Serial No on report entry (SQLScripts/2514)
+builder.Services.AddScoped<BankFundApiClient>();  // Bank Master, Fund Master (SQLScripts/2522)
 builder.Services.AddScoped<MarketingExecutiveApiClient>();   // Master > General > Marketing Executive (SQLScripts/2440)   // AI Prescription Assist learning (SQLScripts/2439)   // IPD transactions: admission, beds, advances, live estimate (SQLScripts/2422-2424)
 builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();

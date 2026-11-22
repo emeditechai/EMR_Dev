@@ -1,0 +1,122 @@
+@{
+    ViewData["Title"] = "Fund Master";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@Html.AntiForgeryToken()
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold"><i class="bi bi-safe2 text-primary me-2"></i>Fund Master</h1>
+        <small class="text-muted">The funds the hospital pays from - a wallet or a bank account - with opening balance, top-ups and full history</small>
+    </div>
+    @if (Can("ADD")) { <button type="button" class="btn btn-primary shadow-sm" id="btnAdd"><i class="bi bi-plus-lg me-1"></i>Add Fund</button> }
+</div>
+
+<div class="row g-3 mb-4" id="stats"></div>
+
+<div class="card shadow-sm border-0 mb-3"><div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-5"><label class="form-label small fw-semibold" for="fSearch">Search</label>
+            <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span><input id="fSearch" class="form-control" placeholder="Fund name, code, bank or account no." /></div></div>
+        <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="fType">Fund Type</label>
+            <select id="fType" class="form-select"><option value="">All types</option><option value="WALLET">Wallet</option><option value="BANK">Bank</option></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold" for="fStatus">Status</label>
+            <select id="fStatus" class="form-select"><option value="">All</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
+        <div class="col-12 col-md-2"><button type="button" class="btn btn-outline-secondary w-100" id="fReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button></div>
+    </div>
+</div></div>
+
+<div class="card shadow-sm border-0"><div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 bf-table">
+        <thead class="table-light"><tr><th>#</th><th>Fund</th><th>Type</th><th>Bank Account</th><th class="text-end">Opening</th><th class="text-end">Balance</th><th>Last Top-up</th><th class="text-center">Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="9" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+</div></div>
+
+@* add / edit / view *@
+<div class="modal fade bf-modal" id="fdModal" tabindex="-1" aria-labelledby="fdTitle" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title fw-bold" id="fdTitle">Add Fund</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <form id="fdForm" novalidate autocomplete="off">
+    <div class="modal-body"><div class="row g-3">
+        <input type="hidden" id="fdId" />
+        <div class="col-md-4"><label class="form-label fw-semibold" for="fdCode">Fund Code <span class="text-danger">*</span></label>
+            <input id="fdCode" class="form-control text-uppercase" maxlength="20" required placeholder="e.g. DOC-PAY" />
+            <div class="invalid-feedback">Up to 20 letters, digits, - or _.</div></div>
+        <div class="col-md-8"><label class="form-label fw-semibold" for="fdName">Fund Name <span class="text-danger">*</span></label>
+            <input id="fdName" class="form-control" maxlength="150" required placeholder="e.g. Doctor Payout Fund" />
+            <div class="invalid-feedback">Enter the fund name.</div></div>
+        <div class="col-12"><label class="form-label fw-semibold d-block">Fund Type <span class="text-danger">*</span></label>
+            <div class="btn-group" role="group" aria-label="Fund type">
+                <input type="radio" class="btn-check" name="fdType" id="fdTypeWallet" value="WALLET" checked /><label class="btn btn-outline-primary" for="fdTypeWallet"><i class="bi bi-wallet2 me-1"></i>Wallet</label>
+                <input type="radio" class="btn-check" name="fdType" id="fdTypeBank" value="BANK" /><label class="btn btn-outline-primary" for="fdTypeBank"><i class="bi bi-bank me-1"></i>Bank</label>
+            </div>
+            <div class="form-text" id="fdTypeHint">A wallet is money kept by the hospital (cash / internal). A bank fund is one account of the Bank Master.</div></div>
+        <div class="col-12 d-none" id="fdBankBox"><label class="form-label fw-semibold" for="fdBank">Bank Account <span class="text-danger">*</span></label>
+            <select id="fdBank" class="form-select"></select>
+            <div class="invalid-feedback">Choose the bank account (add it in Master &gt; General &gt; Bank Master).</div></div>
+        <div class="col-md-6"><label class="form-label fw-semibold" for="fdOpening">Opening Balance (₹) <span class="text-danger">*</span></label>
+            <input id="fdOpening" type="number" class="form-control text-end" min="0" step="0.01" required value="0" />
+            <div class="invalid-feedback">Enter 0 or more.</div><div class="form-text" id="fdOpeningHint"></div></div>
+        <div class="col-md-6"><label class="form-label fw-semibold" for="fdOpeningDate">Opening Date <span class="text-danger">*</span></label>
+            <input id="fdOpeningDate" type="date" class="form-control" required />
+            <div class="invalid-feedback">Enter the date (not in the future).</div></div>
+        <div class="col-12"><label class="form-label fw-semibold" for="fdRemarks">Remarks</label><textarea id="fdRemarks" class="form-control" rows="2" maxlength="500" placeholder="What the fund is used for"></textarea></div>
+        <div class="col-12"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fdActive" checked /><label class="form-check-label" for="fdActive">Active</label></div></div>
+        <div class="col-12 small text-muted d-none" id="fdAudit"></div>
+    </div></div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-primary" id="fdSave"><i class="bi bi-check2 me-1"></i>Save</button></div>
+    </form>
+</div></div></div>
+
+@* top-up *@
+<div class="modal fade bf-modal" id="tuModal" tabindex="-1" aria-labelledby="tuTitle" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title fw-bold" id="tuTitle"><i class="bi bi-plus-circle me-1"></i>Top up Fund</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <form id="tuForm" novalidate autocomplete="off">
+    <div class="modal-body">
+        <input type="hidden" id="tuId" />
+        <div class="border rounded-3 p-2 mb-3 bg-light d-flex justify-content-between"><div><div class="fw-semibold" id="tuFund"></div><div class="small text-muted" id="tuFundSub"></div></div>
+            <div class="text-end"><div class="small text-muted">Current balance</div><div class="fw-bold" id="tuBal"></div></div></div>
+        <div class="row g-3">
+            <div class="col-md-6"><label class="form-label fw-semibold" for="tuAmount">Amount (₹) <span class="text-danger">*</span></label>
+                <input id="tuAmount" type="number" class="form-control text-end fw-bold" min="0.01" step="0.01" required />
+                <div class="invalid-feedback">Enter an amount above 0.</div></div>
+            <div class="col-md-6"><label class="form-label fw-semibold" for="tuDate">Date <span class="text-danger">*</span></label>
+                <input id="tuDate" type="date" class="form-control" required />
+                <div class="invalid-feedback">Not in the future.</div></div>
+            <div class="col-md-6"><label class="form-label fw-semibold" for="tuMode">Mode <span class="text-danger">*</span></label>
+                <select id="tuMode" class="form-select"><option value="BANK TRANSFER">Bank Transfer</option><option value="NEFT">NEFT</option><option value="RTGS">RTGS</option><option value="IMPS">IMPS</option><option value="UPI">UPI</option><option value="CHEQUE">Cheque</option><option value="CASH">Cash</option></select></div>
+            <div class="col-md-6"><label class="form-label fw-semibold" for="tuRef">Reference <span class="text-danger" id="tuRefReq">*</span></label>
+                <input id="tuRef" class="form-control" maxlength="100" placeholder="UTR / cheque no." />
+                <div class="invalid-feedback">Enter the UTR / cheque no.</div></div>
+            <div class="col-12"><label class="form-label fw-semibold" for="tuRemarks">Remarks</label><textarea id="tuRemarks" class="form-control" rows="2" maxlength="500"></textarea></div>
+            <div class="col-12"><div class="alert alert-success py-2 small mb-0">Balance after this top-up: <b id="tuAfter">—</b></div></div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-success" id="tuSave"><i class="bi bi-check2 me-1"></i>Top up</button></div>
+    </form>
+</div></div></div>
+
+@* history *@
+<div class="modal fade bf-modal" id="hiModal" tabindex="-1" aria-labelledby="hiTitle" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><div><h5 class="modal-title fw-bold" id="hiTitle">Fund History</h5><div class="small text-muted" id="hiSub"></div></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="hiFrom">From</label><input id="hiFrom" type="date" class="form-control form-control-sm" /></div>
+            <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="hiTo">To</label><input id="hiTo" type="date" class="form-control form-control-sm" /></div>
+            <div class="col-12 col-md-2"><button type="button" class="btn btn-sm btn-primary w-100" id="hiApply"><i class="bi bi-funnel me-1"></i>Apply</button></div>
+            <div class="col-12 col-md-4 text-md-end small" id="hiTotals"></div>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light"><tr><th>Date</th><th>Type</th><th>Mode</th><th>Reference</th><th>Remarks</th><th class="text-end">Amount</th><th class="text-end">Balance</th><th>By</th></tr></thead>
+            <tbody id="hiRows"></tbody>
+        </table></div>
+    </div>
+</div></div></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="~/css/views/Masters/bank-fund.css" asp-append-version="true" />
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.FdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/Funds/"), can = new { details = Can("DETAILS"), history = Can("HISTORY"), add = Can("ADD"), edit = Can("EDIT"), topup = Can("TOPUP"), status = Can("STATUS") } }));</script>
+    <script src="~/js/masters/fund-master.js" asp-append-version="true"></script>
+}

@@ -16,23 +16,24 @@ public class DoctorCommissionConfigsController(
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService) : Controller
 {
-    private static readonly string[] StandardRevenueTypes = ["Consultant", "Consultation", "Procedure", "Investigation", "Package", "Emergency", "Telemedicine", "All Services"];
+    // SQLScripts/2517: 'Service' - OPD services (Service Type Service, not registration), all or the selected ones
+    private static readonly string[] StandardRevenueTypes = ["Consultant", "Consultation", "Service", "Procedure", "Investigation", "Package", "Emergency", "Telemedicine", "All Services"];
     private static readonly string[] StandardCalculationTypes = ["Percentage", "Fixed Amount", "Tiered"];
     private static readonly string[] StandardCommissionBases = ["Net Collected", "Gross Bill", "Net Bill (After Discount)", "Base Tariff"];
+
+    // ── SQLScripts/2518: the page works on commission PROFILES - one scope (doctor / speciality / branch, dates, overrides,
+    //    approval, status) with a table of share lines (Consultation, Service - all or picked services -, ...). Each line
+    //    is one DoctorCommissionConfig row; the share calculation, accrual and settlement are unchanged.
 
     [HttpGet]
     public async Task<IActionResult> Index(int? branchId, int? doctorId, int? specialityId, string? revenueType, bool? isActive, string? search)
     {
         var currentBranchId = User.GetCurrentBranchId();
-        var companyId = User.GetCompanyId();
-
         try
         {
-            var list = await apiClient.GetCommissionConfigsAsync(branchId ?? currentBranchId, doctorId, specialityId, revenueType, isActive, search, companyId);
-
             var vm = new DoctorCommissionConfigIndexViewModel
             {
-                Items = list,
+                Profiles = await apiClient.GetCommissionProfilesAsync(branchId ?? currentBranchId, doctorId, specialityId, isActive, search),
                 SelectedBranchId = branchId,
                 SelectedDoctorId = doctorId,
                 SelectedSpecialityId = specialityId,
@@ -44,7 +45,9 @@ public class DoctorCommissionConfigsController(
                 SpecialityOptions = await GetSpecialityOptionsAsync(specialityId),
                 RevenueTypeOptions = GetRevenueTypeOptions(revenueType)
             };
-
+            // a revenue type filter keeps the profiles that have a line of it
+            if (!string.IsNullOrWhiteSpace(revenueType))
+                vm.Profiles = vm.Profiles.Where(x => (x.LinesText ?? "").Contains(revenueType, StringComparison.OrdinalIgnoreCase)).ToList();
             return View(vm);
         }
         catch (HttpRequestException)
@@ -56,99 +59,89 @@ public class DoctorCommissionConfigsController(
     [HttpGet]
     public async Task<IActionResult> Create()
     {
-        var branchId = User.GetCurrentBranchId();
-        var companyId = User.GetCompanyId();
-
         var model = new DoctorCommissionConfigFormViewModel
         {
-            CompanyId = companyId,
-            BranchId = branchId,
-            RevenueType = "Consultation",
-            CalculationType = "Percentage",
-            CommissionBasis = "Net Collected",
-            DoctorShare = 70.00m,
+            CompanyId = User.GetCompanyId(),
+            BranchId = User.GetCurrentBranchId(),
             ApprovalRequired = true,
             EffectiveFrom = DateTime.Today,
-            IsActive = true
+            IsActive = true,
+            // a new profile starts with the consultation share; Service lines are added in the table
+            Lines = [new DoctorCommissionShareLineViewModel { RevenueType = "Consultation", CalculationType = "Percentage", CommissionBasis = "Net Collected", DoctorShare = 70m }]
         };
-
         await PopulateFormOptionsAsync(model);
         return View(model);
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(DoctorCommissionConfigFormViewModel model)
-    {
-        model.CompanyId = User.GetCompanyId();
-
-        if (!ModelState.IsValid)
-        {
-            await PopulateFormOptionsAsync(model);
-            return View(model);
-        }
-
-        try
-        {
-            var newId = await apiClient.SaveCommissionConfigAsync(model, User.GetUserId());
-
-            await auditLogService.LogAsync(
-                "MasterData",
-                "DoctorCommissionConfigs.Create",
-                $"Created Doctor Commission Config #{newId} (Revenue: {model.RevenueType}, Share: {model.DoctorShare}{(model.CalculationType == "Percentage" ? "%" : " flat")})",
-                branchId: model.BranchId ?? User.GetCurrentBranchId());
-
-            TempData["SuccessMessage"] = "Doctor Commission Configuration created successfully.";
-            return RedirectToAction(nameof(Index));
-        }
-        catch (HttpRequestException ex)
-        {
-            ModelState.AddModelError(string.Empty, "Unable to communicate with the EMR API server: " + ex.Message);
-            await PopulateFormOptionsAsync(model);
-            return View(model);
-        }
-    }
+    public Task<IActionResult> Create(DoctorCommissionConfigFormViewModel model) => SaveProfileAsync(model, isNew: true);
 
     [HttpGet]
     public async Task<IActionResult> Edit(int id)
     {
-        var model = await apiClient.GetCommissionConfigByIdAsync(id);
-        if (model is null) return NotFound();
-
-        await PopulateFormOptionsAsync(model);
-        return View(model);
+        try
+        {
+            var model = await apiClient.GetCommissionProfileAsync(id);
+            if (model is null) return NotFound();
+            model.CompanyId = User.GetCompanyId();
+            await PopulateFormOptionsAsync(model);
+            return View(model);
+        }
+        catch (HttpRequestException)
+        {
+            return View("ApiDown");
+        }
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Edit(DoctorCommissionConfigFormViewModel model)
+    public Task<IActionResult> Edit(DoctorCommissionConfigFormViewModel model) => SaveProfileAsync(model, isNew: false);
+
+    private async Task<IActionResult> SaveProfileAsync(DoctorCommissionConfigFormViewModel model, bool isNew)
     {
         model.CompanyId = User.GetCompanyId();
-
+        if (isNew) model.ProfileId = 0;
+        try
+        {
+            model.Lines = string.IsNullOrWhiteSpace(model.LinesJson) ? []
+                : System.Text.Json.JsonSerializer.Deserialize<List<DoctorCommissionShareLineViewModel>>(model.LinesJson,
+                      new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? [];
+        }
+        catch (System.Text.Json.JsonException) { model.Lines = []; }
+        // the old single-rule fields are not part of the profile form
+        foreach (var k in new[] { nameof(model.RevenueType), nameof(model.CalculationType), nameof(model.CommissionBasis), nameof(model.DoctorShare) })
+            ModelState.Remove(k);
+        if (model.Lines.Count == 0) ModelState.AddModelError(string.Empty, "Add at least one share line.");
+        var view = isNew ? nameof(Create) : nameof(Edit);
         if (!ModelState.IsValid)
         {
             await PopulateFormOptionsAsync(model);
-            return View(model);
+            return View(view, model);
         }
-
         try
         {
-            await apiClient.SaveCommissionConfigAsync(model, User.GetUserId());
-
-            await auditLogService.LogAsync(
-                "MasterData",
-                "DoctorCommissionConfigs.Edit",
-                $"Updated Doctor Commission Config #{model.CommissionConfigId} (Revenue: {model.RevenueType}, Share: {model.DoctorShare}, Active: {model.IsActive})",
+            var (id, error) = await apiClient.SaveCommissionProfileAsync(model);
+            if (error is not null)
+            {
+                ModelState.AddModelError(string.Empty, error);
+                await PopulateFormOptionsAsync(model);
+                return View(view, model);
+            }
+            await auditLogService.LogAsync("MasterData", isNew ? "DoctorCommissionConfigs.Create" : "DoctorCommissionConfigs.Edit",
+                $"{(isNew ? "Created" : "Updated")} doctor commission profile #{id}: "
+                + string.Join(" · ", model.Lines.Select(l => $"{l.RevenueType}{(l.RevenueType == "Service" ? $" ({(l.ServiceIds.Count == 0 ? "all services" : l.ServiceIds.Count + " service(s)")})" : "")} "
+                    + (l.CalculationType == "Fixed Amount" ? $"₹{l.DoctorShare:0.##} flat" : $"{l.DoctorShare:0.##}% of {l.CommissionBasis}")))
+                + $" (active: {model.IsActive})",
                 branchId: model.BranchId ?? User.GetCurrentBranchId());
-
-            TempData["SuccessMessage"] = "Doctor Commission Configuration updated successfully.";
+            TempData["SuccessMessage"] = isNew ? "Doctor commission profile created." : "Doctor commission profile updated.";
             return RedirectToAction(nameof(Index));
         }
         catch (HttpRequestException ex)
         {
             ModelState.AddModelError(string.Empty, "Unable to communicate with the EMR API server: " + ex.Message);
             await PopulateFormOptionsAsync(model);
-            return View(model);
+            return View(view, model);
         }
     }
 
@@ -156,23 +149,14 @@ public class DoctorCommissionConfigsController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Delete(int id)
     {
-        var branchId = User.GetCurrentBranchId();
-        var deleted = await apiClient.DeleteCommissionConfigAsync(id);
+        var deleted = await apiClient.DeleteCommissionProfileAsync(id);
         if (deleted)
         {
-            await auditLogService.LogAsync(
-                "MasterData",
-                "DoctorCommissionConfigs.Delete",
-                $"Deleted Doctor Commission Config #{id}",
-                branchId: branchId);
-
-            TempData["SuccessMessage"] = "Doctor Commission Configuration deleted successfully.";
+            await auditLogService.LogAsync("MasterData", "DoctorCommissionConfigs.Delete", $"Deleted doctor commission profile #{id} (all its share lines)",
+                branchId: User.GetCurrentBranchId());
+            TempData["SuccessMessage"] = "Doctor commission profile deleted.";
         }
-        else
-        {
-            TempData["ErrorMessage"] = "Could not delete Doctor Commission Configuration.";
-        }
-
+        else TempData["ErrorMessage"] = "Could not delete the doctor commission profile.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -189,6 +173,24 @@ public class DoctorCommissionConfigsController(
         m.ServiceOptions = await GetServiceOptionsAsync(m.ServiceId);
         m.CorporateOptions = await GetCorporateOptionsAsync(m.CorporateId);
         m.InsuranceOptions = await GetInsuranceOptionsAsync(m.InsuranceTPAId);
+        // SQLScripts/2517 / 2518: the services a Service share line can be limited to - Service Type 'Service', not a
+        // registration service, of this company and the profile's branch (all branches for a global profile); read like the
+        // page's other lists. A service already chosen stays listed (marked) even if it is inactive now.
+        var picked = (m.ServiceIds ?? []).Concat(m.Lines.SelectMany(l => l.ServiceIds)).ToHashSet();
+        var companyId = User.GetCompanyId();
+        var branchId = m.BranchId;
+        m.ServiceRuleOptions = await dbContext.ServiceMasters.AsNoTracking()
+            .Where(s => s.ServiceType == "Service" && !s.IsRegistration && s.CompanyId == companyId
+                        && (branchId == null || s.BranchId == branchId)
+                        && (s.IsActive || picked.Contains(s.ServiceId)))
+            .OrderBy(s => s.ItemName)
+            .Select(s => new SelectListItem
+            {
+                Value = s.ServiceId.ToString(),
+                Text = s.ItemName + (string.IsNullOrEmpty(s.ItemCode) ? "" : " (" + s.ItemCode + ")") + (s.IsActive ? "" : " (inactive)"),
+                Selected = picked.Contains(s.ServiceId)
+            })
+            .ToListAsync();
     }
 
     private async Task<List<SelectListItem>> GetBranchOptionsAsync(int? selected = null)

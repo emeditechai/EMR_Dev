@@ -1,0 +1,158 @@
+@{
+    ViewData["Title"] = "Bank Master";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@Html.AntiForgeryToken()
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h1 class="h3 mb-0 fw-bold"><i class="bi bi-bank text-primary me-2"></i>Bank Master</h1>
+        <small class="text-muted">The hospital's own bank accounts - used for funds and payouts, and the primary one on B2B invoices</small>
+    </div>
+    @if (Can("ADD")) { <button type="button" class="btn btn-primary shadow-sm" id="btnAdd"><i class="bi bi-plus-lg me-1"></i>Add Bank Account</button> }
+</div>
+
+<div class="row g-3 mb-4" id="stats"></div>
+
+<div class="card shadow-sm border-0 mb-3"><div class="card-body py-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-7"><label class="form-label small fw-semibold" for="fSearch">Search</label>
+            <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span><input id="fSearch" class="form-control" placeholder="Bank, account no., IFSC, branch or holder" /></div></div>
+        <div class="col-6 col-md-3"><label class="form-label small fw-semibold" for="fStatus">Status</label>
+            <select id="fStatus" class="form-select"><option value="">All</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option></select></div>
+        <div class="col-6 col-md-2"><button type="button" class="btn btn-outline-secondary w-100" id="fReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button></div>
+    </div>
+</div></div>
+
+<div class="card shadow-sm border-0"><div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 bf-table">
+        <thead class="table-light"><tr><th>#</th><th>Bank</th><th>Account</th><th>Type</th><th>IFSC</th><th>Branch</th><th>UPI</th><th class="text-center">Funds</th><th class="text-center">Status</th><th class="text-end">Actions</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="10" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+</div></div>
+
+<div class="modal fade bf-modal" id="bkModal" tabindex="-1" aria-labelledby="bkTitle" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header">
+        <div class="d-flex align-items-center gap-3">
+            <div class="bf-section-head p-0 border-0"><div class="bf-ico c-indigo" style="background:rgba(255,255,255,.18);color:#fff"><i class="bi bi-bank"></i></div></div>
+            <div><h5 class="modal-title fw-bold mb-0" id="bkTitle">Add Bank Account</h5><div class="bf-sub">The hospital's own account - used for funds, payouts and on B2B invoices (primary)</div></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <form id="bkForm" novalidate autocomplete="off">
+    <div class="modal-body">
+        <input type="hidden" id="bkId" />
+        <div class="row g-3">
+            <div class="col-lg-8">
+                <div class="bf-section">
+                    <div class="bf-section-head"><div class="bf-ico c-indigo"><i class="bi bi-credit-card-2-front"></i></div><div><div class="bf-title">Account details</div><div class="bf-hint">Exactly as in the bank's records</div></div></div>
+                    <div class="bf-section-body"><div class="row g-3">
+                        <div class="col-md-6"><label class="form-label" for="bkBank">Bank Name <span class="text-danger">*</span></label>
+                            <div class="input-group has-validation"><span class="input-group-text"><i class="bi bi-bank2"></i></span>
+                            <input id="bkBank" class="form-control" maxlength="150" list="bkBankList" required placeholder="Start typing - e.g. State Bank of India" />
+                            <div class="invalid-feedback">Enter the bank name.</div></div>
+                            <datalist id="bkBankList"></datalist></div>
+                        <div class="col-md-6"><label class="form-label" for="bkType">Account Type <span class="text-danger">*</span></label>
+                            <div class="input-group"><span class="input-group-text"><i class="bi bi-tags"></i></span>
+                            <select id="bkType" class="form-select" required><option value="CURRENT">Current Account</option><option value="SAVINGS">Savings Account</option><option value="OD">Overdraft (OD)</option><option value="CC">Cash Credit (CC)</option></select></div></div>
+                        <div class="col-12"><label class="form-label" for="bkHolder">Account Holder Name <span class="text-danger">*</span></label>
+                            <div class="input-group has-validation"><span class="input-group-text"><i class="bi bi-person-vcard"></i></span>
+                            <input id="bkHolder" class="form-control" maxlength="150" required placeholder="e.g. eMeditech Plus LLP" />
+                            <div class="invalid-feedback">Enter the account holder name.</div></div></div>
+                        <div class="col-md-6"><label class="form-label" for="bkAcc">Account Number <span class="text-danger">*</span></label>
+                            <div class="input-group has-validation"><span class="input-group-text"><i class="bi bi-123"></i></span>
+                            <input id="bkAcc" class="form-control bf-mono" maxlength="20" inputmode="numeric" required placeholder="6 - 20 digits" />
+                            <div class="invalid-feedback">6 to 20 digits.</div></div></div>
+                        <div class="col-md-6"><label class="form-label" for="bkAcc2">Confirm Account Number <span class="text-danger">*</span></label>
+                            <div class="input-group has-validation"><span class="input-group-text"><i class="bi bi-shield-check"></i></span>
+                            <input id="bkAcc2" class="form-control bf-mono" maxlength="20" inputmode="numeric" required autocomplete="off" placeholder="Re-enter to confirm" />
+                            <div class="invalid-feedback">The account numbers do not match.</div></div></div>
+                    </div></div>
+                </div>
+                <div class="bf-section">
+                    <div class="bf-section-head"><div class="bf-ico c-teal"><i class="bi bi-upc-scan"></i></div><div><div class="bf-title">Bank codes</div><div class="bf-hint">IFSC is printed on the cheque book / passbook</div></div></div>
+                    <div class="bf-section-body"><div class="row g-3">
+                        <div class="col-md-4"><label class="form-label" for="bkIfsc">IFSC <span class="text-danger">*</span></label>
+                            <input id="bkIfsc" class="form-control text-uppercase bf-mono" maxlength="11" required placeholder="SBIN0001234" />
+                            <div class="invalid-feedback">4 letters, 0, then 6 letters / digits.</div><div class="form-text" id="bkIfscHint"></div></div>
+                        <div class="col-md-4"><label class="form-label" for="bkMicr">MICR Code</label>
+                            <input id="bkMicr" class="form-control bf-mono" maxlength="9" inputmode="numeric" placeholder="9 digits" />
+                            <div class="invalid-feedback">9 digits.</div></div>
+                        <div class="col-md-4"><label class="form-label" for="bkSwift">SWIFT / BIC</label>
+                            <input id="bkSwift" class="form-control text-uppercase bf-mono" maxlength="11" placeholder="For foreign payments" />
+                            <div class="invalid-feedback">8 or 11 letters / digits.</div></div>
+                    </div></div>
+                </div>
+                <div class="bf-section">
+                    <div class="bf-section-head"><div class="bf-ico c-amber"><i class="bi bi-geo-alt"></i></div><div><div class="bf-title">Bank branch</div><div class="bf-hint">Where the account is held</div></div></div>
+                    <div class="bf-section-body"><div class="row g-3">
+                        <div class="col-md-6"><label class="form-label" for="bkBranch">Branch Name <span class="text-danger">*</span></label>
+                            <input id="bkBranch" class="form-control" maxlength="150" required />
+                            <div class="invalid-feedback">Enter the branch name.</div></div>
+                        <div class="col-md-6"><label class="form-label" for="bkCity">City</label><input id="bkCity" class="form-control" maxlength="100" /></div>
+                        <div class="col-12"><label class="form-label" for="bkAddr">Branch Address</label><textarea id="bkAddr" class="form-control" rows="2" maxlength="400"></textarea></div>
+                    </div></div>
+                </div>
+                <div class="bf-section mb-0">
+                    <div class="bf-section-head"><div class="bf-ico c-pink"><i class="bi bi-qr-code"></i></div><div><div class="bf-title">UPI &amp; bank contact</div><div class="bf-hint">Optional</div></div></div>
+                    <div class="bf-section-body"><div class="row g-3">
+                        <div class="col-md-6"><label class="form-label" for="bkUpi">UPI ID</label>
+                            <div class="input-group has-validation"><span class="input-group-text"><i class="bi bi-at"></i></span>
+                            <input id="bkUpi" class="form-control" maxlength="50" placeholder="hospital@sbi" />
+                            <div class="invalid-feedback">e.g. hospital@sbi</div></div></div>
+                        <div class="col-md-6"><label class="form-label" for="bkUpiName">UPI Holder Name</label><input id="bkUpiName" class="form-control" maxlength="150" /></div>
+                        <div class="col-md-4"><label class="form-label" for="bkContact">Contact Person</label>
+                            <div class="input-group"><span class="input-group-text"><i class="bi bi-person"></i></span><input id="bkContact" class="form-control" maxlength="150" placeholder="Relationship manager" /></div></div>
+                        <div class="col-md-4"><label class="form-label" for="bkPhone">Contact Phone</label>
+                            <div class="input-group has-validation"><span class="input-group-text"><i class="bi bi-telephone"></i></span>
+                            <input id="bkPhone" class="form-control" maxlength="12" inputmode="numeric" />
+                            <div class="invalid-feedback">10 digits.</div></div></div>
+                        <div class="col-md-4"><label class="form-label" for="bkEmail">Contact E-mail</label>
+                            <div class="input-group has-validation"><span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                            <input id="bkEmail" type="email" class="form-control" maxlength="150" />
+                            <div class="invalid-feedback">Enter a valid e-mail.</div></div></div>
+                        <div class="col-12"><label class="form-label" for="bkRemarks">Remarks</label><textarea id="bkRemarks" class="form-control" rows="2" maxlength="500"></textarea></div>
+                    </div></div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="bf-preview">
+                    <div class="bf-card" aria-live="polite">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div><div class="bf-card-bank" id="pvBank">Bank name</div><div class="bf-card-type" id="pvType">Current Account</div></div>
+                            <span class="badge bg-warning text-dark d-none" id="pvPrimary"><i class="bi bi-star-fill me-1"></i>Primary</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 mt-3"><div class="bf-chip"></div></div>
+                        <div class="bf-card-acc" id="pvAcc">•••• •••• ••••</div>
+                        <div class="d-flex justify-content-between gap-2">
+                            <div><div class="bf-card-lbl">Account holder</div><div class="bf-card-val text-truncate" style="max-width:170px" id="pvHolder">—</div></div>
+                            <div class="text-end"><div class="bf-card-lbl">IFSC</div><div class="bf-card-val bf-mono" id="pvIfsc">—</div></div>
+                        </div>
+                        <div class="mt-2"><div class="bf-card-lbl">Branch</div><div class="bf-card-val" id="pvBranch">—</div></div>
+                    </div>
+                    <ul class="bf-checklist" id="pvChecks">
+                        <li data-k="bank"><i class="bi bi-circle"></i>Bank and account holder</li>
+                        <li data-k="acc"><i class="bi bi-circle"></i>Account number confirmed</li>
+                        <li data-k="ifsc"><i class="bi bi-circle"></i>Valid IFSC</li>
+                        <li data-k="branch"><i class="bi bi-circle"></i>Branch name</li>
+                    </ul>
+                    <div class="bf-flag">
+                        <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="bkPrimary" /><label class="form-check-label fw-semibold" for="bkPrimary">Primary account</label>
+                            <div class="form-text mt-0">Shown on B2B invoices. One per company - marking this one clears the other.</div></div>
+                        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="bkActive" checked /><label class="form-check-label fw-semibold" for="bkActive">Active</label></div>
+                    </div>
+                    <div class="small text-muted mt-3 d-none" id="bkAudit"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-light border px-4" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-primary px-4" id="bkSave"><i class="bi bi-check2-circle me-1"></i>Save Bank Account</button></div>
+    </form>
+</div></div></div>
+
+@section Scripts {
+    <link rel="stylesheet" href="~/css/views/Masters/bank-fund.css" asp-append-version="true" />
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.BkPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/Banks/"), can = new { details = Can("DETAILS"), add = Can("ADD"), edit = Can("EDIT"), status = Can("STATUS") } }));</script>
+    <script src="~/js/masters/bank-master.js" asp-append-version="true"></script>
+}

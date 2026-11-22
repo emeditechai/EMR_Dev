@@ -116,8 +116,11 @@ public class ApprovalDashboardController(
         }).ToList();
 
         var (canAct, why) = await CanActAsync(con, r);
+        // 2520: a doctor share settlement - the approver sees its bills, and each bill item by item
+        var settlement = r.Action_Type == "SETTLE" ? await SettlementDetailAsync(r) : null;
         return Json(new
         {
+            settlement,
             success = true,
             request = new
             {
@@ -154,6 +157,7 @@ public class ApprovalDashboardController(
         try
         {
             note = r.Action_Type == "PRINT" ? "The report of this bill can now be printed from Lab Report Dispatch."   // 2465: nothing to apply
+                 : r.Action_Type == "SETTLE" ? await SettlementActionAsync(r, "APPROVE", Trim(remarks))                // 2520: the settlement is approved
                  : r.Action_Type == "CREATE" ? await ActivateAsync(con, r) : await ApplyChangeAsync(r);
         }
         catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or JsonException)
@@ -177,6 +181,14 @@ public class ApprovalDashboardController(
                 $"Due Report Print approved · {r.Entity_Name}",
                 $"{who} approved printing the lab report of {r.Entity_Name} with a due. Print it from Lab Report Dispatch > Action > Report Print." + (Trim(remarks) is string pr ? $" Remarks: {pr}" : ""),
                 DuePrintLink, MasterApprovalService.NotifyRef, id, $"APPROVAL_DONE:{id}", r.Branch_ID, User.GetUserId());
+            return Json(new { success = true, message = "Approved. " + note });
+        }
+        if (r.Action_Type == "SETTLE")
+        {
+            await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "INFO",
+                $"Doctor settlement approved · {r.Entity_Name}",
+                $"{who} approved the doctor share settlement {r.Entity_Name}. It can now be paid on OPD > Doctor Commission & Disbursals." + (Trim(remarks) is string sr ? $" Remarks: {sr}" : ""),
+                SettlementLink, MasterApprovalService.NotifyRef, id, $"APPROVAL_DONE:{id}", r.Branch_ID, User.GetUserId());
             return Json(new { success = true, message = "Approved. " + note });
         }
         await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "INFO",
@@ -205,6 +217,16 @@ public class ApprovalDashboardController(
                WHERE Request_ID = @id AND Status = 'P'",
             new { id, userId = User.GetUserId(), reason });
         if (done == 0) return Fail("This request was already acted on. Reload the dashboard.");
+        // 2520: a doctor settlement sent back is rejected - its shares go back to be settled again
+        if (r.Action_Type == "SETTLE")
+        {
+            try { await SettlementActionAsync(r, "REJECT", reason); }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
+            {
+                await con.ExecuteAsync("UPDATE dbo.ApprovalRequest SET Status = 'P', Actioned_By = NULL, Actioned_Date = NULL, Remarks = NULL WHERE Request_ID = @id", new { id });
+                return Fail("The settlement could not be sent back: " + (ex is HttpRequestException ? "the service is not reachable." : ex.Message));
+            }
+        }
 
         await auditLogService.LogAsync("Approval Dashboard", "SendBack",
             $"Sent back {r.Action_Type.ToLower()} of {r.Module_Name} '{r.Entity_Name}' #{r.Entity_ID} [Request #{id}]: {reason}",
@@ -212,6 +234,14 @@ public class ApprovalDashboardController(
 
         await approvals.ClearNoticesAsync([id]);
         var who = User.GetDisplayName();
+        if (r.Action_Type == "SETTLE")
+        {
+            await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "WARNING",
+                $"Doctor settlement sent back · {r.Entity_Name}",
+                $"{who} sent back the doctor share settlement {r.Entity_Name}: {reason}. It was rejected; its shares are back to be settled again.",
+                SettlementLink, MasterApprovalService.NotifyRef, id, $"APPROVAL_DONE:{id}", r.Branch_ID, User.GetUserId());
+            return Json(new { success = true, message = "Sent back. The settlement was rejected and its shares are back to be settled again." });
+        }
         if (r.Action_Type == "PRINT")
         {
             await notifications.NotifyUsersAsync([r.Requested_By], MasterApprovalService.NotifyCategory, "WARNING",
@@ -234,6 +264,59 @@ public class ApprovalDashboardController(
     }
 
     // ── applying an approval ─────────────────────────────────────────────────────────────────────────
+
+    private const string SettlementLink = "/DoctorDisbursal/Index";
+
+    /// <summary>SQLScripts/2520: the settlement's bills (share lines) and each bill's items (consultation / services, rule,
+    /// share - SQLScripts/2519), read through the doctor payout API. Null when it cannot be read (the summary still shows).</summary>
+    private async Task<object?> SettlementDetailAsync(RequestRow r)
+    {
+        try
+        {
+            var payout = HttpContext.RequestServices.GetRequiredService<IDoctorPayoutApiClient>();
+            var res = await payout.GetAsync($"settlements/{r.Entity_ID}", new Dictionary<string, string?>
+            {
+                ["branchId"] = r.Branch_ID.ToString(), ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+            });
+            if (!res.IsSuccess || string.IsNullOrWhiteSpace(res.Data)) return null;
+            using var doc = JsonDocument.Parse(res.Data);
+            var root = doc.RootElement;
+            var header = root.TryGetProperty("header", out var h) && h.ValueKind == JsonValueKind.Array && h.GetArrayLength() > 0 ? h[0].Clone() : (JsonElement?)null;
+            var lines = root.TryGetProperty("lines", out var l) && l.ValueKind == JsonValueKind.Array ? l.EnumerateArray().Select(x => x.Clone()).ToList() : [];
+
+            var items = new Dictionary<string, JsonElement>();
+            foreach (var visitId in lines.Select(x => x.TryGetProperty("VisitId", out var v) && v.TryGetInt32(out var vi) ? vi : 0).Where(v => v > 0).Distinct())
+            {
+                var it = await payout.GetAsync("visit-items", new Dictionary<string, string?> { ["branchId"] = r.Branch_ID.ToString(), ["visitId"] = visitId.ToString() });
+                if (!it.IsSuccess || string.IsNullOrWhiteSpace(it.Data)) continue;
+                using var idoc = JsonDocument.Parse(it.Data);
+                if (idoc.RootElement.TryGetProperty("items", out var arr)) items[visitId.ToString()] = arr.Clone();
+            }
+            return new { header, lines, items };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "Settlement {Id} details not loaded for request {Request}", r.Entity_ID, r.Request_ID);
+            return null;
+        }
+    }
+
+    /// <summary>SQLScripts/2520: an OPD doctor share settlement approved / rejected by this approver, through the doctor payout
+    /// procedures (the same step as the Approve / Reject on the disbursal page; their rules - maker-checker, status - apply).</summary>
+    private async Task<string?> SettlementActionAsync(RequestRow r, string action, string? remarks)
+    {
+        var payout = HttpContext.RequestServices.GetRequiredService<IDoctorPayoutApiClient>();
+        var result = await payout.PostAsync("action", new
+        {
+            BranchId = r.Branch_ID, SettlementId = r.Entity_ID, Action = action, Remarks = remarks,
+            UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
+        });
+        if (!result.IsSuccess) throw new InvalidOperationException(result.ErrorMessage ?? "the settlement could not be updated.");
+        await auditLogService.LogAsync("DoctorPayout", action == "APPROVE" ? "DoctorPayout.Approved" : "DoctorPayout.Rejected",
+            $"Doctor settlement {r.Entity_Name} {(action == "APPROVE" ? "approved" : "rejected")} on the Approval Dashboard [Request #{r.Request_ID}]" +
+            (string.IsNullOrWhiteSpace(remarks) ? "." : $": {remarks}"), User.GetUserId(), r.Branch_ID);
+        return action == "APPROVE" ? "The settlement can now be paid on OPD > Doctor Commission & Disbursals." : null;
+    }
 
     /// <summary>A new record: switched on as the maker asked, and its login (franchise / corporate) enabled and mailed.</summary>
     private async Task<string?> ActivateAsync(System.Data.IDbConnection con, RequestRow r)

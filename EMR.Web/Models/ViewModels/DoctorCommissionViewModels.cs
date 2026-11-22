@@ -131,8 +131,46 @@ public class DoctorCommissionConfigListItemViewModel
     public bool IsActive { get; set; } = true;
 }
 
+/// <summary>SQLScripts/2518: one share line of a commission profile (a DoctorCommissionConfig row).</summary>
+public class DoctorCommissionShareLineViewModel
+{
+    public int? CommissionConfigId { get; set; }
+    public string RevenueType { get; set; } = "Consultation";
+    public string CalculationType { get; set; } = "Percentage";
+    public string? CommissionBasis { get; set; } = "Net Collected";
+    public decimal DoctorShare { get; set; }
+    /// <summary>Service lines: the services (empty = all services).</summary>
+    public List<int> ServiceIds { get; set; } = [];
+}
+
+/// <summary>SQLScripts/2518: a commission profile in the list - its scope and all its share lines.</summary>
+public class DoctorCommissionProfileListItemViewModel
+{
+    public int ProfileId { get; set; }
+    public int LineCount { get; set; }
+    public string? LinesText { get; set; }
+    public string? BranchName { get; set; }
+    public int? DoctorId { get; set; }
+    public string? DoctorName { get; set; }
+    public string? SpecialityName { get; set; }
+    public int? ProcedureId { get; set; }
+    public int? ServiceId { get; set; }
+    public int? CorporateId { get; set; }
+    public int? InsuranceTPAId { get; set; }
+    public DateTime EffectiveFrom { get; set; }
+    public DateTime? EffectiveTo { get; set; }
+    public bool ApprovalRequired { get; set; }
+    public bool IsActive { get; set; }
+}
+
 public class DoctorCommissionConfigFormViewModel
 {
+    /// <summary>SQLScripts/2518: the profile (0 = new). The form edits the whole profile: scope + share lines.</summary>
+    public int ProfileId { get; set; }
+    /// <summary>The share lines as posted by the form (JSON of <see cref="DoctorCommissionShareLineViewModel"/>).</summary>
+    public string? LinesJson { get; set; }
+    public List<DoctorCommissionShareLineViewModel> Lines { get; set; } = [];
+
     public int CommissionConfigId { get; set; }
     public int CompanyId { get; set; } = 1;
 
@@ -198,6 +236,12 @@ public class DoctorCommissionConfigFormViewModel
     public List<SelectListItem> CommissionBasisOptions { get; set; } = [];
     public List<SelectListItem> ProcedureOptions { get; set; } = [];
     public List<SelectListItem> ServiceOptions { get; set; } = [];
+
+    /// <summary>SQLScripts/2517: Revenue Type 'Service' - the services the rule is limited to (none selected = all services).</summary>
+    public List<int> ServiceIds { get; set; } = [];
+    public List<string> ServiceNames { get; set; } = [];
+    /// <summary>The services a 'Service' rule can name: Service Type 'Service', not a registration service.</summary>
+    public List<SelectListItem> ServiceRuleOptions { get; set; } = [];
     public List<SelectListItem> CorporateOptions { get; set; } = [];
     public List<SelectListItem> InsuranceOptions { get; set; } = [];
 }
@@ -205,6 +249,8 @@ public class DoctorCommissionConfigFormViewModel
 public class DoctorCommissionConfigIndexViewModel
 {
     public IEnumerable<DoctorCommissionConfigListItemViewModel> Items { get; set; } = [];
+    /// <summary>SQLScripts/2518: the list shows one row per profile.</summary>
+    public List<DoctorCommissionProfileListItemViewModel> Profiles { get; set; } = [];
     public int? SelectedBranchId { get; set; }
     public int? SelectedDoctorId { get; set; }
     public int? SelectedSpecialityId { get; set; }

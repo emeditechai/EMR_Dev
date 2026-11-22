@@ -12,6 +12,8 @@ public static class ApprovalModules
     public const string Franchise = "LAB.FRANCHISE";
     public const string Corporate = "MASTER.CORPORATE";
     public const string Package   = "LAB.PACKAGE";
+    /// <summary>SQLScripts/2520: a prepared OPD doctor share settlement - approved on the Approval Dashboard when set up.</summary>
+    public const string DoctorSettlement = "OPD.DOCTORSETTLEMENT";
 }
 
 public record ApprovalMatrixHit(int Matrix_ID, char Scope, int? Branch_ID);

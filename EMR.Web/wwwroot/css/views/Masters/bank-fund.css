@@ -1,0 +1,59 @@
+/* Master > General > Bank Master and Utility > Accounts > Fund Master (SQLScripts/2522) */
+.bf-modal .modal-content { border: 0; border-radius: 16px; overflow: hidden; }
+.bf-modal .modal-header { background: linear-gradient(135deg, #4338ca 0%, #7c3aed 100%); color: #fff; border: 0; padding: 1rem 1.5rem; }
+.bf-modal .modal-header .modal-title { color: #fff; }
+.bf-modal .modal-header .bf-sub { color: rgba(255,255,255,.8); font-size: .8rem; }
+.bf-modal .modal-header .btn-close { filter: invert(1) grayscale(1) brightness(2); }
+.bf-modal .modal-body { background: #f5f6fb; padding: 1.25rem 1.5rem; }
+.bf-modal .modal-footer { background: #fff; border-top: 1px solid #eef0f6; }
+
+.bf-section { background: #fff; border: 1px solid #e9ebf3; border-radius: 12px; margin-bottom: 1rem; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.bf-section-head { display: flex; align-items: center; gap: .65rem; padding: .7rem 1rem; border-bottom: 1px solid #f0f1f7; }
+.bf-section-head .bf-ico { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; font-size: 1rem; flex: 0 0 auto; }
+.bf-section-head .bf-title { font-weight: 700; font-size: .92rem; color: #1e293b; line-height: 1.1; }
+.bf-section-head .bf-hint { font-size: .72rem; color: #64748b; }
+.bf-section-body { padding: .9rem 1rem 1rem; }
+.bf-ico.c-indigo { background: #eef2ff; color: #4338ca; } .bf-ico.c-teal { background: #e6fffa; color: #0f766e; }
+.bf-ico.c-amber { background: #fff7e6; color: #b45309; } .bf-ico.c-pink { background: #fdf2f8; color: #be185d; } .bf-ico.c-green { background: #ecfdf5; color: #047857; }
+
+.bf-modal .form-label { font-size: .78rem; font-weight: 600; color: #475569; margin-bottom: .3rem; }
+.bf-modal .form-control, .bf-modal .form-select { font-size: .9rem; border-color: #dde1ec; }
+.bf-modal .form-control:focus, .bf-modal .form-select:focus { border-color: #818cf8; box-shadow: 0 0 0 .2rem rgba(99,102,241,.15); }
+.bf-modal .input-group-text { background: #f8fafc; border-color: #dde1ec; color: #64748b; }
+.bf-modal .form-text { font-size: .72rem; }
+
+/* live card preview */
+.bf-preview { position: sticky; top: 0; }
+.bf-card { border-radius: 16px; padding: 1.1rem 1.2rem; color: #fff; min-height: 190px; position: relative; overflow: hidden;
+           background: linear-gradient(135deg, #1e1b4b 0%, #4338ca 55%, #7c3aed 100%); box-shadow: 0 12px 28px rgba(67,56,202,.28); }
+.bf-card::after { content: ""; position: absolute; right: -40px; top: -40px; width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,.08); }
+.bf-card .bf-card-bank { font-weight: 800; font-size: 1.05rem; letter-spacing: .02em; }
+.bf-card .bf-card-type { font-size: .68rem; text-transform: uppercase; letter-spacing: .12em; opacity: .8; }
+.bf-card .bf-card-acc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1.25rem; letter-spacing: .14em; margin: 1.1rem 0 .7rem; }
+.bf-card .bf-card-lbl { font-size: .6rem; text-transform: uppercase; letter-spacing: .12em; opacity: .7; }
+.bf-card .bf-card-val { font-weight: 600; font-size: .85rem; }
+.bf-card .bf-chip { width: 38px; height: 28px; border-radius: 6px; background: linear-gradient(135deg, #fde68a, #f59e0b); opacity: .9; }
+.bf-checklist { list-style: none; padding: 0; margin: .9rem 0 0; font-size: .8rem; }
+.bf-checklist li { display: flex; align-items: center; gap: .45rem; padding: .22rem 0; color: #64748b; }
+.bf-checklist li i { font-size: .95rem; }
+.bf-checklist li.ok { color: #047857; } .bf-checklist li.ok i::before { content: "\F26A"; }
+.bf-flag { border: 1px solid #e9ebf3; background: #fff; border-radius: 12px; padding: .75rem 1rem; margin-top: .9rem; }
+
+/* list */
+.bf-avatar { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: .8rem; color: #fff; flex: 0 0 auto;
+             background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+.bf-avatar.wallet { background: linear-gradient(135deg, #06b6d4, #0ea5e9); }
+.bf-table td { vertical-align: middle; }
+.bf-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .03em; }
+
+/* a <form> wraps the body and the footer: it takes the scrollable modal's height, the body scrolls and the footer (Save)
+   always stays in view at the bottom */
+.bf-modal .modal-content > form { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+.bf-modal .modal-dialog-scrollable .modal-content > form > .modal-body { overflow-y: auto; }
+.bf-modal .modal-content > form > .modal-footer { flex-shrink: 0; position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -4px 12px rgba(15, 23, 42, .06); }
+
+/* doctor payout: the fund cards of the payment window (SQLScripts/2525) */
+.pay-fund { border: 1.5px solid #e2e6f0; border-radius: 12px; padding: .7rem .8rem; background: #fff; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.pay-fund:hover { border-color: #a5b4fc; }
+.btn-check:checked + .pay-fund { border-color: #4f46e5; box-shadow: 0 0 0 .2rem rgba(79,70,229,.15); background: #f8f8ff; }
+.pay-fund.is-short { opacity: .55; cursor: not-allowed; background: #fafafa; }

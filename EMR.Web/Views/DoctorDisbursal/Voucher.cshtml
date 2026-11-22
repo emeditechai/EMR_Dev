@@ -153,6 +153,11 @@
         <div class="grid" style="margin-top:12px">
             <div><span>Payment</span>@(status == "PAID" ? $"{S(h, "PaymentMode")} on {D(h, "PaymentDate")}" : "Not paid yet")</div>
             <div><span>Reference</span>@(S(h, "PaymentReference") is { Length: > 0 } rf ? rf : "—")</div>
+            @if (!string.IsNullOrEmpty(S(h, "FundName")))
+            {
+                @* SQLScripts/2525: the fund it was paid from *@
+                <div><span>Paid from</span>@S(h, "FundName") (@(S(h, "FundType") == "BANK" ? "Bank fund" : "Wallet"))</div>
+            }
             @if (!string.IsNullOrEmpty(S(h, "CloseReason")))
             {
                 <div style="grid-column:1/3"><span>@(status == "REJECTED" ? "Rejected" : "Cancelled")</span>@S(h, "ClosedByName"), @D(h, "ClosedOn", "dd MMM yyyy hh:mm tt"): @S(h, "CloseReason")</div>

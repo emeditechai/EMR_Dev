@@ -102,6 +102,8 @@
                     <thead class="table-light"><tr><th style="width:28%">Field</th><th class="ad-oldh">Old value</th><th>New value</th></tr></thead>
                     <tbody id="admFields"></tbody>
                 </table>
+                @* 2520: a doctor share settlement - its bills, each with its items *@
+                <div id="admSettlement" class="mb-3 d-none"></div>
                 <div class="small text-muted mb-1" id="admApprovers"></div>
                 <div id="admHistory"></div>
 
@@ -135,6 +137,7 @@
     const typeBadge = t => t === 'CREATE'
         ? '<span class="badge bg-primary-subtle text-primary-emphasis">New record</span>'
         : t === 'PRINT' ? '<span class="badge bg-warning-subtle text-warning-emphasis"><i class="bi bi-printer me-1"></i>Print with due</span>'
+        : t === 'SETTLE' ? '<span class="badge bg-success-subtle text-success-emphasis"><i class="bi bi-cash-coin me-1"></i>Settlement</span>'
         : '<span class="badge bg-info-subtle text-info-emphasis">Change</span>';
     const labels = { '': 'All requests', P: 'Pending', A: 'Approved', S: 'Sent Back' };
     let status = 'P', current = null;
@@ -179,20 +182,54 @@
             : '<tr><td colspan="3" class="text-muted text-center">No field differs.</td></tr>';
     }
 
+    // 2520: the settlement's bills (share lines), each opening to its items - consultation, services, rule and share
+    function renderSettlement(st, isSettle) {
+        const box = document.getElementById('admSettlement');
+        box.classList.toggle('d-none', !isSettle);
+        if (!isSettle) { box.innerHTML = ''; return; }
+        if (!st) { box.innerHTML = '<div class="text-muted small">The bills of this settlement could not be loaded now.</div>'; return; }
+        const m = n => (Number(n) < 0 ? '-₹' : '₹') + Math.abs(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const d = v => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+        const lines = st.lines || [], items = st.items || {};
+        const TYPE = { Consultation: 'bg-primary-subtle text-primary', Service: 'bg-warning-subtle text-dark', Registration: 'bg-secondary-subtle text-secondary' };
+        box.innerHTML = `<div class="fw-semibold mb-1"><i class="bi bi-receipt me-1"></i>Bills in this settlement (${lines.length})</div>
+            <div class="table-responsive"><table class="table table-sm table-bordered align-middle small mb-0">
+            <thead class="table-light"><tr><th>Share date</th><th>Bill</th><th>Patient</th><th class="text-end">Bill net</th><th class="text-end">Collected</th><th>Rule</th><th class="text-end">Share</th><th></th></tr></thead><tbody>` +
+            (lines.length ? lines.map((l, i) => `<tr>
+                <td class="text-nowrap">${d(l.ShareDate)}</td><td>${esc(l.BillNo || '')}<div class="text-muted">${esc(l.TokenNo || '')}</div></td>
+                <td>${esc(l.PatientName || '')}<div class="text-muted">${esc(l.PatientCode || '')}</div></td>
+                <td class="text-end">${m(l.NetBillAmount)}</td><td class="text-end">${m(l.CollectedAmount)}</td><td>${esc(l.CommissionRule || '')}</td>
+                <td class="text-end fw-semibold">${m(l.NetPayable)}</td>
+                <td class="text-end">${items[l.VisitId] ? `<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 adm-items" data-i="${i}"><i class="bi bi-list-nested me-1"></i>Items</button>` : ''}</td></tr>
+              <tr class="d-none adm-items-row" data-i="${i}"><td colspan="8" class="bg-light ps-4">${items[l.VisitId] ? `<table class="table table-sm mb-0 bg-white">
+                <thead><tr><th>Item</th><th>Type</th><th class="text-end">Amount</th><th class="text-end">Discount</th><th class="text-end">Net</th><th>Rule</th><th class="text-end">Share</th><th class="text-end">Earned</th></tr></thead><tbody>` +
+                items[l.VisitId].map(it => `<tr class="${Number(it.Share) ? '' : 'text-muted'}"><td>${esc(it.ItemName)} <span class="text-muted">${esc(it.ItemCode || '')}</span></td>
+                    <td><span class="badge ${TYPE[it.ItemType] || 'bg-light text-dark'}">${esc(it.ItemType)}</span></td><td class="text-end">${m(it.Gross)}</td>
+                    <td class="text-end">${Number(it.Discount) ? m(it.Discount) : '—'}</td><td class="text-end">${m(it.Net)}</td><td>${esc(it.RuleText)}</td>
+                    <td class="text-end fw-semibold">${m(it.Share)}</td><td class="text-end">${m(it.Earned)}</td></tr>`).join('') + '</tbody></table>' : ''}</td></tr>`).join('')
+              : '<tr><td colspan="8" class="text-center text-muted">No bill.</td></tr>') +
+            `</tbody><tfoot class="fw-semibold"><tr><td colspan="6" class="text-end">Total share</td><td class="text-end">${m(lines.reduce((a, l) => a + Number(l.NetPayable || 0), 0))}</td><td></td></tr></tfoot></table></div>`;
+    }
+    document.getElementById('admSettlement').addEventListener('click', e => {
+        const b = e.target.closest('.adm-items'); if (!b) return;
+        document.querySelector(`#admSettlement .adm-items-row[data-i="${b.dataset.i}"]`)?.classList.toggle('d-none');
+    });
+
     async function open(id) {
         const res = await (await fetch('@Url.Action("Detail")?id=' + id)).json();
         if (!res.success) { Swal.fire({ icon: 'error', text: res.message }); return; }
         current = res;
-        const r = res.request, isPrint = r.Action_Type === 'PRINT', isNew = r.Action_Type === 'CREATE' || isPrint;
+        const r = res.request, isPrint = r.Action_Type === 'PRINT', isSettle = r.Action_Type === 'SETTLE', isNew = r.Action_Type === 'CREATE' || isPrint || isSettle;
         admTitle.innerHTML = esc(r.Entity_Name) + ' ' + statusBadge(r.Status);
-        admSub.textContent = `${r.Module_Name} · ${isPrint ? 'Print with due' : isNew ? 'New record' : 'Change'} · #${r.Request_ID} · submitted by ${r.Requested_By_Name || ''} on ${dt(r.Requested_Date)} · ${r.Scope === 'C' ? 'company-wise' : 'branch ' + (r.BranchName || '')}`;
+        admSub.textContent = `${r.Module_Name} · ${isPrint ? 'Print with due' : isSettle ? 'Settlement' : isNew ? 'New record' : 'Change'} · #${r.Request_ID} · submitted by ${r.Requested_By_Name || ''} on ${dt(r.Requested_Date)} · ${r.Scope === 'C' ? 'company-wise' : 'branch ' + (r.BranchName || '')}`;
         adModal.querySelector('.ad-oldh').classList.toggle('d-none', isNew);
         admOnlyWrap.classList.toggle('d-none', isNew);
-        admCompareTitle.textContent = isPrint ? 'Bill and reason' : isNew ? 'Values of the new record' : `${res.changedCount} field(s) changed`;
+        admCompareTitle.textContent = isPrint ? 'Bill and reason' : isSettle ? 'Settlement summary' : isNew ? 'Values of the new record' : `${res.changedCount} field(s) changed`;
         let alert = '';
         if (r.Status === 'S') alert = `<div class="alert alert-danger py-2"><b>Sent back</b> by ${esc(r.Actioned_By_Name)} on ${dt(r.Actioned_Date)}: ${esc(r.Remarks)}</div>`;
         else if (r.Status === 'A') alert = `<div class="alert alert-success py-2"><b>Approved</b> by ${esc(r.Actioned_By_Name)} on ${dt(r.Actioned_Date)}${r.Remarks ? ': ' + esc(r.Remarks) : ''}</div>`;
         else if (isPrint) alert = '<div class="alert alert-warning py-2 small mb-3">The bill still has a balance due. Approving lets Lab Report Dispatch print its lab report.</div>';
+        else if (isSettle) alert = '<div class="alert alert-info py-2 small mb-3">The doctor share settlement below waits for approval. Approving lets it be paid on OPD &gt; Doctor Commission &amp; Disbursals; Send Back rejects it and its shares go back to be settled again.</div>';
         else if (isNew) alert = '<div class="alert alert-warning py-2 small mb-3">This record is saved inactive. Approving makes it available (and enables its login, if it has one).</div>';
         else alert = '<div class="alert alert-info py-2 small mb-3">The record still works on its old values. Approving applies the new values.</div>';
         admAlert.innerHTML = alert;
@@ -208,6 +245,7 @@
         admRemarks.value = '';
         admRemarks.classList.remove('is-invalid');
         renderFields();
+        renderSettlement(isSettle ? res.settlement : null, isSettle);
         modal.show();
     }
 
@@ -227,7 +265,7 @@
     }
 
     admApprove.addEventListener('click', async () => {
-        const ok = await Swal.fire({ icon: 'question', title: 'Approve?', text: current.request.Action_Type === 'PRINT' ? 'The lab report of this bill can then be printed with the due.' : current.request.Action_Type === 'CREATE' ? 'The record becomes available.' : 'The new values are applied now.', showCancelButton: true, confirmButtonText: 'Approve', confirmButtonColor: '#198754' });
+        const ok = await Swal.fire({ icon: 'question', title: 'Approve?', text: current.request.Action_Type === 'PRINT' ? 'The lab report of this bill can then be printed with the due.' : current.request.Action_Type === 'SETTLE' ? 'The settlement is approved and can then be paid.' : current.request.Action_Type === 'CREATE' ? 'The record becomes available.' : 'The new values are applied now.', showCancelButton: true, confirmButtonText: 'Approve', confirmButtonColor: '#198754' });
         if (ok.isConfirmed) act('@Url.Action("Approve")', { remarks: admRemarks.value });
     });
     admSendBack.addEventListener('click', () => {

@@ -19,6 +19,12 @@ public interface IDoctorCommissionApiClient
     Task<DoctorCommissionConfigFormViewModel?> GetCommissionConfigByIdAsync(int id);
     Task<int> SaveCommissionConfigAsync(DoctorCommissionConfigFormViewModel model, int? userId);
     Task<bool> DeleteCommissionConfigAsync(int id);
+    // SQLScripts/2518: commission profiles
+    Task<List<DoctorCommissionProfileListItemViewModel>> GetCommissionProfilesAsync(int? branchId, int? doctorId, int? specialityId, bool? isActive, string? search);
+    Task<DoctorCommissionConfigFormViewModel?> GetCommissionProfileAsync(int profileId);
+    Task<(int ProfileId, string? Error)> SaveCommissionProfileAsync(DoctorCommissionConfigFormViewModel m);
+    Task<bool> DeleteCommissionProfileAsync(int profileId);
+    Task<List<(int ServiceId, string Text, bool IsActive)>> GetCommissionServiceOptionsAsync(int companyId, int? branchId);   // SQLScripts/2517
 
     // 3. Doctor Disbursal Workbench
     Task<IEnumerable<DoctorDisbursalListItemViewModel>> GetDisbursalsAsync(
