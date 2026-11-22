@@ -4070,6 +4070,188 @@
    "type": "datetime"
   },
   {
+   "col": "CompanyId",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 11,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "int"
+  },
+  {
+   "col": "AccountHolderName",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 300,
+   "nullable": true,
+   "ord": 12,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "AccountType",
+   "def": "('CURRENT')",
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": false,
+   "ord": 13,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "varchar"
+  },
+  {
+   "col": "MICRCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 9,
+   "nullable": true,
+   "ord": 14,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "varchar"
+  },
+  {
+   "col": "SwiftCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 11,
+   "nullable": true,
+   "ord": 15,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "varchar"
+  },
+  {
+   "col": "BranchAddress",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 800,
+   "nullable": true,
+   "ord": 16,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "City",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 17,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "ContactPerson",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 300,
+   "nullable": true,
+   "ord": 18,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "ContactPhone",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 15,
+   "nullable": true,
+   "ord": 19,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "varchar"
+  },
+  {
+   "col": "ContactEmail",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 300,
+   "nullable": true,
+   "ord": 20,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Remarks",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 1000,
+   "nullable": true,
+   "ord": 21,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "nvarchar"
+  },
+  {
+   "col": "CreatedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 22,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "int"
+  },
+  {
+   "col": "ModifiedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 23,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "BankMaster",
+   "type": "int"
+  },
+  {
+   "col": "ModifiedAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 24,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "BankMaster",
+   "type": "datetime"
+  },
+  {
    "col": "CancellationId",
    "def": null,
    "descr": null,
@@ -9946,6 +10128,45 @@
    "type": "int"
   },
   {
+   "col": "ProfileId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 22,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorCommissionConfig",
+   "type": "int"
+  },
+  {
+   "col": "CommissionConfigId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorCommissionConfigService",
+   "type": "int"
+  },
+  {
+   "col": "ServiceId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorCommissionConfigService",
+   "type": "int"
+  },
+  {
    "col": "MappingId",
    "def": null,
    "descr": null,
@@ -12531,6 +12752,19 @@
    "scale": 0,
    "tbl": "DoctorSettlement",
    "type": "nvarchar"
+  },
+  {
+   "col": "FundId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 41,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorSettlement",
+   "type": "int"
   },
   {
    "col": "SpecialityId",
@@ -60387,7 +60621,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-22T07:07:27",
+ "extracted_on": "2026-11-22T14:15:37",
  "fk": [
   {
    "col": "LedgerId",
@@ -60887,6 +61121,20 @@
    "tbl": "DoctorBranchMap"
   },
   {
+   "col": "CommissionConfigId",
+   "fk": "FK_DoctorCommissionConfigService_Config",
+   "rcol": "CommissionConfigId",
+   "rtbl": "DoctorCommissionConfig",
+   "tbl": "DoctorCommissionConfigService"
+  },
+  {
+   "col": "ServiceId",
+   "fk": "FK_DoctorCommissionConfigService_Service",
+   "rcol": "ServiceId",
+   "rtbl": "ServiceMaster",
+   "tbl": "DoctorCommissionConfigService"
+  },
+  {
    "col": "BranchId",
    "fk": "FK_DoctorConsultingFeeMap_Branch",
    "rcol": "BranchID",
@@ -60997,6 +61245,13 @@
    "rcol": "RoomId",
    "rtbl": "DoctorRoomMaster",
    "tbl": "DoctorScheduleMaster"
+  },
+  {
+   "col": "FundId",
+   "fk": "FK_DoctorSettlement_Fund",
+   "rcol": "FundId",
+   "rtbl": "Fund",
+   "tbl": "DoctorSettlement"
   },
   {
    "col": "CompanyId",
@@ -61200,6 +61455,20 @@
    "rcol": "ForecastDoctorId",
    "rtbl": "ForecastDoctor",
    "tbl": "ForecastDoctorVisit"
+  },
+  {
+   "col": "BankId",
+   "fk": "FK_Fund_Bank",
+   "rcol": "Id",
+   "rtbl": "BankMaster",
+   "tbl": "Fund"
+  },
+  {
+   "col": "FundId",
+   "fk": "FK_FundTransaction_Fund",
+   "rcol": "FundId",
+   "rtbl": "Fund",
+   "tbl": "FundTransaction"
   },
   {
    "col": "Branch_ID",
@@ -63903,6 +64172,11 @@
     "Sort_Order": 20
    },
    {
+    "Module_Code": "OPD.DOCTORSETTLEMENT",
+    "Module_Name": "OPD Doctor Share Settlement",
+    "Sort_Order": 200
+   },
+   {
     "Module_Code": "PHARMACY.BATCHCORRECTION",
     "Module_Name": "Pharmacy Batch Correction",
     "Sort_Order": 140
@@ -64393,6 +64667,11 @@
    "tbl": "B2BInvoiceItem"
   },
   {
+   "col": "BankCode",
+   "k": 1,
+   "tbl": "BankDirectory"
+  },
+  {
    "col": "Id",
    "k": 1,
    "tbl": "BankMaster"
@@ -64683,6 +64962,16 @@
    "tbl": "DoctorCommissionConfig"
   },
   {
+   "col": "CommissionConfigId",
+   "k": 1,
+   "tbl": "DoctorCommissionConfigService"
+  },
+  {
+   "col": "ServiceId",
+   "k": 2,
+   "tbl": "DoctorCommissionConfigService"
+  },
+  {
    "col": "MappingId",
    "k": 1,
    "tbl": "DoctorConsultingFeeMap"
@@ -64881,6 +65170,16 @@
    "col": "VisitId",
    "k": 1,
    "tbl": "ForecastDoctorVisit"
+  },
+  {
+   "col": "FundId",
+   "k": 1,
+   "tbl": "Fund"
+  },
+  {
+   "col": "FundTxnId",
+   "k": 1,
+   "tbl": "FundTransaction"
   },
   {
    "col": "Scheme_ID",
@@ -66732,6 +67031,7 @@
   "AuthorizationDecisionLog",
   "B2BInvoice",
   "B2BInvoiceItem",
+  "BankDirectory",
   "BankMaster",
   "BedCategoryMaster",
   "BedMaster",
@@ -66780,6 +67080,7 @@
   "DoctorBillingAdjustment",
   "DoctorBranchMap",
   "DoctorCommissionConfig",
+  "DoctorCommissionConfigService",
   "DoctorConsultingFeeMap",
   "DoctorDepartmentMap",
   "DoctorDisbursal",
@@ -66823,6 +67124,8 @@
   "ForecastDoctor",
   "ForecastDoctorStageLog",
   "ForecastDoctorVisit",
+  "Fund",
+  "FundTransaction",
   "GovernmentSchemeMaster",
   "HKChecklistTemplateMaster",
   "HKCleaningMaster",
@@ -67333,6 +67636,11 @@
    "tbl": "B2BInvoice"
   },
   {
+   "cols": "CompanyId, AccountNumber, IFSCCode",
+   "idx": "UX_BankMaster_Account",
+   "tbl": "BankMaster"
+  },
+  {
    "cols": "CompanyId, CategoryName",
    "idx": "UQ_BedCategoryMaster_Company_Name",
    "tbl": "BedCategoryMaster"
@@ -67536,6 +67844,16 @@
    "cols": "UserId, ClientEventId",
    "idx": "UQ_ForecastDoctorVisit_Event",
    "tbl": "ForecastDoctorVisit"
+  },
+  {
+   "cols": "BankId",
+   "idx": "UX_Fund_Bank",
+   "tbl": "Fund"
+  },
+  {
+   "cols": "CompanyId, FundCode",
+   "idx": "UX_Fund_Code",
+   "tbl": "Fund"
   },
   {
    "cols": "Code",

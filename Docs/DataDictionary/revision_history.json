@@ -373,5 +373,20 @@
   ],
   "date": "22 Nov 2026",
   "version": "1.29"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table DoctorCommissionConfigService (2 columns, module not yet grouped)",
+   "BankMaster: new column(s) CompanyId, AccountHolderName, AccountType, MICRCode, SwiftCode, BranchAddress, City, ContactPerson, ContactPhone, ContactEmail, Remarks, CreatedBy, ModifiedBy, ModifiedAt",
+   "DoctorCommissionConfig: new column(s) ProfileId",
+   "DoctorSettlement: new column(s) FundId",
+   "New foreign key DoctorCommissionConfigService.CommissionConfigId -> DoctorCommissionConfig.CommissionConfigId",
+   "New foreign key DoctorCommissionConfigService.ServiceId -> ServiceMaster.ServiceId",
+   "New foreign key DoctorSettlement.FundId -> Fund.FundId",
+   "Lookup values changed: ApprovalModule"
+  ],
+  "date": "22 Nov 2026",
+  "version": "1.30"
  }
 ]
