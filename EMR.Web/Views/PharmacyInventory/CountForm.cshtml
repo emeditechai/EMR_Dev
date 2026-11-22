@@ -17,7 +17,7 @@
 @if (counting && recounts > 0) { <div class="alert alert-danger small"><i class="bi bi-arrow-repeat me-1"></i><b>@recounts batch(es) to recount</b> - their first count differed from the stock by more than @d.RecountPercent.ToString("0.##")%. Count them again (marked RECOUNT), save, and submit.</div> }
 @if (counting && d.BlindCount) { <div class="alert alert-info small py-1"><i class="bi bi-eye-slash me-1"></i>Blind count: the system stock is shown to the approver after you submit.</div> }
 <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
-    <partial name="_InvStatus" model="d.Status" />
+    <partial name="~/Views/PharmacyInventory/_InvStatus.cshtml" model="d.Status" />
     <a asp-action="Sheet" asp-encrypted-route-id="@d.Id" target="_blank" class="btn btn-sm btn-outline-secondary"><i class="bi bi-printer me-1"></i>Count sheet (blind)</a>
     @if (counting && !d.BlindCount) { <a asp-action="Form" asp-encrypted-route-id="@d.Id" asp-encrypted-route-variance="@(!showSystem)" class="btn btn-sm btn-outline-secondary">@(showSystem ? "Hide system stock" : "Show variance")</a> }
     <input id="q" class="form-control form-control-sm" style="max-width:260px" placeholder="Find item / batch / rack" />

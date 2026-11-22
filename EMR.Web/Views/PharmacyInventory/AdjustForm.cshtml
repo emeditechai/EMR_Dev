@@ -18,7 +18,7 @@
 @Html.AntiForgeryToken()
 <input type="hidden" name="json" id="json" />
 <div class="card shadow-sm border-0 mb-3"><div class="card-body row g-3">
-    <div class="col-md-2"><label class="form-label small fw-semibold">Status</label><div><partial name="_InvStatus" model="d.Status" /></div></div>
+    <div class="col-md-2"><label class="form-label small fw-semibold">Status</label><div><partial name="~/Views/PharmacyInventory/_InvStatus.cshtml" model="d.Status" /></div></div>
     <div class="col-md-2"><label class="form-label small fw-semibold req">Date</label><input type="date" id="docDate" class="form-control" value="@D(d.DocDate)" max="@D(DateTime.Today)" disabled="@ro" /></div>
     @{ var stores = ViewBag.Stores as List<EMR.Web.Services.PhStoreOption> ?? new(); }
     <div class="col-md-2"><label class="form-label small fw-semibold req">Store</label>

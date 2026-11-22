@@ -28,7 +28,7 @@
                 <td>@if (r.OldExpiry != r.NewExpiry) { <s class="text-muted">@r.OldExpiry.ToString("MMM-yy")</s> <b>@r.NewExpiry.ToString("MMM-yy")</b> } else { @r.OldExpiry.ToString("MMM-yy") }</td>
                 <td class="text-end">@if (r.OldMrp != r.NewMrp) { <s class="text-muted">@r.OldMrp.ToString("N2")</s> <b>@r.NewMrp.ToString("N2")</b> } else { @r.OldMrp.ToString("N2") }</td>
                 <td class="small">@r.Reason@if (r.ActionRemarks != null) { <div class="text-muted">↳ @r.ActionRemarks</div> }</td><td class="small">@r.CreatedByName@if (r.ApprovedByName != null) { <div class="text-muted">✓ @r.ApprovedByName</div> }</td>
-                <td><partial name="_InvStatus" model="r.Status" /></td>
+                <td><partial name="~/Views/PharmacyInventory/_InvStatus.cshtml" model="r.Status" /></td>
                 <td class="text-end text-nowrap">@if (r.Status == "SUBMITTED" && r.CreatedBy != me) {
                     <form method="post" asp-action="Approve" asp-encrypted-route-id="@r.CorrectionId" asp-permission="PHARMACY.BATCHCORRECTION:APPROVE" class="d-inline">@Html.AntiForgeryToken()<button class="btn btn-sm btn-success">Approve</button></form>
                     <form method="post" asp-action="Reject" asp-encrypted-route-id="@r.CorrectionId" asp-permission="PHARMACY.BATCHCORRECTION:REJECT" class="d-inline rej">@Html.AntiForgeryToken()<input type="hidden" name="remarks" /><button class="btn btn-sm btn-outline-danger">Reject</button></form> }</td></tr> }</tbody>

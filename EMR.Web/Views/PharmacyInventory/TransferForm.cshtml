@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
 <partial name="_PharmacyMasterHeader" model="@(new PhHeader("Branch Indent & Transfer", "bi-arrow-left-right", isNew ? "Ask another branch for stock." : $"{d.ToBranch} asks {d.FromBranch}" + (d.IsOtherGstin ? " · branches have different GSTINs (inter-branch tax invoice is phase 2)" : ""), null, null, ViewData["Title"]!.ToString(), isNew ? "New" : "Indent", Url.Action("Index"), Section: "Pharmacy", Group: "Inventory"))" />
 <div class="card shadow-sm border-0 mb-3"><div class="card-body d-flex flex-wrap gap-4 small align-items-center">
-    <div><div class="text-muted">Status</div><partial name="_InvStatus" model="d.Status" /></div>
+    <div><div class="text-muted">Status</div><partial name="~/Views/PharmacyInventory/_InvStatus.cshtml" model="d.Status" /></div>
     @if (!isNew) { <div><div class="text-muted">Indent</div><b>@(d.DocNo ?? "draft")</b> · @d.CreatedByName</div><div><div class="text-muted">Transfer</div><b>@(d.TransferNo ?? "—")</b> @d.DispatchDate?.ToString("dd-MMM HH:mm")</div><div><div class="text-muted">Received</div>@(d.ReceiveDate?.ToString("dd-MMM HH:mm") ?? "—")@if (d.VarianceValue != 0) { <span class="text-danger"> · short ₹ @d.VarianceValue.ToString("N2")</span> }</div> }
 </div></div>
 

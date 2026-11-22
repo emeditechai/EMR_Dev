@@ -2908,13 +2908,13 @@
 
     @if (ViewData["DeltaTrend"] as bool? == true)
     {
-        <partial name="_DeltaTrendPopup" />
+        <partial name="~/Views/LabReporting/_DeltaTrendPopup.cshtml" />
     }
 
     @* reflex test suggestions: numeric reporting only, AI features switched on (SQLScripts/2289) *@
     @if (screen.Controller == "LabReporting" && await AiBillingFeatures.IsEnabledAsync(Context))
     {
         @Html.AntiForgeryToken()
-        <partial name="_ReflexSuggestions" model="@d.LabOrderId" />
+        <partial name="~/Views/LabReporting/_ReflexSuggestions.cshtml" model="@d.LabOrderId" />
     }
 }
