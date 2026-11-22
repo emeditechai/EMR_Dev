@@ -363,5 +363,15 @@
   ],
   "date": "20 Nov 2026",
   "version": "1.28"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabReportSerialNo (9 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) OpdRegistrationChargesNotRequired, IsLabSerialNoReq",
+   "New foreign key LabReportSerialNo.LabOrderId -> LabOrder.LabOrderId"
+  ],
+  "date": "22 Nov 2026",
+  "version": "1.29"
  }
 ]

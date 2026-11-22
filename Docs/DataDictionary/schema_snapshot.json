@@ -17018,6 +17018,32 @@
    "type": "bit"
   },
   {
+   "col": "OpdRegistrationChargesNotRequired",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 160,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "IsLabSerialNoReq",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 161,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -32486,6 +32512,123 @@
    "scale": 7,
    "tbl": "LabReportingConditionMaster",
    "type": "datetime2"
+  },
+  {
+   "col": "LabReportSerialNoId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabReportSerialNo",
+   "type": "int"
+  },
+  {
+   "col": "LabOrderId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabReportSerialNo",
+   "type": "int"
+  },
+  {
+   "col": "ReportType",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": false,
+   "ord": 3,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabReportSerialNo",
+   "type": "varchar"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabReportSerialNo",
+   "type": "int"
+  },
+  {
+   "col": "LabSerialNo",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 100,
+   "nullable": false,
+   "ord": 5,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabReportSerialNo",
+   "type": "nvarchar"
+  },
+  {
+   "col": "CreatedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 6,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabReportSerialNo",
+   "type": "int"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 7,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabReportSerialNo",
+   "type": "datetime"
+  },
+  {
+   "col": "ModifiedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 8,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabReportSerialNo",
+   "type": "int"
+  },
+  {
+   "col": "ModifiedDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 9,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "LabReportSerialNo",
+   "type": "datetime"
   },
   {
    "col": "RemarkId",
@@ -60244,7 +60387,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-20T17:35:40",
+ "extracted_on": "2026-11-22T07:07:27",
  "fk": [
   {
    "col": "LedgerId",
@@ -62072,6 +62215,13 @@
    "rcol": "BranchID",
    "rtbl": "Branchmaster",
    "tbl": "LabReportingConditionMaster"
+  },
+  {
+   "col": "LabOrderId",
+   "fk": "FK_LabReportSerialNo_LabOrder",
+   "rcol": "LabOrderId",
+   "rtbl": "LabOrder",
+   "tbl": "LabReportSerialNo"
   },
   {
    "col": "Applicable_Sample_Type_ID",
@@ -65453,6 +65603,11 @@
    "tbl": "LabReportingConditionMaster"
   },
   {
+   "col": "LabReportSerialNoId",
+   "k": 1,
+   "tbl": "LabReportSerialNo"
+  },
+  {
    "col": "RemarkId",
    "k": 1,
    "tbl": "LabReportTestRemarks"
@@ -66803,6 +66958,7 @@
   "LabReportApproval",
   "LabReportDefaultSignatory",
   "LabReportEmailLog",
+  "LabReportSerialNo",
   "LabReportTestRemarks",
   "LabReportUnapproval",
   "LabReportWhatsAppLog",
@@ -67675,6 +67831,11 @@
    "cols": "LabOrderId, FinalApprovedOn",
    "idx": "UX_LabReportEmailLog_Order_Final",
    "tbl": "LabReportEmailLog"
+  },
+  {
+   "cols": "LabOrderId, ReportType",
+   "idx": "UX_LabReportSerialNo_Order_Type",
+   "tbl": "LabReportSerialNo"
   },
   {
    "cols": "LabOrderId, GroupKey",
