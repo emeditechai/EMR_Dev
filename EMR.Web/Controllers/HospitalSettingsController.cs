@@ -606,6 +606,7 @@ public class HospitalSettingsController(
             existing.LabPatientPortalRequired = model.LabPatientPortalRequired;
             existing.IsPhlebotomistAppRequired = model.IsPhlebotomistAppRequired;
             existing.AllowPrintLabReportInDue = model.AllowPrintLabReportInDue;   // SQLScripts/2464
+            existing.IsLabSerialNoReq = model.IsLabSerialNoReq;                   // SQLScripts/2513
             existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
             existing.OpdCertificateNotificationRequired = model.OpdCertificateNotificationRequired;
             existing.ShowQrOnB2BInvoice = model.ShowQrOnB2BInvoice;   // SQLScripts/2452
@@ -806,6 +807,7 @@ public class HospitalSettingsController(
             LabPatientPortalRequired = s.LabPatientPortalRequired,
             IsPhlebotomistAppRequired = s.IsPhlebotomistAppRequired,
             AllowPrintLabReportInDue = s.AllowPrintLabReportInDue,
+            IsLabSerialNoReq = s.IsLabSerialNoReq,
             OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = s.OpdCertificateNotificationRequired,
             ShowQrOnB2BInvoice = s.ShowQrOnB2BInvoice,
@@ -951,6 +953,7 @@ public class HospitalSettingsController(
             LabPatientPortalRequired = m.LabPatientPortalRequired,
             IsPhlebotomistAppRequired = m.IsPhlebotomistAppRequired,
             AllowPrintLabReportInDue = m.AllowPrintLabReportInDue,
+            IsLabSerialNoReq = m.IsLabSerialNoReq,
             OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
             OpdCertificateNotificationRequired = m.OpdCertificateNotificationRequired,
             ShowQrOnB2BInvoice = m.ShowQrOnB2BInvoice,

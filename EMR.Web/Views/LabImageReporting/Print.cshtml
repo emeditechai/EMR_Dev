@@ -329,6 +329,20 @@
         EMR.Common.LabReportExternalDoc? DocOf(EMR.Web.Models.DTOs.LabReportingItemDto it)
             => it.ReportStatusId == 5 && externalDocs.TryGetValue(it.InvestigationID, out var x) ? x : null;
         int totalPages = printItems.Count + printItems.Sum(it => DocOf(it)?.Pages.Count ?? 0);
+        // Utility > Print Templates (SQLScripts/2324): the Lab Report template's header / footer, as on the Lab and
+        // Microbiology report PDFs; rendered here once (the footer per sheet, for its page number)
+        var printTemplate = ViewData["PrintTemplate"] as EMR.Common.PrintLayout;
+        var printValues = ViewData["PrintValues"] as Dictionary<string, string?>;
+        var printLogoUrl = ViewData["PrintLogoUrl"] as string;
+        Microsoft.AspNetCore.Html.IHtmlContent? tplHeader = null;
+        var tplFooters = new Dictionary<int, Microsoft.AspNetCore.Html.IHtmlContent>();
+        if (printTemplate is not null && printValues is not null)
+        {
+            tplHeader = await Html.PartialAsync("_PrintBand", new EMR.Common.PrintBandView { Band = printTemplate.Header, Values = printValues, LogoUrl = printLogoUrl });
+            for (var pg = 1; pg <= Math.Max(totalPages, 1); pg++)
+                tplFooters[pg] = await Html.PartialAsync("_PrintBand", new EMR.Common.PrintBandView
+                    { Band = printTemplate.Footer, IsFooter = true, Values = printValues, LogoUrl = printLogoUrl, PageNo = pg, PageCount = Math.Max(totalPages, 1) });
+        }
         string ImageSrc(byte[] b) => (b.Length > 3 && b[0] == 0x89 && b[1] == 0x50 ? "data:image/png;base64," : "data:image/jpeg;base64,") + Convert.ToBase64String(b);
 
         void Letterhead()
@@ -337,6 +351,10 @@
             {
                 @* Hospital Settings > LAB > Required B2C Lab Report Print Header = No: blank space for pre-printed letterhead *@
                 <div style="height: 30mm;"></div>
+            }
+            else if (tplHeader is not null)
+            {
+                <div class="tpl-band tpl-header">@tplHeader</div>
             }
             else
             {
@@ -388,6 +406,10 @@
                     <div class="info-row"><div class="info-label">Collected</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? d.OrderDate.ToString("dd/MMM/yyyy HH:mm"))</div></div>
                     <div class="info-row"><div class="info-label">Received</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? "—")</div></div>
                     <div class="info-row"><div class="info-label">Reported</div><div class="info-val">: @DateTime.Now.ToString("dd/MMM/yyyy HH:mm")</div></div>
+                    @if (ViewBag.LabSerialNo is string labSerialNo && !string.IsNullOrWhiteSpace(labSerialNo))
+                    {
+                        <div class="info-row"><div class="info-label">Lab Serial No</div><div class="info-val">: @labSerialNo</div></div>
+                    }
                     <div class="info-row"><div class="info-label">Report Status</div><div class="info-val @(itemFinal ? "status-val final" : "status-val")">: @(itemFinal ? "Final Report" : "Provisional Report")</div></div>
                 </div>
                 <div class="info-box">
@@ -450,6 +472,10 @@
             if (ViewBag.ShowLetterhead is false)
             {
             <div style="height: 15mm;"></div>
+            }
+            else if (tplFooters.TryGetValue(pageNumber, out var tplFooter))
+            {
+                <div class="page-footer tpl-band tpl-footer">@tplFooter</div>
             }
             else
             {

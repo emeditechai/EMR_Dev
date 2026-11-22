@@ -260,6 +260,8 @@ public class HospitalSettings
     public bool IsPhlebotomistAppRequired { get; set; }
     /// <summary>SQLScripts/2464: a B2C bill with a balance due may still print its lab report (default No = blocked).</summary>
     public bool AllowPrintLabReportInDue { get; set; }
+    /// <summary>SQLScripts/2513: Is Lab Serial No Req (default No).</summary>
+    public bool IsLabSerialNoReq { get; set; }
 
     public bool IsActive { get; set; } = true;
 

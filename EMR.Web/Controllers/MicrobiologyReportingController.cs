@@ -336,6 +336,10 @@ namespace EMR.Web.Controllers
                 DescriptiveDefaults = await LoadDescriptiveDefaultsAsync(detail)
             };
 
+            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
+            var labSerial = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Micro, CurrentBranchId());
+            ViewBag.LabSerialRequired = labSerial.Required;
+            ViewBag.LabSerialNo = labSerial.LabSerialNo;
             return View("~/Views/LabReporting/Entry.cshtml", viewModel);
         }
 
@@ -373,6 +377,12 @@ namespace EMR.Web.Controllers
                 return Json(new { success = false, message = "Invalid request payload." });
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
+
+            // SQLScripts/2514: the Lab Serial No is required (server side) while the branch setting is Yes, and kept per lab order
+            var serialError = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>()
+                .SaveAsync(request.LabOrderId, LabSerialNoApiClient.Micro, CurrentBranchId(), request.LabSerialNo);
+            if (serialError != null)
+                return Json(new { success = false, code = "LAB_SERIAL_NO", message = serialError });
 
             if (request.ReportStatusId == 3
                 && !await permissionGuard.AllowsAsync(HttpContext, PageCode, EMR.Shared.Security.PermissionControls.Validate))

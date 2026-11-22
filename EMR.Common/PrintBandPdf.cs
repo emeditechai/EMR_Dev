@@ -102,23 +102,22 @@ public static class PrintBandPdf
             }
             case "barcode":
             {
-                var svg = Code39.Svg(values.GetValueOrDefault("docNo") ?? "");
+                var svg = Code128.Svg(values.GetValueOrDefault("docNo") ?? "");   // Code 128: the bill no as it is, '/' included
                 if (svg is null) break;
                 var h = (float)(b.HeightMm > 0 ? b.HeightMm : 8);
-                // an SVG needs a width to stretch to: the block takes WidthPct of the column, placed by its alignment
-                var pct = (float)Math.Clamp(b.WidthPct, 10, 100);
-                c.Row(row =>
+                // drawn at a scannable size (>= 0.33 mm per bar, quiet zones included) whatever the column width: it keeps
+                // its alignment and extends into the free header space beside it (right-aligned: to the left)
+                var docNo = values.GetValueOrDefault("docNo") ?? "";
+                var wMm = (float)Code128.MinWidthMm(docNo);
+                var totalH = h + (b.ShowLabel ? 3.2f : 0);
+                var holder = c.Height(totalH, Unit.Millimetre);
+                holder = b.Align == "right" ? holder.AlignRight() : b.Align == "center" ? holder.AlignCenter() : holder.AlignLeft();
+                var shift = b.Align == "right" ? -wMm : b.Align == "center" ? -wMm / 2 : 0f;
+                holder.Unconstrained().TranslateX(shift, Unit.Millimetre).Width(wMm, Unit.Millimetre).Column(col =>
                 {
-                    if (b.Align == "right" && pct < 100) row.RelativeItem(100 - pct);
-                    if (b.Align == "center" && pct < 100) row.RelativeItem((100 - pct) / 2);
-                    row.RelativeItem(pct).Column(col =>
-                    {
-                        col.Item().Height(h, Unit.Millimetre).Svg(svg).FitArea();
-                        if (b.ShowLabel)
-                            col.Item().AlignCenter().Text(values.GetValueOrDefault("docNo")).FontSize(6.5f);
-                    });
-                    if (b.Align == "center" && pct < 100) row.RelativeItem((100 - pct) / 2);
-                    if (b.Align == "left" && pct < 100) row.RelativeItem(100 - pct);
+                    col.Item().Height(h, Unit.Millimetre).Svg(svg).FitArea();
+                    if (b.ShowLabel)
+                        col.Item().AlignCenter().Text(docNo).FontSize(6.5f);
                 });
                 break;
             }

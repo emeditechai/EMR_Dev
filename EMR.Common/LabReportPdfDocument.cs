@@ -175,14 +175,17 @@ public class LabReportPdfDocument : IDocument
                     ("Address", Or(vm.PatientAddress), false)
                 }));
 
-                row.RelativeItem().BorderRight(1.1f).Element(c => InfoBox(c, "Specimen Information", new[]
+                // SQLScripts/2514: the Lab Serial No (when entered) before Report Status
+                var specimen = new List<(string, string, bool)>
                 {
                     ("Bill No", Or(vm.BillNo), false),
                     ("Collected", Dt(vm.Collected), false),
                     ("Received", Dt(vm.Received), false),
-                    ("Reported", Dt(vm.Reported), false),
-                    ("Report Status", vm.ReportStatusText, true)
-                }));
+                    ("Reported", Dt(vm.Reported), false)
+                };
+                if (!string.IsNullOrWhiteSpace(vm.LabSerialNo)) specimen.Add(("Lab Serial No", vm.LabSerialNo!.Trim(), false));
+                specimen.Add(("Report Status", vm.ReportStatusText, true));
+                row.RelativeItem().BorderRight(1.1f).Element(c => InfoBox(c, "Specimen Information", specimen.ToArray()));
 
                 row.RelativeItem().Element(c => InfoBox(c, vm.ClientBoxTitle, new[]
                 {

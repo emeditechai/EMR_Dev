@@ -294,6 +294,9 @@ public class PrintBandView
     public bool IsFooter { get; set; }
     public Dictionary<string, string?> Values { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public string? LogoUrl { get; set; }
+    /// <summary>The sheet's page number and page count for a "Page x of y" block (a multi-sheet HTML print); 0 = 1 of 1.</summary>
+    public int PageNo { get; set; }
+    public int PageCount { get; set; }
     /// <summary>Designer canvas: selectable parts and placeholders for empty columns.</summary>
     public bool DesignMode { get; set; }
     /// <summary>"h" or "f" - the prefix of the designer paths.</summary>

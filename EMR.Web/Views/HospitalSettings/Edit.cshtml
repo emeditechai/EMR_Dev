@@ -924,6 +924,21 @@
                         </div>
                     </div>
                 </div>
+                @* SQLScripts/2513 *@
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0e7490;--lp-bg:#cffafe;">
+                        <div class="lp-icon"><i class="bi bi-123"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Is Lab Serial No Req</div>
+                            <div class="lp-desc">Yes: this branch requires a Lab Serial No. No: the Lab Serial No is not required.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="IsLabSerialNoReq">
+                                <label class="form-check-label" asp-for="IsLabSerialNoReq">Lab Serial No is required at this branch</label>
+                            </div>
+                            <span asp-validation-for="IsLabSerialNoReq" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
             <script>
                 (function () {

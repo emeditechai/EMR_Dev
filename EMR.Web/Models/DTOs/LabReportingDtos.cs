@@ -402,6 +402,8 @@ namespace EMR.Web.Models.DTOs
         public int ReportStatusId { get; set; }
         public List<LabReportingItemValueDto> Entries { get; set; } = new();
         public List<LabReportGroupRemarkDto> GroupRemarks { get; set; } = new();
+        /// <summary>SQLScripts/2514: the Lab Serial No (required while Hospital Settings > "Is Lab Serial No Req" is Yes).</summary>
+        public string? LabSerialNo { get; set; }
     }
 
     public class LabReportGroupRemarkDto

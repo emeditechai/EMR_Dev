@@ -639,6 +639,17 @@ else
                         </div>
                     </div>
                 </div>
+                @* SQLScripts/2513 *@
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0e7490;--lp-bg:#cffafe;">
+                        <div class="lp-icon"><i class="bi bi-123"></i></div>
+                        <div>
+                            <div class="lp-label">Is Lab Serial No Req</div>
+                            <div class="lp-desc">Yes: this branch requires a Lab Serial No. No: the Lab Serial No is not required.</div>
+                            <span class="lp-pill @(Model.IsLabSerialNoReq ? "yes" : "no")"><i class="bi @(Model.IsLabSerialNoReq ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.IsLabSerialNoReq ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

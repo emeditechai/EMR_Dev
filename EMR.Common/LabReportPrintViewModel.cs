@@ -45,6 +45,8 @@ public class LabReportPrintViewModel
     public DateTime? Collected { get; set; }
     public DateTime? Received { get; set; }
     public DateTime? Reported { get; set; }
+    /// <summary>SQLScripts/2514: the Lab Serial No typed on the report entry page (printed before Report Status when set).</summary>
+    public string? LabSerialNo { get; set; }
 
     // ── Client / Doctor ───────────────────────────────────────────────────────
     /// <summary>"Branch" (B2C billing), "Franchise" or "Company" (B2B) - drives the Client box labels.</summary>

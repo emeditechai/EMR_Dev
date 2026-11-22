@@ -341,6 +341,10 @@ namespace EMR.Web.Controllers
                 RejectionReasons = rejectionReasons
             };
 
+            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
+            var labSerial = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Lab, CurrentBranchId());
+            ViewBag.LabSerialRequired = labSerial.Required;
+            ViewBag.LabSerialNo = labSerial.LabSerialNo;
             return View(viewModel);
         }
 
@@ -520,6 +524,12 @@ namespace EMR.Web.Controllers
 
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
+
+            // SQLScripts/2514: the Lab Serial No is required (server side) while the branch setting is Yes, and kept per lab order
+            var serialError = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>()
+                .SaveAsync(request.LabOrderId, LabSerialNoApiClient.Lab, CurrentBranchId(), request.LabSerialNo);
+            if (serialError != null)
+                return Json(new { success = false, code = "LAB_SERIAL_NO", message = serialError });
 
             // Validating and approving are actions of their own (Settings > Security > this page).
             if (request.ReportStatusId == 3

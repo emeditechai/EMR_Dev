@@ -136,6 +136,14 @@ public class LabReportPdfService(
         catch (Exception) { /* the report prints with the Test Name */ }
 
         var vm = LabReportPrintBuilder.Build(detail, order, meta, settings, branch, printedBy, DateTime.Now, scope, signoffLevels);
+        // SQLScripts/2514: the Lab Serial No of this report (Lab = LAB, Microbiology = MICRO)
+        try
+        {
+            vm.LabSerialNo = await Dapper.SqlMapper.QueryFirstOrDefaultAsync<string>(dbContext.Database.GetDbConnection(), "dbo.usp_Api_LabSerialNo_ForPrint",
+                new { LabOrderId = labOrderId, ReportType = LabReportTypes.Normalize(reportingType) == LabReportTypes.Template ? "MICRO" : "LAB" },
+                commandType: System.Data.CommandType.StoredProcedure);
+        }
+        catch (Exception) { /* printed without it */ }
         // franchise B2B bill whose Report Header Required is No: no header / footer (B2C and company B2B unchanged)
         vm.FranchiseHeaderRequired = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId);
         if (vm.FranchiseHeaderRequired == false) vm.ShowLetterhead = false;

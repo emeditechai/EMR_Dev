@@ -895,6 +895,7 @@
         </div>
     </div>
 
+    <link rel="stylesheet" href="~/css/views/Shared/report-progress.css" asp-append-version="true" />
     <!-- Report progress & colour code (live: driven by the row status badges) -->
     <div class="workflow-strip mb-3" id="workflowStrip">
         <div class="workflow-head">
@@ -943,6 +944,39 @@
                 </button>
             </div>
         </div>
+        @* SQLScripts/2514: Lab Serial No - typed by the user (not generated), one per lab order on this page, required while
+           Hospital Settings > LAB > "Is Lab Serial No Req" is Yes *@
+        @if (ViewBag.LabSerialRequired is true)
+        {
+            <div class="d-flex align-items-center gap-2 ms-auto me-2">
+                <label for="txtLabSerialNo" class="fw-semibold text-dark fs-8 mb-0 text-nowrap">Lab Serial No <span class="text-danger">*</span></label>
+                @{ var serialSaved = !string.IsNullOrWhiteSpace(ViewBag.LabSerialNo as string); }
+                @* saved: locked with an Edit button; fully approved: locked for good (no Edit) *@
+                <div class="input-group input-group-sm" style="width:210px">
+                    <input type="text" id="txtLabSerialNo" class="form-control form-control-sm fs-8" maxlength="50"
+                           autocomplete="off" placeholder="Enter serial no" value="@(ViewBag.LabSerialNo as string)"
+                           @(serialSaved || isAllApproved ? "readonly" : "") data-approved="@(isAllApproved ? "1" : "0")" />
+                    <button type="button" class="btn btn-outline-primary @(serialSaved && !isAllApproved ? "" : "d-none")" id="btnEditLabSerialNo" title="Change the Lab Serial No">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                </div>
+            </div>
+            <script>
+                // SQLScripts/2514: after a save the Lab Serial No locks (Edit unlocks it); after approval it stays locked
+                window.labSerialLock = function (approved) {
+                    var box = document.getElementById('txtLabSerialNo'), btn = document.getElementById('btnEditLabSerialNo');
+                    if (!box || !box.value.trim()) return;
+                    box.readOnly = true;
+                    if (approved) box.dataset.approved = '1';
+                    if (btn) btn.classList.toggle('d-none', box.dataset.approved === '1');
+                };
+                document.addEventListener('click', function (e) {
+                    var btn = e.target.closest('#btnEditLabSerialNo'), box = document.getElementById('txtLabSerialNo');
+                    if (!btn || !box || box.dataset.approved === '1') return;
+                    box.readOnly = false; box.focus(); box.select(); btn.classList.add('d-none');
+                });
+            </script>
+        }
         <div class="d-flex align-items-center gap-2" id="headerActionButtons">
             <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save" id="btnHeaderSave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
@@ -2419,11 +2453,21 @@
                     return;
                 }
 
+                // SQLScripts/2514: the Lab Serial No (typed by the user) is required while the branch setting is Yes
+                const serialBox = document.getElementById('txtLabSerialNo');
+                if (serialBox && !serialBox.value.trim()) {
+                    serialBox.classList.add('is-invalid'); serialBox.focus();
+                    if (window.Swal) Swal.fire({ icon: 'warning', title: 'Lab Serial No required', text: 'Enter the Lab Serial No before saving.' });
+                    return;
+                }
+                if (serialBox) serialBox.classList.remove('is-invalid');
+
                 const payload = {
                     labOrderId: labOrderId,
                     reportStatusId: statusId,
                     entries: entries,
-                    groupRemarks: groupRemarks
+                    groupRemarks: groupRemarks,
+                    labSerialNo: serialBox ? serialBox.value.trim() : null
                 };
 
                 const $btns = $('.btn-action-save, .btn-action-validate, .btn-action-approve');
@@ -2439,6 +2483,7 @@
                     $btns.prop('disabled', false);
                     if (res.success) {
                         toastr.success(res.message || `Test entries saved as ${statusLabel}!`);
+                        if (window.labSerialLock) window.labSerialLock(statusId === 5);
 
                         const now = new Date();
                         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

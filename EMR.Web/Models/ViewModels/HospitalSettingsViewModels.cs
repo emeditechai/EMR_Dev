@@ -207,6 +207,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Allow Print Lab Report in Due")]
     public bool AllowPrintLabReportInDue { get; set; }
 
+    [Display(Name = "Is Lab Serial No Req")]
+    public bool IsLabSerialNoReq { get; set; }   // SQLScripts/2513
+
     [Display(Name = "Follow up Notification Required")]
     public bool OpdFollowUpNotificationRequired { get; set; }
 
