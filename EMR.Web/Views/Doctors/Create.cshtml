@@ -235,8 +235,17 @@
             if (!mail || !user) return;
             let box = document.getElementById('dlLoginState');
             if (!box) { box = document.createElement('div'); box.id = 'dlLoginState'; box.className = 'dl-state'; box.setAttribute('aria-live', 'polite'); user.closest('.input-group').after(box); }
-            let timer = null, seq = 0;
+            let timer = null, seq = 0, emailOk = false;
+            // SQLScripts/2490 (as User Master): with a login, Save stays disabled until the e-mail is confirmed free -
+            // in this application and in the central user register
+            const saveBtns = mail.form ? [...mail.form.querySelectorAll('button[type="submit"]')] : [];
+            const gate = () => saveBtns.forEach(b => {
+                const off = !!toggle?.checked && !emailOk;
+                b.disabled = off;
+                b.title = off ? 'Enter an e-mail that is available for the login - Save is enabled once it is confirmed.' : '';
+            });
             const paint = (kind, text) => {
+                emailOk = kind === 'ok'; gate();
                 [mail, user].forEach(el => { el.classList.toggle('dl-ok', kind === 'ok'); el.classList.toggle('dl-bad', kind === 'bad'); });
                 box.className = 'dl-state ' + (kind || '');
                 box.innerHTML = !text ? '' : (kind === 'ok' ? '<i class="bi bi-check-circle-fill me-1"></i>' : kind === 'bad' ? '<i class="bi bi-x-circle-fill me-1"></i>'
@@ -244,21 +253,22 @@
             };
             async function check() {
                 const v = mail.value.trim();
-                if (!toggle?.checked || !v) { paint('', ''); return; }
+                if (!toggle?.checked) { paint('', ''); return; }
+                if (!v) { paint('bad', 'Enter the e-mail the doctor signs in with.'); return; }
                 const my = ++seq;
                 paint('wait', 'Checking...');
                 try {
                     const r = await (await fetch('@Url.Action("CheckLoginEmail", "Doctors")?email=' + encodeURIComponent(v) + '&doctorId=0', { credentials: 'same-origin' })).json();
                     if (my === seq) paint(r.valid && r.available ? 'ok' : 'bad', r.message);
-                } catch (e) { if (my === seq) paint('', ''); }
+                } catch (e) { if (my === seq) paint('bad', 'The e-mail could not be checked. Check the connection and try again.'); }
             }
             const sync = () => user.value = mail.value.trim().toLowerCase();
-            mail.addEventListener('input', () => { sync(); clearTimeout(timer); timer = setTimeout(check, 450); });
+            mail.addEventListener('input', () => { sync(); emailOk = false; gate(); clearTimeout(timer); timer = setTimeout(check, 450); });
             mail.addEventListener('blur', () => { clearTimeout(timer); check(); });
             toggle?.addEventListener('change', check);
             // not sent while the e-mail is known to be taken by another sign-in
             mail.form?.addEventListener('submit', e => {
-                if (toggle?.checked && mail.classList.contains('dl-bad')) { e.preventDefault(); mail.focus(); mail.scrollIntoView({ block: 'center' }); }
+                if (toggle?.checked && !emailOk) { e.preventDefault(); mail.focus(); mail.scrollIntoView({ block: 'center' }); check(); }
             });
             sync(); check();
         })();

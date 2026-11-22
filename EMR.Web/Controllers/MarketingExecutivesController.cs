@@ -70,7 +70,40 @@ public class MarketingExecutivesController(MarketingExecutiveApiClient api, IAct
 
     [HttpGet]
     public Task<IActionResult> CheckEmail(string? email, int? executiveId) =>
-        Read(async () => await api.GetAsync("/check-email" + IpdApiClient.Q(("email", email), ("executiveId", executiveId?.ToString()))));
+        Read(async () =>
+        {
+            var local = await api.GetAsync("/check-email" + IpdApiClient.Q(("email", email), ("executiveId", executiveId?.ToString())));
+            // SQLScripts/2490: free here, and also across all installations (central user register) - same check as User Master
+            if (local.ValueKind == JsonValueKind.Object && local.TryGetProperty("Available", out var av) && av.ValueKind == JsonValueKind.True
+                && await CentralTakenAsync(email, executiveId) is string taken)
+                return (object)new { Available = false, Message = taken };
+            return local;
+        });
+
+    /// <summary>SQLScripts/2490: the message when another sign-in (here or in another installation) holds the e-mail centrally;
+    /// null when it is free, unchanged for this executive's own login, or the central register cannot be reached (never blocks then).</summary>
+    private async Task<string?> CentralTakenAsync(string? email, int? executiveId)
+    {
+        var e = (email ?? "").Trim().ToLowerInvariant();
+        if (e.Length == 0) return null;
+        int? loginId = null;
+        if (executiveId is > 0)
+        {
+            try
+            {
+                var cur = await api.GetAsync($"/{executiveId}");
+                if (cur.ValueKind == JsonValueKind.Object)
+                {
+                    if (string.Equals(cur.S("LoginUsername")?.Trim(), e, StringComparison.OrdinalIgnoreCase)) return null;   // its own login
+                    loginId = cur.I("LoginUserId") is int li && li > 0 ? li : null;
+                }
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException) { }
+        }
+        var r = await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+            .CheckAsync((int?)User.GetCompanyId() ?? 0, e, loginId);
+        return r.Taken ? r.Message : null;
+    }
 
     public const string Page = "MASTER.MARKETINGEXECUTIVES";
 
@@ -90,6 +123,8 @@ public class MarketingExecutivesController(MarketingExecutiveApiClient api, IAct
             }
             catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException) { return Fail(ex.Message); }
         }
+        // SQLScripts/2490: the login e-mail must be free across all installations (server side, as User Master)
+        if (await CentralTakenAsync(b.EmailId, b.ExecutiveId) is string centralTaken) return Fail(centralTaken);
         // the login (SQLScripts/2444): an executive with an e-mail ID gets one, made on add or on the first edit without one
         // 2457: no password is taken here; the executive verifies by code in the mobile app and sets the password there
         var body = new

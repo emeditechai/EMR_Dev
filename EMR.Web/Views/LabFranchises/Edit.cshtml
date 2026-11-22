@@ -359,6 +359,8 @@
 </div>
 
 @section Scripts {
+    @* SQLScripts/2490 / 2515: the login e-mail is checked while typing; Save waits for it *@
+    <script src="~/js/views/LabFranchises/login-email.js" asp-append-version="true" data-check-url="@Url.Action("CheckLoginEmail", "LabFranchises")" data-franchise-id="@Model.Franchise_ID"></script>
     <partial name="_ValidationScriptsPartial" />
     <script>
         (function () {

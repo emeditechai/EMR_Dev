@@ -28,24 +28,39 @@
         $('meEmailHint').textContent = has ? 'This is the login (sign-in) of the executive.' : 'With an e-mail ID a login is created (sign-in = e-mail). The password is set by the executive in the mobile app.';
     }
     // server-side availability of the e-mail for the login (checked again on save)
+    // SQLScripts/2490 (as User Master): with an e-mail (= a login) Save stays disabled until it is confirmed free -
+    // in this application and in the central user register; no e-mail = no login = nothing to wait for
+    function gateSave(ok) {
+        const b = $('meSave');
+        b.disabled = !ok;
+        b.title = ok ? '' : 'Enter an e-mail that is available for the login - Save is enabled once it is confirmed.';
+    }
     async function checkEmail() {
         const v = $('meEmail').value.trim().toLowerCase();
-        if (!v || !emailOk(v) || (current && current.HasLogin && v === (current.LoginUsername || '').toLowerCase())) { emailState = { value: v, ok: true }; return true; }
-        if (emailState.value === v) return emailState.ok;
+        if (!v || !emailOk(v) || (current && current.HasLogin && v === (current.LoginUsername || '').toLowerCase())) { emailState = { value: v, ok: true }; gateSave(true); return true; }
+        if (emailState.value === v) { gateSave(emailState.ok); return emailState.ok; }
+        gateSave(false);
         $('meEmailHint').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Checking availability…';
         try {
             const r = await (await fetch(P.base + 'CheckEmail?' + new URLSearchParams({ email: v, executiveId: current ? current.ExecutiveId : '' }),
                 { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: AbortSignal.timeout(8000) })).json();
             // anything but a clear answer does not block the save: the server checks the e-mail again when saving
-            if (!r.success || !r.data || typeof r.data.Available !== 'boolean') { $('meEmailHint').textContent = (r && r.error) || 'Could not check the e-mail now; it is checked again on save.'; return true; }
+            if (!r.success || !r.data || typeof r.data.Available !== 'boolean') { $('meEmailHint').textContent = (r && r.error) || 'The e-mail could not be checked. Try again.'; return false; }
             emailState = { value: v, ok: !!r.data.Available };
+            gateSave(emailState.ok);
             $('meEmail').classList.toggle('is-invalid', !emailState.ok);
             $('meEmailMsg').textContent = emailState.ok ? 'Enter a valid e-mail ID.' : r.data.Message;
             if (emailState.ok) $('meEmailHint').innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + E(r.data.Message) + '</span>';
             return emailState.ok;
-        } catch { $('meEmailHint').textContent = 'Could not check the e-mail now; it is checked again on save.'; return true; }
+        } catch { $('meEmailHint').textContent = 'The e-mail could not be checked. Check the connection and try again.'; return false; }
     }
-    $('meEmail').addEventListener('input', () => { $('meEmailMsg').textContent = 'Enter a valid e-mail ID.'; $('meEmail').classList.remove('is-invalid'); loginUi(); });
+    let emailTimer = null;
+    $('meEmail').addEventListener('input', () => {
+        $('meEmailMsg').textContent = 'Enter a valid e-mail ID.'; $('meEmail').classList.remove('is-invalid'); loginUi();
+        const v = $('meEmail').value.trim();
+        gateSave(!v);                                   // changed: not confirmed until checked again
+        clearTimeout(emailTimer); if (v) emailTimer = setTimeout(() => { if (emailOk(v.toLowerCase())) checkEmail(); }, 450);
+    });
     $('meEmail').addEventListener('blur', () => { if (check('meEmail')) checkEmail(); });
     function check(id) {
         const el = $(id), ok = rules[id](el.value);
@@ -102,6 +117,8 @@
         if (!readOnly) $('meActive').disabled = !r || !P.can.status;
         $('meSave').classList.toggle('d-none', !!readOnly);
         loginUi(); if (readOnly) $('meLoginNew').classList.add('d-none');
+        // Save: free at once without an e-mail or with the executive's own login; any other e-mail is confirmed first
+        gateSave(true); if (!readOnly && $('meEmail').value.trim()) checkEmail();
         $('meAudit').classList.toggle('d-none', !r);
         if (r) $('meAudit').innerHTML = `Created ${Ipd.dt(r.CreatedDate)}${r.CreatedByName ? ' by ' + E(r.CreatedByName) : ''}${r.ModifiedDate ? ` · last changed ${Ipd.dt(r.ModifiedDate)}${r.ModifiedByName ? ' by ' + E(r.ModifiedByName) : ''}` : ''}`;
         modal().show();

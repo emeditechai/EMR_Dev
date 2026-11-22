@@ -223,9 +223,20 @@ public class DoctorsController(
         var taken = await dbContext.Users.AsNoTracking()
             .Where(u => (ownUserId == null || u.Id != ownUserId) && ((u.Email != null && u.Email.Trim().ToLower() == e) || u.Username == e))
             .Select(u => u.Username).FirstOrDefaultAsync();
-        return taken is null
-            ? Json(new { valid = true, available = true, message = "Available - the doctor will sign in with this e-mail." })
-            : Json(new { valid = true, available = false, message = $"Already used by the sign-in '{taken}' - choose another e-mail." });
+        if (taken is not null)
+            return Json(new { valid = true, available = false, message = $"Already used by the sign-in '{taken}' - choose another e-mail." });
+        // SQLScripts/2490: sign-in e-mails are unique across all installations (central user register) - same check as User Master
+        var ownCentral = ownUserId is int cu ? await dbContext.Users.AsNoTracking().Where(u => u.Id == cu).Select(u => new { u.CompanyId, u.CentralUserID }).FirstOrDefaultAsync() : null;
+        var central = await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+            .CheckAsync(ownCentral?.CompanyId ?? ((int?)User.GetCompanyId() ?? 0), e, ownUserId, ownCentral?.CentralUserID);
+        if (central.Taken) return Json(new { valid = true, available = false, message = central.Message });
+        return Json(new
+        {
+            valid = true, available = true,
+            message = central.Status == "UNAVAILABLE"
+                ? "Available in this application - the doctor will sign in with this e-mail. (Central user register not reachable now: checked again on save.)"
+                : "Available - the doctor will sign in with this e-mail."
+        });
     }
 
     public async Task<IActionResult> SuggestLoginUsernames(string? fullName, string? email, string? check, int? doctorId)

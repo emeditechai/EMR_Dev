@@ -114,6 +114,9 @@ public class LabFranchisesController(
     {
         var companyId = User.GetCompanyId();
         ApplyPrepaidRules(model);
+        // the login e-mail must be free here and in the central user register (server side, as User Master)
+        if (await LoginEmailProblemAsync(model.Email, 0) is string emailProblem)
+            ModelState.AddModelError(nameof(model.Email), emailProblem);
 
         if (!ModelState.IsValid)
         {
@@ -295,6 +298,9 @@ public class LabFranchisesController(
 
         if (id != model.Franchise_ID)
             return BadRequest();
+        // the login e-mail must be free here and in the central user register (server side, as User Master); its own login is fine
+        if (await LoginEmailProblemAsync(model.Email, id) is string emailProblem)
+            ModelState.AddModelError(nameof(model.Email), emailProblem);
 
         if (!ModelState.IsValid)
         {
@@ -664,6 +670,40 @@ public class LabFranchisesController(
     /// <summary>Creates the franchise's login and emails its details. Returns null when all went through, otherwise
     /// what the user creating the franchise must know (no login made / the email could not be sent).
     /// A franchise under approval gets a disabled login: it is enabled, and its details mailed, on approval.</summary>
+    /// <summary>
+    /// The franchise's login e-mail (sign-in = e-mail): null when it is free, else why not - another sign-in of this
+    /// application, or (SQLScripts/2490) the central user register across all installations. The franchise's own login is
+    /// not counted. Used by the live check and again on save (Create / Edit), the same rule as User Master.
+    /// </summary>
+    private async Task<string?> LoginEmailProblemAsync(string? email, int franchiseId)
+    {
+        var e = (email ?? "").Trim().ToLowerInvariant();
+        if (e.Length == 0) return null;                                    // no e-mail: no login
+        var own = franchiseId > 0
+            ? await dbContext.Users.AsNoTracking().Where(u => u.UserType == Models.Entities.UserTypes.Franchise && u.ReferenceUserId == franchiseId)
+                .Select(u => new { u.Id, u.Username, u.CompanyId, u.CentralUserID }).FirstOrDefaultAsync()
+            : null;
+        if (own is not null && string.Equals(own.Username?.Trim(), e, StringComparison.OrdinalIgnoreCase)) return null;   // its own login
+        if (await dbContext.Users.AsNoTracking().AnyAsync(u => (own == null || u.Id != own.Id)
+                && (u.Username == e || (u.Email != null && u.Email.Trim().ToLower() == e))))
+            return "This e-mail is already used by another sign-in - the franchise signs in with its e-mail. Use a different e-mail.";
+        var central = await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+            .CheckAsync(own?.CompanyId ?? User.GetCompanyId(), e, own?.Id, own?.CentralUserID);
+        return central.Taken ? central.Message : null;
+    }
+
+    /// <summary>Live check of the franchise's login e-mail while typing (the save checks again).</summary>
+    [HttpGet]
+    public async Task<IActionResult> CheckLoginEmail(string? email, int franchiseId = 0)
+    {
+        var e = (email ?? "").Trim();
+        if (e.Length == 0) return Json(new { valid = true, available = true, message = "" });
+        if (e.Length > 100 || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(e) || !e.Contains('.'))
+            return Json(new { valid = false, available = false, message = "Enter a valid e-mail address." });
+        var problem = await LoginEmailProblemAsync(e, franchiseId);
+        return Json(new { valid = true, available = problem is null, message = problem ?? "Available - the franchise will sign in with this e-mail." });
+    }
+
     private async Task<string?> CreateLinkedUserAsync(LabFranchiseWizardViewModel model, int franchiseId, int companyId, bool activeNow)
     {
         var email = model.Email.Trim();
