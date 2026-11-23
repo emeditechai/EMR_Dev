@@ -3,7 +3,10 @@
     .ptpl-row { display: flex; width: 100%; margin-bottom: 0.4mm; }
     .ptpl-col { display: flex; flex-direction: column; padding: 0 0.7mm; min-width: 0; }
     .ptpl-block { overflow-wrap: anywhere; }
+    .ptpl-barcode-wrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: stretch; }
+    .ptpl-barcode { width: 100%; }
     .ptpl-barcode svg { width: 100%; height: 100%; display: block; }
+    .ptpl-barcode-no { font-size: 6.5pt; line-height: 1.15; text-align: center; letter-spacing: .03em; white-space: nowrap; margin-top: .3mm; color: #111; font-family: Arial, Helvetica, sans-serif; font-weight: 400; font-style: normal; text-transform: none; text-decoration: none; }
     .ptpl-badge { display: inline-block; border: 0.2mm solid #888; border-radius: 3mm; padding: 0.2mm 2mm; }
     .ptpl-design .ptpl-row { outline: 1px dashed #c8c2d8; outline-offset: -1px; min-height: 7mm; }
     .ptpl-design .ptpl-col { outline: 1px dashed #ddd6ea; outline-offset: -2px; min-height: 7mm; cursor: pointer; }

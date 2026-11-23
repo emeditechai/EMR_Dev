@@ -16,6 +16,8 @@ public interface IPrintTemplateApiClient
     Task<string?> RestoreAsync(int companyId, int templateId, int versionNo, int userId);
     Task<string?> DeleteAsync(int companyId, int templateId, int userId);
     Task<string?> AssignAsync(int companyId, int branchId, string kind, int? templateId, int userId);
+    /// <summary>The newest OPD visit of the branch with a consulting doctor (Dr. Prescription preview); null = none.</summary>
+    Task<int?> PreviewVisitAsync(int branchId);
 }
 
 public class PrintTemplateRowDto
@@ -60,6 +62,7 @@ public class PrintTemplateAssignmentDto
     public bool IsHOBranch { get; set; }
     public int? BillTemplateId { get; set; }
     public int? ReportTemplateId { get; set; }
+    public int? RxTemplateId { get; set; }   // Dr. Prescription (SQLScripts/2530)
 }
 
 public class PrintTemplateResolvedDto
@@ -132,4 +135,14 @@ public class PrintTemplateApiClient(IHttpClientFactory httpClientFactory) : IPri
 
     public async Task<string?> AssignAsync(int companyId, int branchId, string kind, int? templateId, int userId) =>
         await ErrorAsync(await Client.PostAsJsonAsync($"{Base}/assign", new { companyId, branchId, kind, templateId, userId }));
+
+    private sealed class PreviewVisitResult { public int opdServiceId { get; set; } }
+
+    public async Task<int?> PreviewVisitAsync(int branchId)
+    {
+        var res = await Client.GetAsync($"{Base}/preview-visit?branchId={branchId}");
+        if (res.StatusCode is HttpStatusCode.NoContent or HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        return (await res.Content.ReadFromJsonAsync<PreviewVisitResult>())?.opdServiceId;
+    }
 }

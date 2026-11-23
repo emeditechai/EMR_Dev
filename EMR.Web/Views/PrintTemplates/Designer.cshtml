@@ -6,6 +6,7 @@
     var branches = (ViewBag.Branches as System.Collections.IEnumerable)?.Cast<dynamic>().ToList() ?? new();
     int previewBranch = ViewBag.PreviewBranchId ?? 0;
     var isReport = Model.Kind == "REPORT";
+    var isRx = Model.Kind == "RX";   // Dr. Prescription pad (SQLScripts/2530)
     // head office designs, publishes and assigns; other branches open the template to view and preview only
     var canManage = ViewBag.CanManage as bool? ?? false;
     var fields = PrintFields.All.Where(f => f.Kinds.Contains(Model.Kind)).Select(f => new { f.Key, f.Label, f.Group }).ToList();
@@ -14,7 +15,7 @@
 <div class="container-fluid px-3 py-3 pd-wrap">
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
         <a asp-action="Index" class="btn btn-sm btn-light"><i class="bi bi-arrow-left"></i></a>
-        <span class="badge @(isReport ? "bg-info-subtle text-info-emphasis" : "bg-primary-subtle text-primary") border">@(isReport ? "Lab Report" : "Bill")</span>
+        <span class="badge @(isReport ? "bg-info-subtle text-info-emphasis" : isRx ? "bg-success-subtle text-success-emphasis" : "bg-primary-subtle text-primary") border">@(isReport ? "Lab Report" : isRx ? "Dr. Prescription" : "Bill")</span>
         <input id="pdName" class="form-control form-control-sm fw-semibold" style="max-width:280px" value="@Model.Name" maxlength="100" @(canManage ? "" : "readonly") />
         <span id="pdState" class="small text-muted">@(Model.IsPublished ? $"Published v{Model.Version}" : "Draft - not published")</span>
         <div class="ms-auto d-flex flex-wrap gap-2 align-items-center">
@@ -31,7 +32,11 @@
             <div class="dropdown">
                 <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-eye me-1"></i>Preview</button>
                 <ul class="dropdown-menu dropdown-menu-end">
-                    @if (isReport)
+                    @if (isRx)
+                    {
+                        <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.ActionEncrypted("PreviewPrescription", new { id = Model.TemplateId })">On a real prescription pad</a></li>
+                    }
+                    else if (isReport)
                     {
                         <li><a class="dropdown-item pd-preview" href="#" data-url="@Url.ActionEncrypted("PreviewReport", new { id = Model.TemplateId })">On a real lab report (PDF)</a></li>
                     }
@@ -86,7 +91,8 @@
             </div>
             <div class="small text-muted mt-3"><i class="bi bi-hand-index me-1"></i>Click any part of the header or footer to select it, then change it on the right. Empty fields of a branch are skipped when printing.</div>
             <div class="small text-muted mt-2"><i class="bi bi-rulers me-1"></i>Sizes are real print sizes (pt / mm): the header and footer print exactly this size on A4 and A5 bills and in the lab report PDF.</div>
-            <div class="small text-muted mt-2"><i class="bi bi-arrows-move me-1"></i><strong>Drag on the page:</strong> a block to another column or place · the edge between columns for width · the bottom edge of a logo, image, barcode or space for height · the ⋮⋮ grip to move a row · the purple bar under the header / footer for its height.</div>
+            <div class="small text-muted mt-2"><i class="bi bi-arrows-move me-1"></i><strong>Drag on the page:</strong> a block anywhere to place it (drop it on another column to move it there; hold Alt to re-order in its column) · the edge between columns for width · the bottom edge of a logo, image, barcode or space for height · the ⋮⋮ grip to move a row · the purple bar under the header / footer for its height.</div>
+            <div class="small text-muted mt-2"><i class="bi bi-keyboard me-1"></i><strong>Keys</strong> (after clicking a block): arrows move it 0.5 mm, Shift + arrows 5 mm · Alt + arrows: up / down a place or into the next column · Delete removes it · Esc selects its column · Ctrl / ⌘ + Z undo. A selected row: ↑ ↓ move it.</div>
             @if (Model.Versions.Count > 0)
             {
                 <div class="pd-pane-title mt-3">Published versions</div>
@@ -132,7 +138,14 @@
     .pd-ghost { opacity: .4; }
     .pd-drop { height: 0; border-top: 2px solid #7c3aed; margin: 1px 0; }
     .pd-drop-row { border-top-width: 3px; }
-    #pdCanvas .ptpl-block[draggable="true"] { cursor: grab; }
+    #pdCanvas .ptpl-block[data-path] { cursor: grab; }
+    .pd-line-btn { position: absolute; right: 0; z-index: 7; border: 1px solid #c9bfe0; background: #fff; color: #6b21a8; font-size: 10px; line-height: 1;
+                   padding: 2px 6px; border-radius: 10px; opacity: 0; transition: opacity .12s; cursor: pointer; }
+    .pd-line-btn.pd-line-bottom { bottom: -9px; } .pd-line-btn.pd-line-top { top: -9px; }
+    .pd-line-btn:hover { background: #fdf2f8; border-color: #db2777; color: #be185d; }
+    .pd-line-btn.pd-line-add:hover { background: #f5f3ff; border-color: #7c3aed; color: #6d28d9; }
+    #pdCanvas .ptpl-band:hover > .pd-line-btn { opacity: 1; }
+    #pdCanvas .ptpl-block.pd-moving { z-index: 20; opacity: .85; box-shadow: 0 4px 14px rgba(124, 58, 237, .35); outline: 2px dashed #7c3aed; cursor: grabbing; }
     .pd-dragging, .pd-dragging * { user-select: none !important; }
     .pd-readonly #pdProps input, .pd-readonly #pdProps select, .pd-readonly #pdProps textarea, .pd-readonly #pdProps button { pointer-events: none; opacity: .75; }
     @@media (max-width: 1200px) { .pd-grid { grid-template-columns: 1fr; } }
@@ -259,31 +272,79 @@
                     (dx, dy) => { const mm = calc(dy); selected = bandEl.dataset.path; change(() => s.band.minHeightMm = Math.abs(dy) < 3 ? s.band.minHeightMm : mm); }, 'ns-resize');
             });
         });
-        // 4. move a block to another column, or another place in its column
-        canvas.querySelectorAll('.ptpl-block[data-path]').forEach(blockEl => {
-            blockEl.draggable = true;
-            blockEl.addEventListener('dragstart', e => { e.dataTransfer.setData('text/pd-block', blockEl.dataset.path); e.dataTransfer.effectAllowed = 'move'; blockEl.classList.add('pd-ghost'); });
-            blockEl.addEventListener('dragend', () => { blockEl.classList.remove('pd-ghost'); clearDrop(); });
+        // 3b. the line under the header / over the footer: remove it (or add it back) right on the page
+        canvas.querySelectorAll('.ptpl-band[data-path]').forEach(bandEl => {
+            const key = bandEl.dataset.path, band = key === 'f' ? layout.footer : layout.header, isF = key === 'f';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'pd-line-btn ' + (isF ? 'pd-line-top' : 'pd-line-bottom') + (band.border ? '' : ' pd-line-add');
+            btn.innerHTML = band.border ? '<i class="bi bi-x-lg"></i> line' : '<i class="bi bi-plus-lg"></i> line';
+            btn.title = band.border ? `Remove the line ${isF ? 'above the footer' : 'under the header'}` : `Add a line ${isF ? 'above the footer' : 'under the header'}`;
+            btn.addEventListener('mousedown', e => e.stopPropagation());
+            btn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); selected = key; change(() => band.border = !band.border); });
+            bandEl.appendChild(btn);
         });
-        canvas.querySelectorAll('.ptpl-col[data-path]').forEach(colEl => {
-            colEl.addEventListener('dragover', e => {
-                if (![...e.dataTransfer.types].includes('text/pd-block')) return;
-                e.preventDefault(); clearDrop();
-                const idx = dropIndex(colEl, e.clientY), blocks = [...colEl.querySelectorAll(':scope > .ptpl-block')];
-                const mark = document.createElement('div'); mark.className = 'pd-drop';
-                if (idx < blocks.length) colEl.insertBefore(mark, blocks[idx]); else colEl.appendChild(mark);
-            });
-            colEl.addEventListener('drop', e => {
-                const from = e.dataTransfer.getData('text/pd-block'); if (!from) return;
-                e.preventDefault(); clearDrop();
-                const src = parse(from), dst = parse(colEl.dataset.path);
-                let idx = dropIndex(colEl, e.clientY);
-                change(() => {
-                    const [blk] = src.col.blocks.splice(src.b, 1);
-                    if (src.col === dst.col && src.b < idx) idx--;
-                    dst.col.blocks.splice(idx, 0, blk);
-                    selected = `${dst.bandKey}.r${dst.r}.c${dst.c}.b${idx}`;
-                });
+        // 4. a block: press and drag it - drop it in another column to move it there, or anywhere in its own
+        //    column to place it exactly (an offset in mm, printed the same). Alt while dropping: only re-order.
+        canvas.querySelectorAll('.ptpl-block[data-path]').forEach(blockEl => {
+            blockEl.addEventListener('mousedown', ev => {
+                if (ev.button !== 0 || ev.target.closest('.pd-h')) return;
+                const path = blockEl.dataset.path, src = parse(path), b = src.block;
+                if (!b) return;
+                const srcCol = blockEl.closest('.ptpl-col'), x0 = ev.clientX, y0 = ev.clientY, ppm = pxPerMm();
+                const ox = +b.offsetXMm || 0, oy = +b.offsetYMm || 0;
+                let started = false, tip = null, overCol = null;
+                ev.preventDefault();   // no text selection while dragging
+                const colAt = (x, y) => {
+                    blockEl.style.pointerEvents = 'none';
+                    const el = document.elementFromPoint(x, y);
+                    blockEl.style.pointerEvents = '';
+                    return el?.closest('#pdCanvas .ptpl-col[data-path]') || null;
+                };
+                const move = e => {
+                    const dx = e.clientX - x0, dy = e.clientY - y0;
+                    if (!started) {
+                        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+                        started = dragging = true;
+                        document.body.classList.add('pd-dragging'); document.body.style.cursor = 'grabbing';
+                        blockEl.classList.add('pd-moving');
+                        tip = document.createElement('div'); tip.className = 'pd-tip'; blockEl.appendChild(tip);
+                    }
+                    blockEl.style.position = 'relative';
+                    blockEl.style.left = (ox * ppm + dx) + 'px'; blockEl.style.top = (oy * ppm + dy) + 'px';
+                    clearDrop(); overCol = colAt(e.clientX, e.clientY);
+                    if (overCol && (overCol !== srcCol || e.altKey)) {
+                        const idx = dropIndex(overCol, e.clientY, blockEl), blocks = [...overCol.querySelectorAll(':scope > .ptpl-block')].filter(x => x !== blockEl);
+                        const mark = document.createElement('div'); mark.className = 'pd-drop';
+                        if (idx < blocks.length) overCol.insertBefore(mark, blocks[idx]); else overCol.appendChild(mark);
+                        tip.textContent = overCol === srcCol ? 'Drop: move to this place in the column' : 'Drop: move into this column';
+                    } else {
+                        tip.textContent = `${fmtMm(ox + dx / ppm)} → , ${fmtMm(oy + dy / ppm)} ↓ mm`;
+                    }
+                };
+                const up = e => {
+                    document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+                    document.body.classList.remove('pd-dragging'); document.body.style.cursor = '';
+                    if (!started) return;   // a click: selects the block
+                    setTimeout(() => dragging = false, 0);
+                    clearDrop();
+                    const dx = e.clientX - x0, dy = e.clientY - y0;
+                    if (overCol && (overCol !== srcCol || e.altKey)) {
+                        const dst = parse(overCol.dataset.path);
+                        let idx = dropIndex(overCol, e.clientY, blockEl);
+                        change(() => {
+                            const [blk] = src.col.blocks.splice(src.b, 1);
+                            if (src.col === dst.col && src.b < idx) idx--;
+                            blk.offsetXMm = 0; blk.offsetYMm = 0;   // takes the column's place and alignment
+                            dst.col.blocks.splice(idx, 0, blk);
+                            selected = `${dst.bandKey}.r${dst.r}.c${dst.c}.b${idx}`;
+                        });
+                        return;
+                    }
+                    selected = path;
+                    change(() => { b.offsetXMm = snap(ox + dx / ppm); b.offsetYMm = snap(oy + dy / ppm); });
+                };
+                document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
             });
         });
         // 5. move a row up or down (also between header and footer): the grip on its left
@@ -313,8 +374,10 @@
             });
         });
     }
-    function dropIndex(colEl, y) {
-        const blocks = [...colEl.querySelectorAll(':scope > .ptpl-block')];
+    const snap = mm => Math.round(Math.max(-150, Math.min(150, mm)) * 2) / 2;   // 0.5 mm steps
+    const fmtMm = mm => (Math.round(mm * 2) / 2).toFixed(1).replace(/\.0$/, '');
+    function dropIndex(colEl, y, skip) {
+        const blocks = [...colEl.querySelectorAll(':scope > .ptpl-block')].filter(b => b !== skip);
         const i = blocks.findIndex(b => { const r = b.getBoundingClientRect(); return y < r.top + r.height / 2; });
         return i < 0 ? blocks.length : i;
     }
@@ -361,6 +424,60 @@
     $('#pdUndo').addEventListener('click', undo);
     document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); undo(); } });
     function undo() { if (!history.length) return; layout = JSON.parse(history.pop()); dirty = true; render(); props(); }
+
+    // ── keyboard, after a click on the page: arrows move the selection ──
+    //   block: arrows = 0.5 mm (Shift: 5 mm) · Alt + up / down = one place up / down in its column (then into the row
+    //   above / below) · Alt + left / right = into the column beside it · Delete = remove · Esc = its column
+    //   row: up / down = move the row · column: left / right = swap with the column beside it
+    let keysOn = false, lastNudge = 0;
+    document.addEventListener('mousedown', e => { keysOn = !!e.target.closest('#pdCanvas'); });
+    document.addEventListener('keydown', e => {
+        if (!CAN_MANAGE || !keysOn || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || document.querySelector('.swal2-container')) return;
+        const k = e.key, s = parse(selected);
+        const arrow = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k);
+        if (!arrow && !['Delete', 'Backspace', 'Escape'].includes(k)) return;
+        if (k === 'Escape') { if (s.level === 'block') { selected = `${s.bandKey}.r${s.r}.c${s.c}`; } else if (s.level === 'col') { selected = `${s.bandKey}.r${s.r}`; } else return; e.preventDefault(); render(); props(); return; }
+        if (k === 'Delete' || k === 'Backspace') { if (s.level === 'block' || s.level === 'row') { e.preventDefault(); act('remove'); } return; }
+        e.preventDefault();
+        if (s.level === 'block') {
+            if (e.altKey) { moveBlockKey(s, k); return; }
+            const step = e.shiftKey ? 5 : 0.5, b = s.block;
+            const dx = k === 'ArrowLeft' ? -step : k === 'ArrowRight' ? step : 0, dy = k === 'ArrowUp' ? -step : k === 'ArrowDown' ? step : 0;
+            // a run of key presses is one undo step
+            if (Date.now() - lastNudge > 800) { history.push(JSON.stringify(layout)); if (history.length > 60) history.shift(); }
+            lastNudge = Date.now();
+            b.offsetXMm = snap((+b.offsetXMm || 0) + dx); b.offsetYMm = snap((+b.offsetYMm || 0) + dy);
+            const el = document.querySelector(`#pdCanvas .ptpl-block[data-path="${selected}"]`), ppm = pxPerMm();
+            if (el) { el.style.position = 'relative'; el.style.left = b.offsetXMm * ppm + 'px'; el.style.top = b.offsetYMm * ppm + 'px'; }
+            dirty = true; $('#pdState').textContent = 'Unsaved changes'; render(); props();
+            msg(`Position: ${fmtMm(b.offsetXMm)} mm right, ${fmtMm(b.offsetYMm)} mm down`, 'muted');
+        } else if (s.level === 'row' && (k === 'ArrowUp' || k === 'ArrowDown')) {
+            act(k === 'ArrowUp' ? 'up' : 'down');
+        } else if (s.level === 'col' && (k === 'ArrowLeft' || k === 'ArrowRight')) {
+            const j = s.c + (k === 'ArrowLeft' ? -1 : 1);
+            if (j < 0 || j >= s.row.cols.length) return;
+            change(() => { const cols = s.row.cols; [cols[s.c], cols[j]] = [cols[j], cols[s.c]]; selected = `${s.bandKey}.r${s.r}.c${j}`; });
+        }
+    });
+    function moveBlockKey(s, k) {
+        const band = s.band;
+        change(() => {
+            const [blk] = s.col.blocks.splice(s.b, 1);
+            let r = s.r, c = s.c, i = s.b;
+            if (k === 'ArrowUp') {
+                if (i > 0) i--;
+                else if (r > 0) { r--; c = Math.min(c, band.rows[r].cols.length - 1); i = band.rows[r].cols[c].blocks.length; }
+            } else if (k === 'ArrowDown') {
+                if (i < s.col.blocks.length) i++;
+                else if (r < band.rows.length - 1) { r++; c = Math.min(c, band.rows[r].cols.length - 1); i = 0; }
+            } else {
+                const j = c + (k === 'ArrowLeft' ? -1 : 1);
+                if (j >= 0 && j < band.rows[r].cols.length) { c = j; i = Math.min(i, band.rows[r].cols[c].blocks.length); blk.offsetXMm = 0; blk.offsetYMm = 0; }
+            }
+            band.rows[r].cols[c].blocks.splice(i, 0, blk);
+            selected = `${s.bandKey}.r${r}.c${c}.b${i}`;
+        });
+    }
 
     // ── properties ──
     const pctOf = span => Math.round(span / 12 * 1000) / 10;   // a column's span (twelfths) as % of the row
@@ -417,6 +534,12 @@
                 <div class="col-6"><label class="form-label">Colour</label><input type="color" class="form-control form-control-sm form-control-color w-100" data-set="color" value="${esc(b.color || '#999999')}"></div></div>
                 <label class="form-label">Width (% of the column)</label><input type="number" min="10" max="100" class="form-control form-control-sm mb-2" data-set="widthPct" value="${b.widthPct || 100}">`;
             if (b.type !== 'spacer') h += `<label class="form-label">Alignment</label>${alignBtns(b.align)}`;
+            h += `<label class="form-label mt-2">Position <span class="text-muted fw-normal">(mm from its place - drag it or use the arrow keys)</span></label>
+                <div class="row g-2 align-items-center mb-1">
+                    <div class="col-5"><div class="input-group input-group-sm"><span class="input-group-text">→</span><input type="number" step="0.5" min="-150" max="150" class="form-control" data-set="offsetXMm" value="${+b.offsetXMm || 0}"></div></div>
+                    <div class="col-5"><div class="input-group input-group-sm"><span class="input-group-text">↓</span><input type="number" step="0.5" min="-80" max="80" class="form-control" data-set="offsetYMm" value="${+b.offsetYMm || 0}"></div></div>
+                    <div class="col-2"><button type="button" class="btn btn-sm btn-outline-secondary w-100 px-0" data-act="resetpos" title="Back to its place" ${(+b.offsetXMm || +b.offsetYMm) ? '' : 'disabled'}><i class="bi bi-bullseye"></i></button></div>
+                </div>`;
             h += moveBar('block');
         } else if (s.level === 'col') {
             h += `<div class="pd-pane-title">Column</div>${where}
@@ -448,8 +571,14 @@
                 : 'Above: gap from the top of the paper. Below: gap before the bill / report.'} Added to the page margin of the print.</div>
             <div class="row g-2 mb-2"><div class="col-6"><label class="form-label">Lowest height (mm)</label><input type="number" min="0" max="120" class="form-control form-control-sm" data-band="minHeightMm" value="${band.minHeightMm || 0}"></div>
             <div class="col-6"><label class="form-label">Inner padding (mm)</label><input type="number" min="0" max="10" step="0.5" class="form-control form-control-sm" data-band="paddingMm" value="${band.paddingMm ?? 1}"></div></div>
-            <div class="row g-2 align-items-end"><div class="col-6 small"><label><input type="checkbox" data-band="border" ${band.border ? 'checked' : ''}> ${s.bandKey === 'f' ? 'Line above' : 'Line below'}</label></div>
-            <div class="col-6"><input type="color" class="form-control form-control-sm form-control-color w-100" data-band="borderColor" value="${esc(band.borderColor || '#1a3a6b')}" title="Line colour"></div></div>
+            <div class="form-check form-switch mb-1"><input class="form-check-input" type="checkbox" id="pdBandLine" data-band="border" ${band.border ? 'checked' : ''}>
+                <label class="form-check-label small fw-semibold" for="pdBandLine">${s.bandKey === 'f' ? 'Line above the footer' : 'Line below the header'}</label></div>
+            ${band.border ? `<div class="row g-2 mb-1">
+                <div class="col-7"><label class="form-label">Thickness</label><select class="form-select form-select-sm" data-band="borderMm">
+                    ${[[0, s.bandKey === 'f' ? 'Normal (0.3 mm)' : 'Normal (0.5 mm)'], [0.15, 'Hairline (0.15 mm)'], [0.3, 'Thin (0.3 mm)'], [0.5, 'Medium (0.5 mm)'], [0.8, 'Thick (0.8 mm)'], [1.2, 'Extra thick (1.2 mm)']]
+                        .map(([v, t]) => opt(v, t, +band.borderMm || 0)).join('')}</select></div>
+                <div class="col-5"><label class="form-label">Colour</label><input type="color" class="form-control form-control-sm form-control-color w-100" data-band="borderColor" value="${esc(band.borderColor || '#1a3a6b')}" title="Line colour"></div></div>`
+                : `<div class="small text-muted mb-1">No line ${s.bandKey === 'f' ? 'above the footer' : 'under the header'}.</div>`}
             <label class="form-label mt-2">Background</label><div class="d-flex gap-2"><input type="color" class="form-control form-control-sm form-control-color" data-band="background" value="${esc(band.background || '#ffffff')}"><button class="btn btn-sm btn-link p-0" data-band-clear="background">none</button></div>`;
         p.innerHTML = h;
     }
@@ -480,8 +609,10 @@
         }
         const s = parse(selected);
         if (el.dataset.band) {
-            const k = el.dataset.band, v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? +el.value : el.value;
-            history.push(JSON.stringify(layout)); s.band[k] = v; dirty = true; render(); return;
+            const k = el.dataset.band, v = el.type === 'checkbox' ? el.checked : el.type === 'number' || k === 'borderMm' ? +el.value : el.value;
+            history.push(JSON.stringify(layout)); s.band[k] = v; dirty = true; $('#pdState').textContent = 'Unsaved changes'; render();
+            if (el.type === 'checkbox') props();   // shows / hides the thickness and colour
+            return;
         }
         const k = el.dataset.set; if (!k || k === 'align') return;
         const target = s.level === 'block' ? s.block : s.col; if (!target) return;
@@ -497,6 +628,7 @@
             msg(`<i class="bi bi-check-circle"></i> ${esc(font)} is now used by every text of the header and footer.`, 'success');
             return;
         }
+        if (a === 'resetpos' && s.block) { change(() => { s.block.offsetXMm = 0; s.block.offsetYMm = 0; }); return; }
         change(() => {
             if (s.level === 'block') {
                 const list = s.col.blocks, i = s.b;

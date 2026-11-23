@@ -24,6 +24,8 @@ public class PrintTemplatesController(
     IDbConnectionFactory db,
     IWebHostEnvironment env,
     IAuditLogService audit,
+    IServiceBookingApiClient serviceBookings,
+    ApplicationDbContext dbContext,
     ILogger<PrintTemplatesController> logger) : Controller
 {
     public const string PageCode = PrintTemplateRuntime.PageCode;   // UTILITY.PRINTTEMPLATES
@@ -38,7 +40,9 @@ public class PrintTemplatesController(
     private IActionResult HoOnlyRedirect() { TempData["ErrorMessage"] = HoOnly; return RedirectToAction(nameof(Index)); }
     private IActionResult HoOnlyJson() => Json(new { success = false, error = HoOnly });
 
-    private static string KindTitle(string kind) => kind == "REPORT" ? "Lab Report" : "Bill";
+    private static string KindTitle(string kind) => kind switch { "REPORT" => "Lab Report", "RX" => "Dr. Prescription", _ => "Bill" };
+    /// <summary>BILL, REPORT or RX (Dr. Prescription pad, SQLScripts/2530); anything else = BILL.</summary>
+    private static string Kind(string? kind) => kind is "REPORT" or "RX" ? kind : "BILL";
 
     private IActionResult Down() { ViewData["PageName"] = "Print Templates"; return View("ApiDown"); }
 
@@ -63,7 +67,7 @@ public class PrintTemplatesController(
     public async Task<IActionResult> Create(string kind, string name, string start)
     {
         if (!CanManage) return HoOnlyRedirect();
-        kind = kind == "REPORT" ? "REPORT" : "BILL";
+        kind = Kind(kind);
         var layout = start switch { "centred" => PrintLayoutStarters.Centred(kind), "blank" => PrintLayoutStarters.Blank(), _ => PrintLayoutStarters.Standard(kind) };
         var (id, err) = await api.SaveAsync(CompanyId, 0, kind, (name ?? "").Trim(), layout.ToJson(), UserId);
         if (err is not null) { TempData["ErrorMessage"] = err; return RedirectToAction(nameof(Index)); }
@@ -105,7 +109,7 @@ public class PrintTemplatesController(
     public async Task<IActionResult> Assign(int branchId, string kind, int? templateId)
     {
         if (!CanManage) return HoOnlyJson();
-        kind = kind == "REPORT" ? "REPORT" : "BILL";
+        kind = Kind(kind);
         var err = await api.AssignAsync(CompanyId, branchId, kind, templateId is > 0 ? templateId : null, UserId);
         if (err is null)
         {
@@ -151,10 +155,10 @@ public class PrintTemplatesController(
         var layout = PrintLayout.Parse(r.LayoutJson) ?? PrintLayoutStarters.Blank();
         var values = await runtime.ValuesAsync(r.BranchId > 0 ? r.BranchId : CurrentBranchId, new PrintDocInfo
         {
-            DocNo = r.Kind == "REPORT" ? "LAB/HO2627000296" : "LAB/HO2627000296",
-            DocDate = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt"),
-            TokenNo = "LAB-HO-0001",
-            CopyLabel = "Original",
+            DocNo = r.Kind == "RX" ? "OPD/HO2627000123" : "LAB/HO2627000296",
+            DocDate = r.Kind == "RX" ? DateTime.Today.ToString("dd-MMM-yyyy") : DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt"),
+            TokenNo = r.Kind == "RX" ? "OPD-HO-0001" : "LAB-HO-0001",
+            CopyLabel = r.Kind == "RX" ? "Prescription" : "Original",
             ProcessingLab = null,
             PrintedBy = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name,
             CreatedBy = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name
@@ -172,7 +176,7 @@ public class PrintTemplatesController(
         if (!CanManage) return HoOnlyJson();
         var layout = PrintLayout.Parse(layoutJson);
         if (layout is null) return Json(new { success = false, error = "The layout could not be read." });
-        var (newId, err) = await api.SaveAsync(CompanyId, id, kind == "REPORT" ? "REPORT" : "BILL", (name ?? "").Trim(), layout.ToJson(), UserId);
+        var (newId, err) = await api.SaveAsync(CompanyId, id, Kind(kind), (name ?? "").Trim(), layout.ToJson(), UserId);
         return Json(new { success = err is null, error = err, templateId = newId });
     }
 
@@ -183,7 +187,7 @@ public class PrintTemplatesController(
         if (!CanManage) return HoOnlyJson();
         var layout = PrintLayout.Parse(layoutJson);
         if (layout is null) return Json(new { success = false, error = "The layout could not be read." });
-        var (_, saveErr) = await api.SaveAsync(CompanyId, id, kind == "REPORT" ? "REPORT" : "BILL", (name ?? "").Trim(), layout.ToJson(), UserId);
+        var (_, saveErr) = await api.SaveAsync(CompanyId, id, Kind(kind), (name ?? "").Trim(), layout.ToJson(), UserId);
         if (saveErr is not null) return Json(new { success = false, error = saveErr });
         var (version, err) = await api.PublishAsync(CompanyId, id, UserId);
         if (err is null)
@@ -244,6 +248,28 @@ public class PrintTemplatesController(
             "SELECT TOP 1 LabOrderId FROM dbo.LabOrder WHERE BranchId = @branch AND IsActive = 1 AND ISNULL(IsB2B, 0) = 0 ORDER BY LabOrderId DESC", new { branch });
         if (lab is null) return Content("This branch has no LAB bill yet to preview with.");
         return Redirect(Url.ActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId = lab, previewTemplateId = id })!);
+    }
+
+    /// <summary>The newest consultation visit of the branch on the doctor's prescription pad, with this template's draft
+    /// (SQLScripts/2530). Printed here, so only Print Templates VIEW is needed (not the OPD print permission).</summary>
+    [HttpGet]
+    [RequiresPermission(PageCode, PermissionControls.View)]
+    public async Task<IActionResult> PreviewPrescription(int id, int? branchId)
+    {
+        var branch = branchId is > 0 ? branchId.Value : CurrentBranchId;
+        try
+        {
+            var visit = await api.PreviewVisitAsync(branch);
+            if (visit is null) return Content("This branch has no OPD visit with a consulting doctor yet to preview with.");
+            var pad = await PrescriptionPadPrint.PrepareAsync(this, serviceBookings, dbContext, runtime, visit.Value, branch, id);
+            if (pad is null) return Content("The prescription pad could not be made for the preview.");
+            return View(PrescriptionPadPrint.View, pad);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Print template {TemplateId}: prescription preview failed", id);
+            return Down();
+        }
     }
 
     /// <summary>The newest reported bill of the branch as a lab report PDF with this template's draft.</summary>

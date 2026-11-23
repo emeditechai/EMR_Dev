@@ -60,3 +60,6 @@ body { font-family: "Calibri", "Segoe UI", Arial, Helvetica, sans-serif; font-si
     .rx-actions { display: none !important; }
     .rx-page { margin: 0; box-shadow: none; }
 }
+
+/* Dr. Prescription print template footer (SQLScripts/2530): under the pad, at the foot of the page */
+.rx-template-footer { flex: 0 0 auto; margin-top: 2mm; }

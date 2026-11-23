@@ -18,7 +18,7 @@
     var bandStyle = $"padding:{Css(band.PaddingMm)}mm 0;" + (Model.DesignMode ? "" : $"margin:{Css(band.MarginTopMm)}mm 0 {Css(band.MarginBottomMm)}mm 0;")
         + (band.MinHeightMm > 0 ? $"min-height:{Css(band.MinHeightMm)}mm;" : "")
         + (string.IsNullOrWhiteSpace(band.Background) ? "" : $"background:{band.Background};")
-        + (band.Border ? (Model.IsFooter ? $"border-top:0.3mm solid {band.BorderColor};" : $"border-bottom:0.5mm solid {band.BorderColor};") : "");
+        + (band.Border ? $"{(Model.IsFooter ? "border-top" : "border-bottom")}:{Css(band.LineMm(Model.IsFooter))}mm solid {band.BorderColor};" : "");
 }
 @if (Model.DesignMode && band.MarginTopMm > 0)
 {
@@ -53,7 +53,9 @@
                         var deco = string.Join(' ', new[] { b.Underline ? "underline" : null, b.Strike ? "line-through" : null }.Where(x => x is not null));
                         var style = $"text-align:{b.Align};font-size:{Css(b.Size)}pt;color:{b.Color};font-family:{PrintFonts.Css(b.Font)};" + (b.Bold ? "font-weight:700;" : "") + (b.Italic ? "font-style:italic;" : "")
                                     + (b.Upper ? "text-transform:uppercase;" : "") + (deco.Length > 0 ? $"text-decoration:{deco};" : "")
-                                    + (b.LetterSpacing > 0 ? $"letter-spacing:{Css(b.LetterSpacing)}em;" : "");
+                                    + (b.LetterSpacing > 0 ? $"letter-spacing:{Css(b.LetterSpacing)}em;" : "")
+                                    // placed by drag / arrow keys in the designer: moved without pushing the other blocks
+                                    + (b.OffsetXMm != 0 || b.OffsetYMm != 0 ? $"position:relative;left:{Css(b.OffsetXMm)}mm;top:{Css(b.OffsetYMm)}mm;" : "");
                         <div class="ptpl-block @(Model.DesignMode && Model.SelectedPath == path ? "ptpl-sel" : "") @(empty ? "ptpl-novalue" : "")" style="@style"
                              @(Model.DesignMode ? Html.Raw($"data-path=\"{path}\"") : Html.Raw(""))>
                             @switch (b.Type)
@@ -80,11 +82,14 @@
                                     var svg = EMR.Common.Code128.Svg(v.GetValueOrDefault("docNo") ?? "");
                                     if (svg is not null)
                                     {
-                                        @* never narrower than a scanner reads reliably (0.33 mm per bar); it grows towards the free side of its alignment *@
+                                        @* never narrower than a scanner reads reliably (0.33 mm per bar); it grows towards the free side of its
+                                           alignment. The bill no is centred under the bars (as in the report PDF), not under the column. *@
                                         <div style="display:flex;justify-content:@(b.Align == "right" ? "flex-end" : b.Align == "center" ? "center" : "flex-start");overflow:visible">
-                                            <div class="ptpl-barcode" style="flex:0 0 auto;height:@(Css(b.HeightMm > 0 ? b.HeightMm : 8))mm;width:max(@(Css(b.WidthPct))%, @(Css((decimal)EMR.Common.Code128.MinWidthMm(v.GetValueOrDefault("docNo") ?? "")))mm);display:inline-block">@Html.Raw(svg)</div>
+                                            <div class="ptpl-barcode-wrap" style="width:max(@(Css(b.WidthPct))%, @(Css((decimal)EMR.Common.Code128.MinWidthMm(v.GetValueOrDefault("docNo") ?? "")))mm)">
+                                                <div class="ptpl-barcode" style="height:@(Css(b.HeightMm > 0 ? b.HeightMm : 8))mm">@Html.Raw(svg)</div>
+                                                @if (b.ShowLabel) { <div class="ptpl-barcode-no">@v.GetValueOrDefault("docNo")</div> }
+                                            </div>
                                         </div>
-                                        if (b.ShowLabel) { <div style="font-size:6.5pt;text-align:@b.Align">@v.GetValueOrDefault("docNo")</div> }
                                     }
                                     else if (Model.DesignMode) { <span class="ptpl-ph">Barcode of the bill no</span> }
                                     break;

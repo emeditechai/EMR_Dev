@@ -16,6 +16,7 @@ public interface IPrintTemplateService
     Task<List<PrintTemplateAssignmentRow>> AssignmentsAsync(int companyId);
     Task AssignAsync(PrintTemplateAssignRequest r);
     Task<PrintTemplateResolved?> ResolveAsync(int branchId, string kind);
+    Task<int?> LatestRxVisitAsync(int branchId);
 }
 
 /// <summary>Utility > Print Templates (SQLScripts/2324): the usp_PrintTpl_* procedures.</summary>
@@ -80,5 +81,12 @@ public class PrintTemplateService(IDbConnectionFactory connectionFactory) : IPri
     {
         using var db = connectionFactory.CreateConnection();
         return await db.QuerySingleOrDefaultAsync<PrintTemplateResolved>("dbo.usp_PrintTpl_Resolve", new { BranchId = branchId, Kind = kind }, commandType: Sp);
+    }
+
+    /// <summary>The newest OPD visit of the branch with a consulting doctor - the prescription preview (SQLScripts/2530).</summary>
+    public async Task<int?> LatestRxVisitAsync(int branchId)
+    {
+        using var db = connectionFactory.CreateConnection();
+        return await db.QuerySingleOrDefaultAsync<int?>("dbo.usp_PrintTpl_LatestRxVisit", new { BranchId = branchId }, commandType: Sp);
     }
 }

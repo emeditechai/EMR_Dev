@@ -37,6 +37,12 @@ public interface IPrintTemplateRuntime
     Task<HospitalSettings?> SettingsAsync(int branchId);
     /// <summary>Puts the template (or the previewed draft) of a bill into ViewData: PrintTemplate, PrintValues, PrintLogoUrl.</summary>
     Task ApplyToBillAsync(ViewDataDictionary viewData, ClaimsPrincipal user, int branchId, PrintDocInfo doc, int? previewTemplateId);
+    /// <summary>
+    /// The Dr. Prescription pad (SQLScripts/2530): the branch's prescription template (or the previewed draft) - header and
+    /// footer - into ViewData (PrintTemplate, PrintValues, PrintLogoUrl, PrintTemplateIsRx = true). A branch without one
+    /// prints as before: the header of its Bill template (PrintTemplateIsRx not set), else nothing = the Classic pad header.
+    /// </summary>
+    Task ApplyToPrescriptionAsync(ViewDataDictionary viewData, ClaimsPrincipal user, int branchId, PrintDocInfo doc, int? previewTemplateId);
     /// <summary>The template (or previewed draft) of a lab report, and its values; null = the Classic report.</summary>
     Task<(PrintLayout? Layout, Dictionary<string, string?> Values)> ForReportAsync(ClaimsPrincipal? user, int companyId, int branchId, PrintDocInfo doc, int? previewTemplateId);
     void Invalidate();
@@ -146,6 +152,20 @@ public class PrintTemplateRuntime(
         viewData["PrintTemplate"] = layout;
         viewData["PrintValues"] = values;
         viewData["PrintLogoUrl"] = values.GetValueOrDefault("__logo");
+    }
+
+    public async Task ApplyToPrescriptionAsync(ViewDataDictionary viewData, ClaimsPrincipal user, int branchId, PrintDocInfo doc, int? previewTemplateId)
+    {
+        var companyId = int.TryParse(user.FindFirst("CompanyId")?.Value, out var c) ? c : 1;
+        var layout = await LayoutAsync(user, companyId, branchId, "RX", previewTemplateId);
+        var isRx = layout is not null;
+        layout ??= await ResolveAsync(branchId, "BILL");   // no prescription template: as before 2530
+        if (layout is null) return;
+        var values = await ValuesAsync(branchId, doc);
+        viewData["PrintTemplate"] = layout;
+        viewData["PrintValues"] = values;
+        viewData["PrintLogoUrl"] = values.GetValueOrDefault("__logo");
+        if (isRx) viewData["PrintTemplateIsRx"] = true;
     }
 
     public async Task<(PrintLayout? Layout, Dictionary<string, string?> Values)> ForReportAsync(ClaimsPrincipal? user, int companyId, int branchId, PrintDocInfo doc, int? previewTemplateId)

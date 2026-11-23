@@ -5,14 +5,15 @@
     const string Page = "UTILITY.PRINTTEMPLATES";
     // head office: create, design, publish and assign; other branches: view and preview only
     var canManage = ViewBag.CanManage as bool? ?? false;
-    var kinds = new[] { ("BILL", "Bill", "bi-receipt", "LAB and OPD bills, money receipts"), ("REPORT", "Lab Report", "bi-file-earmark-medical", "Lab report PDF - print, email and WhatsApp") };
+    var kinds = new[] { ("BILL", "Bill", "bi-receipt", "LAB and OPD bills, money receipts"), ("REPORT", "Lab Report", "bi-file-earmark-medical", "Lab report PDF - print, email and WhatsApp"),
+                        ("RX", "Dr. Prescription", "bi-prescription2", "OPD > Print Dr. Prescription - the doctor's prescription pad") };
 }
 
 <div class="container-fluid px-4 py-3">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
         <div>
             <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-layout-text-window me-2"></i>Print Templates</h4>
-            <div class="text-muted small">Design the header and footer of bills and lab reports, then choose which branch prints with which. The rest of the bill and report does not change.</div>
+            <div class="text-muted small">Design the header and footer of bills, lab reports and the doctor's prescription pad, then choose which branch prints with which. The rest of the document does not change.</div>
         </div>
         @if (canManage)
         {
@@ -36,7 +37,7 @@
         @foreach (var (kind, title, icon, what) in kinds)
         {
             var list = Model.Where(t => t.Kind == kind).ToList();
-            <div class="col-xl-6">
+            <div class="col-xl-4 col-lg-6">
                 <div class="card border-0 shadow-sm h-100">
                     <div class="card-header bg-white py-3">
                         <h6 class="fw-bold mb-0"><i class="bi @icon me-2 text-primary"></i>@title templates</h6>
@@ -46,7 +47,7 @@
                         <div class="list-group-item d-flex align-items-center gap-3">
                             <div class="flex-grow-1">
                                 <div class="fw-semibold">Classic <span class="badge bg-secondary-subtle text-secondary border ms-1">built in</span></div>
-                                <div class="small text-muted">Today's header and footer. Used by every branch that has no template.</div>
+                                <div class="small text-muted">@(kind == "RX" ? "As before: the branch's Bill template header, else the hospital name and address. Used by every branch that has no prescription template." : "Today's header and footer. Used by every branch that has no template.")</div>
                             </div>
                         </div>
                         @foreach (var t in list)
@@ -99,7 +100,7 @@
         </div>
         <div class="table-responsive">
             <table class="table align-middle mb-0">
-                <thead class="bg-light"><tr><th class="ps-4">Branch</th><th style="min-width:240px;">Bills</th><th style="min-width:240px;">Lab Reports</th><th class="pe-4" style="width:160px;"></th></tr></thead>
+                <thead class="bg-light"><tr><th class="ps-4">Branch</th><th style="min-width:220px;">Bills</th><th style="min-width:220px;">Lab Reports</th><th style="min-width:220px;">Dr. Prescription</th><th class="pe-4" style="width:160px;"></th></tr></thead>
                 <tbody>
                     @foreach (var a in assignments)
                     {
@@ -107,16 +108,16 @@
                             <td class="ps-4 fw-semibold">@a.BranchName @if (a.IsHOBranch) { <span class="badge bg-primary-subtle text-primary border ms-1">HO</span> }</td>
                             @foreach (var (kind, title, _, _) in kinds)
                             {
-                                var current = kind == "BILL" ? a.BillTemplateId : a.ReportTemplateId;
+                                var current = kind switch { "REPORT" => a.ReportTemplateId, "RX" => a.RxTemplateId, _ => a.BillTemplateId };
                                 <td>
                                     @if (!canManage)
                                     {
                                         var name = Model.FirstOrDefault(t => t.TemplateId == current)?.Name;
-                                        <span class="@(name is null ? "text-muted" : "fw-semibold")">@(name ?? "Classic (built in)")</span>
+                                        <span class="@(name is null ? "text-muted" : "fw-semibold")">@(name ?? (kind == "RX" ? "As before (Bill header)" : "Classic (built in)"))</span>
                                         continue;
                                     }
                                     <select class="form-select form-select-sm pt-assign" data-branch="@a.BranchId" data-kind="@kind" data-current="@(current?.ToString() ?? "")" asp-permission="@(Page + ":ASSIGN")" asp-permission-mode="hide">
-                                        <option value="">Classic (built in)</option>
+                                        <option value="">@(kind == "RX" ? "As before (Bill header)" : "Classic (built in)")</option>
                                         @foreach (var t in Model.Where(t => t.Kind == kind && t.IsPublished))
                                         {
                                             <option value="@t.TemplateId" selected="@(t.TemplateId == current)">@t.Name</option>
@@ -150,6 +151,7 @@
                         <select name="kind" class="form-select">
                             <option value="BILL">Bills (LAB, OPD, receipts)</option>
                             <option value="REPORT">Lab Reports (PDF)</option>
+                            <option value="RX">Dr. Prescription (OPD pad)</option>
                         </select>
                     </div>
                     <div class="col-12">

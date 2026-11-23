@@ -43,6 +43,7 @@ public class PrintTemplateAssignmentRow
     public bool IsHOBranch { get; set; }
     public int? BillTemplateId { get; set; }
     public int? ReportTemplateId { get; set; }
+    public int? RxTemplateId { get; set; }   // Dr. Prescription (SQLScripts/2530)
 }
 
 public class PrintTemplateResolved

@@ -39,6 +39,7 @@ public class PrintLayout
             band.PaddingMm = Math.Clamp(band.PaddingMm, 0, 10);
             band.MarginTopMm = Math.Clamp(band.MarginTopMm, 0, 80);
             band.MarginBottomMm = Math.Clamp(band.MarginBottomMm, 0, 80);
+            band.BorderMm = Math.Clamp(band.BorderMm, 0, 2);
             foreach (var row in band.Rows)
             {
                 row.Cols ??= [];
@@ -55,6 +56,8 @@ public class PrintLayout
                         b.Thickness = Math.Clamp(b.Thickness <= 0 ? 1 : b.Thickness, 0.5m, 4);
                         b.LetterSpacing = Math.Clamp(b.LetterSpacing, 0, 0.3m);
                         b.Font = PrintFonts.Find(b.Font);
+                        b.OffsetXMm = Math.Round(Math.Clamp(b.OffsetXMm, -150, 150), 1);
+                        b.OffsetYMm = Math.Round(Math.Clamp(b.OffsetYMm, -80, 80), 1);
                     }
                 }
             }
@@ -76,6 +79,10 @@ public class PrintBand
     /// <summary>A line under the header / over the footer.</summary>
     public bool Border { get; set; } = true;
     public string BorderColor { get; set; } = "#1a3a6b";
+    /// <summary>Thickness of that line in mm; 0 = the usual (header 0.5 mm, footer 0.3 mm).</summary>
+    public decimal BorderMm { get; set; }
+    /// <summary>The line's thickness as printed (mm).</summary>
+    public decimal LineMm(bool isFooter) => BorderMm > 0 ? BorderMm : isFooter ? 0.3m : 0.5m;
     public string? Background { get; set; }
 }
 
@@ -124,6 +131,10 @@ public class PrintBlock
     public decimal WidthPct { get; set; } = 100;
     public decimal Thickness { get; set; } = 1;
     public string? ImageUrl { get; set; }
+    /// <summary>Moved from its place in the column (dragged / arrow keys in the designer), in mm: + right, + down.
+    /// Drawn without moving the other blocks (CSS position: relative; PDF TranslateX / TranslateY).</summary>
+    public decimal OffsetXMm { get; set; }
+    public decimal OffsetYMm { get; set; }
 }
 
 /// <summary>
@@ -156,35 +167,36 @@ public static class PrintFonts
     public static string Css(string? name) => All.FirstOrDefault(f => f.Name == name)?.Css ?? All[0].Css;
 }
 
-/// <summary>The data points a field block can show: the branch's Hospital Settings and the printed document.</summary>
+/// <summary>The data points a field block can show: the branch's Hospital Settings and the printed document.
+/// Kinds: BILL, REPORT, RX (Dr. Prescription pad - Bill No = the visit's OPD bill no, date = visit date).</summary>
 public static class PrintFields
 {
     public record Field(string Key, string Label, string Group, string Kinds, string ShortLabel, string Sample);
 
     public static readonly IReadOnlyList<Field> All =
     [
-        new("hospitalName", "Hospital Name", "Organisation", "BILL,REPORT", "", "City Care Hospital"),
-        new("hospitalType", "Hospital Type", "Organisation", "BILL,REPORT", "", "Super Speciality Hospital"),
-        new("registrationNo", "Registration / License No", "Organisation", "BILL,REPORT", "Reg. No", "WB/KOL/HOSP/2022/889"),
-        new("gstCode", "GST Code", "Organisation", "BILL,REPORT", "GSTIN", "19ABCDE1234F1Z5"),
-        new("branchName", "Branch Name", "Branch contact", "BILL,REPORT", "Branch", "Head Office"),
-        new("address", "Address", "Branch contact", "BILL,REPORT", "Address", "12 Park Street, Kolkata 700016"),
-        new("contact1", "Contact Number 1", "Branch contact", "BILL,REPORT", "Tel", "033 4000 1234"),
-        new("contact2", "Contact Number 2", "Branch contact", "BILL,REPORT", "Tel", "98300 12345"),
-        new("emergency", "Emergency Helpline", "Branch contact", "BILL,REPORT", "Emergency", "+91 33 2456 9999"),
-        new("email", "Email", "Branch contact", "BILL,REPORT", "Email", "care@citycare.in"),
-        new("website", "Website", "Branch contact", "BILL,REPORT", "Web", "www.citycare.in"),
-        new("nabhStatus", "NABH Status", "Accreditation", "BILL,REPORT", "NABH", "Entry Level Accredited"),
-        new("nabhCertNo", "NABH Certificate No", "Accreditation", "BILL,REPORT", "NABH Cert", "NABH-2024-HOSP-0941"),
-        new("nabhValidity", "NABH Valid From - To", "Accreditation", "BILL,REPORT", "Valid", "01-Apr-2024 to 31-Mar-2027"),
-        new("docNo", "Bill No", "Document", "BILL,REPORT", "Bill No", "LAB/HO2627000296"),
-        new("docDate", "Bill / Report Date", "Document", "BILL,REPORT", "Date", "25-Oct-2026 10:13 AM"),
-        new("tokenNo", "Token No", "Document", "BILL", "Token", "LAB-HO-0001"),
-        new("copyLabel", "Original / Duplicate", "Document", "BILL,REPORT", "", "Original"),
+        new("hospitalName", "Hospital Name", "Organisation", "BILL,REPORT,RX", "", "City Care Hospital"),
+        new("hospitalType", "Hospital Type", "Organisation", "BILL,REPORT,RX", "", "Super Speciality Hospital"),
+        new("registrationNo", "Registration / License No", "Organisation", "BILL,REPORT,RX", "Reg. No", "WB/KOL/HOSP/2022/889"),
+        new("gstCode", "GST Code", "Organisation", "BILL,REPORT,RX", "GSTIN", "19ABCDE1234F1Z5"),
+        new("branchName", "Branch Name", "Branch contact", "BILL,REPORT,RX", "Branch", "Head Office"),
+        new("address", "Address", "Branch contact", "BILL,REPORT,RX", "Address", "12 Park Street, Kolkata 700016"),
+        new("contact1", "Contact Number 1", "Branch contact", "BILL,REPORT,RX", "Tel", "033 4000 1234"),
+        new("contact2", "Contact Number 2", "Branch contact", "BILL,REPORT,RX", "Tel", "98300 12345"),
+        new("emergency", "Emergency Helpline", "Branch contact", "BILL,REPORT,RX", "Emergency", "+91 33 2456 9999"),
+        new("email", "Email", "Branch contact", "BILL,REPORT,RX", "Email", "care@citycare.in"),
+        new("website", "Website", "Branch contact", "BILL,REPORT,RX", "Web", "www.citycare.in"),
+        new("nabhStatus", "NABH Status", "Accreditation", "BILL,REPORT,RX", "NABH", "Entry Level Accredited"),
+        new("nabhCertNo", "NABH Certificate No", "Accreditation", "BILL,REPORT,RX", "NABH Cert", "NABH-2024-HOSP-0941"),
+        new("nabhValidity", "NABH Valid From - To", "Accreditation", "BILL,REPORT,RX", "Valid", "01-Apr-2024 to 31-Mar-2027"),
+        new("docNo", "Bill No", "Document", "BILL,REPORT,RX", "Bill No", "LAB/HO2627000296"),
+        new("docDate", "Bill / Report Date", "Document", "BILL,REPORT,RX", "Date", "25-Oct-2026 10:13 AM"),
+        new("tokenNo", "Token No", "Document", "BILL,RX", "Token", "LAB-HO-0001"),
+        new("copyLabel", "Original / Duplicate", "Document", "BILL,REPORT,RX", "", "Original"),
         new("processingLab", "Test performed at (lab and address)", "Document", "REPORT", "Performed at", "City Care Hospital, 12 Park Street"),
-        new("printedAt", "Printed date and time", "Footer", "BILL,REPORT", "Printed", "25-Oct-2026 11:23 AM"),
-        new("printedBy", "Printed by", "Footer", "BILL,REPORT", "Printed by", "Super Admin"),
-        new("createdBy", "Created by", "Footer", "BILL", "Created by", "Super Admin")
+        new("printedAt", "Printed date and time", "Footer", "BILL,REPORT,RX", "Printed", "25-Oct-2026 11:23 AM"),
+        new("printedBy", "Printed by", "Footer", "BILL,REPORT,RX", "Printed by", "Super Admin"),
+        new("createdBy", "Created by", "Footer", "BILL,RX", "Created by", "Super Admin")
     ];
 
     public static Field? Find(string? key) => All.FirstOrDefault(f => string.Equals(f.Key, key, StringComparison.OrdinalIgnoreCase));
@@ -219,7 +231,7 @@ public static class PrintLayoutStarters
                     new PrintCol { Span = 3, VAlign = "middle", Blocks =
                     [
                         F("emergency", 7.5m, true, "right", true, "#b91c1c"),
-                        new PrintBlock { Type = "barcode", Align = "right", HeightMm = 8, WidthPct = 100, ShowLabel = kind == "BILL" }
+                        new PrintBlock { Type = "barcode", Align = "right", HeightMm = 8, WidthPct = 100, ShowLabel = kind is "BILL" or "RX" }
                     ] }
                 ] },
                 new PrintRow { Cols =
@@ -234,7 +246,18 @@ public static class PrintLayoutStarters
         Footer = new PrintBand
         {
             Border = true, BorderColor = "#999999",
-            Rows = kind == "REPORT"
+            Rows = kind == "RX"
+                ?
+                [
+                    // the doctor signs on the pad itself: the footer only says when it was printed
+                    new PrintRow { Cols =
+                    [
+                        new PrintCol { Span = 5, Blocks = [F("createdBy", 7, label: true, color: "#444444")] },
+                        new PrintCol { Span = 4, Blocks = [F("printedAt", 7, label: true, color: "#444444")] },
+                        new PrintCol { Span = 3, Blocks = [F("contact1", 7, align: "right", label: true, color: "#444444")] }
+                    ] }
+                ]
+                : kind == "REPORT"
                 ?
                 [
                     new PrintRow { Cols = [new PrintCol { Span = 12, Blocks = [F("processingLab", 7.5m, true, label: true, color: "#111111")] }] },

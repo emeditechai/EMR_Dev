@@ -17,8 +17,11 @@ public static class PrintBandPdf
         var c = container.PaddingTop((float)band.MarginTopMm, Unit.Millimetre).PaddingBottom((float)band.MarginBottomMm, Unit.Millimetre);
         if (!string.IsNullOrWhiteSpace(band.Background)) c = c.Background(Hex(band.Background, Colors.White));
         if (band.Border)
-            c = isFooter ? c.BorderTop(0.8f).BorderColor(Hex(band.BorderColor, Colors.Grey.Darken2))
-                         : c.BorderBottom(1.4f).BorderColor(Hex(band.BorderColor, Colors.Blue.Darken4));
+        {
+            var pt = (float)band.LineMm(isFooter) * 2.8346f;   // mm -> pt (the usual: header 1.4 pt, footer 0.85 pt)
+            c = isFooter ? c.BorderTop(pt).BorderColor(Hex(band.BorderColor, Colors.Grey.Darken2))
+                         : c.BorderBottom(pt).BorderColor(Hex(band.BorderColor, Colors.Blue.Darken4));
+        }
         if (band.MinHeightMm > 0) c = c.MinHeight((float)band.MinHeightMm, Unit.Millimetre);
         c = c.PaddingVertical((float)band.PaddingMm, Unit.Millimetre);
 
@@ -36,7 +39,8 @@ public static class PrintBandPdf
                             aligned.PaddingHorizontal(2).Column(blocks =>
                             {
                                 foreach (var b in pc.Blocks.Where(b => !IsEmpty(b, values)))
-                                    blocks.Item().Element(e => Block(e, b, values, loadImage));
+                                    blocks.Item().Element(e => Block(b.OffsetXMm == 0 && b.OffsetYMm == 0 ? e
+                                        : e.TranslateX((float)b.OffsetXMm, Unit.Millimetre).TranslateY((float)b.OffsetYMm, Unit.Millimetre), b, values, loadImage));
                             });
                         });
                 });

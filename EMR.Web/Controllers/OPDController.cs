@@ -2161,6 +2161,9 @@ public class OPDController(
         ViewBag.Doctors = doctors;
         ViewBag.Specialities = await specialityService.GetActiveAsync();
         ViewBag.CanConfigureScheduler = await permissionGuard.ShowsAsync(HttpContext, "MASTER.DOCTORS", "CONFIGURE_SCHEDULER");
+        if (own is not null)
+            ViewBag.SuspendedDoctors = await DoctorRosterController.SuspendedDoctorsAsync(doctorApiClient, User.GetCompanyId(), own.DoctorId,
+                HttpContext.RequestServices.GetRequiredService<ILogger<OPDController>>());
         return View("~/Views/DoctorRoster/Index.cshtml");
     }
 
@@ -2312,8 +2315,9 @@ public class OPDController(
     // ─── Doctor prescription pad (SQLScripts/2527) ────────────────────────────
     /// <summary>
     /// "Print Dr. Prescription": the consulting doctor's prescription pad for a visit, filled in with the visit (patient,
-    /// visit, doctor) - the prescription is written by hand. Header: the branch's Bill print template (Utility > Print
-    /// Templates) like the OPD bill, or blank space when the bill prints on pre-printed letterhead.
+    /// visit, doctor) - the prescription is written by hand. Header and footer: the branch's Dr. Prescription print template
+    /// (Utility > Print Templates, SQLScripts/2530), else as before the Bill template's header; blank space when the bill
+    /// prints on pre-printed letterhead.
     /// Allowed with PRINT_PRESCRIPTION on Service Booking or Patient Registration.
     /// </summary>
     [HttpGet]
@@ -2324,26 +2328,9 @@ public class OPDController(
             return Forbid();
         try
         {
-            var branchId = User.GetCurrentBranchId();
-            var pad = await serviceBookingApiClient.GetPrescriptionPadAsync(id, branchId);
-            if (pad is null) return NotFound();
-
-            var settings = await dbContext.HospitalSettings.FirstOrDefaultAsync(s => s.BranchId == pad.BranchId);
-            var branch = await dbContext.BranchMasters.FindAsync(pad.BranchId);
-            ViewBag.Settings = settings;
-            ViewBag.BranchName = branch?.BranchName ?? string.Empty;
-            ViewBag.ShowHeaderFooter = settings?.LabB2CBillPrintHeaderRequired ?? true;
-            var runtime = HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>();
-            await runtime.ApplyToBillAsync(ViewData, User, pad.BranchId, new PrintDocInfo
-            {
-                DocNo = pad.OPDBillNo,
-                DocDate = pad.VisitDate.ToString("dd-MMM-yyyy"),
-                TokenNo = pad.TokenNo,
-                CopyLabel = "Prescription",
-                PrintedBy = User?.FindFirst("DisplayName")?.Value ?? User?.Identity?.Name,
-                CreatedBy = pad.CreatedByUser
-            }, null);
-            return View(pad);
+            var pad = await PrescriptionPadPrint.PrepareAsync(this, serviceBookingApiClient, dbContext,
+                HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>(), id, User.GetCurrentBranchId(), null);
+            return pad is null ? NotFound() : View(pad);
         }
         catch (HttpRequestException)
         {

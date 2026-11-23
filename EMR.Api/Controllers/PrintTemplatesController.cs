@@ -38,6 +38,11 @@ public class PrintTemplatesController(IPrintTemplateService service) : Controlle
     public async Task<IActionResult> Resolve([FromQuery] int branchId, [FromQuery] string kind) =>
         await service.ResolveAsync(branchId, (kind ?? "").ToUpperInvariant()) is { } t ? Ok(t) : NoContent();
 
+    /// <summary>The OPD visit the designer previews a Dr. Prescription template on (SQLScripts/2530); 204 = none.</summary>
+    [HttpGet("preview-visit")]
+    public async Task<IActionResult> PreviewVisit([FromQuery] int branchId) =>
+        await service.LatestRxVisitAsync(branchId) is { } id ? Ok(new { opdServiceId = id }) : NoContent();
+
     [HttpPost("save")]
     public Task<IActionResult> Save([FromBody] PrintTemplateSaveRequest r) => Run(async () => new { templateId = await service.SaveAsync(r) });
 
