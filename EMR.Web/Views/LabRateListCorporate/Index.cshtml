@@ -75,6 +75,7 @@
             <button type="button" data-list-export="excel" asp-permission="MASTER.LABRATELISTCORPORATE:EXPORT" class="btn btn-outline-secondary btn-sm" title="Download the list as Excel"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
             <button type="button" data-list-export="csv" asp-permission="MASTER.LABRATELISTCORPORATE:EXPORT" class="btn btn-outline-secondary btn-sm" title="Download the list as CSV"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
             <button type="button" data-list-export="pdf" asp-permission="MASTER.LABRATELISTCORPORATE:EXPORT" class="btn btn-outline-secondary btn-sm" title="Download the list as PDF"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+            <button asp-permission="MASTER.LABRATELISTCORPORATE:IMPORT" type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal"><i class="bi bi-file-earmark-excel"></i> Bulk Upload</button>
             <a asp-permission="MASTER.LABRATELISTCORPORATE:ADD" asp-action="Create" class="btn btn-primary btn-sm"><i class="bi bi-plus"></i> Create New</a>
         </div>
     </div>
@@ -255,3 +256,5 @@
     });
 </script>
 }
+
+<partial name="_LabBulkUploadModal" model='new EMR.Web.Models.ViewModels.LabBulkUploadModalModel("corporate-rate", "Corporate Test Rate", "Corporate, Investigation / Profile / Package (Government Scheme: Scheme Name and Scheme Code)")' />

@@ -250,6 +250,8 @@ public class LabRateListCorporateController(
             Effective_From = card.Header.Effective_From,
             Effective_To = card.Header.Effective_To,
             Status = card.Header.Status,
+            Is_Govt_Scheme = card.Header.Is_Govt_Scheme,
+            Scheme_Name = card.Header.Scheme_Name,
             DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text"),
             CategoryList = new SelectList(await GetCategoryListAsync(), "Value", "Text"),
             SubCategoryList = new SelectList(await GetSubCategoryListAsync(), "Value", "Text"),
@@ -318,6 +320,16 @@ public class LabRateListCorporateController(
                 item.Is_Discount_Allowed = false;
             }
 
+            // government scheme (e.g. WBHS): scheme name and a scheme code on every active item are required
+            if (vm.Is_Govt_Scheme)
+            {
+                if (string.IsNullOrWhiteSpace(vm.Scheme_Name))
+                    throw new InvalidOperationException("Enter the scheme name (e.g. WBHS).");
+                var missing = details.Count(d => d.Status && string.IsNullOrWhiteSpace(d.Scheme_Code));
+                if (missing > 0)
+                    throw new InvalidOperationException($"{missing} active item(s) have no scheme code. Enter the scheme code for each item.");
+            }
+
             var req = new LabRateCardSaveRequestModel
             {
                 RateCard_ID = vm.RateCard_ID,
@@ -328,6 +340,8 @@ public class LabRateListCorporateController(
                 Effective_From = vm.Effective_From,
                 Effective_To = vm.Effective_To,
                 Status = vm.Status,
+                Is_Govt_Scheme = vm.Is_Govt_Scheme,
+                Scheme_Name = vm.Is_Govt_Scheme ? vm.Scheme_Name?.Trim() : null,
                 UserId = User.GetUserId(),
                 Details = details
             };
