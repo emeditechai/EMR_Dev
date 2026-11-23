@@ -10999,6 +10999,149 @@
    "type": "datetime"
   },
   {
+   "col": "Otp_ID",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 8,
+   "nullable": false,
+   "ord": 1,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "bigint"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "int"
+  },
+  {
+   "col": "Requested_By",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "int"
+  },
+  {
+   "col": "Branch_ID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "int"
+  },
+  {
+   "col": "Otp_Salt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 16,
+   "nullable": false,
+   "ord": 5,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "varbinary"
+  },
+  {
+   "col": "Otp_Hash",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 32,
+   "nullable": false,
+   "ord": 6,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "varbinary"
+  },
+  {
+   "col": "Expires_At",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 7,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "Used_At",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 8,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "datetime"
+  },
+  {
+   "col": "Sent_To",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 2000,
+   "nullable": true,
+   "ord": 9,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Ip_Address",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 128,
+   "nullable": true,
+   "ord": 10,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "nvarchar"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 11,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "DoctorIpAccessOtp",
+   "type": "datetime"
+  },
+  {
    "col": "CompanyId",
    "def": null,
    "descr": null,
@@ -31162,6 +31305,32 @@
    "type": "bit"
   },
   {
+   "col": "Payer_Code",
+   "def": null,
+   "descr": "The payer's own code for this test / profile / package (e.g. the WBHS code), printed on the payer's bill and claim",
+   "ident": false,
+   "len": 60,
+   "nullable": true,
+   "ord": 13,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRateCardDetail",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Scheme_Code",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 60,
+   "nullable": true,
+   "ord": 14,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRateCardDetail",
+   "type": "nvarchar"
+  },
+  {
    "col": "RateCard_ID",
    "def": null,
    "descr": null,
@@ -31329,6 +31498,32 @@
    "scale": 0,
    "tbl": "LabRateCardMaster",
    "type": "int"
+  },
+  {
+   "col": "Is_Govt_Scheme",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 14,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabRateCardMaster",
+   "type": "bit"
+  },
+  {
+   "col": "Scheme_Name",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 15,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRateCardMaster",
+   "type": "nvarchar"
   },
   {
    "col": "RefRange_ID",
@@ -60621,7 +60816,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-22T14:15:37",
+ "extracted_on": "2026-11-24T00:08:52",
  "fk": [
   {
    "col": "LedgerId",
@@ -64627,6 +64822,36 @@
    "tbl": "AuditLogs"
   },
   {
+   "col": "AreaCode",
+   "k": 1,
+   "tbl": "AuditNotifyArea"
+  },
+  {
+   "col": "BranchId",
+   "k": 1,
+   "tbl": "AuditNotifyDailyRun"
+  },
+  {
+   "col": "EventCode",
+   "k": 2,
+   "tbl": "AuditNotifyDailyRun"
+  },
+  {
+   "col": "RunDate",
+   "k": 3,
+   "tbl": "AuditNotifyDailyRun"
+  },
+  {
+   "col": "ModuleCode",
+   "k": 1,
+   "tbl": "AuditNotifyDiscountAlert"
+  },
+  {
+   "col": "ModuleRefId",
+   "k": 2,
+   "tbl": "AuditNotifyDiscountAlert"
+  },
+  {
    "col": "EventCode",
    "k": 1,
    "tbl": "AuditNotifyEvent"
@@ -64990,6 +65215,11 @@
    "col": "Log_ID",
    "k": 1,
    "tbl": "DoctorIpAccessLog"
+  },
+  {
+   "col": "Otp_ID",
+   "k": 1,
+   "tbl": "DoctorIpAccessOtp"
   },
   {
    "col": "CompanyId",
@@ -67024,6 +67254,9 @@
   "ApprovalRequest",
   "AreaMaster",
   "AuditLogs",
+  "AuditNotifyArea",
+  "AuditNotifyDailyRun",
+  "AuditNotifyDiscountAlert",
   "AuditNotifyEvent",
   "AuditNotifyEventSetting",
   "AuditNotifyLog",
@@ -67085,6 +67318,7 @@
   "DoctorDepartmentMap",
   "DoctorDisbursal",
   "DoctorIpAccessLog",
+  "DoctorIpAccessOtp",
   "DoctorIpAccessSetting",
   "DoctorMaster",
   "DoctorPayoutProfile",
