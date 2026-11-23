@@ -101,6 +101,7 @@ RETURN
     WHERE ISNULL(loi.is_IPGenerated, 0) = 0
       AND loi.IsActive = 1
       AND lo.IsActive = 1
+      AND ISNULL(lo.IsB2B, 0) = 0   -- B2B (partner / franchise) bills earn no Doctor IP commission
       AND lo.BranchId = @BranchId
       AND (@DoctorId IS NULL OR lo.RefDoctorId = @DoctorId)
       AND (@CompanyId IS NULL OR h.CompanyId = @CompanyId)

@@ -197,7 +197,7 @@ BEGIN
     JOIN dbo.LabOrderItem loi ON loi.LabOrderId = lo.LabOrderId AND loi.IsActive = 1
     LEFT JOIN dbo.Doctor_IP_Commission_Dtl cd ON cd.LabOrderItemId = loi.LabOrderItemId
     LEFT JOIN dbo.fn_DoctorIpCommission_Eligible(@BranchId, @DoctorId, @FromDate, @ToDate, NULL) e ON e.LabOrderItemId = loi.LabOrderItemId
-    WHERE lo.BranchId = @BranchId AND lo.IsActive = 1 AND lo.RefDoctorId IS NOT NULL
+    WHERE lo.BranchId = @BranchId AND lo.IsActive = 1 AND ISNULL(lo.IsB2B, 0) = 0 AND lo.RefDoctorId IS NOT NULL
       AND lo.OrderDate >= @From AND lo.OrderDate < @To
       AND (@DoctorId IS NULL OR lo.RefDoctorId = @DoctorId)
     GROUP BY lo.LabOrderId;
@@ -326,7 +326,7 @@ BEGIN
                      WHEN NOT EXISTS (SELECT 1 FROM dbo.Doctor_IP_Hdr h WHERE h.Doctor_ID = lo.RefDoctorId AND h.Branch_ID = lo.BranchId AND h.IsDeleted = 0 AND h.IsActive = 1
                                         AND CAST(lo.OrderDate AS DATE) BETWEEN h.Effective_From AND h.Effective_To) THEN 'NO_PERIOD'
                      ELSE 'NOT_LISTED' END AS ReasonCode) r
-    WHERE lo.BranchId = @BranchId AND lo.IsActive = 1 AND loi.IsActive = 1 AND lo.RefDoctorId IS NOT NULL
+    WHERE lo.BranchId = @BranchId AND lo.IsActive = 1 AND ISNULL(lo.IsB2B, 0) = 0 AND loi.IsActive = 1 AND lo.RefDoctorId IS NOT NULL
       AND lo.OrderDate >= @From AND lo.OrderDate < @To
       AND (@DoctorId IS NULL OR lo.RefDoctorId = @DoctorId)
       AND NOT EXISTS (SELECT 1 FROM dbo.Doctor_IP_Commission_Dtl cd WHERE cd.LabOrderItemId = loi.LabOrderItemId)
