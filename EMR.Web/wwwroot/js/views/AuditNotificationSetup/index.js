@@ -1,6 +1,6 @@
-// Settings > Audit Notification Setup (SQLScripts/2397, 2528): notification areas, each with its events. Per branch and
+// Settings > Audit Notification Setup (SQLScripts/2397, 2528, 2529, 2531): notification areas, each with its events. Per branch and
 // event: on / off, the users who get it, and - where the event supports them - WhatsApp / e-mail, "also the doctor" and
-// the daily send time. The areas and their events come from the server, so a new area needs no change here.
+// the daily send time, the discount % or the due amount (Due Alert). The areas and their events come from the server, so a new area needs no change here.
 (function () {
     const root = document.getElementById('anRoot');
     if (!root) return;
@@ -51,6 +51,10 @@
             parts.push(`<div class="an-opt"><span class="an-opt-l">Alert when discount is above</span>
                 <div class="input-group input-group-sm an-pct-group"><input type="number" min="0.01" max="99.99" step="0.01" class="form-control an-pct text-end" value="${esc(e.thresholdPct ?? 10)}"><span class="input-group-text">%</span></div>
                 <span class="small text-muted">of the bill amount - discount given by % or by ₹; membership discount not counted. OPD and LAB B2C bills.</span></div>`);
+        if (e.hasAmountThreshold)
+            parts.push(`<div class="an-opt"><span class="an-opt-l">List bills with due of</span>
+                <div class="input-group input-group-sm an-amt-group"><span class="input-group-text">₹</span><input type="number" min="1" step="1" class="form-control an-amt text-end" value="${esc(e.thresholdAmount ?? 1000)}"></div>
+                <span class="small text-muted">or more - due (net - paid) as on the date, with bill no and patient. ${e.module === 'LAB' ? 'LAB B2C bills only.' : 'OPD bills.'}</span></div>`);
         if (e.supportsDoctor)
             parts.push(`<div class="an-opt"><div class="form-check form-switch m-0">
                 <input class="form-check-input an-doctor" type="checkbox" role="switch" id="doc_${esc(e.eventCode)}" ${e.notifyDoctor ? 'checked' : ''}>
@@ -58,8 +62,8 @@
         if (e.isDaily)
             parts.push(`<div class="an-opt"><span class="an-opt-l">Send daily at</span>
                 <input type="time" class="form-control form-control-sm an-time" value="${esc(e.sendTime || '07:00')}">
-                <span class="small text-muted">${e.lastRunAt ? 'Last sent ' + fmt(e.lastRunAt) : 'Not sent yet'}</span>
-                <button type="button" class="btn btn-outline-primary btn-sm an-now" title="Send today's roster to the doctors and users now"><i class="bi bi-send me-1"></i>Send today's now</button></div>`);
+                <span class="small text-muted">${e.lastRunAt ? 'Last run ' + fmt(e.lastRunAt) : 'Not run yet today'} · sent automatically at this time</span>
+                <button type="button" class="btn btn-outline-primary btn-sm an-now" title="${e.hasAmountThreshold ? "Send today's due list to the chosen users now" : "Send today's roster to the doctors and users now"}"><i class="bi bi-send me-1"></i>Send today's now</button></div>`);
         return `<div class="an-opts">${parts.join('')}</div>`;
     }
 
@@ -113,7 +117,7 @@
             <td class="ps-3 text-nowrap">${fmt(l.createdDate)}</td><td>${esc(l.eventTitle || l.eventCode)}</td>
             <td class="font-monospace small">${esc(l.refNo || '')}</td>
             <td>${esc(l.recipientName || '')}<div class="text-muted" style="font-size:.72rem">${esc(l.phone || '')}</div></td>
-            <td><i class="bi ${l.channel === 'EMAIL' ? 'bi-envelope text-primary' : 'bi-whatsapp text-success'}" title="${l.channel === 'EMAIL' ? 'E-mail' : 'WhatsApp'}"></i></td>
+            <td><i class="bi ${l.channel === 'EMAIL' ? 'bi-envelope text-primary' : l.channel === 'SYSTEM' ? 'bi-clock text-secondary' : 'bi-whatsapp text-success'}" title="${l.channel === 'EMAIL' ? 'E-mail' : l.channel === 'SYSTEM' ? 'Scheduled run - nothing sent' : 'WhatsApp'}"></i></td>
             <td><span class="badge an-status ${l.status === 'Sent' ? 'bg-success' : l.status === 'Skipped' ? 'bg-secondary' : 'bg-danger'}">${esc(l.status)}</span></td>
             <td class="text-muted">${esc(l.detail || '')}</td></tr>`).join('') : '<tr><td colspan="7" class="ps-3 text-muted">Nothing sent yet.</td></tr>');
     }
@@ -168,7 +172,7 @@
         dirty(this);
     });
     $('#anEvents').on('change', '.an-wa, .an-mail', function () { $(this).closest('.an-chip').toggleClass('on', this.checked); dirty(this); });
-    $('#anEvents').on('change input', '.an-users, .an-doctor, .an-time, .an-pct', function () { dirty(this); });
+    $('#anEvents').on('change input', '.an-users, .an-doctor, .an-time, .an-pct, .an-amt', function () { dirty(this); });
 
     $('#anEvents').on('click', '.an-save', async function () {
         const $c = $(this).closest('.an-event'), code = $c.data('code'), e = data.events.find(x => x.eventCode === code) || {};
@@ -181,6 +185,11 @@
             if (!(pct > 0 && pct < 100)) { note($c, 'Enter the discount percentage (more than 0, less than 100).', 'text-danger'); $c.find('.an-pct').focus(); return; }
             body.thresholdPct = pct;
         }
+        if (e.hasAmountThreshold) {
+            const amt = Number($c.find('.an-amt').val());
+            if (!(amt > 0)) { note($c, 'Enter the due amount from which a bill is listed (more than 0).', 'text-danger'); $c.find('.an-amt').focus(); return; }
+            body.thresholdAmount = amt;
+        }
         const r = await post(U.saveUrl, body, $c, $(this));
         if (r.success) { await load(); note($(`.an-event[data-code="${code}"]`), r.message, 'text-success'); }
     });
@@ -190,9 +199,12 @@
         await refreshLog();
     });
     $('#anEvents').on('click', '.an-now', async function () {
-        const $c = $(this).closest('.an-event'), $b = $(this), code = $c.data('code');
+        const $c = $(this).closest('.an-event'), $b = $(this), code = $c.data('code'), e = data.events.find(x => x.eventCode === code) || {};
         const ask = async (title, text) => !window.Swal || (await Swal.fire({ icon: 'question', title, text, showCancelButton: true, confirmButtonText: 'Send' })).isConfirmed;
-        if (!await ask("Send today's roster now?", 'Every doctor with a session today (and the chosen users) gets it now. The scheduled send then skips today.')) return;
+        const confirmed = e.hasAmountThreshold
+            ? await ask("Send today's due list now?", 'The chosen users get the bills with a due of ₹' + (e.thresholdAmount ?? '') + ' or more (saved amount), as on now. The scheduled send then skips today.')
+            : await ask("Send today's roster now?", 'Every doctor with a session today (and the chosen users) gets it now. The scheduled send then skips today.');
+        if (!confirmed) return;
         let r = await post(U.nowUrl, { eventCode: code }, $c, $b);
         if (r.needsForce) {
             if (!await ask('Already sent today', r.message)) { note($c, 'Not sent.', 'text-muted'); return; }

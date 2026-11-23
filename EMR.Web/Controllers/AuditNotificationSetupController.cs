@@ -12,11 +12,12 @@ namespace EMR.Web.Controllers;
 /// Settings > Audit Notification Setup (SQLScripts/2397, 2528): notification AREAS (dbo.AuditNotifyArea), each with its events -
 /// Audit alerts (LAB / OPD bill cancelled, refund, LAB report un-authorised) and OPD Doctor Roster Notification (daily roster,
 /// room changes). Per branch and event: on / off, the users who get it, and its options (WhatsApp / e-mail, also the doctor,
-/// the daily send time). Kept in dbo.AuditNotifyEventSetting / dbo.AuditNotifyRecipient.
+/// the daily send time, the discount % / due amount). Due Alert (SQLScripts/2531): OPD / LAB B2C dues as on date. Company and
+/// branch wise. Kept in dbo.AuditNotifyEventSetting / dbo.AuditNotifyRecipient.
 /// </summary>
 [Authorize]
 public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNotificationService notify, IDoctorRosterNotificationService roster,
-    IAuditLogService audit) : Controller
+    IDueAlertNotificationService dueAlert, IAuditLogService audit) : Controller
 {
     // per branch: the signed-in user's current branch
     private int BranchId => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
@@ -45,7 +46,8 @@ public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNot
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Save(string eventCode, bool isEnabled, string? userIds,
-        bool? sendWhatsApp = null, bool? sendEmail = null, bool? notifyDoctor = null, string? sendTime = null, decimal? thresholdPct = null)
+        bool? sendWhatsApp = null, bool? sendEmail = null, bool? notifyDoctor = null, string? sendTime = null, decimal? thresholdPct = null,
+        decimal? thresholdAmount = null)
     {
         if (string.IsNullOrWhiteSpace(eventCode) || eventCode.Length > 40) return Json(new { success = false, message = "Unknown event." });
         if (!string.IsNullOrWhiteSpace(sendTime) && !TimeSpan.TryParseExact(sendTime, @"hh\:mm", null, out _))
@@ -57,7 +59,8 @@ public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNot
             using var con = db.CreateConnection();
             await con.ExecuteAsync("dbo.usp_AuditNotify_SaveEvent",
                 new { CompanyId = User.GetCompanyId(), BranchId, EventCode = eventCode, IsEnabled = isEnabled, UserIds = userIds, UserId = User.GetUserId(),
-                      SendWhatsApp = sendWhatsApp, SendEmail = sendEmail, NotifyDoctor = notifyDoctor, SendTime = sendTime, ThresholdPct = thresholdPct },
+                      SendWhatsApp = sendWhatsApp, SendEmail = sendEmail, NotifyDoctor = notifyDoctor, SendTime = sendTime, ThresholdPct = thresholdPct,
+                      ThresholdAmount = thresholdAmount },
                 commandType: CommandType.StoredProcedure);
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50000)
@@ -68,7 +71,7 @@ public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNot
             $"Notification {eventCode} (branch {BranchId}) {(isEnabled ? "on" : "off")}, users: {(string.IsNullOrEmpty(userIds) ? "none" : userIds)}" +
             (sendWhatsApp is null ? "" : $", WhatsApp {(sendWhatsApp == true ? "on" : "off")}") + (sendEmail is null ? "" : $", e-mail {(sendEmail == true ? "on" : "off")}") +
             (notifyDoctor is null ? "" : $", doctor {(notifyDoctor == true ? "yes" : "no")}") + (string.IsNullOrWhiteSpace(sendTime) ? "" : $", at {sendTime}") +
-            (thresholdPct is null ? "" : $", above {thresholdPct:0.##}%"), User.GetUserId(), User.GetCurrentBranchId());
+            (thresholdPct is null ? "" : $", above {thresholdPct:0.##}%") + (thresholdAmount is null ? "" : $", due from Rs {thresholdAmount:0.##}"), User.GetUserId(), User.GetCurrentBranchId());
         return Json(new { success = true, message = isEnabled ? "Saved - the alert is on." : "Saved - the alert is off." });
     }
 
@@ -80,28 +83,37 @@ public class AuditNotificationSetupController(IDbConnectionFactory db, IAuditNot
         var actor = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name;
         var (sent, _, message) = RosterNotifyEvents.Is(eventCode)
             ? await roster.SendTestAsync(BranchId, eventCode, actor, User.GetUserId())
+            : DueNotifyEvents.Is(eventCode)
+            ? await dueAlert.SendTestAsync(BranchId, eventCode, User.GetUserId())
             : await notify.SendTestAsync(User.GetCompanyId(), BranchId, eventCode, actor, User.GetUserId());
         return Json(new { success = sent > 0, message });
     }
 
     /// <summary>
-    /// "Send today's roster now" (SQLScripts/2528): today's roster of this branch to its doctors and chosen users, now. Once
-    /// a day - the scheduler then skips today; a second send needs force (the page asks first).
+    /// "Send today's now" (SQLScripts/2528, 2531): the daily roster, or the OPD / LAB due list, of this branch now. Once a
+    /// day - the scheduler then skips today; a second send needs force (the page asks first).
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> SendNow(string eventCode, bool force = false)
     {
-        if (eventCode != RosterNotifyEvents.DailyRoster) return Json(new { success = false, message = "Only the daily roster can be sent now." });
+        var isDue = DueNotifyEvents.Is(eventCode);
+        if (eventCode != RosterNotifyEvents.DailyRoster && !isDue)
+            return Json(new { success = false, message = "Only the daily roster and the due alerts can be sent now." });
         using (var con = db.CreateConnection())
         {
             var claimed = await con.ExecuteScalarAsync<bool>("dbo.usp_AuditNotify_ClaimDaily",
                 new { BranchId, EventCode = eventCode, UserId = User.GetUserId() }, commandType: CommandType.StoredProcedure);
             if (!claimed && !force)
-                return Json(new { success = false, needsForce = true, message = "Today's roster has already been sent for this branch. Send it again?" });
+                return Json(new { success = false, needsForce = true,
+                    message = isDue ? "Today's due list has already been sent for this branch. Send it again?"
+                                    : "Today's roster has already been sent for this branch. Send it again?" });
         }
-        var (sent, _, message) = await roster.SendDailyRosterAsync(BranchId, DateTime.Today, User.GetUserId());
-        await audit.LogAsync("Send", "AuditNotificationSetup", $"Daily doctor roster sent now (branch {BranchId}){(force ? " - again" : "")}: {message}",
+        var (sent, _, message) = isDue
+            ? await dueAlert.SendDueListAsync(BranchId, eventCode, User.GetUserId())
+            : await roster.SendDailyRosterAsync(BranchId, DateTime.Today, User.GetUserId());
+        await audit.LogAsync("Send", "AuditNotificationSetup",
+            $"{(isDue ? eventCode + " due list" : "Daily doctor roster")} sent now (branch {BranchId}){(force ? " - again" : "")}: {message}",
             User.GetUserId(), User.GetCurrentBranchId());
         return Json(new { success = sent > 0, message });
     }
