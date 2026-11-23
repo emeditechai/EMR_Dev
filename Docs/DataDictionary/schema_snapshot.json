@@ -31305,6 +31305,32 @@
    "type": "bit"
   },
   {
+   "col": "Payer_Code",
+   "def": null,
+   "descr": "The payer's own code for this test / profile / package (e.g. the WBHS code), printed on the payer's bill and claim",
+   "ident": false,
+   "len": 60,
+   "nullable": true,
+   "ord": 13,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRateCardDetail",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Scheme_Code",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 60,
+   "nullable": true,
+   "ord": 14,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRateCardDetail",
+   "type": "nvarchar"
+  },
+  {
    "col": "RateCard_ID",
    "def": null,
    "descr": null,
@@ -31472,6 +31498,32 @@
    "scale": 0,
    "tbl": "LabRateCardMaster",
    "type": "int"
+  },
+  {
+   "col": "Is_Govt_Scheme",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 14,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabRateCardMaster",
+   "type": "bit"
+  },
+  {
+   "col": "Scheme_Name",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 15,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabRateCardMaster",
+   "type": "nvarchar"
   },
   {
    "col": "RefRange_ID",
@@ -60764,7 +60816,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-22T17:36:59",
+ "extracted_on": "2026-11-24T00:09:35",
  "fk": [
   {
    "col": "LedgerId",
@@ -64790,6 +64842,16 @@
    "tbl": "AuditNotifyDailyRun"
   },
   {
+   "col": "ModuleCode",
+   "k": 1,
+   "tbl": "AuditNotifyDiscountAlert"
+  },
+  {
+   "col": "ModuleRefId",
+   "k": 2,
+   "tbl": "AuditNotifyDiscountAlert"
+  },
+  {
    "col": "EventCode",
    "k": 1,
    "tbl": "AuditNotifyEvent"
@@ -67194,6 +67256,7 @@
   "AuditLogs",
   "AuditNotifyArea",
   "AuditNotifyDailyRun",
+  "AuditNotifyDiscountAlert",
   "AuditNotifyEvent",
   "AuditNotifyEventSetting",
   "AuditNotifyLog",

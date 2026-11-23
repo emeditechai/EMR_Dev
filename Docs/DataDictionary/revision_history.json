@@ -396,5 +396,15 @@
   ],
   "date": "22 Nov 2026",
   "version": "1.31"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "LabRateCardDetail: new column(s) Payer_Code, Scheme_Code",
+   "LabRateCardMaster: new column(s) Is_Govt_Scheme, Scheme_Name",
+   "MS_Description changed on LabRateCardDetail"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.32"
  }
 ]
