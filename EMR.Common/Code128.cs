@@ -44,7 +44,12 @@ public static class Code128
 
     /// <summary>The value as a Code 128 barcode (SVG that stretches to its box), or null when it is empty or has a character
     /// outside printable ASCII.</summary>
-    public static string? Svg(string value)
+    public static string? Svg(string value) => Svg(value, 0, 0);
+
+    /// <summary>The barcode drawn for a box of widthMm x heightMm: its viewBox has that box's proportions, so a renderer that
+    /// keeps the aspect ratio (QuestPDF / Skia ignore preserveAspectRatio="none") still fills the box exactly - bars at full
+    /// width and height. 0 x 0: the usual stretching SVG.</summary>
+    public static string? Svg(string value, double widthMm, double heightMm)
     {
         value = (value ?? string.Empty).Trim();
         if (value.Length == 0 || value.Any(ch => ch < 32 || ch > 126)) return null;
@@ -58,14 +63,17 @@ public static class Code128
         const int quiet = 10;
         var widths = string.Concat(codes.Select(c => Patterns[c]));
         int total = widths.Sum(ch => ch - '0') + quiet * 2;
+        var hu = widthMm > 0 && heightMm > 0
+            ? Math.Round(total * heightMm / widthMm, 3).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : "40";
         var svg = new StringBuilder();
-        svg.Append($"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {total} 40\" preserveAspectRatio=\"none\" shape-rendering=\"crispEdges\">");
-        svg.Append($"<rect x=\"0\" y=\"0\" width=\"{total}\" height=\"40\" fill=\"#fff\"/>");
+        svg.Append($"<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {total} {hu}\" preserveAspectRatio=\"none\" shape-rendering=\"crispEdges\">");
+        svg.Append($"<rect x=\"0\" y=\"0\" width=\"{total}\" height=\"{hu}\" fill=\"#fff\"/>");
         int x = quiet;
         for (int i = 0; i < widths.Length; i++)
         {
             int w = widths[i] - '0';
-            if (i % 2 == 0) svg.Append($"<rect x=\"{x}\" y=\"0\" width=\"{w}\" height=\"40\" fill=\"#000\"/>");
+            if (i % 2 == 0) svg.Append($"<rect x=\"{x}\" y=\"0\" width=\"{w}\" height=\"{hu}\" fill=\"#000\"/>");
             x += w;
         }
         svg.Append("</svg>");

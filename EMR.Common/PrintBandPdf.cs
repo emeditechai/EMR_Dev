@@ -11,7 +11,10 @@ namespace EMR.Common;
 /// </summary>
 public static class PrintBandPdf
 {
-    public static void Compose(IContainer container, PrintBand band, Dictionary<string, string?> values, Func<string?, byte[]?> loadImage, bool isFooter)
+    /// <param name="contentWidthMm">Width of the page's content area (A4 with 10 mm side margins = 190 mm) - a column's share of
+    /// it sizes the barcode as set in the designer ("Width %" of its column).</param>
+    public static void Compose(IContainer container, PrintBand band, Dictionary<string, string?> values, Func<string?, byte[]?> loadImage, bool isFooter,
+        double contentWidthMm = 190)
     {
         // space above / below the band (outside its line and background)
         var c = container.PaddingTop((float)band.MarginTopMm, Unit.Millimetre).PaddingBottom((float)band.MarginBottomMm, Unit.Millimetre);
@@ -30,17 +33,20 @@ public static class PrintBandPdf
             foreach (var row in band.Rows)
             {
                 if (row.Cols.All(x => x.Blocks.Count == 0 || x.Blocks.All(b => IsEmpty(b, values)))) continue;
+                var spans = Math.Max(1d, (double)row.Cols.Sum(x => x.Span));
                 col.Item().PaddingBottom(1).Row(r =>
                 {
                     foreach (var pc in row.Cols)
                         r.RelativeItem((float)pc.Span).Element(cell =>
                         {
+                            // the column's inner width (its share of the page, less the 2 pt padding on each side)
+                            var colMm = Math.Max(5d, contentWidthMm * (double)pc.Span / spans - 4 / 2.8346);
                             var aligned = pc.VAlign switch { "middle" => cell.AlignMiddle(), "bottom" => cell.AlignBottom(), _ => cell.AlignTop() };
                             aligned.PaddingHorizontal(2).Column(blocks =>
                             {
                                 foreach (var b in pc.Blocks.Where(b => !IsEmpty(b, values)))
                                     blocks.Item().Element(e => Block(b.OffsetXMm == 0 && b.OffsetYMm == 0 ? e
-                                        : e.TranslateX((float)b.OffsetXMm, Unit.Millimetre).TranslateY((float)b.OffsetYMm, Unit.Millimetre), b, values, loadImage));
+                                        : e.TranslateX((float)b.OffsetXMm, Unit.Millimetre).TranslateY((float)b.OffsetYMm, Unit.Millimetre), b, values, loadImage, colMm));
                             });
                         });
                 });
@@ -58,7 +64,7 @@ public static class PrintBandPdf
 
     private static IContainer Aligned(IContainer c, string align) => align switch { "center" => c.AlignCenter(), "right" => c.AlignRight(), _ => c.AlignLeft() };
 
-    private static void Block(IContainer c, PrintBlock b, Dictionary<string, string?> values, Func<string?, byte[]?> loadImage)
+    private static void Block(IContainer c, PrintBlock b, Dictionary<string, string?> values, Func<string?, byte[]?> loadImage, double colMm)
     {
         switch (b.Type)
         {
@@ -106,22 +112,26 @@ public static class PrintBandPdf
             }
             case "barcode":
             {
-                var svg = Code128.Svg(values.GetValueOrDefault("docNo") ?? "");   // Code 128: the bill no as it is, '/' included
+                // Code 128 of the bill no as it is ('/' included). Sized as in the designer: Width % of its column, Height mm -
+                // but never narrower than a scanner reads reliably (>= 0.33 mm per bar, quiet zones included); a wider
+                // barcode keeps its alignment and extends into the free header space beside it (right-aligned: to the left)
+                var docNo = (values.GetValueOrDefault("docNo") ?? "").Trim();
+                var h = (double)(b.HeightMm > 0 ? b.HeightMm : 8);
+                var pct = (double)(b.WidthPct > 0 ? Math.Min(b.WidthPct, 100) : 100);
+                var wMm = Math.Max(colMm * pct / 100, Code128.MinWidthMm(docNo));
+                // the SVG has exactly this box's proportions: QuestPDF keeps an SVG's aspect ratio, so a 40-unit-high
+                // viewBox used to shrink the bars to fit the height (too thin to scan)
+                var svg = Code128.Svg(docNo, wMm, h);
                 if (svg is null) break;
-                var h = (float)(b.HeightMm > 0 ? b.HeightMm : 8);
-                // drawn at a scannable size (>= 0.33 mm per bar, quiet zones included) whatever the column width: it keeps
-                // its alignment and extends into the free header space beside it (right-aligned: to the left)
-                var docNo = values.GetValueOrDefault("docNo") ?? "";
-                var wMm = (float)Code128.MinWidthMm(docNo);
-                var totalH = h + (b.ShowLabel ? 3.2f : 0);
+                var totalH = (float)h + (b.ShowLabel ? 3.2f : 0);
                 var holder = c.Height(totalH, Unit.Millimetre);
                 holder = b.Align == "right" ? holder.AlignRight() : b.Align == "center" ? holder.AlignCenter() : holder.AlignLeft();
-                var shift = b.Align == "right" ? -wMm : b.Align == "center" ? -wMm / 2 : 0f;
-                holder.Unconstrained().TranslateX(shift, Unit.Millimetre).Width(wMm, Unit.Millimetre).Column(col =>
+                var shift = b.Align == "right" ? -wMm : b.Align == "center" ? -wMm / 2 : 0d;
+                holder.Unconstrained().TranslateX((float)shift, Unit.Millimetre).Width((float)wMm, Unit.Millimetre).Column(col =>
                 {
-                    col.Item().Height(h, Unit.Millimetre).Svg(svg).FitArea();
+                    col.Item().Width((float)wMm, Unit.Millimetre).Height((float)h, Unit.Millimetre).Svg(svg);
                     if (b.ShowLabel)
-                        col.Item().AlignCenter().Text(docNo).FontSize(6.5f);
+                        col.Item().AlignCenter().Text(docNo).FontSize(6.5f).LetterSpacing(0.03f);
                 });
                 break;
             }
