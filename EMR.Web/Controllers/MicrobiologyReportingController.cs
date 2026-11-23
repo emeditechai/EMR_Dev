@@ -123,7 +123,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> Index(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -150,7 +150,7 @@ namespace EMR.Web.Controllers
                 BranchId = branchId,
                 FromDate = effectiveFrom,
                 ToDate = effectiveTo,
-                DateFilterType = dateFilterType ?? "BookingDate",
+                DateFilterType = dateFilterType ?? "CollectionDate",
                 StatusFilter = statusFilter ?? "All",
                 Search = search,
                 DepartmentId = departmentId,
@@ -174,7 +174,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetHeadersJson(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -336,6 +336,10 @@ namespace EMR.Web.Controllers
                 DescriptiveDefaults = await LoadDescriptiveDefaultsAsync(detail)
             };
 
+            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
+            var labSerial = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Micro, CurrentBranchId());
+            ViewBag.LabSerialRequired = labSerial.Required;
+            ViewBag.LabSerialNo = labSerial.LabSerialNo;
             return View("~/Views/LabReporting/Entry.cshtml", viewModel);
         }
 
@@ -374,6 +378,12 @@ namespace EMR.Web.Controllers
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
 
+            // SQLScripts/2514: the Lab Serial No is required (server side) while the branch setting is Yes, and kept per lab order
+            var serialError = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>()
+                .SaveAsync(request.LabOrderId, LabSerialNoApiClient.Micro, CurrentBranchId(), request.LabSerialNo);
+            if (serialError != null)
+                return Json(new { success = false, code = "LAB_SERIAL_NO", message = serialError });
+
             if (request.ReportStatusId == 3
                 && !await permissionGuard.AllowsAsync(HttpContext, PageCode, EMR.Shared.Security.PermissionControls.Validate))
                 return Json(new { success = false, code = "FORBIDDEN", message = "You do not have permission to validate reports." });
@@ -383,6 +393,15 @@ namespace EMR.Web.Controllers
 
             if (request.ReportStatusId == 5 && await PathologistApprovalRequiredAsync())
                 return Json(new { success = false, message = "Pathologist approval is required for this branch. Approve the report from the Pathologist Dashboard." });
+
+            // LF-05 (SQLScripts/2254): a parameter with a rejected internal QC run (no corrective action yet) cannot be validated / approved
+            if (request.ReportStatusId is 3 or 5)
+            {
+                var iqcBlock = await EMR.Web.Controllers.Quality.IqcGate.BlockAsync(HttpContext, request.LabOrderId,
+                    (request.Entries ?? new()).Where(e => !string.IsNullOrWhiteSpace(e.TestValue)).Select(e => e.SamplecollectionID));
+                if (iqcBlock != null)
+                    return Json(new { success = false, code = "IQC_REJECTED", message = iqcBlock });
+            }
 
             // NABL: a Critical / Panic result needs its communication recorded before it is approved (SQLScripts/2202)
             if (request.ReportStatusId == 5)

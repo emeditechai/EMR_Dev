@@ -23,7 +23,7 @@ public interface ILabReportWhatsAppService
     void QueueIfFinal(int labOrderId, ClaimsPrincipal user, string trigger);
 
     /// <summary>Checks the bill and sends the WhatsApp message now. Returns the outcome for logging / tests.</summary>
-    Task<LabReportWhatsAppOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger);
+    Task<LabReportWhatsAppOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger, bool resend = false);
 }
 
 public record LabReportWhatsAppOutcome(string Status, string Message);
@@ -79,7 +79,7 @@ public class LabReportWhatsAppService(
         });
     }
 
-    public async Task<LabReportWhatsAppOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger)
+    public async Task<LabReportWhatsAppOutcome> SendIfFinalAsync(int labOrderId, ClaimsPrincipal user, string trigger, bool resend = false)
     {
         WhatsAppState? state;
         using (var con = db.CreateConnection())
@@ -103,7 +103,7 @@ public class LabReportWhatsAppService(
             return new("NotFinal", $"{state.ApprovedTests} of {state.TotalTests} test(s) approved.");
 
         var phone = state.PatientPhone?.Trim();
-        var claim = await ClaimAsync(state, phone, trigger, user);
+        var claim = await ClaimAsync(state, phone, trigger, user, resend);
         if (claim == null || !claim.Proceed) return new("AlreadyHandled", "This final report was already WhatsApp'd (or is being sent).");
         var logId = claim.LabReportWhatsAppLogId!.Value;
 
@@ -122,7 +122,7 @@ public class LabReportWhatsAppService(
                     phone, claim.IsRevised, user, trigger);
 
             // One PDF per report of the bill: the Lab Report and/or the Microbiology Report (Reporting Type Template).
-            var reports = new List<(string Type, EMR.Web.Models.ViewModels.LabReportPrintViewModel Vm, byte[] Pdf)>();
+            var reports = new List<(string Type, EMR.Common.LabReportPrintViewModel Vm, byte[] Pdf)>();
             foreach (var type in new[] { LabReportTypes.Numeric, LabReportTypes.Template })
             {
                 var rvm = await reportPdfService.BuildAsync(labOrderId, user, LabReportPrintBuilder.ScopeApproved, type);
@@ -188,7 +188,7 @@ public class LabReportWhatsAppService(
         }
     }
 
-    private async Task<Claim?> ClaimAsync(WhatsAppState state, string? phone, string trigger, ClaimsPrincipal user)
+    private async Task<Claim?> ClaimAsync(WhatsAppState state, string? phone, string trigger, ClaimsPrincipal user, bool resend = false)
     {
         using var con = db.CreateConnection();
         return await con.QueryFirstOrDefaultAsync<Claim>(
@@ -201,7 +201,8 @@ public class LabReportWhatsAppService(
                 state.FinalApprovedOn,
                 RecipientPhone = phone,
                 TriggeredBy = trigger,
-                UserId = user.GetUserId() is > 0 and var id ? (int?)id : null
+                UserId = user.GetUserId() is > 0 and var id ? (int?)id : null,
+                Resend = resend   // 2392: Report Dispatch > Send Report
             },
             commandType: CommandType.StoredProcedure);
     }

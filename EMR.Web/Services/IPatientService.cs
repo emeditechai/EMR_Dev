@@ -45,6 +45,8 @@ public interface IPatientService
 
     /// <summary>Creates ONLY patient demographics and returns the new PatientId.</summary>
     Task<int> CreateDemographicsOnlyAsync(PatientMaster patient, int? userId);
+    /// <summary>One "Self" per phone number in a company (every module); null = allowed, else the message for the user.</summary>
+    Task<string?> SelfPhoneConflictAsync(int patientId, string? phone, int? relationId, int? companyId = null, int? branchId = null);
 
     /// <summary>Soft-deletes a patient.</summary>
     Task DeleteAsync(int patientId, int? userId);

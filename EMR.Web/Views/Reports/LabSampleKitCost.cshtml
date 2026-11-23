@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Sample Kit Cost Register";
+    ViewData["ReportSubtitle"] = "Collection kit of every sample type (tube, needle, swab, label) and what one collected sample costs";
+    ViewData["ReportIcon"] = "bi-droplet";
+    ViewData["ReportAccent"] = "#0e7490";
+    ViewData["ScopeNote"] = "Company sample kit master · as on today";
+}
+@* SQLScripts/2248 #9: open a sample type for its kit items *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const linesOf = (r, data) => (data.lines || []).filter(l => l.SampleTypeId === r.SampleTypeId);
+    LabReport.init({
+        report: 'sample-kit-cost', title: 'Sample Kit Cost Register', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Sample type or container...',
+        filters: [
+            { id: 'kitStatus', label: 'Kit', allLabel: 'All sample types', options: [['DEFINED', 'Kit defined'], ['NOTDEFINED', 'No kit defined']] }
+        ],
+        kpis: [
+            { label: 'Sample types', color: '#0e7490', value: (s, h) => h.num(s.SampleTypes), sub: (s, h) => `${h.num(s.Defined)} with a kit · ${h.num(s.NotDefined)} without` },
+            { label: 'Average kit cost', color: '#15803d', value: (s, h) => QcRep.money(s.AvgKitCost, h), sub: () => 'per collected sample' },
+            { label: 'Costliest kit', color: '#b45309', value: (s, h) => QcRep.money(s.CostliestKitCost, h), sub: (s, h) => h.esc(s.CostliestKit || '') },
+            { label: 'Tests without a kit', color: '#b91c1c', value: (s, h) => h.num(s.TestsWithoutKit), sub: () => 'their collection cost is not counted' }
+        ],
+        groups: [
+            { key: 'byStatus', label: 'Kit', rowField: 'KitStatusLabel' },
+            { key: 'byContainer', label: 'Container', rowField: 'Container', noDrill: true }
+        ],
+        groupCols: [
+            { field: 'SampleTypes', label: 'Sample types', num: true },
+            { field: 'Tests', label: 'Tests', num: true },
+            { field: 'AvgKitCost', label: 'Avg kit cost', money: true, total: 'none' }
+        ],
+        shareOf: 'Tests',
+        rowClass: r => r.KitStatus === 'NOTDEFINED' ? 'row-muted' : '',
+        cols: [
+            { label: 'Sample type', html: (r, h) => `<span class="fw-semibold">${h.esc(r.SampleType)}</span>`, text: r => r.SampleType },
+            { label: 'Container', html: (r, h) => `<span class="fs-9">${h.esc(r.Container || '—')}</span>`, text: r => r.Container || '' },
+            { label: 'Kit', html: (r, h) => r.LineCount ? `${r.LineCount} items` : QcRep.pill('No kit', 'warn', h), text: r => r.LineCount },
+            { label: 'Kit cost', cls: 'text-end amt fw-semibold', html: (r, h) => QcRep.money(r.KitCost, h), text: r => r.KitCost ?? '' },
+            { label: 'Tests on this type', cls: 'text-end', html: r => r.Tests, text: r => r.Tests },
+            { label: 'Updated', cls: 'text-nowrap', html: (r, h) => r.UpdatedOn ? h.fmtD(r.UpdatedOn) : '—', text: r => r.UpdatedOn || '' }
+        ],
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => QcRep.lines(linesOf(r, data), [
+                { label: 'Item', html: l => `<span class="font-monospace text-muted me-1">${h.esc(l.ItemCode)}</span>${h.esc(l.ItemName)}` },
+                { label: 'Category', html: l => h.esc(l.CategoryName) },
+                { label: 'Qty / sample', cls: 'text-end', html: l => `${QcRep.qty(l.Qty)} ${h.esc(l.Unit)}` },
+                { label: 'Unit cost', cls: 'text-end', html: l => QcRep.unitCost(l.UnitCost) },
+                { label: 'Line cost', cls: 'text-end', html: l => QcRep.unitCost(l.LineCost) }
+            ], `<td colspan="4" class="text-end">Kit cost per sample</td><td class="text-end">${h.money(r.KitCost || 0)}</td>`)
+        },
+        exportExtra: (rows, data) => ({
+            sheet: 'Kit items', title: 'Kit items',
+            head: ['Sample type', 'Item code', 'Item', 'Category', 'Qty per sample', 'Unit', 'Unit cost', 'Line cost'],
+            rows: rows.flatMap(r => linesOf(r, data).map(l => [r.SampleType, l.ItemCode, l.ItemName, l.CategoryName, l.Qty, l.Unit, l.UnitCost, l.LineCost]))
+        })
+    });
+})();
+</script>
+}

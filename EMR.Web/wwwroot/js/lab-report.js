@@ -5,7 +5,8 @@
  *
  * config = {
  *   report, dataUrl, title, defaultRange ('today' | 'month' ...), seeAll, branchName, searchPlaceholder,
- *   filters:   [{ id, label, options: [[value, text]], fromOptions: 'createdBy', allLabel, adminOnly }],
+ *   filters:   [{ id, label, options: [[value, text]], fromOptions: 'createdBy', allLabel, adminOnly, multi }],
+ *              multi: true - a multi-select (select2 when loaded); sent as comma-separated values, empty = all
  *   kpis:      [{ label, color, value: (s, h) => html, sub: (s, h) => html }],
  *   groups:    [{ key, label, rowField, byId, name: (group, h) => html, adminOnly, noDrill }],   noDrill: its lines don't open the Detail
  *   groupCols: [{ field, label, money, total: 'sum' | 'max' | 'none', fmt: (v, h) => html }],
@@ -14,9 +15,21 @@
  *   rowClass:  row => css class,
  *   afterLoad: (data, h) => void   optional: draws the page's own panel (#lrExtra) after each load
  *   params:    () => ({ key: value })   optional: extra query values sent with every load (e.g. a page tab)
+ *   startView: 'detail'   optional: the page opens on the Detail view instead of the Summary
+ *   noDates:   true   optional: a snapshot "as on today" (master data); the date filters are hidden
  *   cols[].when / groups[].when: () => bool   optional: the column / group is shown only while it returns true
  *   expand:    { has: (row, data) => bool, html: (row, data, h) => html }   optional: rows open to show their lines
  *   exportExtra: (rows, data, h) => ({ sheet, title, head, rows })   optional: an extra Excel sheet / PDF page (Detail view)
+ *   expandOpen: true   optional: with expand, every row starts open (its lines shown) after each load
+ *   exportGrouped: (rows, data, h) => ({ head, left, sections: [{ title, bills: [{ cells, lines: [[...]], total: { label, values } }],
+ *                  subtotal: { label, values } }], grand: { label, values }, valueAt, right })   optional: Detail exports as a grouped register -
+ *                section header rows, each bill's first `left` columns spanning its line rows, bill totals, subtotals and a
+ *                grand total (values = the numeric columns at the end, or from column `valueAt`; `right` bill cells
+ *                given as b.after follow the line cells and span them too). Used instead of the plain Detail table.
+ *   serverExport: (format, query) => url   optional: Excel / PDF are built on the server - the buttons download that url
+ *                (query = the current filters, view and drill-down, as sent to dataUrl)
+ *   exportLines: (row, data, h) => [[...cells]]   optional: Detail exports write these line rows right under each row
+ *                (one array per line, same columns as the export); PDF shows them indented and lighter
  * }
  * init returns { reload } so a page can reload after changing what params() returns.
  */
@@ -33,21 +46,31 @@ window.LabReport = (function () {
     const iso = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 
     function init(cfg) {
-        let data = null, view = 'summary', drill = null, seq = 0;
+        let data = null, view = cfg.startView === 'detail' ? 'detail' : 'summary', drill = null, seq = 0;
+        if (view === 'detail') $('.btn-view').removeClass('active').filter('[data-view="detail"]').addClass('active');
         const allGroups = cfg.groups.filter(g => !g.adminOnly || cfg.seeAll);
         let groups = allGroups.filter(g => !g.when || g.when());
         const cols = () => cfg.cols.filter(c => !c.when || c.when());
         const open = new Set();   // expanded rows (expand option)
+        let autoOpen = false;     // expandOpen option: every row starts open after each load (Collapse All still works)
         const filters = (cfg.filters || []).filter(f => !f.adminOnly || cfg.seeAll);
 
         // report-specific filters, before the search box
         filters.forEach(f => {
             const opts = (f.options || []).map(o => `<option value="${h.esc(o[0])}">${h.esc(o[1])}</option>`).join('');
+            if (f.multi) {
+                $(`<div class="col-12 col-md-4"><label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0" for="lrF_${f.id}">${h.esc(f.label)}</label>
+                     <select id="lrF_${f.id}" class="form-select form-select-sm lr-filter" data-id="${f.id}" data-multi="1" multiple autocomplete="off">${opts}</select></div>`)
+                    .insertBefore('#lrSearchCol');
+                if ($.fn.select2) $('#lrF_' + f.id).select2({ theme: 'bootstrap-5', width: '100%', placeholder: f.allLabel || 'All', closeOnSelect: false, allowClear: true });
+                return;
+            }
             $(`<div class="col-6 col-md-2"><label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0" for="lrF_${f.id}">${h.esc(f.label)}</label>
                  <select id="lrF_${f.id}" class="form-select form-select-sm lr-filter" data-id="${f.id}" autocomplete="off"><option value="">${h.esc(f.allLabel || 'All')}</option>${opts}</select></div>`)
                 .insertBefore('#lrSearchCol');
         });
         $('#lrSearch').attr('placeholder', cfg.searchPlaceholder || 'Search...');
+        if (cfg.noDates) $('#lrFrom, #lrTo, .btn-quick').closest('#lrFilterRow > div').addClass('d-none');
         function buildChrome() {
             const keep = $('#lrGroup').val();
             groups = allGroups.filter(g => !g.when || g.when());
@@ -68,13 +91,17 @@ window.LabReport = (function () {
             $('.btn-quick').removeClass('active').filter(`[data-range="${r}"]`).addClass('active');
         }
 
+        function query() {
+            const q = { report: cfg.report, fromDate: $('#lrFrom').val(), toDate: $('#lrTo').val(), search: $('#lrSearch').val() };
+            $('.lr-filter').each(function () { const v = $(this).val(); q[$(this).data('id')] = Array.isArray(v) ? v.join(',') : v; });
+            if (cfg.params) Object.assign(q, cfg.params() || {});
+            return q;
+        }
         function load() {
             const my = ++seq, from = $('#lrFrom').val(), to = $('#lrTo').val();
             if (!from || !to) return;
-            const q = { report: cfg.report, fromDate: from, toDate: to, search: $('#lrSearch').val() };
-            $('.lr-filter').each(function () { q[$(this).data('id')] = $(this).val(); });
-            if (cfg.params) Object.assign(q, cfg.params() || {});
-            buildChrome(); open.clear();
+            const q = query();
+            buildChrome(); open.clear(); autoOpen = !!cfg.expandOpen;
             $('#lrError').addClass('d-none'); $('#lrEmpty').addClass('d-none');
             // shimmer placeholders in the three zones: widgets, graphs (pages that draw one), list
             $('#lrKpis').html(EmrShimmer.kpiCards(cfg.kpis.length));
@@ -82,7 +109,7 @@ window.LabReport = (function () {
             $('#lrLoading').html(EmrShimmer.listBlock(8, 6)).removeClass('d-none');
             $('#lrSummary tbody, #lrDetail tbody, #lrSummary tfoot, #lrDetail tfoot').empty();
             $('#lrExcel, #lrPdf, #lrPrint').prop('disabled', true);
-            $('#lrRange').text(h.fmtD(from) + (from === to ? '' : ' – ' + h.fmtD(to)));
+            $('#lrRange').text(cfg.noDates ? 'As on ' + h.fmtD(iso(new Date())) : h.fmtD(from) + (from === to ? '' : ' – ' + h.fmtD(to)));
             $.get(cfg.dataUrl, q).done(res => {
                 if (my !== seq) return;
                 if (!res || !res.success) { clearShimmer(); $('#lrError').text(res?.message || 'Unable to load the report.').removeClass('d-none'); return; }
@@ -165,6 +192,7 @@ window.LabReport = (function () {
                 return;
             }
             const cc = cols(), ex = cfg.expand;
+            if (autoOpen && ex) { rows.forEach((r, i) => { if (ex.has(r, data)) open.add(i); }); autoOpen = false; }
             $('#lrDetail tbody').html(rows.map((r, i) => {
                 const can = ex && ex.has(r, data), isOpen = can && open.has(i);
                 return `<tr class="${cfg.rowClass ? cfg.rowClass(r) : ''} ${can ? 'lr-has-lines' : ''} ${isOpen ? 'lr-open' : ''}" data-i="${i}">
@@ -190,24 +218,103 @@ window.LabReport = (function () {
                                                      ...cfg.groupCols.map(c => c.money || c.num ? (Number(r[c.field]) || 0) : $('<div>').html(c.fmt ? c.fmt(r[c.field], h) : h.esc(r[c.field] ?? '')).text())]) };
             }
             const ec = cols().filter(c => !c.noExport);   // buttons / links are left out of exports
-            return { head: ec.map(c => c.label),
-                     rows: detailRows().map(r => ec.map(c => c.text ? c.text(r, h) : $('<div>').html(c.html(r, h)).text().trim())) };
+            const lineRows = [];   // indexes of line rows (exportLines), styled lighter in the PDF
+            const rows = [];
+            detailRows().forEach(r => {
+                rows.push(ec.map(c => c.text ? c.text(r, h) : $('<div>').html(c.html(r, h)).text().trim()));
+                if (cfg.exportLines) (cfg.exportLines(r, data, h) || []).forEach(l => { lineRows.push(rows.length); rows.push(l); });
+            });
+            return { head: ec.map(c => c.label), rows, lineRows };
         }
-        const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_${$('#lrFrom').val()}_to_${$('#lrTo').val()}`;
+        // ── grouped register export (exportGrouped) ──
+        function groupedModel() {
+            if (view !== 'detail' || !cfg.exportGrouped) return null;
+            const g = cfg.exportGrouped(detailRows(), data, h);
+            const n = g.head.length, nv = (g.grand?.values || []).length;   // numeric columns (at the end, or from valueAt)
+            const right = g.right || 0, va = g.valueAt ?? n - nv;           // right: bill cells after the line cells (b.after)
+            const out = [];   // { kind: 'section'|'line'|'total'|'subtotal'|'grand', cells, first, span }
+            const totalRow = (kind, t) => ({ kind, cells: [t.label, ...t.values] });
+            g.sections.forEach(s => {
+                out.push({ kind: 'section', cells: [s.title] });
+                s.bills.forEach(b => {
+                    const after = b.after || [];
+                    b.lines.forEach((l, i) => out.push({ kind: 'line', first: i === 0, span: b.lines.length,
+                        cells: i === 0 ? [...b.cells, ...l, ...after] : [...b.cells.map(() => ''), ...l, ...after.map(() => '')] }));
+                    if (b.total) out.push(totalRow('total', b.total));
+                });
+                if (s.subtotal) out.push(totalRow('subtotal', s.subtotal));
+            });
+            if (g.grand) out.push(totalRow('grand', g.grand));
+            return { head: g.head, n, nv, va, right, left: g.left, out };
+        }
+        function groupedSheet(m) {
+            const aoa = [m.head], merges = [];
+            m.out.forEach(r => {
+                const ri = aoa.length;
+                if (r.kind === 'section') { aoa.push([r.cells[0], ...Array(m.n - 1).fill('')]); merges.push({ s: { r: ri, c: 0 }, e: { r: ri, c: m.n - 1 } }); }
+                else if (r.kind === 'line') {
+                    aoa.push(r.cells);
+                    if (r.first && r.span > 1) for (let c = 0; c < m.n; c++) if (c < m.left || c >= m.n - m.right) merges.push({ s: { r: ri, c }, e: { r: ri + r.span - 1, c } });
+                } else {
+                    aoa.push([...Array(m.va - 1).fill(''), r.cells[0], ...r.cells.slice(1), ...Array(m.n - m.va - m.nv).fill('')]);
+                }
+            });
+            const ws = XLSX.utils.aoa_to_sheet(aoa); ws['!merges'] = merges;
+            ws['!cols'] = m.head.map((x, i) => ({ wch: i === 0 ? 5 : i >= m.va && i < m.va + m.nv ? 13 : 28 }));
+            return ws;
+        }
+        function groupedPdfBody(m) {
+            // the PDF's built-in font has no rupee sign
+            const money = v => typeof v === 'number' ? v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : String(v ?? '').replace(/₹/g, 'Rs.');
+            const num = { halign: 'right' };
+            return m.out.map(r => {
+                if (r.kind === 'section') return [{ content: r.cells[0], colSpan: m.n, styles: { fillColor: [241, 245, 249], fontStyle: 'bold', textColor: [15, 23, 42] } }];
+                if (r.kind === 'line') {
+                    const cells = r.cells.map((v, c) => ({ content: money(v), styles: c >= m.va && c < m.va + m.nv ? num : {} }));
+                    if (r.first) { cells.forEach((x, c) => { if (c < m.left || c >= m.n - m.right) x.rowSpan = r.span; }); return cells; }
+                    return cells.slice(m.left, m.n - m.right);   // the spanning cells of the bill cover these rows
+                }
+                const style = r.kind === 'grand' ? { fontStyle: 'bold', fillColor: [226, 232, 240] } : r.kind === 'subtotal' ? { fontStyle: 'bold' } : { textColor: [71, 85, 105], fillColor: [248, 250, 252] };
+                const tail = m.n - m.va - m.nv;
+                return [{ content: r.cells[0], colSpan: m.va, styles: { ...style, halign: 'right' } },
+                        ...r.cells.slice(1).map(v => ({ content: money(v), styles: { ...style, halign: 'right' } })),
+                        ...(tail > 0 ? [{ content: '', colSpan: tail, styles: style }] : [])];
+            });
+        }
+        const fileBase = () => `${cfg.title.replace(/[^A-Za-z0-9]+/g, '_')}_${view}_` + (cfg.noDates ? iso(new Date()) : `${$('#lrFrom').val()}_to_${$('#lrTo').val()}`);
         // the export libraries are fetched on the first Excel / PDF click, not with the page
+        // serverExport: the file comes from the server (same filters, the open view and drill-down)
+        if (cfg.serverExport) {
+            const dl = fmt => { const q = Object.assign(query(), { view, group: $('#lrGroup').val() }, drill ? { drillField: drill.field, drillValue: drill.value } : {});
+                                Object.keys(q).forEach(k => (q[k] == null || q[k] === '') && delete q[k]);
+                                window.location.href = cfg.serverExport(fmt, q); };
+            $('#lrExcel').on('click', () => dl('excel'));
+            $('#lrPdf').on('click', () => dl('pdf'));
+        } else
         $('#lrExcel').on('click', function () { EmrExportLibs.run(this, 'excel', () => {
-            const t = exportTable(); const ws = XLSX.utils.aoa_to_sheet([t.head, ...t.rows]);
+            const gm = groupedModel();
+            const t = gm ? null : exportTable(); const ws = gm ? groupedSheet(gm) : XLSX.utils.aoa_to_sheet([t.head, ...t.rows]);
             const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Report');
             const extra = view === 'detail' && cfg.exportExtra ? cfg.exportExtra(detailRows(), data, h) : null;
             if (extra && extra.rows.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([extra.head, ...extra.rows]), extra.sheet || 'Lines');
             XLSX.writeFile(wb, fileBase() + '.xlsx');
         }); });
-        $('#lrPdf').on('click', function () { EmrExportLibs.run(this, 'pdf', () => {
-            const t = exportTable(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+        if (!cfg.serverExport) $('#lrPdf').on('click', function () { EmrExportLibs.run(this, 'pdf', () => {
+            const gm = groupedModel();
+            const t = gm ? { head: gm.head, rows: [] } : exportTable(); const { jsPDF } = window.jspdf; const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
             doc.setFontSize(13); doc.text(cfg.title, 40, 36);
-            doc.setFontSize(9); doc.text(`${cfg.branchName ? 'Branch: ' + cfg.branchName + '   ' : ''}Period: ${$('#lrRange').text()}   View: ${view === 'summary' ? 'Summary by ' + groupDef().label : 'Detail'}`, 40, 52);
-            doc.autoTable({ startY: 62, head: [t.head], body: t.rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(2) : String(v ?? ''))),
-                            styles: { fontSize: 7, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] } });
+            doc.setFontSize(9); doc.text(`${cfg.branchName ? 'Branch: ' + cfg.branchName + '   ' : ''}${cfg.noDates ? '' : 'Period: '}${$('#lrRange').text()}   View: ${view === 'summary' ? 'Summary by ' + groupDef().label : 'Detail'}`, 40, 52);
+            const lines = new Set(t.lineRows || []), hasLines = lines.size > 0;
+            if (gm) doc.autoTable({ startY: 62, head: [gm.head.map((x, i) => ({ content: String(x).replace(/₹/g, 'Rs.'), styles: i >= gm.va && i < gm.va + gm.nv ? { halign: 'right' } : {} }))], body: groupedPdfBody(gm),
+                                    theme: 'grid', styles: { fontSize: 7.5, cellPadding: 4, valign: 'top', lineColor: [226, 232, 240], lineWidth: 0.5 },
+                                    headStyles: { fillColor: [36, 59, 97], textColor: 255, fontStyle: 'bold' } });
+            else doc.autoTable({ startY: 62, head: [t.head], body: t.rows.map(r => r.map(v => typeof v === 'number' ? v.toFixed(2) : String(v ?? ''))),
+                            styles: { fontSize: 7, cellPadding: 3 }, headStyles: { fillColor: [15, 118, 110] },
+                            didParseCell: d => {
+                                if (d.section !== 'body' || !hasLines) return;
+                                if (lines.has(d.row.index)) { d.cell.styles.fillColor = [255, 255, 255]; d.cell.styles.textColor = [71, 85, 105]; d.cell.styles.fontSize = 6.5; }
+                                else { d.cell.styles.fontStyle = 'bold'; d.cell.styles.fillColor = [236, 244, 243]; }
+                            } });
             const extra = view === 'detail' && cfg.exportExtra ? cfg.exportExtra(detailRows(), data, h) : null;
             if (extra && extra.rows.length) {
                 doc.addPage(); doc.setFontSize(12); doc.text(extra.title || extra.sheet || 'Lines', 40, 36);
@@ -224,7 +331,7 @@ window.LabReport = (function () {
         $(document).on('change', '.lr-filter', load);
         $('#lrApply').on('click', load);
         $('#lrSearch').on('keydown', e => { if (e.key === 'Enter') load(); });
-        $('#lrReset').on('click', () => { $('.lr-filter').val(''); $('#lrSearch').val(''); setRange(cfg.defaultRange || 'today'); load(); });
+        $('#lrReset').on('click', () => { $('.lr-filter').val('').filter('[data-multi]').val(null).trigger('change.select2'); $('#lrSearch').val(''); setRange(cfg.defaultRange || 'today'); load(); });
         $('.btn-view').on('click', function () { view = $(this).data('view'); $('.btn-view').removeClass('active'); $(this).addClass('active'); if (view === 'summary') drill = null; render(); });
         $('#lrGroup').on('change', render);
         $('#lrSummary tbody').on('click', 'tr.grp-row', function () {

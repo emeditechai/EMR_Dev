@@ -16,7 +16,7 @@
         <a asp-controller="NursingStations" asp-action="Index" class="btn btn-outline-secondary">
             <i class="bi bi-person-workspace me-1"></i>Nursing Stations
         </a>
-        <a asp-permission="MASTER.WARDS:ADD" asp-action="Create" asp-route-floorId="@ViewBag.FloorId" asp-route-departmentId="@ViewBag.DepartmentId" class="btn btn-primary shadow-sm">
+        <a asp-permission="MASTER.WARDS:ADD" asp-action="Create" asp-encrypted-route-floorId="@ViewBag.FloorId" asp-encrypted-route-departmentId="@ViewBag.DepartmentId" class="btn btn-primary shadow-sm">
             <i class="bi bi-plus-lg me-1"></i>Add Ward
         </a>
     </div>
@@ -174,7 +174,7 @@
                         <span class="fw-bold text-dark fs-6">@item.Capacity Beds</span>
                         @if (item.TotalNursingStations > 0)
                         {
-                            <a asp-controller="NursingStations" asp-action="Index" asp-route-wardId="@item.WardId" class="badge bg-info bg-opacity-10 text-info text-decoration-none d-block mt-1">
+                            <a asp-controller="NursingStations" asp-action="Index" asp-encrypted-route-wardId="@item.WardId" class="badge bg-info bg-opacity-10 text-info text-decoration-none d-block mt-1">
                                 @item.TotalNursingStations Stations
                             </a>
                         }
@@ -190,15 +190,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.WARDS:DETAILS" asp-action="Details" asp-route-id="@item.WardId"
+                        <a asp-permission="MASTER.WARDS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.WardId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.WARDS:EDIT" asp-action="Edit" asp-route-id="@item.WardId"
+                        <a asp-permission="MASTER.WARDS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.WardId"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-permission="MASTER.WARDS:DELETE" asp-action="Delete" asp-route-id="@item.WardId" method="post" class="d-inline"
+                        <form asp-permission="MASTER.WARDS:DELETE" asp-action="Delete" asp-encrypted-route-id="@item.WardId" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.WardName?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

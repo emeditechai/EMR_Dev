@@ -3,7 +3,7 @@
 -- Company-wise clean-up: everything recorded for one company
 -- ----------------------------------------------------------------------------
 --   For the chosen company and all its branches:
---     all LAB and OPD transactions, lab rate lists, Patient Master, Doctor Master, Lab Franchise Master,
+--     all LAB, OPD, IPD, pharmacy and marketing field transactions (2026-11-12: IPD / pharmacy / marketing added), lab rate lists, Patient Master, Doctor Master, Lab Franchise Master,
 --     activity logs (page views, module audit, e-mail and WhatsApp send logs - security history is kept),
 --     and every number series.
 --   Kept: the company and its branches, users, roles and permissions, departments, investigation / profile /
@@ -24,7 +24,7 @@ DECLARE @CompanyId         INT = NULL;   -- required: Company Master > CompanyId
 DECLARE @ClearActivityLogs BIT = 1;      -- 1 = also the company's activity / e-mail / WhatsApp logs
 
 IF @CompanyId IS NULL THROW 50121, 'Set @CompanyId: this script clears one company.', 1;
-DECLARE @Areas NVARCHAR(200) = CONCAT(N'LAB,OPD,RATELISTS,FRANCHISES,PATIENTS,DOCTORS,', CASE WHEN @ClearActivityLogs = 1 THEN N'LOGS,' END, N'SEQUENCES');
+DECLARE @Areas NVARCHAR(200) = CONCAT(N'IPD,LAB,OPD,PHARMACY,MARKETING,RATELISTS,FRANCHISES,PATIENTS,DOCTORS,', CASE WHEN @ClearActivityLogs = 1 THEN N'LOGS,' END, N'SEQUENCES');
 
 IF OBJECT_ID('cleanup.usp_Run', 'P') IS NULL
     THROW 50130, 'Run 00_install_cleanup_procedures.sql first: this script uses its procedures.', 1;

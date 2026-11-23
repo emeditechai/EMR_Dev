@@ -5,111 +5,16 @@
 
 @section HeadStyles {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" />
-    <style>
-        .dispatch-wrapper {
-            --ds-ready: #0f766e;    --ds-ready-bg: #ccfbf1;
-            --ds-partial: #0369a1;  --ds-partial-bg: #e0f2fe;
-            --ds-await: #b45309;    --ds-await-bg: #fef3c7;
-            --ds-prog: #4f46e5;     --ds-prog-bg: #e0e7ff;
-            --ds-printed: #15803d;  --ds-printed-bg: #dcfce7;
-            --ds-total: #1e3a8a;    --ds-total-bg: #dbeafe;
-            background-color: #f8f9fa;
-            min-height: calc(100vh - 60px);
-        }
-        .dispatch-wrapper .fs-7 { font-size: 0.85rem !important; }
-        .dispatch-wrapper .fs-8 { font-size: 0.78rem !important; }
-        .dispatch-wrapper .fs-9 { font-size: 0.70rem !important; }
-
-        /* KPI cards */
-        .dispatch-wrapper .dsp-card { --c: var(--ds-total); --bg: var(--ds-total-bg); border-left: 4px solid var(--c) !important; transition: transform .15s, box-shadow .15s; position: relative; overflow: hidden; }
-        .dispatch-wrapper .dsp-card::after { content: ""; position: absolute; right: -18px; top: -18px; width: 70px; height: 70px; border-radius: 50%; background: var(--bg); opacity: .55; }
-        .dispatch-wrapper .dsp-card.is-clickable { cursor: pointer; }
-        .dispatch-wrapper .dsp-card.is-clickable:hover { transform: translateY(-2px); box-shadow: 0 .4rem .8rem rgba(0,0,0,.09) !important; }
-        .dispatch-wrapper .dsp-card.active-card { outline: 2px solid var(--c); background: linear-gradient(135deg, #fff 40%, var(--bg)); }
-        .dispatch-wrapper .dsp-label { font-size: .68rem; letter-spacing: .3px; color: #6b7280; font-weight: 700; text-transform: uppercase; }
-        .dispatch-wrapper .dsp-value { color: var(--c); font-weight: 800; line-height: 1.1; }
-        .dispatch-wrapper .dsp-sub { font-size: .68rem; color: #6b7280; }
-        .dispatch-wrapper .dsp-icon { width: 32px; height: 32px; border-radius: 50%; background: var(--bg); color: var(--c); display: flex; align-items: center; justify-content: center; font-size: .95rem; position: relative; z-index: 1; }
-        .dispatch-wrapper .k-total   { --c: var(--ds-total);   --bg: var(--ds-total-bg); }
-        .dispatch-wrapper .k-ready   { --c: var(--ds-ready);   --bg: var(--ds-ready-bg); }
-        .dispatch-wrapper .k-partial { --c: var(--ds-partial); --bg: var(--ds-partial-bg); }
-        .dispatch-wrapper .k-await   { --c: var(--ds-await);   --bg: var(--ds-await-bg); }
-        .dispatch-wrapper .k-prog    { --c: var(--ds-prog);    --bg: var(--ds-prog-bg); }
-        .dispatch-wrapper .k-printed { --c: var(--ds-printed); --bg: var(--ds-printed-bg); }
-        .dispatch-wrapper .k-notprt  { --c: #c2410c; --bg: #ffedd5; }
-        .dispatch-wrapper .k-urgent  { --c: #b91c1c; --bg: #fee2e2; }
-        .dispatch-wrapper .k-crit    { --c: #9f1239; --bg: #ffe4e6; }
-        .dispatch-wrapper .k-split   { --c: #7c3aed; --bg: #ede9fe; }
-        .dispatch-wrapper .k-tat     { --c: #0e7490; --bg: #cffafe; }
-        .dispatch-wrapper .k-tests   { --c: #166534; --bg: #dcfce7; }
-        .dispatch-wrapper .mini-bar { height: 6px; border-radius: 4px; background: #e5e7eb; overflow: hidden; display: flex; }
-        .dispatch-wrapper .mini-bar > span { display: block; height: 100%; }
-
-        /* Table */
-        .dispatch-wrapper .table-responsive-custom { max-height: calc(100vh - 430px); min-height: 260px; overflow-y: auto; }
-        .dispatch-wrapper .table-sticky-header thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 10; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
-        .dispatch-wrapper tbody tr.row-ready > td:first-child    { box-shadow: inset 4px 0 0 var(--ds-ready); }
-        .dispatch-wrapper tbody tr.row-partial > td:first-child  { box-shadow: inset 4px 0 0 var(--ds-partial); }
-        .dispatch-wrapper tbody tr.row-awaiting > td:first-child { box-shadow: inset 4px 0 0 #f59e0b; }
-        .dispatch-wrapper tbody tr.row-inprogress > td:first-child { box-shadow: inset 4px 0 0 var(--ds-prog); }
-        .dispatch-wrapper tbody tr.row-notstarted > td:first-child { box-shadow: inset 4px 0 0 #cbd5e1; }
-        .dispatch-wrapper .badge-ds { font-weight: 600; border: 1px solid transparent; }
-        .dispatch-wrapper .bs-ready      { background: var(--ds-ready-bg);   color: var(--ds-ready);   border-color: #5eead4; }
-        .dispatch-wrapper .bs-partial    { background: var(--ds-partial-bg); color: var(--ds-partial); border-color: #7dd3fc; }
-        .dispatch-wrapper .bs-awaiting   { background: var(--ds-await-bg);   color: var(--ds-await);   border-color: #fcd34d; }
-        .dispatch-wrapper .bs-inprogress { background: var(--ds-prog-bg);    color: var(--ds-prog);    border-color: #a5b4fc; }
-        .dispatch-wrapper .bs-notstarted { background: #f1f5f9;              color: #64748b;           border-color: #cbd5e1; }
-        .dispatch-wrapper .type-b2c { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-        .dispatch-wrapper .type-b2b { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
-        .dispatch-wrapper .tests-bar { height: 6px; border-radius: 4px; background: #e5e7eb; overflow: hidden; display: flex; min-width: 90px; }
-        .dispatch-wrapper .tests-bar .seg-approved  { background: #0f766e; }
-        .dispatch-wrapper .tests-bar .seg-validated { background: #4ade80; }
-        .dispatch-wrapper .tests-bar .seg-entered   { background: #a5b4fc; }
-        .dispatch-wrapper .btn-print-ready { background: #0f766e; border-color: #0f766e; color: #fff; }
-        .dispatch-wrapper .btn-print-ready:hover { background: #115e59; color: #fff; }
-        .dispatch-wrapper .btn-print-prov  { background: #f59e0b; border-color: #f59e0b; color: #fff; }
-        .dispatch-wrapper .btn-print-prov:hover { background: #d97706; color: #fff; }
-        .dispatch-wrapper .btn-icon-sm { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
-        .dispatch-wrapper .urgent-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #dc2626; box-shadow: 0 0 0 3px #fee2e2; }
-        .dispatch-wrapper #tblDispatch > :not(caption) > * > * { padding: .45rem .4rem; }
-        .dispatch-wrapper #tblDispatch th:first-child, .dispatch-wrapper #tblDispatch td:first-child { padding-left: .75rem; }
-        .dispatch-wrapper .cell-client { max-width: 150px; }
-        .dispatch-wrapper .btn-view-tests { border: 0; background: transparent; color: #2563eb; padding: 0 2px; line-height: 1; font-size: .9rem; }
-        .dispatch-wrapper .btn-view-tests:hover { color: #1d4ed8; transform: scale(1.12); }
-        #modalBillTests .t-head th { position: sticky; top: 0; background: #f1f5f9; z-index: 5; font-size: .66rem; text-transform: uppercase; letter-spacing: .2px; color: #64748b; white-space: nowrap; }
-        #modalBillTests td, #modalBillTests th { padding: .35rem .45rem; vertical-align: middle; }
-        #modalBillTests table { table-layout: fixed; width: 100%; }
-        #modalBillTests .c-idx { width: 30px; }
-        #modalBillTests .c-test { width: 19%; }
-        #modalBillTests .c-sample { width: 10%; }
-        #modalBillTests .c-time { width: 10%; }
-        #modalBillTests .c-by { width: 9%; }
-        #modalBillTests .c-status { width: 9%; }
-        #modalBillTests .c-tat { width: 7%; }
-        #modalBillTests .stamp { font-size: .68rem; line-height: 1.2; display: block; white-space: nowrap; }
-        #modalBillTests .stamp .s-t { display: block; color: #64748b; font-size: .64rem; }
-        #modalBillTests .t-name { font-size: .75rem; line-height: 1.2; }
-        #modalBillTests .t-sample { font-size: .68rem; line-height: 1.15; }
-        #modalBillTests .grp-row td { background: #eef2ff; font-weight: 700; color: #3730a3; font-size: .72rem; }
-        #modalBillTests .stamp { font-size: .72rem; white-space: nowrap; }
-        #modalBillTests .stamp .s-none { color: #94a3b8; }
-        #modalBillTests .badge-ds { font-weight: 600; border: 1px solid transparent; }
-        #modalBillTests .bs-ready      { background: #ccfbf1; color: #0f766e; border-color: #5eead4; }
-        #modalBillTests .bs-partial    { background: #e0f2fe; color: #0369a1; border-color: #7dd3fc; }
-        #modalBillTests .bs-awaiting   { background: #fef3c7; color: #b45309; border-color: #fcd34d; }
-        #modalBillTests .bs-inprogress { background: #e0e7ff; color: #4f46e5; border-color: #a5b4fc; }
-        #modalBillTests .bs-notstarted { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
-        #modalBillTests .t-code { font-size: .66rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        #modalBillTests .t-reason { font-size: .64rem; color: #b91c1c; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        #modalBillTests .sum-pill { border: 1px solid #e2e8f0; border-radius: 8px; padding: .25rem .6rem; font-size: .72rem; background: #f8fafc; }
-        #modalBillTests .sum-pill b { display: block; font-size: .95rem; }
-        .dispatch-wrapper .dup-note { font-size: .62rem; color: #b45309; font-weight: 600; margin-top: 2px; }
-        .dispatch-wrapper .tone-bar { height: 3px; background: linear-gradient(90deg, #0f766e, #0369a1, #4f46e5, #7c3aed); border-radius: 3px; }
-
-        /* Print modal */
-        #dispatchPrintFrame { width: 100%; height: 100%; border: 0; background: #525659; }
-    </style>
+    <link rel="stylesheet" href="~/css/views/LabReportDispatch/Index.css" asp-append-version="true" />
 }
+
+@* 2466: Collect Payment of a due bill - the same payment dialog and flow as the B2C Order List (standby, opened per bill) *@
+@{
+    ViewData["PaymentModuleCode"]     = "LAB";
+    ViewData["PaymentModuleRefId"]    = 0;
+    ViewData["PaymentSuccessModalId"] = "";
+}
+<partial name="_PaymentModal" />
 
 <div class="container-fluid px-3 py-2 dispatch-wrapper">
     <!-- Header -->
@@ -480,6 +385,12 @@
     </div>
 </div>
 
+@* 2392: Send Report - the token for its POST, and whether this user may send (control SEND_REPORT) *@
+@Html.AntiForgeryToken()
+<span id="permSendReport" class="d-none" asp-permission="LAB.LABREPORTDISPATCH:SEND_REPORT"></span>
+@* 2466: whether this user may collect a payment here (control COLLECT_PAYMENT) *@
+<span id="permCollectPayment" class="d-none" asp-permission="LAB.LABREPORTDISPATCH:COLLECT_PAYMENT"></span>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
@@ -490,6 +401,10 @@
             const dataUrl = '@Url.Action("GetDashboardJson", "LabReportDispatch")';
             const pdfUrl = '@Url.Action("PrintReportPdf", "LabReportDispatch")';
             const billUrl = '@Url.Action("PrintBill", "LabReportDispatch")';
+            const sendUrl = '@Url.Action("SendReport", "LabReportDispatch")';
+            const duePrintUrl = '@Url.Action("RequestDuePrint", "LabReportDispatch")';   // 2465
+            const canSendReport = $('#permSendReport').length > 0;
+            const canCollectPayment = $('#permCollectPayment').length > 0 && typeof window.pmOpenFor === 'function';   // 2466
             // The Image / Descriptive report has its own existing print page; the PDF above only ever
             // carries the Numeric tests, so a bill holding both is printed from both.
             const imagePrintUrl = '@Url.Action("Print", "LabImageReporting")';
@@ -505,6 +420,7 @@
 
             let rows = [];
             let encMap = {};
+            let duePrint = {};   // 2465: labOrderId -> { allow, status P/A/S, remarks, requestedBy, actionedBy, ... }
             let page = 1;
             let statusFilter = 'ALL';
             let clientType = 'ALL';
@@ -557,6 +473,7 @@
                     }
                     rows = res.rows || [];
                     encMap = res.encMap || {};
+                    duePrint = res.duePrint || {};
                     page = 1;
                     renderStats(res.stats || {});
                     renderTable();
@@ -630,21 +547,55 @@
 
                 // B2B due is settled with the franchise/company, not the patient at the counter - never
                 // block printing on it. B2C keeps the existing "clear the due first" rule unchanged.
-                const hasDue = !paid && !isB2B;
-                let printBtn;
+                const dp = duePrint[r.labOrderId] || null;
+                // 2465: with "Allow Print Lab Report in Due" = Yes, an approved Due Report Print request releases the report
+                const dueApproved = !paid && !isB2B && !!dp && dp.allow && dp.status === 'A';
+                const hasDue = !paid && !isB2B && !dueApproved;
+                // 2392: one Action menu - Report Print (by state), Bill, Send Report. The items keep the classes / data the
+                // existing click handlers use, so printing works exactly as before.
+                const item = (cls, attrs, icon, text, title, disabled) =>
+                    '<li><button type="button" class="dropdown-item fs-8 d-flex align-items-center gap-2 ' + cls + '"' + (attrs || '')
+                    + (title ? ' title="' + esc(title) + '"' : '') + (disabled ? ' disabled' : '') + '><i class="bi ' + icon + '"></i>' + text + '</button></li>';
+                let printItems;
                 if (!r.canPrint) {
-                    printBtn = '<button type="button" class="btn btn-outline-secondary btn-sm fs-9 px-2 py-1" disabled title="Validate at least one test to print"><i class="bi bi-printer me-1"></i>Print</button>';
+                    printItems = item('', '', 'bi-printer', 'Report Print', 'Validate at least one test to print', true);
                 } else if (hasDue) {
                     // Kept clickable on purpose: the click explains why the report is held back.
-                    printBtn = '<button type="button" class="btn btn-outline-danger btn-sm fs-9 px-2 py-1 btn-print-due" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '" title="Payment pending - the report cannot be printed"><i class="bi bi-lock-fill me-1"></i>Print</button>';
+                    printItems = item('btn-print-due text-danger', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '"', 'bi-lock-fill', 'Report Print', 'Payment pending - the report cannot be printed');
+                    if (dp && dp.allow) {
+                        // 2465: ask the Due Report Print approvers (Approval Matrix) to release the report
+                        if (dp.status === 'P')
+                            printItems += item('', '', 'bi-hourglass-split text-warning', 'Due Print Approval Pending', 'Sent by ' + (dp.requestedBy || '') + ' on ' + fmt(dp.requestedAt) + ' - waiting for an approver', true);
+                        else
+                            printItems += item('btn-due-approval', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-due="' + Number(r.balanceDue).toFixed(2) + '"',
+                                'bi-shield-lock-fill text-primary', dp.status === 'S' ? 'Send Approval Again (Due Report Print)' : 'Send Approval for Due Report Print',
+                                dp.status === 'S' ? 'Sent back by ' + (dp.actionedBy || '') + ': ' + (dp.remarks || '') : 'Ask an approver to allow printing this report with the due');
+                    }
                 } else if (r.dispatchStatus === 'PARTIAL') {
-                    // Part approved, part still awaiting approval: the approved tests can go out as a clean report,
-                    // and the rest as the usual NOT APPROVED copy. Dues are already cleared at this point.
-                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-ready" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="approved" title="Print the approved test(s) of this bill - ' + r.approvedTests + ' of ' + total + '"><i class="bi bi-printer-fill me-1"></i>Print Approved</button>'
-                        + ' <button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print btn-print-prov" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="pending" title="Print a NOT APPROVED copy of the tests still awaiting approval"><i class="bi bi-printer-fill me-1"></i>Not Approved</button>';
+                    printItems = item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="approved"', 'bi-printer-fill text-success', 'Report Print (Approved)', 'Print the approved test(s) of this bill - ' + r.approvedTests + ' of ' + total)
+                        + item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="pending"', 'bi-printer-fill text-warning', 'Report Print (Not Approved)', 'Print a NOT APPROVED copy of the tests still awaiting approval');
                 } else {
-                    printBtn = '<button type="button" class="btn btn-sm fs-9 px-2 py-1 btn-print ' + (isReady ? 'btn-print-ready' : 'btn-print-prov') + '" data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="all" title="' + (isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)') + '"><i class="bi bi-printer-fill me-1"></i>' + (isReady ? 'Print' : 'Print (Not Approved)') + '</button>';
+                    printItems = item('btn-print', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '" data-scope="all"', 'bi-printer-fill ' + (isReady ? 'text-success' : 'text-warning'),
+                        isReady ? 'Report Print' : 'Report Print (Not Approved)', isReady ? 'Print the final report' : 'Print a NOT APPROVED copy (validated tests only)');
                 }
+                if (dueApproved && r.canPrint)
+                    printItems = '<li><span class="dropdown-item-text fs-9 text-success"><i class="bi bi-shield-check me-1"></i>Due print approved by ' + esc(dp.actionedBy || '') + '</span></li>' + printItems;
+                // 2466: Collect Payment - a B2C bill with a balance due (B2B is settled with the franchise / company)
+                const payItem = canCollectPayment && !paid && !isB2B
+                    ? item('btn-collect-payment', ' data-id="' + r.labOrderId + '"', 'bi-cash-coin text-success', 'Collect Payment', 'Collect the due of ₹' + Number(r.balanceDue).toFixed(2) + ' on ' + (r.billNo || 'this bill'))
+                    : '';
+                const billItem = item('btn-print-bill', ' data-id="' + r.labOrderId + '"', 'bi-receipt', 'Bill', 'Print the bill for ' + (r.billNo || 'this order'));
+                // Send Report: the final report only (every test approved) and only once the bill has no due
+                const sendBlock = !isReady ? 'Only an approved report can be sent (' + r.approvedTests + ' of ' + total + ' tests approved)'
+                                : Number(r.balanceDue) > 0 ? 'Clear the due of Rs. ' + Number(r.balanceDue).toFixed(2) + ' to send the report' : '';
+                const sendItem = canSendReport
+                    ? '<li><hr class="dropdown-divider my-1"></li>' + item(sendBlock ? '' : 'btn-send-report', ' data-id="' + r.labOrderId + '" data-bill="' + esc(r.billNo) + '"',
+                        'bi-send-fill text-primary', 'Send Report', sendBlock || 'Send the report to the patient by WhatsApp and e-mail', !!sendBlock)
+                    : '';
+                const actionMenu = '<div class="dropdown">'
+                    + '<button type="button" class="btn btn-sm fs-9 px-2 py-1 dropdown-toggle ' + (isReady && !hasDue ? 'btn-print-ready' : 'btn-outline-secondary') + '" data-bs-toggle="dropdown" data-bs-popper-config=\'{"strategy":"fixed"}\' aria-expanded="false">'
+                    + '<i class="bi bi-three-dots-vertical me-1"></i>Action</button>'
+                    + '<ul class="dropdown-menu dropdown-menu-end shadow-sm">' + printItems + payItem + billItem + sendItem + '</ul></div>';
 
                 const client = isB2B
                     ? '<div class="fs-9 text-muted text-truncate mt-1" style="max-width:150px" title="' + esc((r.clientType === 'FRANCHISE' ? 'Franchise: ' : 'Company: ') + (r.clientName || '')) + '"><i class="bi ' + (r.clientType === 'FRANCHISE' ? 'bi-shop' : 'bi-building') + ' me-1"></i>' + esc([r.clientCode, r.clientName].filter(Boolean).join(' · ') || '—') + '</div>'
@@ -671,8 +622,7 @@
                     + '<td class="text-nowrap fs-9">' + (r.approvedDate ? esc(fmt(r.approvedDate)) : '<span class="text-muted">—</span>') + '</td>'
                     + '<td class="text-center"><span class="badge badge-ds fs-9 ' + b.cls + '"><i class="bi ' + b.icon + ' me-1"></i>' + b.text + '</span></td>'
                     + '<td class="text-center">' + printedHtml + '</td>'
-                    + '<td class="text-end pe-3 text-nowrap">' + printBtn
-                    +     ' <button type="button" class="btn btn-outline-secondary btn-sm fs-9 px-2 py-1 btn-print-bill" data-id="' + r.labOrderId + '" title="Print the bill for ' + esc(r.billNo || 'this order') + '"><i class="bi bi-receipt me-1"></i>Bill</button></td>'
+                    + '<td class="text-end pe-3 text-nowrap">' + actionMenu + '</td>'
                     + '</tr>';
             }
 
@@ -815,7 +765,7 @@
                         try { body = await res.json(); msg = body.message || msg; } catch (e) { /* keep default */ }
                         if (res.status === 402) {                 // payment pending - the server holds the report back
                             bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                            dueAlert(body && body.billNo, body && body.balanceDue);
+                            dueAlert(body && body.billNo, body && body.balanceDue, printOrderId);
                             load();
                             return;
                         }
@@ -853,7 +803,7 @@
                 if (res.status === 402) {
                     let body = null; try { body = await res.json(); } catch (e) { /* ignore */ }
                     bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                    dueAlert(body && body.billNo, body && body.balanceDue);
+                    dueAlert(body && body.billNo, body && body.balanceDue, printOrderId);
                     load();
                     throw new Error('due');
                 }
@@ -962,21 +912,59 @@
                 $('#testsFooterNote').text(tests.length + ' test(s) \u00b7 TAT is measured from sample collection to report approval');
             }
 
-            function dueAlert(billNo, due) {
+            function dueAlert(billNo, due, labOrderId) {
                 const amount = due != null ? '₹' + Number(due).toFixed(2) : '';
+                const canPay = canCollectPayment && labOrderId > 0;   // 2466: collect the due straight from here
                 Swal.fire({
                     icon: 'error',
                     title: 'Unable to Print Report',
                     html: '<div class="fs-8">Clear the due first.</div>'
                         + (billNo ? '<div class="fs-9 text-muted mt-2">Bill No: <span class="font-monospace">' + esc(billNo) + '</span></div>' : '')
                         + (amount ? '<div class="fw-bold text-danger mt-1">Outstanding: ' + amount + '</div>' : ''),
-                    confirmButtonColor: '#dc3545',
-                    confirmButtonText: 'OK'
-                });
+                    showCancelButton: canPay,
+                    reverseButtons: canPay,
+                    confirmButtonColor: canPay ? '#198754' : '#dc3545',
+                    confirmButtonText: canPay ? '<i class="bi bi-cash-coin me-1"></i>Collect Payment' : 'OK',
+                    cancelButtonText: 'Close'
+                }).then(res => { if (canPay && res.isConfirmed) collectPayment(labOrderId); });
             }
 
+            // 2466: Collect Payment - the shared payment dialog (/OPD/SavePayment); the list refreshes after a save
+            function collectPayment(labOrderId) {
+                if (!canCollectPayment || !(labOrderId > 0)) return;
+                window.pmOpenFor(labOrderId, function () { load(); }, 'LAB');
+            }
+            $('#tblDispatchBody').on('click', '.btn-collect-payment', function () {
+                collectPayment(Number($(this).data('id')));
+            });
+
+            // 2465: a Due Report Print approved / sent back while this page is open refreshes the list (live notification)
+            if (window.EmrNotify) window.EmrNotify.on(function (kind, n) {
+                if (kind === 'new' && n && /^Due Report Print (approved|sent back)/.test(n.title || '')) load();
+            });
+
+            // 2465: Send Approval for Due Report Print
+            $('#tblDispatchBody').on('click', '.btn-due-approval', async function () {
+                const id = $(this).data('id'), bill = $(this).data('bill'), due = $(this).data('due');
+                const ask = await Swal.fire({
+                    icon: 'question', title: 'Send for approval?',
+                    html: '<div class="fs-8">Ask an approver to allow printing the report of <b class="font-monospace">' + esc(bill) + '</b> with a due of <b class="text-danger">₹' + esc(due) + '</b>.</div>',
+                    input: 'textarea', inputLabel: 'Reason', inputPlaceholder: 'e.g. Patient will pay at the next visit',
+                    inputValidator: v => (!v || v.trim().length < 5) ? 'Give a reason (at least 5 characters).' : undefined,
+                    showCancelButton: true, confirmButtonText: '<i class="bi bi-send-fill me-1"></i>Send for approval', confirmButtonColor: '#0d6efd', reverseButtons: true
+                });
+                if (!ask.isConfirmed) return;
+                $.ajax({ url: duePrintUrl, type: 'POST', data: { labOrderId: id, reason: ask.value },
+                         headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() } })
+                    .done(res => {
+                        if (res && res.success) { toastr.success(res.message); load(); }
+                        else Swal.fire({ icon: 'warning', title: 'Not sent', text: (res && res.message) || 'The request could not be sent.' });
+                    })
+                    .fail(xhr => Swal.fire({ icon: 'error', title: 'Not sent', text: xhr.status === 403 ? 'You do not have permission to print reports.' : 'Server error while sending the request.' }));
+            });
+
             $('#tblDispatchBody').on('click', '.btn-print-due', function () {
-                dueAlert($(this).data('bill'), $(this).data('due'));
+                dueAlert($(this).data('bill'), $(this).data('due'), Number($(this).data('id')));
             });
 
             const modalEl = document.getElementById('modalDispatchPrint');
@@ -1073,6 +1061,29 @@
                         openNumericPrint(id, scope, bill);   // the type check must never block a print
                     });
             });
+            // 2392: Action > Send Report - WhatsApp and e-mail through the existing senders (sent again if it already went)
+            $('#tblDispatchBody').on('click', '.btn-send-report', async function () {
+                const id = $(this).data('id'), bill = $(this).data('bill');
+                const ok = await Swal.fire({
+                    icon: 'question', title: 'Send report?',
+                    html: 'The approved report of <b>' + esc(bill) + '</b> will be sent to the patient by <b>WhatsApp</b> and <b>e-mail</b>.',
+                    showCancelButton: true, confirmButtonText: '<i class="bi bi-send-fill me-1"></i>Send', confirmButtonColor: '#0f766e', reverseButtons: true
+                });
+                if (!ok.isConfirmed) return;
+                Swal.fire({ title: 'Sending report...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                $.ajax({ url: sendUrl, type: 'POST', data: { labOrderId: id },
+                         headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').first().val() } })
+                    .done(res => {
+                        if (!res.whatsApp && !res.email) { Swal.fire({ icon: 'warning', title: 'Not sent', text: res.message || 'The report could not be sent.' }); return; }
+                        const line = (name, o) => '<tr><td class="text-start fw-semibold pe-3">' + name + '</td><td class="text-start">'
+                            + (o.status === 'Sent' ? '<span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Sent</span>' : '<span class="text-warning-emphasis fw-semibold">' + esc(o.status) + '</span>')
+                            + '<div class="small text-muted">' + esc(o.message || '') + '</div></td></tr>';
+                        Swal.fire({ icon: res.success ? 'success' : 'warning', title: res.success ? 'Report sent' : 'Report not sent',
+                                    html: '<table class="table table-sm mb-0">' + line('WhatsApp', res.whatsApp) + line('E-mail', res.email) + '</table>' });
+                    })
+                    .fail(xhr => Swal.fire({ icon: 'error', title: 'Not sent', text: xhr.status === 403 ? 'You do not have permission to send reports.' : 'Server error while sending the report.' }));
+            });
+
             $('#tblDispatchBody').on('click', '.btn-print-bill', function () {
                 const id = $(this).data('id');
                 window.open(billUrl + '?q=' + encodeURIComponent(encMap[id] || ''), '_blank');

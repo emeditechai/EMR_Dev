@@ -1,0 +1,66 @@
+@{
+    ViewData["Title"] = "Analyzer-wise Cost Comparison";
+    ViewData["ReportSubtitle"] = "Tests with an analyzer-specific BOM: material cost on each analyzer against the default BOM";
+    ViewData["ReportIcon"] = "bi-cpu";
+    ViewData["ReportAccent"] = "#4338ca";
+    ViewData["ScopeNote"] = "Company BOM master · as on today";
+}
+@* SQLScripts/2248 #10: every current BOM of a test that has at least one analyzer BOM; open a row for its lines *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const linesOf = (r, data) => (data.lines || []).filter(l => l.BomId === r.BomId);
+    LabReport.init({
+        report: 'analyzer-cost', title: 'Analyzer-wise Cost Comparison', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name or code...',
+        filters: [
+            { id: 'analyzerId', label: 'Analyzer', allLabel: 'All analyzers', fromOptions: 'analyzerId' },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Tests compared', color: '#4338ca', value: (s, h) => h.num(s.TestsCompared), sub: (s, h) => `${h.num(s.AnalyzerBoms)} analyzer BOMs` },
+            { label: 'Cheaper than default', color: '#15803d', value: (s, h) => h.num(s.Cheaper), sub: () => 'analyzer BOMs' },
+            { label: 'Costlier than default', color: '#b91c1c', value: (s, h) => h.num(s.Dearer), sub: () => 'analyzer BOMs' },
+            { label: 'Largest spread', color: '#b45309', value: (s, h) => QcRep.money(s.MaxSpread, h), sub: (s, h) => h.esc(s.MaxSpreadTest || '') }
+        ],
+        groups: [
+            { key: 'byAnalyzer', label: 'Applies to', rowField: 'AnalyzerId', byId: true },
+            { key: 'byTest', label: 'Test', rowField: 'TestId', byId: true }
+        ],
+        groupCols: [
+            { field: 'Boms', label: 'BOMs', num: true },
+            { field: 'AvgCost', label: 'Avg material cost', money: true, total: 'none' },
+            { field: 'AvgDiff', label: 'Vs default / spread', money: true, total: 'none' }
+        ],
+        shareOf: 'Boms',
+        cols: [
+            { label: 'Test', html: (r, h) => QcRep.name(r.TestName, r.TestCode, h), text: r => `${r.TestName} (${r.TestCode || ''})` },
+            { label: 'Applies to', html: (r, h) => r.AnalyzerId ? QcRep.pill(r.AppliesTo, 'info', h) : `<span class="text-muted">${h.esc(r.AppliesTo)}</span>`, text: r => r.AppliesTo },
+            { label: 'Version', html: r => `v${r.VersionNo}`, text: r => `v${r.VersionNo}` },
+            { label: 'Lines', cls: 'text-end', html: r => r.LineCount, text: r => r.LineCount },
+            { label: 'Reruns / dead vol.', cls: 'text-end', html: r => `${QcRep.pct(r.RerunPct, 0)} / ${QcRep.pct(r.DeadVolumePct, 0)}`, text: r => `${r.RerunPct}% / ${r.DeadVolumePct}%` },
+            { label: 'Material cost', cls: 'text-end amt fw-semibold', html: (r, h) => QcRep.money(r.MaterialCost, h), text: r => r.MaterialCost },
+            { label: 'Vs default', cls: 'text-end amt', html: (r, h) => r.DiffVsDefault == null ? '—'
+                  : `<span class="${r.DiffVsDefault > 0 ? 'text-danger' : r.DiffVsDefault < 0 ? 'text-success' : ''}">${r.DiffVsDefault > 0 ? '+' : ''}${h.money(r.DiffVsDefault)}</span><div class="text-muted fs-9">${r.DiffPct > 0 ? '+' : ''}${QcRep.pct(r.DiffPct)}</div>`,
+              text: r => r.DiffVsDefault ?? '' },
+            { label: '', html: (r, h) => r.IsCheapest ? QcRep.pill('Cheapest', 'good', h) : '', text: r => r.IsCheapest ? 'Cheapest' : '' }
+        ],
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => QcRep.lines(linesOf(r, data), [
+                { label: 'Item', html: l => `<span class="font-monospace text-muted me-1">${h.esc(l.ItemCode)}</span>${h.esc(l.ItemName)}` },
+                { label: 'Qty / run', cls: 'text-end', html: l => `${QcRep.qty(l.Qty)} ${h.esc(l.Unit)}` },
+                { label: 'Unit cost', cls: 'text-end', html: l => QcRep.unitCost(l.UnitCost) },
+                { label: 'Line cost', cls: 'text-end', html: l => QcRep.unitCost(l.LineCost) }
+            ])
+        }
+    });
+})();
+</script>
+}

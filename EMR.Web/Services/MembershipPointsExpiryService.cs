@@ -26,7 +26,7 @@ public sealed class MembershipPointsExpiryService(IServiceScopeFactory scopeFact
                     commandType: System.Data.CommandType.StoredProcedure, commandTimeout: 120);
                 if (cards > 0) logger.LogInformation("[Membership] points expired on {Cards} card(s)", cards);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)   // an HTTP / SQL timeout is not a shutdown
             {
                 logger.LogError(ex, "[Membership] points expiry run failed");
             }

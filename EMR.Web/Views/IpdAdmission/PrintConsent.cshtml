@@ -1,0 +1,22 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPrintView
+@{
+    Layout = "_IpdPrintLayout";
+    var d = Model.Doc; var h = Model.Header;
+    ViewData["DocTitle"] = d.S("ConsentType");
+}
+<table class="info" style="margin-bottom:8px">
+    <tr><td class="k">Patient</td><td class="b">@h.S("PatientName")</td><td class="k">UHID / IP No.</td><td class="mono">@h.S("PatientCode") / @h.S("IpNo")</td></tr>
+    <tr><td class="k">Age / Sex</td><td>@h.S("AgeText") / @h.S("Gender")</td><td class="k">Consultant</td><td>@h.S("ConsultantDoctorName")</td></tr>
+</table>
+<div style="font-size:12px;line-height:1.55">@Html.Raw(d.S("ContentHtml"))</div>
+<table class="info" style="margin-top:14px">
+    <tr><td class="k">Signed by</td><td>@d.S("SignedByName") @(string.IsNullOrWhiteSpace(d.S("SignedByRelation")) ? "" : "(" + d.S("SignedByRelation") + ")")</td><td class="k">Date &amp; time</td><td>@d.Dt("SignedAt")</td></tr>
+    <tr><td class="k">Witness</td><td>@d.S("WitnessName")</td><td class="k">Taken by</td><td>@d.S("CapturedByName")</td></tr>
+    <tr><td class="k">Form</td><td>@d.S("Language") · version @d.S("Version")</td><td class="k"></td><td></td></tr>
+</table>
+<div class="sign">
+    <div>@if (!string.IsNullOrWhiteSpace(d.S("SignaturePath"))) { <img src="@d.S("SignaturePath")" style="max-height:60px" alt="" /><br /> }Patient / relative</div>
+    <div>@if (!string.IsNullOrWhiteSpace(d.S("WitnessSignaturePath"))) { <img src="@d.S("WitnessSignaturePath")" style="max-height:60px" alt="" /><br /> }Witness</div>
+    <div>Doctor</div>
+</div>

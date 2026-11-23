@@ -1,0 +1,9 @@
+@model string?
+@* A record's open approval request on a master list (SQLScripts/2277): P/S = pending / sent back, N/C = new record / change. *@
+@switch (Model)
+{
+    case "PN": <span class="badge bg-warning text-dark ms-1" title="New record awaiting approval: inactive until approved"><i class="bi bi-hourglass-split me-1"></i>Awaiting approval</span> break;
+    case "SN": <span class="badge bg-danger ms-1" title="Sent back by the approver: open it to see why"><i class="bi bi-arrow-return-left me-1"></i>Sent back</span> break;
+    case "PC": <span class="badge bg-warning-subtle text-warning-emphasis ms-1" title="A change is awaiting approval"><i class="bi bi-hourglass-split me-1"></i>Change pending</span> break;
+    case "SC": <span class="badge bg-danger-subtle text-danger-emphasis ms-1" title="A change was sent back: open it to see why"><i class="bi bi-arrow-return-left me-1"></i>Change sent back</span> break;
+}

@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "Equipment Calibration & Maintenance Due";
+    ViewData["ReportSubtitle"] = "Every instrument of the branch with its calibration, preventive maintenance and service contract position";
+    ViewData["ReportIcon"] = "bi-calendar-check";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["ScopeNote"] = "Equipment register of this branch · as on today";
+}
+@* SQLScripts/2253 (LF-06): out of service first, then overdue, due in 30 days and up to date *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const cardUrl = '@Url.Action("Card", "QcEquipment")';
+    const dueCell = (state, date, h) => ({ OVERDUE: `<span class="text-danger fw-bold">${h.fmtD(date)} · overdue</span>`, NEVER: '<span class="text-danger fw-bold">not done</span>',
+        DUE_30: `<span class="text-warning-emphasis fw-semibold">${h.fmtD(date)}</span>`, OK: `<span class="text-success">${h.fmtD(date)}</span>` })[state] || '<span class="text-muted">—</span>';
+    const tone = { 'Out of service': 'bad', 'Overdue': 'bad', 'Due in 30 days': 'warn', 'Up to date': 'good', 'Retired': 'muted' };
+    LabReport.init({
+        report: 'equipment-due', title: 'Equipment Calibration and Maintenance Due', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Equipment, asset code or serial no...',
+        filters: [
+            { id: 'dueState', label: 'Show', allLabel: 'All equipment', options: [['OVERDUE', 'Overdue'], ['DUE_30', 'Due in 30 days'], ['OUT_OF_SERVICE', 'Out of service'], ['CONTRACT', 'Contract ending / expired']] },
+            { id: 'typeId', label: 'Type', allLabel: 'All types', fromOptions: 'typeId' },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Equipment', color: '#0f766e', value: (s, h) => h.num(s.Equipment), sub: (s, h) => `${h.num(s.OutOfService)} out of service` },
+            { label: 'Calibration overdue', color: '#b91c1c', value: (s, h) => h.num(s.CalibrationOverdue), sub: (s, h) => `${h.num(s.CalibrationDue30)} due in 30 days` },
+            { label: 'Maintenance overdue', color: '#b45309', value: (s, h) => h.num(s.PmOverdue), sub: (s, h) => `${h.num(s.PmDue30)} due in 30 days` },
+            { label: 'Contracts ending', color: '#7c3aed', value: (s, h) => h.num(s.ContractsEnding), sub: () => 'expired or within 30 days' },
+            { label: 'Open breakdowns', color: '#991b1b', value: (s, h) => h.num(s.OpenBreakdowns), sub: () => 'equipment waiting for repair' }
+        ],
+        groups: [
+            { key: 'byState', label: 'Position', rowField: 'OverallLabel' },
+            { key: 'byType', label: 'Type', rowField: 'TypeId', byId: true },
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentId', byId: true }
+        ],
+        groupCols: [{ field: 'Items', label: 'Equipment', num: true }, { field: 'CalOverdue', label: 'Calibration overdue', num: true }, { field: 'PmOverdue', label: 'PM overdue', num: true }],
+        shareOf: 'Items',
+        rowClass: r => r.Overall === 'OUT_OF_SERVICE' || r.Overall === 'OVERDUE' ? 'row-muted' : '',
+        cols: [
+            { label: 'Equipment', html: (r, h) => `<a class="fw-semibold text-decoration-none" target="_blank" href="${cardUrl}?id=${r.EquipmentId}">${h.esc(r.EquipmentName)}</a><div class="text-muted fs-9 font-monospace">${h.esc(r.AssetCode)}${r.SerialNo ? ' · SN ' + h.esc(r.SerialNo) : ''}</div>`, text: r => `${r.AssetCode} ${r.EquipmentName}` },
+            { label: 'Type', html: (r, h) => h.esc(r.TypeName), text: r => r.TypeName },
+            { label: 'Department', html: (r, h) => `<span class="fs-9">${h.esc(r.DepartmentName)}${r.Location ? '<br>' + h.esc(r.Location) : ''}</span>`, text: r => r.DepartmentName },
+            { label: 'Position', html: (r, h) => QcRep.pill(r.OverallLabel, tone[r.OverallLabel], h) + (r.StatusReason ? `<div class="fs-9 text-muted">${h.esc(r.StatusReason)}</div>` : ''), text: r => r.OverallLabel },
+            { label: 'Last calibration', html: (r, h) => r.LastCalibratedOn ? `${h.fmtD(r.LastCalibratedOn)}<div class="fs-9">${h.esc(r.LastCalibrationResult)}</div>` : '—', text: r => r.LastCalibratedOn || '' },
+            { label: 'Calibration due', html: (r, h) => dueCell(r.CalibrationState, r.NextCalibrationDue, h), text: r => r.NextCalibrationDue || r.CalibrationState },
+            { label: 'Last PM', html: (r, h) => r.LastPmOn ? h.fmtD(r.LastPmOn) : '—', text: r => r.LastPmOn || '' },
+            { label: 'PM due', html: (r, h) => dueCell(r.PmState, r.NextPmDue, h), text: r => r.NextPmDue || r.PmState },
+            { label: 'Contract', html: (r, h) => r.ContractType === 'NONE' ? '—' : `${r.ContractType} · ${h.esc(r.ContractVendorName || '')}<div class="fs-9 ${r.ContractState === 'EXPIRED' ? 'text-danger fw-bold' : r.ContractState === 'DUE_30' ? 'text-warning-emphasis' : 'text-muted'}">up to ${h.fmtD(r.ContractUpto)}</div>`, text: r => r.ContractType === 'NONE' ? '' : `${r.ContractType} up to ${r.ContractUpto}` },
+            { label: 'Warranty', html: (r, h) => r.WarrantyUpto ? h.fmtD(r.WarrantyUpto) : '—', text: r => r.WarrantyUpto || '' }
+        ]
+    });
+})();
+</script>
+}

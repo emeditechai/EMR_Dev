@@ -41,7 +41,7 @@
                         {
                             <tr class="@(r.Status == "C" || r.IsReversal ? "text-muted" : "")">
                                 <td class="ps-3 text-nowrap">@r.TransactionDate.ToString("dd-MMM-yyyy")</td>
-                                <td class="font-monospace small text-nowrap"><a asp-action="Voucher" asp-route-id="@r.TransactionId">@r.VoucherNo</a></td>
+                                <td class="font-monospace small text-nowrap"><a asp-action="Voucher" asp-encrypted-route-id="@r.TransactionId">@r.VoucherNo</a></td>
                                 <td class="text-nowrap">@r.VoucherTypeName @if (r.IsReversal) { <span class="badge bg-secondary">Reversal</span> } else if (r.Status == "C") { <span class="badge bg-secondary">Cancelled</span> }</td>
                                 <td>@r.Particulars</td>
                                 <td class="small">@r.Narration</td>

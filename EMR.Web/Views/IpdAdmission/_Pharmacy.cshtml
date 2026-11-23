@@ -1,0 +1,42 @@
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@{
+    // Medicines: the ward raises an indent (SQLScripts/2475) - the pharmacy issues it from Pharmacy > IPD Issue, the ward receives.
+    // Consumables: issued here directly (2437).
+    var panes = new (string Key, string Head, string Title, string Sub, string Icon, string Color)[]
+    {
+        ("indent", "PHARMACY", "Medicine Indent", "Request medicines from the pharmacy (no stock or bill until the pharmacy issues); receive what is issued, re-indent what is not", "bi-capsule", "green"),
+        ("consumables", "CONSUMABLE", "Consumables", "Ward and surgical consumables from the pharmacy store, charged to the IP bill", "bi-bandaid", "amber")
+    };
+}
+@foreach (var p in panes)
+{
+    var isIndent = p.Head == "PHARMACY";
+    <div class="tab-pane fade @(Model.Tab == p.Key ? "show active" : "")" id="tab-@p.Key" role="tabpanel">
+        <div class="reg-section">
+            <div class="reg-section-header"><div class="sec-icon @p.Color"><i class="bi @p.Icon"></i></div>
+                <div class="flex-grow-1"><h6 class="fw-bold mb-0">@p.Title</h6><small class="text-muted">@p.Sub</small></div></div>
+            @if (isIndent) { <div class="ipd-indent-form"></div> } else { <div class="ipd-ph-form" data-head="@p.Head"></div> }
+        </div>
+        @if (isIndent)
+        {
+            <div class="ipdx-card mb-3"><div class="px-3 pt-2 small fw-bold text-muted text-uppercase">Indents</div><div class="table-responsive"><table class="table ipdx-table mb-0">
+                <thead><tr><th>Indent</th><th>Medicine</th><th class="text-end">Asked</th><th class="text-end">Issued</th><th>Status</th><th></th></tr></thead>
+                <tbody class="ipd-indent-rows"><tr><td colspan="6" class="text-muted small">Loading…</td></tr></tbody>
+            </table></div></div>
+        }
+        <div class="ipdx-card mb-3">
+            @if (isIndent)
+            {
+                <div class="px-3 pt-2 d-flex justify-content-between align-items-center"><span class="small fw-bold text-muted text-uppercase">Issued by the pharmacy</span>
+                    <button type="button" class="btn btn-sm btn-success d-none ipd-recv-all"><i class="bi bi-check2-all me-1"></i>Receive all pending</button></div>
+            }
+            <div class="table-responsive"><table class="table ipdx-table mb-0">
+            <thead><tr><th>Issued</th><th>Item / batch</th><th class="text-end">Qty</th><th class="text-end">Returned</th><th class="text-end">Rate</th><th class="text-end">Amount</th><th>By</th>@if (isIndent) { <th>Ward</th> }<th></th></tr></thead>
+            <tbody class="ipd-ph-rows" data-head="@p.Head"><tr><td colspan="9" class="text-muted small">Loading…</td></tr></tbody>
+        </table></div></div>
+        <div class="ipdx-card"><div class="px-3 pt-2 small fw-bold text-muted text-uppercase">Returns</div><div class="table-responsive"><table class="table ipdx-table mb-0">
+            <thead><tr><th>Return</th><th>Item / batch</th><th class="text-end">Qty</th><th class="text-end">Amount</th><th>Reason</th><th>By</th></tr></thead>
+            <tbody class="ipd-ph-returns" data-head="@p.Head"></tbody>
+        </table></div></div>
+    </div>
+}

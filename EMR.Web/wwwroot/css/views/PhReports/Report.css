@@ -1,0 +1,19 @@
+/* moved from Views/PhReports/Report.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .phr { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --accent:#0f766e; }
+    .phr .card-x { background:#fff;border:1px solid var(--line);border-radius:.6rem; }
+    .phr .tile { padding:.7rem .9rem;border-left:4px solid var(--accent); }
+    .phr .tile .t-label { font-size:.64rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted); }
+    .phr .tile .t-val { font-size:1.25rem;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.25; }
+    .phr .flt label { font-size:.68rem;font-weight:600;color:var(--muted);margin-bottom:.15rem; }
+    .phr .btn-pre.active { background:var(--accent);border-color:var(--accent);color:#fff; }
+    .phr .tbl-scroll { max-height:62vh;overflow:auto; }
+    .phr table thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--muted);font-size:.65rem;font-weight:700;letter-spacing:.4px;
+                          text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--line); }
+    .phr table tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6;white-space:nowrap; }
+    .phr table tbody td.wrap { white-space:normal;min-width:16rem; }
+    .phr table tfoot td { font-size:.78rem;font-weight:800;background:#f8fafc;position:sticky;bottom:0; }
+    .phr .num { text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .phr .nowrap { white-space:nowrap; }
+    .phr .neg { color:#b91c1c; }
+    .phr .flag { color:#b91c1c;font-weight:700; }
+    .phr td.heat { text-align:right;font-variant-numeric:tabular-nums; }

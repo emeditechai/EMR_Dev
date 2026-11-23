@@ -33,6 +33,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
                 t.RoomCharge,
                 t.BedCharge,
                 t.NursingCharge,
+                t.RmoCharge,
                 t.AttendantCharge,
                 t.IsolationCharge,
                 t.GstPercentage,
@@ -82,6 +83,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
                 t.RoomCharge,
                 t.BedCharge,
                 t.NursingCharge,
+                t.RmoCharge,
                 t.AttendantCharge,
                 t.IsolationCharge,
                 t.GstPercentage,
@@ -127,6 +129,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
                 t.RoomCharge,
                 t.BedCharge,
                 t.NursingCharge,
+                t.RmoCharge,
                 t.AttendantCharge,
                 t.IsolationCharge,
                 t.GstPercentage,
@@ -164,6 +167,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
                 h.RoomCharge,
                 h.BedCharge,
                 h.NursingCharge,
+                h.RmoCharge,
                 h.AttendantCharge,
                 h.IsolationCharge,
                 h.GstPercentage,
@@ -221,12 +225,12 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
         var sql = @"
             INSERT INTO BedRoomTariffMaster (
                 CompanyId, BranchId, WardId, RoomId, BedCategoryId, TariffCategoryId,
-                EffectiveFrom, EffectiveTo, RoomCharge, BedCharge, NursingCharge,
+                EffectiveFrom, EffectiveTo, RoomCharge, BedCharge, NursingCharge, RmoCharge,
                 AttendantCharge, IsolationCharge, GstPercentage, IsActive,
                 CreatedBy, CreatedDate
             ) VALUES (
                 @CompanyId, @BranchId, @WardId, @RoomId, @BedCategoryId, @TariffCategoryId,
-                @EffectiveFrom, @EffectiveTo, @RoomCharge, @BedCharge, @NursingCharge,
+                @EffectiveFrom, @EffectiveTo, @RoomCharge, @BedCharge, @NursingCharge, @RmoCharge,
                 @AttendantCharge, @IsolationCharge, @GstPercentage, @IsActive,
                 @userId, GETDATE()
             );
@@ -245,6 +249,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
             model.RoomCharge,
             model.BedCharge,
             model.NursingCharge,
+            model.RmoCharge,
             model.AttendantCharge,
             model.IsolationCharge,
             model.GstPercentage,
@@ -256,12 +261,12 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
         var histSql = @"
             INSERT INTO BedRoomTariffHistory (
                 BedRateId, CompanyId, BranchId, WardId, RoomId, BedCategoryId, TariffCategoryId,
-                EffectiveFrom, EffectiveTo, RoomCharge, BedCharge, NursingCharge,
+                EffectiveFrom, EffectiveTo, RoomCharge, BedCharge, NursingCharge, RmoCharge,
                 AttendantCharge, IsolationCharge, GstPercentage, IsActive,
                 ChangeAction, ChangeReason, ChangedBy, ChangedDate
             ) VALUES (
                 @newId, @CompanyId, @BranchId, @WardId, @RoomId, @BedCategoryId, @TariffCategoryId,
-                @EffectiveFrom, @EffectiveTo, @RoomCharge, @BedCharge, @NursingCharge,
+                @EffectiveFrom, @EffectiveTo, @RoomCharge, @BedCharge, @NursingCharge, @RmoCharge,
                 @AttendantCharge, @IsolationCharge, @GstPercentage, @IsActive,
                 'CREATED', @changeReason, @userId, GETDATE()
             );";
@@ -280,6 +285,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
             model.RoomCharge,
             model.BedCharge,
             model.NursingCharge,
+            model.RmoCharge,
             model.AttendantCharge,
             model.IsolationCharge,
             model.GstPercentage,
@@ -305,6 +311,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
                 RoomCharge       = @RoomCharge,
                 BedCharge        = @BedCharge,
                 NursingCharge    = @NursingCharge,
+                RmoCharge        = @RmoCharge,
                 AttendantCharge  = @AttendantCharge,
                 IsolationCharge  = @IsolationCharge,
                 GstPercentage    = @GstPercentage,
@@ -324,6 +331,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
             model.RoomCharge,
             model.BedCharge,
             model.NursingCharge,
+            model.RmoCharge,
             model.AttendantCharge,
             model.IsolationCharge,
             model.GstPercentage,
@@ -336,12 +344,12 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
         var histSql = @"
             INSERT INTO BedRoomTariffHistory (
                 BedRateId, CompanyId, BranchId, WardId, RoomId, BedCategoryId, TariffCategoryId,
-                EffectiveFrom, EffectiveTo, RoomCharge, BedCharge, NursingCharge,
+                EffectiveFrom, EffectiveTo, RoomCharge, BedCharge, NursingCharge, RmoCharge,
                 AttendantCharge, IsolationCharge, GstPercentage, IsActive,
                 ChangeAction, ChangeReason, ChangedBy, ChangedDate
             ) VALUES (
                 @BedRateId, @CompanyId, @BranchId, @WardId, @RoomId, @BedCategoryId, @TariffCategoryId,
-                @EffectiveFrom, @EffectiveTo, @RoomCharge, @BedCharge, @NursingCharge,
+                @EffectiveFrom, @EffectiveTo, @RoomCharge, @BedCharge, @NursingCharge, @RmoCharge,
                 @AttendantCharge, @IsolationCharge, @GstPercentage, @IsActive,
                 'UPDATED', @changeReason, @userId, GETDATE()
             );";
@@ -360,6 +368,7 @@ public class BedRoomTariffService(IDbConnectionFactory db) : IBedRoomTariffServi
             model.RoomCharge,
             model.BedCharge,
             model.NursingCharge,
+            model.RmoCharge,
             model.AttendantCharge,
             model.IsolationCharge,
             model.GstPercentage,

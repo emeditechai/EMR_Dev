@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Services;
 
-public class WherebyService(ApplicationDbContext dbContext, IHttpClientFactory httpClientFactory) : IWherebyService
+public class WherebyService(ApplicationDbContext dbContext, IHttpClientFactory httpClientFactory, IHttpContextAccessor http) : IWherebyService
 {
     private static readonly TimeZoneInfo IstZone =
         TimeZoneInfo.FindSystemTimeZoneById(
@@ -23,13 +23,15 @@ public class WherebyService(ApplicationDbContext dbContext, IHttpClientFactory h
     // ── Create Meeting (BRD FR-04) ────────────────────────────────────────────
     public async Task<WherebyMeetingResult?> CreateMeetingAsync(
         int patientId, DateTime appointmentDate, TimeSpan slotStartTime,
-        TimeSpan slotEndTime, int graceTimeMinutes)
+        TimeSpan slotEndTime, int graceTimeMinutes, int? companyId = null)
     {
+        // video settings are company-wise (script 2336): the given company, else the signed-in user's
+        var co = companyId ?? (int.TryParse(http.HttpContext?.User?.FindFirst("CompanyId")?.Value, out var c) && c > 0 ? c : 1);
         try
         {
             // Retrieve config from DB
             var configs = await dbContext.VideoSystemConfigs
-                .Where(c => c.IsActive)
+                .Where(x => x.IsActive && x.CompanyId == co)
                 .ToDictionaryAsync(c => c.ConfigKey, c => c.ConfigValue);
 
             if (!configs.TryGetValue("WherebyApiKey", out var apiKey) || string.IsNullOrWhiteSpace(apiKey))

@@ -1,0 +1,132 @@
+/* Pharmacy > Sales > POS: counter billing screen. One visual system: 32px controls, tabular figures, one accent. */
+.pos {
+    --pos-accent: var(--emr-primary, #644098);
+    --pos-accent-soft: #f3eefc;
+    --pos-line: #e5e7eb;
+    --pos-muted: #64748b;
+    --pos-bg: #f6f7fb;
+    --pos-ok: #15803d;
+    --pos-bad: #b91c1c;
+    --pos-ctl-h: 32px;
+    font-size: .875rem;
+}
+.pos .num, .pos .money { font-variant-numeric: tabular-nums; }
+.pos .form-control, .pos .form-select { height: var(--pos-ctl-h); font-size: .85rem; border-color: #d4d8e1; border-radius: 6px; }
+.pos .form-control:focus, .pos .form-select:focus { border-color: var(--pos-accent); box-shadow: 0 0 0 .15rem rgba(100, 64, 152, .15); }
+.pos .form-label { font-size: .72rem; font-weight: 600; color: var(--pos-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+.pos .req::after { content: " *"; color: #dc2626; }
+.pos .rx-need { border-color: #dc2626 !important; background: #fef2f2; }
+
+/* top bar */
+.pos-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; background: #fff; border: 1px solid var(--pos-line);
+    border-radius: 10px; padding: .45rem .8rem; margin-bottom: .5rem; }
+.pos-bar .ttl { font-weight: 700; font-size: 1rem; color: #1e1b4b; }
+.pos-bar .ttl i { color: var(--pos-accent); }
+.pos-bar .meta { color: var(--pos-muted); font-size: .78rem; }
+.pos-bar .meta b { color: #334155; font-weight: 600; }
+.pos-pill { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--pos-line); border-radius: 999px; padding: .1rem .6rem; font-size: .75rem; background: #fff; color: #334155; }
+.pos-pill.mode { background: var(--pos-accent-soft); border-color: #d9cdf0; color: var(--pos-accent); font-weight: 700; }
+.pos-pill.held { background: #fff7ed; border-color: #fed7aa; color: #9a3412; font-weight: 700; }
+
+/* panels */
+.pos-panel { background: #fff; border: 1px solid var(--pos-line); border-radius: 10px; }
+.pos-panel > .hd { display: flex; align-items: center; justify-content: space-between; padding: .45rem .75rem; border-bottom: 1px solid var(--pos-line);
+    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #475569; }
+.pos-panel > .hd i { color: var(--pos-accent); }
+.pos-panel > .bd { padding: .6rem .75rem; }
+
+/* customer type switch */
+.pos-seg { display: inline-flex; background: #eef0f5; border-radius: 8px; padding: 2px; gap: 2px; }
+.pos-seg input { display: none; }
+.pos-seg label { margin: 0; padding: .3rem .75rem; border-radius: 6px; font-size: .8rem; font-weight: 600; color: #475569; cursor: pointer; white-space: nowrap; }
+.pos-seg input:checked + label { background: #fff; color: var(--pos-accent); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.pos-chip { display: flex; align-items: center; justify-content: space-between; gap: .5rem; height: var(--pos-ctl-h); padding: 0 .6rem; border: 1px solid #d9cdf0;
+    background: var(--pos-accent-soft); border-radius: 6px; font-size: .82rem; }
+
+/* item search */
+.pos-search-wrap { position: relative; }
+.pos-search-wrap .bi-upc-scan { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: var(--pos-accent); font-size: 1.1rem; }
+.pos-search { height: 42px !important; padding-left: 2.4rem; font-size: .98rem !important; border: 2px solid var(--pos-accent) !important; border-radius: 8px !important; }
+.pos-search-wrap .hint { position: absolute; right: .7rem; top: 50%; transform: translateY(-50%); }
+.pos-drop { position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 1060; background: #fff; border: 1px solid var(--pos-line); border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, .16); max-height: 380px; overflow: auto; }
+.pos-drop .dh, .pos-drop .dr { display: grid; grid-template-columns: minmax(220px, 3fr) 2fr 70px 110px 88px 62px 60px; gap: .5rem; align-items: center; padding: .35rem .7rem; }
+.pos-drop .dh { position: sticky; top: 0; background: #f8fafc; font-size: .66rem; font-weight: 700; text-transform: uppercase; color: var(--pos-muted); border-bottom: 1px solid var(--pos-line); }
+.pos-drop .dr { border-bottom: 1px solid #f1f5f9; cursor: pointer; text-decoration: none; color: inherit; }
+.pos-drop .dr.active, .pos-drop .dr:hover { background: var(--pos-accent-soft); }
+.pos-drop .dr.active { box-shadow: inset 3px 0 0 var(--pos-accent); }
+.pos-drop .dr.oos { color: #94a3b8; }
+.pos-drop .nm { font-weight: 600; }
+.pos-drop .sub { font-size: .72rem; color: var(--pos-muted); }
+.pos-drop .sec { padding: .35rem .7rem; font-size: .72rem; font-weight: 700; background: #fffbeb; color: #92400e; }
+.pos-drop .empty { padding: .8rem; color: var(--pos-muted); font-size: .82rem; }
+.pos-drop.simple .dr { grid-template-columns: 1fr auto; }
+
+/* bill grid */
+.pos-grid-wrap { overflow: auto; height: calc(100vh - 420px); min-height: 220px; }
+.pos-grid { width: 100%; border-collapse: separate; border-spacing: 0; }
+.pos-grid thead th { position: sticky; top: 0; z-index: 2; background: #f8fafc; border-bottom: 1px solid var(--pos-line); font-size: .66rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--pos-muted); padding: .45rem .5rem; white-space: nowrap; }
+.pos-grid tbody td { padding: .35rem .5rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.pos-grid tbody tr:hover td { background: #fafbff; }
+.pos-grid tbody tr:focus-within td { background: var(--pos-accent-soft); }
+.pos-grid tbody tr.short td { background: #fef2f2; }
+.pos-grid .sn { color: #94a3b8; font-size: .75rem; width: 28px; }
+.pos-grid .it-nm { font-weight: 600; line-height: 1.25; }
+.pos-grid td.it { min-width: 230px; }
+.pos-grid .sch, .pos-drop .sch { min-width: 0; padding: .15em .45em; font-size: .62rem; vertical-align: 1px; }
+.pos-grid .it-sub { font-size: .72rem; color: var(--pos-muted); }
+.pos-grid .form-control, .pos-grid .form-select { height: 30px; }
+.pos-grid .qty { display: flex; gap: 4px; justify-content: flex-end; }
+.pos-grid .qty input { width: 64px; text-align: right; font-weight: 600; }
+.pos-grid .qty select { width: 92px; }
+.pos-grid .qty .unit { min-width: 44px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #d4d8e1; border-radius: 6px; font-size: .75rem; color: var(--pos-muted); background: #f8fafc; }
+.pos-grid .amt { font-weight: 700; }
+.pos-grid .del { border: 0; background: none; color: #cbd5e1; padding: 0 .2rem; font-size: 1.05rem; }
+.pos-grid .del:hover { color: #dc2626; }
+.pos-grid .tag { font-size: .62rem; font-weight: 700; border-radius: 4px; padding: 0 4px; margin-left: 2px; vertical-align: 1px; }
+.pos-grid .tag.rule { background: #dcfce7; color: #166534; }
+.pos-empty { text-align: center; color: #94a3b8; padding: 3.5rem 1rem; }
+.pos-empty i { font-size: 2.6rem; display: block; margin-bottom: .4rem; color: #cbd5e1; }
+.pos-foot { display: flex; flex-wrap: wrap; gap: 1.2rem; padding: .45rem .75rem; border-top: 1px solid var(--pos-line); background: #f8fafc; border-radius: 0 0 10px 10px;
+    font-size: .78rem; color: var(--pos-muted); }
+.pos-foot b { color: #1e293b; font-variant-numeric: tabular-nums; }
+.pos-alerts .alert { margin-bottom: .35rem; }
+
+/* right: totals and payment */
+.pos-net { background: linear-gradient(135deg, #2e1065 0%, #4c1d95 55%, #6d28d9 100%); color: #fff; border-radius: 10px; padding: .8rem 1rem; }
+.pos-net .lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; opacity: .8; }
+.pos-net .val { font-size: 2.35rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.pos-net .sv { font-size: .78rem; color: #bbf7d0; font-weight: 600; }
+.pos-tot { width: 100%; }
+.pos-tot td { padding: .18rem 0; font-size: .82rem; }
+.pos-tot td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.pos-tot tr.sep td { border-top: 1px dashed var(--pos-line); padding-top: .35rem; }
+.pos-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: .35rem; }
+.pos-modes button { border: 1px solid var(--pos-line); background: #fff; border-radius: 8px; padding: .35rem .2rem; font-size: .75rem; font-weight: 600; color: #334155; line-height: 1.2; }
+.pos-modes button i { display: block; font-size: 1.05rem; color: var(--pos-accent); }
+.pos-modes button.on { border-color: var(--pos-accent); background: var(--pos-accent-soft); color: var(--pos-accent); }
+.pos-quick { display: flex; flex-wrap: wrap; gap: .3rem; }
+.pos-quick button { border: 1px dashed #c4b5fd; background: #faf5ff; color: #5b21b6; border-radius: 6px; padding: .1rem .55rem; font-size: .75rem; font-weight: 600; }
+.pos-pay { display: grid; grid-template-columns: 64px 1fr auto; gap: .3rem; align-items: center; margin-bottom: .3rem; }
+.pos-pay.ref { grid-template-columns: 64px 1fr 1fr auto; }
+.pos-pay .m { font-size: .75rem; font-weight: 700; color: #475569; }
+.pos-pay input[data-p=amount] { text-align: right; font-weight: 700; }
+.pos-pay .x { border: 0; background: none; color: #cbd5e1; }
+.pos-pay .x:hover { color: #dc2626; }
+.pos-due { display: flex; justify-content: space-between; font-size: .85rem; padding: .15rem 0; }
+.pos-change { display: flex; justify-content: space-between; align-items: center; margin-top: .35rem; padding: .45rem .7rem; border-radius: 8px;
+    background: #ecfdf5; color: #065f46; font-weight: 800; font-size: 1.15rem; }
+.pos-save { height: 50px; font-size: 1.05rem; font-weight: 700; border-radius: 10px; }
+.pos-save .ph-kbd { background: rgba(255,255,255,.18); color: #fff; border-color: rgba(255,255,255,.5); }
+.pos-act { display: grid; grid-template-columns: 1fr 1fr auto; gap: .35rem; }
+.pos-act .btn { height: 36px; font-size: .8rem; font-weight: 600; }
+.pos-last { font-size: .78rem; color: var(--pos-muted); border: 1px dashed var(--pos-line); border-radius: 8px; padding: .4rem .6rem; }
+.pos-last a { font-weight: 600; }
+
+/* bottom key bar */
+.pos-keys { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: .25rem .9rem; justify-content: center; margin-top: .5rem;
+    background: #1e1b4b; color: #c7d2fe; border-radius: 10px; padding: .35rem .8rem; font-size: .74rem; }
+.pos-keys kbd { background: #312e81; color: #fff; border: 1px solid #4338ca; border-radius: 4px; padding: 0 .35rem; font-size: .7rem; margin-right: .25rem; box-shadow: none; }
+
+@media (max-width: 1199.98px) { .pos-grid-wrap { height: auto; max-height: 60vh; } }

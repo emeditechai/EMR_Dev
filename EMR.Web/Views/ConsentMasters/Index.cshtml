@@ -194,13 +194,13 @@
                                     </td>
                                     <td class="text-end pe-3">
                                         <div class="btn-group btn-group-sm">
-                                            <a asp-permission="MASTER.CONSENTMASTERS:DETAILS" asp-action="Details" asp-route-id="@item.Consent_ID" class="btn btn-outline-secondary" title="View Template & Metadata">
+                                            <a asp-permission="MASTER.CONSENTMASTERS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.Consent_ID" class="btn btn-outline-secondary" title="View Template & Metadata">
                                                 <i class="bi bi-eye-fill"></i>
                                             </a>
-                                            <a asp-permission="MASTER.CONSENTMASTERS:EDIT" asp-action="Edit" asp-route-id="@item.Consent_ID" class="btn btn-outline-primary" title="Edit Template">
+                                            <a asp-permission="MASTER.CONSENTMASTERS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.Consent_ID" class="btn btn-outline-primary" title="Edit Template">
                                                 <i class="bi bi-pencil-fill"></i>
                                             </a>
-                                            <form asp-permission="MASTER.CONSENTMASTERS:DELETE" asp-action="Delete" asp-route-id="@item.Consent_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Consent Master template?');">
+                                            <form asp-permission="MASTER.CONSENTMASTERS:DELETE" asp-action="Delete" asp-encrypted-route-id="@item.Consent_ID" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this Consent Master template?');">
                                                 @Html.AntiForgeryToken()
                                                 <button type="submit" class="btn btn-outline-danger" title="Delete Template">
                                                     <i class="bi bi-trash-fill"></i>

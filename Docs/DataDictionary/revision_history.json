@@ -1,0 +1,410 @@
+[
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "Initial release: Common foundation, OPD and LAB (185 tables)"
+  ],
+  "date": "28 Oct 2026",
+  "version": "1.0"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "Added Part D Pharmacy, Part E Accounts and Part F Inventory (268 tables)"
+  ],
+  "date": "28 Oct 2026",
+  "version": "1.1"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table LabExternalDocument (16 columns, module C7)",
+   "New table LabFtpSettings (13 columns, module C7)",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "30 Oct 2026",
+  "version": "1.2"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "MS_Description changed on LabExternalDocument"
+  ],
+  "date": "30 Oct 2026",
+  "version": "1.3"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "HospitalSettings: new column(s) EnableAbha, EnableAyushmanBharat",
+   "PatientMaster: new column(s) AbhaNumber, AbhaAddress, AyushmanCardNo",
+   "MS_Description changed on HospitalSettings, PatientMaster"
+  ],
+  "date": "31 Oct 2026",
+  "version": "1.4"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "LabExternalDocument: new column(s) LabBookingNo",
+   "MS_Description changed on LabExternalDocument"
+  ],
+  "date": "31 Oct 2026",
+  "version": "1.5"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table PhBillItemAlias (7 columns, module not yet grouped)",
+   "New table PhStore (16 columns, module not yet grouped)",
+   "New table PhStoreIssue (23 columns, module not yet grouped)",
+   "New table PhStoreIssueDtl (10 columns, module not yet grouped)",
+   "New table PhStoreStock (6 columns, module not yet grouped)",
+   "PhAdjustment: new column(s) StoreId",
+   "PhGrn: new column(s) StoreId",
+   "PhPurchaseReturn: new column(s) StoreId",
+   "PhSale: new column(s) StoreId",
+   "PhStockCount: new column(s) StoreId",
+   "PhStockLedger: new column(s) StoreId, StoreBalanceAfter",
+   "PhTransfer: new column(s) FromStoreId, ToStoreId",
+   "PhUom: new column(s) UqcCode",
+   "New foreign key PhStoreIssue.FromStoreId -> PhStore.StoreId",
+   "New foreign key PhStoreIssue.ToStoreId -> PhStore.StoreId",
+   "New foreign key PhStoreIssueDtl.IssueId -> PhStoreIssue.IssueId",
+   "New foreign key PhStoreStock.BatchId -> PhBatch.BatchId",
+   "New foreign key PhStoreStock.StoreId -> PhStore.StoreId"
+  ],
+  "date": "01 Nov 2026",
+  "version": "1.6"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table LabBillChangeLine (6 columns, module C11)",
+   "New table LabBillChangeRequest (18 columns, module C11)",
+   "New table LabBillRevision (7 columns, module C11)",
+   "New table LabHomeVisit (24 columns, module C11)",
+   "New table LabHomeVisitEvent (13 columns, module C11)",
+   "New table PhleboAttendance (26 columns, module C11)",
+   "New table PhleboCashLedger (11 columns, module C11)",
+   "New table PhleboDevice (12 columns, module C11)",
+   "New table PhleboDocument (14 columns, module C11)",
+   "New table PhleboHandover (11 columns, module C11)",
+   "New table PhleboHandoverLine (5 columns, module C11)",
+   "New table PhleboLocationPoint (10 columns, module C11)",
+   "New table PhleboSettings (27 columns, module C11)",
+   "New table PhleboStartPoint (7 columns, module C11)",
+   "New table PhleboTravelLeg (13 columns, module C11)",
+   "Branchmaster: new column(s) Latitude, Longitude, GeofenceRadiusM",
+   "New foreign key LabBillChangeLine.BillChangeId -> LabBillChangeRequest.BillChangeId",
+   "New foreign key LabBillChangeRequest.LabOrderId -> LabOrder.LabOrderId",
+   "New foreign key LabBillChangeRequest.VisitId -> LabHomeVisit.VisitId",
+   "New foreign key LabBillRevision.BillChangeId -> LabBillChangeRequest.BillChangeId",
+   "New foreign key LabBillRevision.LabOrderId -> LabOrder.LabOrderId",
+   "New foreign key LabHomeVisit.LabOrderId -> LabOrder.LabOrderId",
+   "New foreign key LabHomeVisit.ParentVisitId -> LabHomeVisit.VisitId",
+   "New foreign key LabHomeVisit.PatientId -> PatientMaster.PatientId",
+   "New foreign key LabHomeVisit.PhlebotomistId -> Users.Id",
+   "New foreign key LabHomeVisitEvent.VisitId -> LabHomeVisit.VisitId",
+   "New foreign key PhleboAttendance.UserId -> Users.Id",
+   "New foreign key PhleboCashLedger.UserId -> Users.Id",
+   "New foreign key PhleboDevice.UserId -> Users.Id",
+   "New foreign key PhleboDocument.VisitId -> LabHomeVisit.VisitId",
+   "New foreign key PhleboHandover.PhlebotomistId -> Users.Id",
+   "New foreign key PhleboHandoverLine.HandoverId -> PhleboHandover.HandoverId",
+   "New foreign key PhleboHandoverLine.VisitId -> LabHomeVisit.VisitId",
+   "New foreign key PhleboLocationPoint.AttendanceId -> PhleboAttendance.AttendanceId",
+   "New foreign key PhleboSettings.CompanyId -> CompanyMaster.CompanyId",
+   "New foreign key PhleboStartPoint.CompanyId -> CompanyMaster.CompanyId",
+   "New foreign key PhleboTravelLeg.AttendanceId -> PhleboAttendance.AttendanceId",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "01 Nov 2026",
+  "version": "1.7"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "HospitalSettings: new column(s) BillChangeApprovalRequired, LoginAlertCount",
+   "MS_Description changed on HospitalSettings"
+  ],
+  "date": "01 Nov 2026",
+  "version": "1.8"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table UserPasswordResetOtp (12 columns, module A2)",
+   "New foreign key UserPasswordResetOtp.UserId -> Users.Id",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "01 Nov 2026",
+  "version": "1.9"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table UserPhleboArea (3 columns, module A2)",
+   "LabOrder: new column(s) IsBookingRequired, BookingNo",
+   "New foreign key UserPhleboArea.AreaId -> AreaMaster.AreaId",
+   "New foreign key UserPhleboArea.UserId -> Users.Id",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "03 Nov 2026",
+  "version": "1.10"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "HospitalSettings: new column(s) IsPhlebotomistAppRequired"
+  ],
+  "date": "03 Nov 2026",
+  "version": "1.11"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabPhleboBarcodePool (13 columns, module not yet grouped)",
+   "New table LabPhleboBarcodeSeries (16 columns, module not yet grouped)",
+   "New table PhDebitNoteAdjust (10 columns, module not yet grouped)",
+   "New foreign key LabPhleboBarcodePool.SeriesId -> LabPhleboBarcodeSeries.SeriesId"
+  ],
+  "date": "04 Nov 2026",
+  "version": "1.12"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table PhDrugInteraction (12 columns, module not yet grouped)",
+   "New table PhLoyaltyLedger (16 columns, module not yet grouped)",
+   "New table PhLoyaltyOtp (8 columns, module not yet grouped)",
+   "New table PhRefillReminder (16 columns, module not yet grouped)",
+   "New table PhRxGenericMap (9 columns, module not yet grouped)",
+   "New table PhSaleClinicalAlert (8 columns, module not yet grouped)",
+   "New table PhSaleRx (13 columns, module not yet grouped)",
+   "New table PhSupplierScheme (14 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) PharmacyAutoReorderEnabled, PharmacyReorderSalesDays, PharmacyReorderSafetyDays, PharmacyReorderCoverDays, PharmacySchemeAutoApply, PharmacyGs1ScanEnabled, PharmacyCountBlind, PharmacyCountRecountPercent, PharmacyCycleCountDays, PharmacyAbcAPercent, PharmacyAbcBPercent, PharmacySlowMovingDays, PharmacyDeadStockDays, PharmacySplitPaymentEnabled, PharmacySubstituteSuggest, PharmacyRxLinkEnabled, PharmacyClinicalChecksEnabled, PharmacyMajorInteractionBlock, PharmacyRefillReminderEnabled, PharmacyRefillReminderDaysBefore, PharmacyLoyaltyEnabled, PharmacyLoyaltyEarnPer100, PharmacyLoyaltyPointValue, PharmacyLoyaltyMinRedeem, PharmacyLoyaltyMaxRedeemPercent, PharmacyLoyaltyExpiryDays, PharmacyLoyaltyType, PharmacyLoyaltyDiscountPercent, PharmacyLoyaltyEarnPercent, PharmacyLoyaltyEarnBasis, PharmacyLoyaltyMinBillToEarn, PharmacyLoyaltyMaxEarnPerBill, PharmacyLoyaltyEarnOnRedeemBill, PharmacyLoyaltyLockInDays, PharmacyLoyaltyMinBillToRedeem, PharmacyLoyaltyRedeemOtp, PharmacyLoyaltyWalkinByMobile, PharmacyLoyaltyNotifyWhatsApp, PharmacyLoyaltyExpiryReminderDays",
+   "PhCustomer: new column(s) CreditDays",
+   "PhItem: new column(s) VedClass",
+   "PhPurchaseIndent: new column(s) SupplierId, EmailedTo, EmailedDate",
+   "PhSale: new column(s) ConsultationId, CreditRefNo, LoyaltyRedeemPoints, LoyaltyRedeemValue, LoyaltyEarnedPoints, LoyaltyDiscountPercent, LoyaltyDiscountValue",
+   "PhSaleDtl: new column(s) DaysSupply",
+   "PhStockCountDtl: new column(s) FirstCountQty, RecountRequired, RecountedBy, RecountedDate, CountedBy, CountedDate",
+   "PhSupplier: new column(s) ReceiveIndentEmail",
+   "New foreign key PhDrugInteraction.GenericId1 -> PhGeneric.GenericId",
+   "New foreign key PhDrugInteraction.GenericId2 -> PhGeneric.GenericId",
+   "New foreign key PhPurchaseIndent.SupplierId -> PhSupplier.SupplierId",
+   "New foreign key PhRefillReminder.SaleId -> PhSale.SaleId",
+   "New foreign key PhRxGenericMap.GenericId -> PhGeneric.GenericId",
+   "New foreign key PhSaleClinicalAlert.SaleId -> PhSale.SaleId",
+   "New foreign key PhSaleRx.SaleId -> PhSale.SaleId",
+   "New foreign key PhSupplierScheme.ItemId -> PhItem.ItemId",
+   "New foreign key PhSupplierScheme.SupplierId -> PhSupplier.SupplierId",
+   "Lookup values changed: ApprovalModule"
+  ],
+  "date": "04 Nov 2026",
+  "version": "1.13"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "HospitalSettings: new column(s) IpdNumberPrefix, IpdNumberResetYearly, IpdBedChargeMode, IpdDischargeGraceHour, IpdHourlyGraceHours, IpdDefaultTariffCategoryId, IpdRoomGstThreshold, IpdMinAdvanceDays, IpdDepositAlertPercent, IpdEstimateValidityDays, IpdDefaultDischargeHour, IpdBlockWardGenderMismatch, IpdConsentRequired, IpdReleaseBedTo, IpdReservationHoldHours"
+  ],
+  "date": "08 Nov 2026",
+  "version": "1.14"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabRxLearning (8 columns, module not yet grouped)",
+   "DoctorMaster: new column(s) MarketingExecutiveId",
+   "LabOrder: new column(s) AdmissionId, OrderedByDoctorId, IpdRemarks, MarketingExecutiveId",
+   "PhScheduleRegister: new column(s) IpdIssueId, IpdIssueLineId",
+   "PhScheduleRegister.SaleId: now nullable",
+   "PhScheduleRegister.SaleDtlId: now nullable",
+   "Users: new column(s) Is_MarketingExecutive",
+   "New foreign key DoctorMaster.MarketingExecutiveId -> MarketingExecutive.ExecutiveId",
+   "New foreign key LabOrder.MarketingExecutiveId -> MarketingExecutive.ExecutiveId"
+  ],
+  "date": "11 Nov 2026",
+  "version": "1.15"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "New table Doctor_IP_Commission_Omitted (18 columns, module C10)",
+   "Descriptions / module grouping updated"
+  ],
+  "date": "12 Nov 2026",
+  "version": "1.16"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabEstimate (37 columns, module not yet grouped)",
+   "New table LabEstimateDeptDiscount (6 columns, module not yet grouped)",
+   "New table LabEstimateItem (22 columns, module not yet grouped)",
+   "New foreign key LabEstimate.PatientId -> PatientMaster.PatientId",
+   "New foreign key LabEstimateDeptDiscount.EstimateId -> LabEstimate.EstimateId",
+   "New foreign key LabEstimateItem.EstimateId -> LabEstimate.EstimateId"
+  ],
+  "date": "12 Nov 2026",
+  "version": "1.17"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table PaymentQrConfig (14 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) ShowQrOnB2BInvoice"
+  ],
+  "date": "12 Nov 2026",
+  "version": "1.18"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "LabOrder: new column(s) LmpDate"
+  ],
+  "date": "12 Nov 2026",
+  "version": "1.19"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "LabInvestigationMaster: new column(s) Is_LMP_Date_Required",
+   "MS_Description changed on LabInvestigationMaster"
+  ],
+  "date": "13 Nov 2026",
+  "version": "1.20"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "Users: new column(s) Is_Verified, Verified_Date",
+   "MS_Description changed on Users"
+  ],
+  "date": "15 Nov 2026",
+  "version": "1.21"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "HospitalSettings: new column(s) AllowPrintLabReportInDue",
+   "Lookup values changed: ApprovalModule"
+  ],
+  "date": "16 Nov 2026",
+  "version": "1.22"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "Users: new column(s) CentralUserID, CentralSyncPending"
+  ],
+  "date": "17 Nov 2026",
+  "version": "1.23"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "CompanyMaster: new column(s) ValidFrom, ValidTo"
+  ],
+  "date": "17 Nov 2026",
+  "version": "1.24"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table EmrTemplateDoctorMap (6 columns, module not yet grouped)",
+   "PatientMaster: new column(s) Is_App_Verified, App_Verified_Date",
+   "PhleboSettings: new column(s) RequireDeviceApproval",
+   "New foreign key EmrTemplateDoctorMap.DoctorId -> DoctorMaster.DoctorId",
+   "New foreign key EmrTemplateDoctorMap.TemplateId -> EmrTemplates.TemplateId",
+   "MS_Description changed on PatientMaster, PhleboSettings"
+  ],
+  "date": "18 Nov 2026",
+  "version": "1.25"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "DoctorMaster: new column(s) IsSuspended, SuspendReason, SuspendedBy, SuspendedAt"
+  ],
+  "date": "18 Nov 2026",
+  "version": "1.26"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "Users: new column(s) CentralSyncSkipReason, CentralSyncSkippedUsername, CentralSyncSkippedAt"
+  ],
+  "date": "19 Nov 2026",
+  "version": "1.27"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table InvAdjReason (6 columns, module not yet grouped)",
+   "New table InvConsumptionPosting (8 columns, module not yet grouped)",
+   "New table InvDoc (49 columns, module not yet grouped)",
+   "New table InvDocCounter (4 columns, module not yet grouped)",
+   "New table InvDocLine (29 columns, module not yet grouped)",
+   "New table InvLot (15 columns, module not yet grouped)",
+   "New table InvSettings (9 columns, module not yet grouped)",
+   "New table InvStockBalance (7 columns, module not yet grouped)",
+   "New table InvStockLedger (19 columns, module not yet grouped)",
+   "InvItemCategory: new column(s) RequiresAcceptance",
+   "InvSupplier: new column(s) LedgerId",
+   "QcConsumptionLine: new column(s) StoreId, StockStatus, StockPostedOn, StockNote",
+   "New foreign key InvDocLine.DocId -> InvDoc.DocId",
+   "New foreign key InvDocLine.ItemId -> InvItem.ItemId",
+   "New foreign key InvLot.ItemId -> InvItem.ItemId",
+   "New foreign key InvStockBalance.LotId -> InvLot.LotId",
+   "New foreign key InvStockBalance.StoreId -> InvStore.StoreId"
+  ],
+  "date": "20 Nov 2026",
+  "version": "1.28"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabReportSerialNo (9 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) OpdRegistrationChargesNotRequired, IsLabSerialNoReq",
+   "New foreign key LabReportSerialNo.LabOrderId -> LabOrder.LabOrderId"
+  ],
+  "date": "22 Nov 2026",
+  "version": "1.29"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table DoctorCommissionConfigService (2 columns, module not yet grouped)",
+   "BankMaster: new column(s) CompanyId, AccountHolderName, AccountType, MICRCode, SwiftCode, BranchAddress, City, ContactPerson, ContactPhone, ContactEmail, Remarks, CreatedBy, ModifiedBy, ModifiedAt",
+   "DoctorCommissionConfig: new column(s) ProfileId",
+   "DoctorSettlement: new column(s) FundId",
+   "New foreign key DoctorCommissionConfigService.CommissionConfigId -> DoctorCommissionConfig.CommissionConfigId",
+   "New foreign key DoctorCommissionConfigService.ServiceId -> ServiceMaster.ServiceId",
+   "New foreign key DoctorSettlement.FundId -> Fund.FundId",
+   "Lookup values changed: ApprovalModule"
+  ],
+  "date": "22 Nov 2026",
+  "version": "1.30"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table DoctorIpAccessOtp (11 columns, module not yet grouped)"
+  ],
+  "date": "22 Nov 2026",
+  "version": "1.31"
+ },
+ {
+  "by": "purojitbhar",
+  "changes": [
+   "LabRateCardDetail: new column(s) Payer_Code, Scheme_Code",
+   "LabRateCardMaster: new column(s) Is_Govt_Scheme, Scheme_Name",
+   "MS_Description changed on LabRateCardDetail"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.32"
+ }
+]

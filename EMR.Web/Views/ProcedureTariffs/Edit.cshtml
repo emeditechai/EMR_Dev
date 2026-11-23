@@ -17,7 +17,7 @@
                 <h5 class="card-title mb-0 fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit Procedure Tariff Rate</h5>
             </div>
             <div class="card-body p-4">
-                <form asp-action="Edit" asp-route-id="@Model.ProcedureTariffId" method="post" id="tariffForm">
+                <form asp-action="Edit" asp-encrypted-route-id="@Model.ProcedureTariffId" method="post" id="tariffForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ProcedureTariffId" />
                     <input type="hidden" asp-for="CompanyId" />
@@ -154,21 +154,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        function calculateTotal() {
-            var total = 0;
-            document.querySelectorAll('.fee-input').forEach(function (input) {
-                var val = parseFloat(input.value) || 0;
-                total += val;
-            });
-            document.getElementById('totalRateDisplay').innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        document.querySelectorAll('.fee-input').forEach(function (input) {
-            input.addEventListener('input', calculateTotal);
-            input.addEventListener('change', calculateTotal);
-        });
-
-        calculateTotal();
-    </script>
+    <script src="~/js/views/ProcedureTariffs/Edit.js" asp-append-version="true"></script>
 }

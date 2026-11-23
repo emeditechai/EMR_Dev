@@ -58,21 +58,5 @@
 
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
-    <script>
-        document.getElementById('CountryId').addEventListener('change', function () {
-            const countryId = this.value;
-            const stateSelect = document.getElementById('StateId');
-            stateSelect.innerHTML = '<option value="">-- Select State --</option>';
-            if (!countryId) return;
-            fetch(`/States/GetByCountry?countryId=${countryId}`)
-                .then(r => r.json())
-                .then(data => {
-                    data.forEach(s => {
-                        const opt = document.createElement('option');
-                        opt.value = s.stateId; opt.text = s.stateName;
-                        stateSelect.appendChild(opt);
-                    });
-                });
-        });
-    </script>
+    <script src="~/js/views/Districts/Create.js" asp-append-version="true"></script>
 }

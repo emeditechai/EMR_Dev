@@ -1,0 +1,55 @@
+@{
+    ViewData["Title"] = "EQAS Performance";
+    ViewData["ReportSubtitle"] = "External quality assessment results of the period: our result against the target, z-score and performance";
+    ViewData["ReportIcon"] = "bi-award";
+    ViewData["ReportAccent"] = "#1d4ed8";
+    ViewData["ScopeNote"] = "EQAS programmes of this branch";
+    ViewData["DateLabel"] = "sample received";
+}
+@* SQLScripts/2253 (LF-06): one row per test per cycle; acceptable % over evaluated results *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const tone = { ACCEPTABLE: 'good', WARNING: 'warn', UNACCEPTABLE: 'bad', NOT_EVALUATED: 'muted' };
+    LabReport.init({
+        report: 'eqas-performance', title: 'EQAS Performance', defaultRange: 'year',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test, programme or cycle...',
+        filters: [
+            { id: 'performance', label: 'Performance', allLabel: 'All results', options: [['ACCEPTABLE', 'Acceptable'], ['WARNING', 'Warning'], ['UNACCEPTABLE', 'Unacceptable'], ['NOT_EVALUATED', 'Not evaluated']] },
+            { id: 'programId', label: 'Programme', allLabel: 'All programmes', fromOptions: 'programId' }
+        ],
+        kpis: [
+            { label: 'Acceptable', color: '#15803d', value: s => s.AcceptablePct == null ? '—' : `${Number(s.AcceptablePct).toFixed(1)}%`, sub: (s, h) => `${h.num(s.Acceptable)} of ${h.num(s.Evaluated)} evaluated results` },
+            { label: 'Warning', color: '#b45309', value: (s, h) => h.num(s.Warning), sub: () => 'between the acceptable and action limits' },
+            { label: 'Unacceptable', color: '#b91c1c', value: (s, h) => h.num(s.Unacceptable), sub: () => 'each with a CAPA' },
+            { label: 'Cycles', color: '#1d4ed8', value: (s, h) => h.num(s.Cycles), sub: (s, h) => `${h.num(s.LateCycles)} submitted after the due date` }
+        ],
+        groups: [
+            { key: 'byProgram', label: 'Programme', rowField: 'ProgramId', byId: true },
+            { key: 'byTest', label: 'Test', rowField: 'TestId', byId: true },
+            { key: 'byCycle', label: 'Cycle', rowField: 'CycleId', byId: true },
+            { key: 'byPerformance', label: 'Performance', rowField: 'PerformanceLabel' }
+        ],
+        groupCols: [{ field: 'Results', label: 'Results', num: true }, { field: 'Acceptable', label: 'Acceptable', num: true }, { field: 'Warning', label: 'Warning', num: true },
+                    { field: 'Unacceptable', label: 'Unacceptable', num: true }, { field: 'AcceptablePct', label: 'Acceptable %', num: true, total: 'none', fmt: v => QcRep.pct(v) }],
+        shareOf: 'Results',
+        rowClass: r => r.Performance === 'UNACCEPTABLE' ? 'row-muted' : '',
+        cols: [
+            { label: 'Cycle', html: (r, h) => `<div class="fw-semibold">${h.esc(r.CycleName)}</div><div class="fs-9 text-muted">${h.esc(r.ProgramName)} · ${h.esc(r.Provider)}</div>`, text: r => `${r.ProgramName} ${r.CycleName}` },
+            { label: 'Received', cls: 'text-nowrap', html: (r, h) => h.fmtD(r.ReceivedOn) + (r.SubmittedLate ? '<div class="fs-9 text-danger">submitted late</div>' : ''), text: r => r.ReceivedOn },
+            { label: 'Test', html: (r, h) => `${h.esc(r.TestName)}${r.Unit ? ` <span class="fs-9 text-muted">${h.esc(r.Unit)}</span>` : ''}`, text: r => r.TestName },
+            { label: 'Our result', cls: 'text-end', html: (r, h) => h.esc(r.OurValue || '—'), text: r => r.OurValue || '' },
+            { label: 'Target / expected', cls: 'text-end', html: (r, h) => r.ResultType === 'QUAL' ? h.esc(r.ExpectedValue || '—') : (r.TargetValue == null ? '—' : `${QcRep.qty(r.TargetValue)}${r.Sd != null ? ` ± ${QcRep.qty(r.Sd)}` : ''}`), text: r => r.ResultType === 'QUAL' ? (r.ExpectedValue || '') : (r.TargetValue ?? '') },
+            { label: 'z-score', cls: 'text-end fw-semibold', html: r => r.ZScore == null ? '—' : Number(r.ZScore).toFixed(2), text: r => r.ZScore ?? '' },
+            { label: 'Performance', html: (r, h) => QcRep.pill(r.PerformanceLabel, tone[r.Performance], h), text: r => r.PerformanceLabel },
+            { label: 'CAPA', html: (r, h) => r.CapaNo ? `${h.esc(r.CapaNo)}<div class="fs-9 text-muted">${h.esc(r.CapaStatus)}</div>` : '', text: r => r.CapaNo || '' }
+        ]
+    });
+})();
+</script>
+}

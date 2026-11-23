@@ -4,7 +4,7 @@
     ViewData["Title"] = Model.IsSwitch ? "Switch Branch" : "Select Branch";
 }
 
-<div class="auth-card">
+<div class="auth-card auth-glass">
     <div class="row g-0 h-100">
 
         @* LEFT PANEL *@
@@ -52,7 +52,7 @@
                     }
                 </div>
 
-                <form asp-action="SelectBranch" method="post" novalidate>
+                <form asp-action="SelectBranch" method="post" novalidate id="branchForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="IsSwitch" />
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger py-2 small mb-3"></div>
@@ -72,7 +72,7 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="btn auth-signin-btn w-100">
+                    <button type="submit" class="btn auth-signin-btn w-100" id="branchSubmitBtn">
                         <i class="bi bi-arrow-right-circle me-2"></i>@(Model.IsSwitch ? "Switch Branch" : "Continue to Dashboard")
                     </button>
                 </form>
@@ -107,4 +107,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/views/Account/SelectBranch.js" asp-append-version="true"></script>
 }

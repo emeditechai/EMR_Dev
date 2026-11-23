@@ -1,8 +1,11 @@
 @model EMR.Web.Models.ViewModels.LabOrderBookingViewModel
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Xsrf
+@inject EMR.Web.Services.IAiBillingFeatures AiBillingFeatures
+@inject EMR.Web.Services.IGovernmentIdFeatures GovernmentIds
 @{
     ViewData["Title"] = "B2B Lab Order Registration & Billing";
     var token = Xsrf.GetAndStoreTokens(Context).RequestToken;
+    var governmentIds = await GovernmentIds.GetAsync(Context);
 }
 
 @section HeadStyles {
@@ -10,189 +13,7 @@
     <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="~/lib/leaflet/dist/leaflet.css" />
-    <style>
-        #leafletMapContainer {
-            height: 380px;
-            width: 100%;
-            border-radius: 8px;
-            z-index: 1;
-        }
-        .leaflet-container {
-            font-family: inherit;
-        }
-        .geo-addr-sug {
-            cursor: pointer;
-            transition: all 0.15s ease-in-out;
-            border: none;
-            border-bottom: 1px solid #f0f0f0;
-            border-left: 4px solid transparent;
-            background: #fff;
-        }
-        .geo-addr-sug:hover, .geo-addr-sug.kbd-active {
-            background-color: #e8f0fe !important;
-            border-left: 4px solid #1a73e8 !important;
-        }
-        .geo-addr-sug.kbd-active .fw-bold {
-            color: #1a73e8 !important;
-        }
-        .btn-close-xs {
-            width: 0.5rem;
-            height: 0.5rem;
-            padding: 0.15rem;
-        }
-        .select2-container--bootstrap-5 .select2-selection {
-            min-height: 38px;
-            font-size: 0.875rem;
-            border-color: #cbd5e1;
-            border-radius: 8px;
-            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-        }
-        .select2-container--bootstrap-5.select2-container--focus .select2-selection,
-        .select2-container--bootstrap-5.select2-container--open .select2-selection,
-        .form-control:focus,
-        .form-select:focus,
-        .form-check-input:focus {
-            border-color: #2563eb !important;
-            box-shadow: 0 0 0 0.25rem rgba(37, 99, 235, 0.22) !important;
-            outline: 0 !important;
-        }
-        .form-check-input:focus + .form-check-label {
-            color: #2563eb !important;
-            font-weight: 700 !important;
-        }
-        .select2-container--bootstrap-5 .select2-dropdown {
-            border-color: #cbd5e1;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
-            overflow: hidden;
-            z-index: 1060;
-        }
-        .select2-container--bootstrap-5 .select2-search--dropdown {
-            padding: 8px 10px;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .select2-container--bootstrap-5 .select2-search--dropdown .select2-search__field {
-            border-radius: 6px;
-            border: 1px solid #cbd5e1;
-            padding: 6px 12px;
-            font-size: 0.85rem;
-        }
-        .select2-container--bootstrap-5 .select2-results__options {
-            max-height: 280px;
-            padding: 4px;
-        }
-        .select2-container--bootstrap-5 .select2-results__option {
-            padding: 6px 10px;
-            font-size: 0.85rem;
-            border-radius: 6px;
-            margin-bottom: 2px;
-            transition: background-color 0.1s ease;
-        }
-        .select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
-            background-color: #eff6ff !important;
-            color: #1e3a8a !important;
-        }
-        .select2-container { width: 100% !important; }
-
-        .reg-section {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            margin-bottom: 1.25rem;
-            overflow: visible;
-            box-shadow: 0 1px 3px rgba(0,0,0,.04);
-        }
-        .reg-section-header {
-            display: flex;
-            align-items: center;
-            gap: .75rem;
-            padding: 0.85rem 1.25rem;
-            border-bottom: 1px solid #e2e8f0;
-            background: #fff;
-        }
-        .reg-section-header .sec-icon {
-            width: 38px; height: 38px;
-            border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.15rem;
-        }
-        .reg-section-header .sec-icon.blue  { background: #e8f0fe; color: #1967d2; }
-        .reg-section-header .sec-icon.green { background: #e6f4ea; color: #137333; }
-        .reg-section-header .sec-icon.purple { background: #f3e8fd; color: #7c3aed; }
-        .reg-section-body { padding: 1.25rem; }
-
-        .b2b-toggle-card {
-            background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
-            border: 1px solid #bfdbfe;
-            border-radius: 12px;
-            padding: 1.1rem 1.4rem;
-            margin-bottom: 1.25rem;
-        }
-        .btn-check:checked + .btn-b2b-toggle {
-            background: #2563eb;
-            color: #fff;
-            border-color: #2563eb;
-            font-weight: 700;
-            box-shadow: 0 2px 6px rgba(37,99,235,.25);
-        }
-        .btn-b2b-toggle {
-            border-color: #cbd5e1;
-            color: #475569;
-            font-weight: 600;
-            padding: .45rem 1.5rem;
-            transition: all .15s ease;
-        }
-
-        .action-bar {
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 0.85rem 1.25rem;
-            display: flex;
-            justify-content: flex-end;
-            gap: .75rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,.04);
-            position: sticky;
-            bottom: 0;
-            z-index: 100;
-        }
-
-        #phoneSearchDropdown, #topSearchDropdown {
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.15) !important;
-            background: #fff;
-        }
-        #phoneSearchDropdown .phone-sug, #topSearchDropdown .top-sug {
-            cursor: pointer;
-            transition: all 0.15s ease-in-out;
-            text-align: left;
-            border: none;
-            border-bottom: 1px solid #f0f0f0;
-            border-left: 4px solid transparent;
-            background: #fff;
-        }
-        #phoneSearchDropdown .phone-sug:hover,
-        #phoneSearchDropdown .phone-sug.kbd-active,
-        #topSearchDropdown .top-sug:hover,
-        #topSearchDropdown .top-sug.kbd-active {
-            background-color: #e8f0fe !important;
-            border-left: 4px solid #1a73e8 !important;
-        }
-        #phoneSearchDropdown .phone-sug.kbd-active .fw-semibold,
-        #topSearchDropdown .top-sug.kbd-active .fw-semibold {
-            color: #1a73e8 !important;
-        }
-
-        #tblLineItems tbody tr {
-            transition: background-color 0.15s ease;
-        }
-        #tblLineItems tbody tr:hover {
-            background-color: #f8fafc;
-        }
-    </style>
+    <link rel="stylesheet" href="~/css/views/LabOrderBooking/B2BBooking.css" asp-append-version="true" />
 }
 
 @* ── Payment Modal (Standby) ── *@
@@ -212,8 +33,9 @@
         <small class="text-muted">Create B2B franchise &amp; corporate bookings with automated contracted rate cards</small>
     </div>
     <div class="d-flex gap-2 align-items-center">
-        <a asp-action="B2BRegistration" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
-            <i class="bi bi-journal-text me-1"></i>B2B Order List
+        @* a franchise login has no order list page: its dashboard's sale register is its list *@
+        <a href="@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))" class="btn btn-outline-secondary btn-sm px-3 fw-semibold">
+            <i class="bi bi-journal-text me-1"></i>@(User.IsFranchiseUser() ? "My Dashboard" : "B2B Order List")
         </a>
     </div>
 </div>
@@ -264,32 +86,32 @@
        SECTION 0: B2B PARTNER TOGGLE & SELECTION (AT TOP)
        ══════════════════════════════════════════════════════════════ *@
     <div class="b2b-toggle-card shadow-sm">
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary px-2.5 py-1.5"><i class="bi bi-briefcase-fill me-1"></i>B2B Entity</span>
-                <span class="fw-bold text-dark fs-6">Select Partner Type:</span>
-            </div>
-            @* Toggle switch for Franchise and Company *@
-            <div class="btn-group" role="group" aria-label="B2B Partner Toggle">
+        <div class="row g-3 align-items-start">
+            @* compact: partner type and the partner on the left, its credit status on the right *@
+            <div class="col-12 col-lg-5">
+                <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                    <span class="fw-semibold small text-dark"><i class="bi bi-briefcase-fill text-primary me-1"></i>B2B Partner</span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="B2B Partner Toggle">
                 <input type="radio" class="btn-check" name="AgentType" id="toggleFranchise" value="F" @(Model.AgentType != "C" ? "checked" : "") onchange="onPartnerTypeChanged('F')">
                 <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleFranchise">
                     <i class="bi bi-shop me-1"></i>Franchise
                 </label>
 
-                <input type="radio" class="btn-check" name="AgentType" id="toggleCompany" value="C" @(Model.AgentType == "C" ? "checked" : "") onchange="onPartnerTypeChanged('C')">
-                <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleCompany">
-                    <i class="bi bi-building me-1"></i>Company
-                </label>
+                @if (!User.IsFranchiseUser())
+                {
+                    <input type="radio" class="btn-check" name="AgentType" id="toggleCompany" value="C" @(Model.AgentType == "C" ? "checked" : "") onchange="onPartnerTypeChanged('C')">
+                    <label class="btn btn-outline-primary btn-b2b-toggle" for="toggleCompany">
+                        <i class="bi bi-building me-1"></i>Company
+                    </label>
+                }
             </div>
-        </div>
-
-        <div class="row g-3 align-items-center">
+                </div>
             @* Franchise Dropdown *@
-            <div class="col-12 col-md-6" id="divFranchiseSelect" style="@(Model.AgentType == "C" ? "display:none;" : "")">
-                <label class="form-label fw-semibold small text-primary">
+            <div id="divFranchiseSelect" style="@(Model.AgentType == "C" ? "display:none;" : "")">
+                <label class="form-label fw-semibold small text-primary mb-1">
                     <i class="bi bi-shop me-1"></i>Choose Franchise <span class="text-danger">*</span>
                 </label>
-                <select id="ddlFranchise" class="form-select s2-basic" data-placeholder="-- Select Franchise --">
+                <select id="ddlFranchise" class="form-select s2-basic" data-placeholder="-- Select Franchise --" disabled="@(User.IsFranchiseUser() ? "disabled" : null)">
                     <option value="">-- Select Franchise --</option>
                     @if (Model.FranchiseOptions != null && Model.FranchiseOptions.Any())
                     {
@@ -310,12 +132,12 @@
                         }
                     }
                 </select>
-                <small class="text-muted d-block mt-1">Rates will load from Franchise Rate List based on Branch</small>
+                <small class="text-muted d-block mt-1" style="font-size:.72rem;">Rates will load from Franchise Rate List based on Branch</small>
             </div>
 
             @* Company / Corporate Dropdown *@
-            <div class="col-12 col-md-6" id="divCompanySelect" style="@(Model.AgentType == "C" ? "" : "display:none;")">
-                <label class="form-label fw-semibold small text-primary">
+            <div id="divCompanySelect" style="@(Model.AgentType == "C" ? "" : "display:none;")">
+                <label class="form-label fw-semibold small text-primary mb-1">
                     <i class="bi bi-building me-1"></i>Choose Company (Corporate) <span class="text-danger">*</span>
                 </label>
                 <select id="ddlCompany" class="form-select s2-basic" data-placeholder="-- Select Corporate Company --">
@@ -339,11 +161,12 @@
                         }
                     }
                 </select>
-                <small class="text-muted d-block mt-1">Rates will load from Corporate Rate List for selected Company</small>
+                <small class="text-muted d-block mt-1" style="font-size:.72rem;">Rates will load from Corporate Rate List for selected Company</small>
+            </div>
             </div>
 
             @* Dynamic Partner Credit & Facility Status Card *@
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-lg-7">
                 <div id="partnerCreditCard" class="card border shadow-xs" style="background:#f8fafc; border-radius:10px;">
                     <div class="card-body p-2.5">
                         <!-- Top Row: Partner Name & Facility Badge -->
@@ -372,7 +195,7 @@
                                         <span class="fs-6 fw-bold text-success font-monospace" id="lblWalletBalance">₹ 0.00</span>
                                     </div>
                                     <div class="form-check form-switch mt-1">
-                                        <input class="form-check-input" type="checkbox" id="chkDeductWallet" checked onchange="onWalletDeductToggle(this)">
+                                        <input class="form-check-input" type="checkbox" id="chkDeductWallet" checked onchange="onWalletDeductToggle(this)" disabled="@(User.IsFranchiseUser() ? "disabled" : null)">
                                         <label class="form-check-label small fw-semibold text-dark" for="chkDeductWallet">
                                             Pay from Franchise Wallet
                                         </label>
@@ -439,9 +262,10 @@
         </div>
 
         <div class="reg-section-body">
-            @* ── Row 1: Phone Number* | Relation* | Profile Picture ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-4 position-relative">
+            @* ── Patient grid: four equal columns per row; the wide items (address, picture, ID upload) take half ── *@
+            @* Row 1: Phone* | Relation* | Gender* | Blood Group *@
+            <div class="row g-3 mb-3 b2b-pt-row">
+                <div class="col-12 col-sm-6 col-lg-3 position-relative">
                     <label asp-for="PhoneNumber" class="form-label fw-semibold small">
                         Phone Number <span class="text-danger">*</span>
                     </label>
@@ -458,10 +282,9 @@
                     <div id="phoneError" class="text-danger small" style="display:none"></div>
                     <div id="phoneSearchDropdown"
                          class="list-group position-absolute shadow"
-                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;"></div>
+                         style="display:none;top:100%;left:0;right:0;z-index:1055;max-height:220px;overflow-y:auto;min-width:min(440px,92vw);"></div>
                 </div>
-
-                <div class="col-12 col-sm-6 col-md-4">
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label asp-for="RelationId" class="form-label fw-semibold small">
                         Relation <span class="text-danger">*</span>
                     </label>
@@ -471,11 +294,152 @@
                     </select>
                     <span asp-validation-for="RelationId" class="text-danger small"></span>
                 </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="Gender" class="form-label fw-semibold small">
+                        Gender <span class="text-danger">*</span>
+                    </label>
+                    <select asp-for="Gender" id="ddlGender" class="form-select s2-basic">
+                        <option value="">-- Select --</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <span asp-validation-for="Gender" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">   @* 2453: Blood Group, and LMP Date beside it for a Female patient (the column splits in two) *@
+                    <div class="row g-2">
+                        <div class="col">
+                            <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
+                            <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
+                                <option value="">-- Select --</option>
+                                <option value="A+">A+</option>
+                                <option value="A-">A-</option>
+                                <option value="B+">B+</option>
+                                <option value="B-">B-</option>
+                                <option value="O+">O+</option>
+                                <option value="O-">O-</option>
+                                <option value="AB+">AB+</option>
+                                <option value="AB-">AB-</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                        </div>
+                        <div class="col d-none" id="lmpWrap">
+                            <label asp-for="LmpDate" class="form-label fw-semibold small" title="Last menstrual period">LMP Date</label>
+                            <input asp-for="LmpDate" id="LmpDate" type="date" class="form-control" title="Last menstrual period" data-date-entry />
+                            <div class="invalid-feedback" id="lmpMsg">Not in the future, at most a year back.</div>
+                            <span asp-validation-for="LmpDate" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                <div class="col-12 col-sm-12 col-md-4">
+            @* Row 2: Title + First Name* | Middle Name | Last Name* | Date of Birth *@
+            <div class="row g-3 mb-3 b2b-pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="FirstName" class="form-label fw-semibold small">
+                        First Name <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                        <select asp-for="Salutation" id="ddlSalutation" class="form-select b2b-title">
+                        <option value="Mr.">Mr.</option>
+                        <option value="Mrs.">Mrs.</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Master">Master</option>
+                        <option value="Dr.">Dr.</option>
+                        <option value="Prof.">Prof.</option>
+                        <option value="Baby">Baby</option>
+                    </select>
+                        <input asp-for="FirstName" id="FirstName" class="form-control text-capitalize" maxlength="100" placeholder="Enter first name" style="text-transform: capitalize;" />
+                    </div>
+                    <span asp-validation-for="FirstName" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
+                    <input asp-for="MiddleName" id="MiddleName" class="form-control text-capitalize" maxlength="100" placeholder="Optional" style="text-transform: capitalize;" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="LastName" class="form-label fw-semibold small">
+                        Last Name <span class="text-danger">*</span>
+                    </label>
+                    <input asp-for="LastName" id="LastName" class="form-control text-capitalize" maxlength="100" placeholder="Enter last name" style="text-transform: capitalize;" />
+                    <span asp-validation-for="LastName" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
+                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control" data-date-entry
+                           max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                    <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
+                </div>
+            </div>
+
+            @* Row 3: Age* | Secondary Number | Email | Referred By Doctor *@
+            <div class="row g-3 mb-3 b2b-pt-row">
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span> <span class="text-muted fw-normal">(Years / Months / Days)</span></label>
+                    <div class="d-flex gap-1 align-items-center">
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
+                                   min="0" max="110" placeholder="00" title="Years (0-110)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Years">Y</span>
+                        </div>
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeMonths" type="number" id="AgeMonths" class="form-control px-2 text-center"
+                                   min="0" max="12" placeholder="00" title="Months (Max 12)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Months">M</span>
+                        </div>
+                        <div class="input-group flex-fill" style="min-width: 0;">
+                            <input asp-for="AgeDays" type="number" id="AgeDays" class="form-control px-2 text-center"
+                                   min="0" max="30" placeholder="00" title="Days (Max 30)" />
+                            <span class="input-group-text px-2 small text-muted bg-light fw-medium" title="Days">D</span>
+                        </div>
+                    </div>
+                    <div id="ageValidationFeedback" class="text-danger small mt-1 d-none"></div>
+                    <span asp-validation-for="AgeYears" class="text-danger small d-block"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
+                        <input asp-for="SecondaryPhoneNumber" id="SecondaryPhoneNumber" class="form-control"
+                               maxlength="15" placeholder="Optional" autocomplete="off" role="presentation" data-lpignore="true" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="EmailId" class="form-label fw-semibold small">Email ID</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-envelope text-secondary"></i></span>
+                        <input asp-for="EmailId" id="EmailId" class="form-control text-lowercase" maxlength="150" placeholder="Optional" style="text-transform: lowercase;" />
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3 ref-doc-hl">
+                    <style>
+                        .ref-doc-hl .form-label { background:#fff3b0; color:#7a5a00; padding:1px 8px; border-radius:4px; }
+                        .ref-doc-hl .select2-container .select2-selection,
+                        .ref-doc-hl select.form-select { background-color:#fff9db !important; border-color:#f0c419 !important; box-shadow:0 0 0 .15rem rgba(240,196,25,.25); }
+                    </style>
+                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small"><i class="bi bi-star-fill text-warning me-1"></i>Referred By Doctor</label>
+                    <select title="Doctors of a LAB-type department (Doctor Master)" asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search" asp-items="Model.ReferralDoctorOptions">
+                        <option value="">-- Self / Direct --</option>
+                    </select>
+                </div>
+            </div>
+
+            @* Row 4: Residential Address (half) | Pincode | Profile Picture (saved as ", PIN: nnnnnn" - 2339) *@
+            <div class="row g-3 mb-1 b2b-pt-row">
+                <div class="col-12 col-lg-6">
+                    <label asp-for="Address" class="form-label fw-semibold small">Residential Address</label>
+                    <input asp-for="Address" id="Address" class="form-control" placeholder="Patient residential address" />
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label asp-for="Pincode" class="form-label fw-semibold small">Pincode</label>
+                    <input asp-for="Pincode" id="Pincode" class="form-control" maxlength="6" inputmode="numeric" pattern="[0-9]{6}"
+                           placeholder="6-digit PIN" autocomplete="off" oninput="this.value=this.value.replace(/\D/g,'').slice(0,6)" />
+                    <span asp-validation-for="Pincode" class="text-danger small"></span>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
                     <label class="form-label fw-semibold small">
                         Profile Picture
-                        <span class="text-muted fw-normal">(JPG / PNG / GIF)</span>
+                        <span class="text-muted fw-normal">(JPG/PNG/GIF)</span>
                     </label>
                     <div class="d-flex align-items-center gap-2">
                         <div class="flex-grow-1">
@@ -496,126 +460,49 @@
                 </div>
             </div>
 
-            @* ── Row 2: Title | First Name* | Middle Name | Last Name* ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-4 col-sm-3 col-md-2">
-                    <label asp-for="Salutation" class="form-label fw-semibold small">Title</label>
-                    <select asp-for="Salutation" id="ddlSalutation" class="form-select s2-basic px-1">
-                        <option value="Mr.">Mr.</option>
-                        <option value="Mrs.">Mrs.</option>
-                        <option value="Ms.">Ms.</option>
-                        <option value="Master">Master</option>
-                        <option value="Dr.">Dr.</option>
-                        <option value="Prof.">Prof.</option>
-                        <option value="Baby">Baby</option>
-                    </select>
-                </div>
-                <div class="col-8 col-sm-5 col-md-4">
-                    <label asp-for="FirstName" class="form-label fw-semibold small">
-                        First Name <span class="text-danger">*</span>
-                    </label>
-                    <input asp-for="FirstName" id="FirstName" class="form-control text-capitalize" maxlength="100" placeholder="Enter first name" style="text-transform: capitalize;" />
-                    <span asp-validation-for="FirstName" class="text-danger small"></span>
-                </div>
-                <div class="col-12 col-sm-4 col-md-2">
-                    <label asp-for="MiddleName" class="form-label fw-semibold small">Middle Name</label>
-                    <input asp-for="MiddleName" id="MiddleName" class="form-control text-capitalize" maxlength="100" placeholder="Optional" style="text-transform: capitalize;" />
-                </div>
-                <div class="col-12 col-sm-6 col-md-4">
-                    <label asp-for="LastName" class="form-label fw-semibold small">
-                        Last Name <span class="text-danger">*</span>
-                    </label>
-                    <input asp-for="LastName" id="LastName" class="form-control text-capitalize" maxlength="100" placeholder="Enter last name" style="text-transform: capitalize;" />
-                    <span asp-validation-for="LastName" class="text-danger small"></span>
-                </div>
-            </div>
-
-            @* ── Row 3: Secondary Number | Email | Gender* | Date of Birth | Age* ── *@
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6 col-md-2">
-                    <label asp-for="SecondaryPhoneNumber" class="form-label fw-semibold small">Secondary Number</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-telephone text-secondary"></i></span>
-                        <input asp-for="SecondaryPhoneNumber" id="SecondaryPhoneNumber" class="form-control"
-                               maxlength="15" placeholder="Optional" autocomplete="off" role="presentation" data-lpignore="true" />
+            @* ── Identification (as B2C booking; saved on the patient master) ── *@
+            <div class="id-block mt-3">
+                <p class="text-muted small fw-bold mb-2">
+                    <i class="bi bi-shield-check-fill me-1 text-secondary"></i>
+                    Identification Details <span class="fw-normal">(Optional)</span>
+                </p>
+                <input asp-for="IdentificationFilePath" type="hidden" />
+                <div class="row g-3">
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <label asp-for="IdentificationTypeId" class="form-label fw-semibold small">ID Type</label>
+                        <select asp-for="IdentificationTypeId" id="ddlIdType" class="form-select s2-search"
+                                asp-items="Model.IdentificationTypeOptions">
+                            <option value="">-- Select ID Type --</option>
+                        </select>
                     </div>
-                </div>
-                <div class="col-12 col-sm-6 col-md-2">
-                    <label asp-for="EmailId" class="form-label fw-semibold small">Email ID</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-envelope text-secondary"></i></span>
-                        <input asp-for="EmailId" id="EmailId" class="form-control text-lowercase" maxlength="150" placeholder="Optional" style="text-transform: lowercase;" />
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <label asp-for="IdentificationNumber" class="form-label fw-semibold small">ID Number</label>
+                        <input asp-for="IdentificationNumber" class="form-control" maxlength="100"
+                               placeholder="Enter identification number" />
                     </div>
-                </div>
-                <div class="col-12 col-sm-4 col-md-2">
-                    <label asp-for="Gender" class="form-label fw-semibold small">
-                        Gender <span class="text-danger">*</span>
-                    </label>
-                    <select asp-for="Gender" id="ddlGender" class="form-select s2-basic">
-                        <option value="">-- Select --</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                    </select>
-                    <span asp-validation-for="Gender" class="text-danger small"></span>
-                </div>
-                <div class="col-12 col-sm-4 col-md-2">
-                    <label asp-for="DateOfBirth" class="form-label fw-semibold small">Date of Birth</label>
-                    <input asp-for="DateOfBirth" id="DateOfBirth" type="date" class="form-control"
-                           max="@DateTime.Today.ToString("yyyy-MM-dd")" />
-                    <span asp-validation-for="DateOfBirth" class="text-danger small"></span>
-                </div>
-                <div class="col-12 col-sm-8 col-md-4">
-                    <label class="form-label fw-semibold small">Age <span class="text-danger">*</span></label>
-                    <div class="d-flex gap-1 align-items-center">
-                        <div class="input-group flex-fill" style="min-width: 0;">
-                            <input asp-for="AgeYears" type="number" id="AgeYears" class="form-control px-2 text-center"
-                                   min="0" max="150" placeholder="00" title="Years (0-150)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Year</span>
-                        </div>
-                        <div class="input-group flex-fill" style="min-width: 0;">
-                            <input asp-for="AgeMonths" type="number" id="AgeMonths" class="form-control px-2 text-center"
-                                   min="0" max="12" placeholder="00" title="Months (Max 12)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Month</span>
-                        </div>
-                        <div class="input-group flex-fill" style="min-width: 0;">
-                            <input asp-for="AgeDays" type="number" id="AgeDays" class="form-control px-2 text-center"
-                                   min="0" max="30" placeholder="00" title="Days (Max 30)" />
-                            <span class="input-group-text px-2 small text-muted bg-light fw-medium">Days</span>
-                        </div>
+                    <div class="col-12 col-lg-6">
+                        <label class="form-label fw-semibold small">
+                            Upload ID Document
+                            <span class="text-muted fw-normal">(PDF / JPG / JPEG / PNG)</span>
+                        </label>
+                        <input type="file" name="identificationFile" id="idFileUpload"
+                               class="form-control" accept=".pdf,.jpg,.jpeg,.png" />
+                        @* the patient's uploaded ID document with a Preview (Shared/_IdDocumentPreview) *@
+                        <div id="idDocExisting" class="id-doc-existing d-none" data-path="@Model.IdentificationFilePath"></div>
+                        <span asp-validation-for="IdentificationFilePath" class="text-danger small"></span>
                     </div>
-                    <div id="ageValidationFeedback" class="text-danger small mt-1 d-none"></div>
-                    <span asp-validation-for="AgeYears" class="text-danger small d-block"></span>
-                </div>
-            </div>
-
-            @* ── Row 4: Blood Group | Referred By Doctor | Address ── *@
-            <div class="row g-3 mb-1">
-                <div class="col-12 col-sm-6 col-md-3">
-                    <label asp-for="BloodGroup" class="form-label fw-semibold small">Blood Group</label>
-                    <select asp-for="BloodGroup" id="ddlBloodGroup" class="form-select s2-basic">
-                        <option value="">-- Select --</option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="Unknown">Unknown</option>
-                    </select>
-                </div>
-                <div class="col-12 col-sm-6 col-md-3">
-                    <label asp-for="ReferralDoctorId" class="form-label fw-semibold small">Referred By Doctor</label>
-                    <select asp-for="ReferralDoctorId" id="ddlReferralDoctor" class="form-select s2-search" asp-items="Model.ReferralDoctorOptions">
-                        <option value="">-- Self / Direct --</option>
-                    </select>
-                    <div class="form-text">Doctors of a LAB-type department (Doctor Master)</div>
-                </div>
-                <div class="col-12 col-md-6">
-                    <label asp-for="Address" class="form-label fw-semibold small">Residential Address</label>
-                    <input asp-for="Address" id="Address" class="form-control" placeholder="Patient residential address" />
+                    @if (governmentIds.Abha)
+                    {
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <label asp-for="AbhaNumber" class="form-label fw-semibold small">ABHA Number <span class="text-muted fw-normal">(optional)</span></label>
+                            <input asp-for="AbhaNumber" class="form-control" maxlength="17" inputmode="numeric" placeholder="14 digits" />
+                            <span asp-validation-for="AbhaNumber" class="text-danger small"></span>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-3">
+                            <label asp-for="AbhaAddress" class="form-label fw-semibold small">ABHA Address <span class="text-muted fw-normal">(optional)</span></label>
+                            <input asp-for="AbhaAddress" class="form-control" maxlength="100" placeholder="name@abdm" />
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -660,14 +547,25 @@
                     </div>
                 </div>
 
-                <div class="col-12 col-md-4">
+                @* 2384: "Is Booking Req" - its own column; on: Booking Date & Time shows beside it, off: billing time, as before *@
+                <div class="col-6 col-md-2">
+                    <label class="form-label fw-semibold small d-block" for="chkIsBookingRequired"><i class="bi bi-journal-bookmark text-primary me-1"></i>Is Booking Req</label>
+                    <div class="bk-req-switch d-flex align-items-center gap-2">
+                        <div class="form-check form-switch m-0 p-0">
+                            <input asp-for="IsBookingRequired" class="form-check-input m-0" type="checkbox" role="switch" id="chkIsBookingRequired" />
+                        </div>
+                        <span class="badge rounded-pill bg-light text-secondary border" id="lblBookingReqState">@(Model.IsBookingRequired ? "Yes" : "No")</span>
+                    </div>
+                </div>
+
+                <div class="col-12 col-md-3" id="divBookingDateBlock" style="@(Model.IsBookingRequired ? "" : "display:none;")">
                     <label asp-for="BookingDateTime" class="form-label fw-semibold small">Booking Date &amp; Time <span class="text-danger">*</span></label>
                     <input asp-for="BookingDateTime" id="BookingDateTime" type="datetime-local" class="form-control"
                            value="@(Model.BookingDateTime != default ? Model.BookingDateTime.ToString("yyyy-MM-ddTHH:mm") : DateTime.Now.ToString("yyyy-MM-ddTHH:mm"))" />
                     <span asp-validation-for="BookingDateTime" class="text-danger small"></span>
                 </div>
 
-                <div class="col-12 col-md-4" id="divPhlebotomist">
+                <div class="col-12 col-md-3" id="divPhlebotomist">
                     <label class="form-label fw-semibold small">Collector / Phlebotomist</label>
                     <select asp-for="PhlebotomistId" id="ddlPhlebotomist" class="form-select s2-basic" asp-items="Model.PhlebotomistOptions">
                         <option value="">-- Select Collector / Phlebotomist --</option>
@@ -807,23 +705,32 @@
                     <div class="form-text text-muted small mt-1">
                         <i class="bi bi-info-circle me-1"></i>Rates automatically update to contracted B2B rate cards when a Franchise or Corporate Company is selected.
                     </div>
+                    @* 2256: a franchise / company bills only what is on its own rate list *@
+                    <div id="noPartnerRates" class="alert alert-warning py-2 px-3 mt-2 mb-0 small d-none">
+                        <i class="bi bi-exclamation-triangle me-1"></i><span></span>
+                    </div>
                 </div>
             </div>
 
-            @* ── Line Items Table ── *@
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover align-middle mb-0" id="tblLineItems">
-                    <thead class="table-light">
+            @* ── Line Items: card as on B2C booking ── *@
+            <div class="b2b-lines-card mt-2">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-bold small text-dark d-flex align-items-center gap-2"><i class="bi bi-list-check text-primary fs-6"></i>Selected Investigations</span>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-1 small fw-semibold" id="badgeSelectedCount">0 Tests Selected</span>
+            </div>
+            <div class="table-responsive m-0">
+                <table class="table table-hover align-middle mb-0" id="tblLineItems">
+                    <thead>
                         <tr>
-                            <th style="width:40px;" class="text-center">#</th>
-                            <th style="width:110px;">Test Code</th>
-                            <th>Investigation / Profile Name</th>
-                            <th style="width:120px;">Sample Type</th>
+                            <th style="width:44px;" class="text-center">#</th>
+                            <th style="width:110px;">Code</th>
+                            <th>Test / Profile</th>
+                            <th style="width:150px;">Sample</th>
                             <th style="width:80px;">TAT</th>
-                            <th style="width:130px;" class="text-end">Standard MRP (₹)</th>
-                            <th style="width:130px;" class="text-end bg-primary-subtle text-primary">B2B Rate (₹)</th>
+                            <th style="width:110px;" class="num">MRP (₹)</th>
+                            <th style="width:120px;" class="num col-b2b">B2B Rate (₹)</th>
                             <th style="width:70px;" class="text-center">Urgent</th>
-                            <th style="width:50px;" class="text-center">Action</th>
+                            <th style="width:56px;" class="text-center"></th>
                         </tr>
                     </thead>
                     <tbody id="tblLineItemsBody">
@@ -837,24 +744,18 @@
                 </table>
             </div>
 
-            @* ── Totals Footer ── *@
-            <div class="row justify-content-end mt-3 g-2">
-                <div class="col-12 col-md-8 col-lg-6">
-                    <div class="p-3 bg-light rounded-3 border d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <div>
-                            <span class="badge bg-secondary" id="badgeSelectedCount">0 Tests Selected</span>
-                            <div class="text-muted small mt-1">
-                                Standard MRP Total: <strong id="lblStandardTotal" class="font-monospace text-dark">₹ 0.00</strong>
-                            </div>
-                        </div>
-                        <div class="text-end">
-                            <span class="fw-bold text-dark text-uppercase small">B2B Test Total:</span>
-                            <div class="bg-success-subtle border border-success-subtle rounded-3 px-3 py-1">
-                                <span class="fs-5 fw-bold text-success font-monospace" id="lblB2BTotalAmount">₹ 0.00</span>
-                            </div>
-                        </div>
+            @* ── Totals: card footer ── *@
+            <div class="card-footer bg-white py-2 px-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="text-muted small">
+                    <i class="bi bi-tag text-primary me-1"></i>Standard MRP total: <strong id="lblStandardTotal" class="font-monospace text-dark">₹ 0.00</strong>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold text-secondary text-uppercase small" style="letter-spacing:.5px;">B2B Test Total:</span>
+                    <div class="bg-success-subtle border border-success-subtle rounded-3 px-3 py-1">
+                        <span class="fs-5 fw-bold text-success font-monospace" id="lblB2BTotalAmount">₹ 0.00</span>
                     </div>
                 </div>
+            </div>
             </div>
             <span asp-validation-for="LineItemsJson" class="text-danger fw-bold small"></span>
             <partial name="_LabMiscChargesPicker" model="@("B2B")" />
@@ -865,8 +766,8 @@
     <div class="action-bar shadow-sm">
         @* the whole bill the partner is charged: tests (B2B rate) + misc charges with GST *@
         <div class="me-auto small text-secondary align-self-center" id="billTotalBreakup"></div>
-        <a asp-action="B2BRegistration" class="btn btn-outline-secondary px-3 fw-semibold">
-            <i class="bi bi-arrow-left me-1"></i>Back to List
+        <a href="@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))" class="btn btn-outline-secondary px-3 fw-semibold">
+            <i class="bi bi-arrow-left me-1"></i>@(User.IsFranchiseUser() ? "Back to Dashboard" : "Back to List")
         </a>
         <button type="button" class="btn btn-outline-secondary px-3 fw-semibold" id="btnResetForm">
             <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
@@ -884,7 +785,7 @@
     <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
         <div class="modal-content border-0 shadow-lg" style="border-radius:14px;">
             <div class="modal-body text-center py-4 px-4 position-relative">
-                <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close" onclick="window.location.href='@Url.Action("B2BRegistration", "LabOrderBooking")'"></button>
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close" onclick="window.location.href='@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))'"></button>
                 <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-3"
                      style="width:68px;height:68px;background:#e6f4ea;color:#137333;">
                     <i class="bi bi-check-circle-fill fs-1"></i>
@@ -915,8 +816,8 @@
                 </div>
 
                 <div class="d-flex gap-2 justify-content-center flex-wrap">
-                    <a href="@Url.Action("B2BRegistration", "LabOrderBooking")" class="btn btn-outline-secondary btn-sm px-3">
-                        <i class="bi bi-list-check me-1"></i> B2B Order List
+                    <a href="@(User.IsFranchiseUser() ? Url.Action("Index", "FranchiseDashboard") : Url.Action("B2BRegistration", "LabOrderBooking"))" class="btn btn-outline-secondary btn-sm px-3">
+                        <i class="bi bi-list-check me-1"></i> @(User.IsFranchiseUser() ? "My Dashboard" : "B2B Order List")
                     </a>
                     <a href="#" id="btnPrintBill" target="_blank" class="btn btn-outline-success btn-sm px-3">
                         <i class="bi bi-printer me-1"></i> Print Bill
@@ -1069,15 +970,24 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/date-entry.js" asp-append-version="true"></script>
+    <partial name="_IdDocumentPreview" />
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/select2/dist/js/select2.min.js"></script>
     <script src="~/lib/leaflet/dist/leaflet.js"></script>
-    <script src="~/js/lab-compliance-docs.js"></script>
+    <script src="~/js/lab-compliance-docs.js" asp-append-version="true"></script>
+    <script src="~/js/lab/lmp-field.js" asp-append-version="true"></script>
     <script>
         const opdBase = '@Url.Content("~/OPD/")';
         var lineItems = [];
         var currentAgentType = '@Model.AgentType' || 'F';
+        // a franchise login cannot top up its own wallet: it is told to ask the lab
+        var walletTopUpHint = @(User.IsFranchiseUser() ? "true" : "false")
+            ? 'Please contact the lab to top up your wallet'
+            : 'Top up the franchise wallet in <b>Utility &rsaquo; Franchise Top-Up</b>';
         var currentAgentId = parseInt($('#SelectedB2BAgentId').val()) || 0;
+        // a franchise login on a Prepaid (Wallet) facility pays from its wallet only: no spot payment (server enforces it too)
+        var walletOnly = @(User.IsFranchiseUser() ? "true" : "false");
 
         // Prescription / OVD Document / Consent upload gate for this bill
         window.LabComplianceDocsController = LabComplianceDocs.create({
@@ -1248,7 +1158,7 @@
             @if (TempData["BillNo"] != null)
             {
                 <text>
-                $('#lblSuccessBillNo').text('@TempData["BillNo"]');
+                $('#lblSuccessBillNo').text('@TempData["BillNo"]' + ('@(TempData["BookingNo"] ?? "")' ? '  ·  Booking No @(TempData["BookingNo"] ?? "")' : ''));
                 $('#lblSuccessPatientName').text('@TempData["NewPatientName"]');
                 $('#lblSuccessPatientCode').text('@(TempData["NewPatientCode"] ?? "")'); // parity with B2C
                 $('#lblSuccessB2BTotal').text('\u20b9' + '@TempData["B2BTotal"]');
@@ -1314,6 +1224,18 @@
                 var sampleType = opt.attr('data-sample') || '';
                 var method = opt.attr('data-method') || '';
 
+                // a test without a rate cannot go on the bill
+                if (!(b2bRate > 0)) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Rate not set',
+                        html: `<b>${$('<div>').text(name || code).html()}</b> has a rate of ₹0.00 and cannot be added to the bill.<br><span class="small text-muted">Set its B2B rate / MRP first.</span>`,
+                        confirmButtonColor: '#0d6efd'
+                    });
+                    $(this).val('').trigger('change.select2');
+                    return;
+                }
+
                 if (lineItems.some(x => x.itemType === itemType && x.id === id)) {
                     Swal.fire({
                         icon: 'info',
@@ -1346,6 +1268,8 @@
 
                 renderTable();
                 $(this).val('').trigger('change.select2');
+                // as B2C booking: the list opens again for the next test until Esc or a click elsewhere closes it
+                setTimeout(() => { $('#ddlInvestigations').select2('open'); }, 80);
             });
 
             // ── Top Quick Search (Same as B2C) ──
@@ -1547,6 +1471,17 @@
 
                     phoneDebounce = setTimeout(async () => {
                         const data = await fetchJson(opdBase + 'SearchPatientByPhone?phone=' + encodeURIComponent(val));
+                        // a new number (10 digits that no patient has): Relation defaults to Self, unless one is already chosen
+                        (function (v, list) {
+                            var digits = String(v || '').replace(/\D/g, '');
+                            if (digits.length !== 10) return;
+                            if ((list || []).some(function (p) { return String(p.phoneNumber || '').replace(/\D/g, '').slice(-10) === digits; })) return;
+                            if ((parseInt($('#PatientId').val()) || 0) > 0) return;   // an existing patient is loaded
+                            var $rel = $('#ddlRelation');
+                            if (!$rel.length || $rel.val()) return;
+                            var $self = $rel.find('option').filter(function () { return $(this).text().trim().toLowerCase() === 'self'; }).first();
+                            if ($self.length) $rel.val($self.val()).trigger('change');
+                        })(val, data);
                         if (data?.length) {
                             phoneDrop.innerHTML = data.map((p, idx) => `
                                 <button type="button"
@@ -1622,14 +1557,40 @@
                 await openSearchModal(url);
             });
 
-            // ── Demographics change triggers test reload ──
-            $('#ddlGender').on('change', function() {
-                loadInvestigations();
-            });
 
-            $('#AgeYears').on('change blur', function() {
+            // ── Patient gender / age decide which tests, profiles and packages can be billed (their Applicable Gender,
+            //    Age Operator and Applicable Age). Watched rather than tied to events, so it also follows values filled in
+            //    by code: an existing patient picked, age worked out from the date of birth, gender from the salutation.
+            //    The list reloads, and only the tests already on the bill that no longer apply are taken off (named).
+            var _demoKey = ($('#ddlGender').val() || '') + '|' + ($('#AgeYears').val() || '');
+            function onDemographicsChanged() {
+                var k = ($('#ddlGender').val() || '') + '|' + ($('#AgeYears').val() || '');
+                if (k === _demoKey) return;
+                _demoKey = k;
+                pruneForDemographics();
                 loadInvestigations();
-            });
+            }
+            function pruneForDemographics() {
+                if (!lineItems || lineItems.length === 0) return;
+                var gender = $('#ddlGender').val() || '', age = $('#AgeYears').val() || '';
+                var url = '/LabOrderBooking/GetAvailableInvestigations?x=1' + (currentAgentId > 0 ? '&rateType=' + (currentAgentType === 'C' ? 'Corporate' : 'Franchise') + '&agentId=' + currentAgentId : '');
+                if (gender) url += '&gender=' + encodeURIComponent(gender);
+                if (age) url += '&ageInYears=' + encodeURIComponent(age);
+                $.get(url, function (res) {
+                    if (!res || !res.isSuccess || !res.data) return;
+                    var ok = new Set(res.data.map(x => ((x.isPackage === true || x.isPackage === 'true') ? 'P_' : 'I_') + x.investigationId));
+                    var gone = lineItems.filter(it => !ok.has(((it.itemType || it.type) + '_' + it.id)));
+                    if (gone.length === 0) return;
+                    lineItems = lineItems.filter(it => ok.has(((it.itemType || it.type) + '_' + it.id)));
+                    renderTable();
+                    Swal.fire({ icon: 'info', title: 'Not applicable for this patient',
+                        html: 'Removed because of the patient\'s gender / age:<br><b>' + gone.map(it => $('<div>').text(it.testName || it.name || '').html()).join('<br>') + '</b>',
+                        confirmButtonColor: '#0d6efd' });
+                });
+            }
+            $('#ddlGender').on('change', onDemographicsChanged);
+            $('#AgeYears').on('change blur input', onDemographicsChanged);
+            setInterval(onDemographicsChanged, 700);
 
             // ── Initial load of investigations ──
             loadInvestigations();
@@ -1639,6 +1600,13 @@
             //    changes it, their value is kept and the existing checks apply unchanged ──
             window.isB2BBookingDateTouched = false;
             $('#BookingDateTime').on('focus click input change', function () { window.isB2BBookingDateTouched = true; });
+            // 2384: "Is Booking Req" toggle
+            $('#chkIsBookingRequired').on('change', function () {
+                var on = this.checked;
+                $('#divBookingDateBlock').toggle(on);
+                $('#lblBookingReqState').text(on ? 'Yes' : 'No').toggleClass('bg-primary text-white', on).toggleClass('bg-light text-secondary', !on);
+                if (!on) { window.isB2BBookingDateTouched = false; $('span[data-valmsg-for="BookingDateTime"]').text(''); }
+            }).trigger('change');
 
             // ── Form submit validation (Strictly matching B2C + B2B Partner check) ──
             $('#frmB2BBooking').on('submit', function(e) {
@@ -1740,12 +1708,12 @@
 
                 // Age Validation
                 var yVal = parseInt($('#AgeYears').val(), 10);
-                if (isNaN(yVal) || yVal < 0 || yVal > 150) {
+                if (isNaN(yVal) || yVal < 0 || yVal > 110) {
                     e.preventDefault();
                     Swal.fire({
                         icon: 'warning',
                         title: 'Age Required',
-                        text: 'Please enter a valid Age (0-150 years).',
+                        text: 'Please enter a valid Age (0 - 110 years).',
                         confirmButtonColor: '#0d6efd'
                     });
                     $('#AgeYears').focus();
@@ -1832,6 +1800,7 @@
                     document.getElementById('frmB2BBooking').submit();
                 }
 
+                if (walletOnly) $('#hdnPaymentDataJson').val('');
                 // If spot payment data has already been captured, bypass checks and submit immediately
                 if ($('#hdnPaymentDataJson').val()) {
                     $('#hdnDeductFromWallet').val('false');
@@ -1873,14 +1842,37 @@
                     }
 
                     // 2. Postpaid Credit Facility: Credit Limit Check (runtime)
+                    //    creditLimit = base limit + the temporary increase while valid (2262). Over the base limit but
+                    //    within the temporary increase: an alert, the user may continue. Over creditLimit: blocked.
                     if (credit.creditFacilityType === 2 && credit.creditLimit > 0) {
-                        if ((credit.currentOutstanding + currentB2BTotal) > credit.creditLimit) {
+                        var baseLimit = credit.baseCreditLimit || credit.creditLimit;
+                        var afterBill = credit.currentOutstanding + currentB2BTotal;
+                        if (credit.tempLimitActive && afterBill > baseLimit && afterBill <= credit.creditLimit && window._tempLimitAcceptedFor !== afterBill) {
+                            restoreBtn();
+                            var validTill = credit.tempLimitValidTill ? new Date(credit.tempLimitValidTill).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'no end date';
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Using Temporary Credit Limit',
+                                html: `Credit Limit: <b>₹${baseLimit.toFixed(2)}</b> + Temporary Increase: <b>₹${credit.tempLimitIncrease.toFixed(2)}</b> (valid till ${validTill})<br>Current Outstanding: <b>₹${credit.currentOutstanding.toFixed(2)}</b><br>This Bill Total: <b>₹${currentB2BTotal.toFixed(2)}</b><br><br><span class="text-warning-emphasis">This bill goes <b>₹${(afterBill - baseLimit).toFixed(2)}</b> over the regular credit limit and uses the temporary increase.<br>Temporary credit left after this bill: <b>₹${(credit.creditLimit - afterBill).toFixed(2)}</b>.</span>`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Continue billing',
+                                cancelButtonText: 'Back to booking',
+                                confirmButtonColor: '#0d6efd',
+                                cancelButtonColor: '#6c757d',
+                                allowOutsideClick: false
+                            }).then(function (r) {
+                                // accepted for this amount only: a changed bill asks again
+                                if (r.isConfirmed) { window._tempLimitAcceptedFor = afterBill; $('#btnSaveB2BSubmit').trigger('click'); }
+                            });
+                            return;
+                        }
+                        if (afterBill > credit.creditLimit) {
                             restoreBtn();
                             var over = (credit.currentOutstanding + currentB2BTotal) - credit.creditLimit;
                             Swal.fire({
                                 icon: 'error',
                                 title: 'Credit Limit Exceeded',
-                                html: `Credit Limit: <b>₹${credit.creditLimit.toFixed(2)}</b><br>Current Outstanding: <b>₹${credit.currentOutstanding.toFixed(2)}</b><br>This Bill Total: <b>₹${currentB2BTotal.toFixed(2)}</b><br><br><span class="text-danger">Exceeds partner credit limit by <b>₹${over.toFixed(2)}</b>.<br>Order booking on credit is blocked until outstanding bills are settled.</span>`,
+                                html: `Credit Limit: <b>₹${credit.creditLimit.toFixed(2)}</b>${credit.tempLimitActive ? ` (₹${baseLimit.toFixed(2)} + temporary ₹${credit.tempLimitIncrease.toFixed(2)})` : ''}<br>Current Outstanding: <b>₹${credit.currentOutstanding.toFixed(2)}</b><br>This Bill Total: <b>₹${currentB2BTotal.toFixed(2)}</b><br><br><span class="text-danger">Exceeds partner credit limit by <b>₹${over.toFixed(2)}</b>.<br>Order booking on credit is blocked until outstanding bills are settled.</span>`,
                                 confirmButtonColor: '#dc3545',
                                 showCloseButton: true
                             });
@@ -1898,15 +1890,22 @@
                             return;
                         }
 
+                        if (walletOnly) $('#chkDeductWallet').prop('checked', true);
                         var isDeductWallet = $('#chkDeductWallet').is(':checked');
                         if (isDeductWallet) {
                             if (credit.walletBalance < currentB2BTotal) {
                                 restoreBtn();
                                 var deficit = currentB2BTotal - credit.walletBalance;
+                                if (walletOnly) {
+                                    Swal.fire({ icon: 'error', title: 'Insufficient Wallet Balance',
+                                        html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>${walletTopUpHint} and save again.`,
+                                        confirmButtonText: 'Back to booking', confirmButtonColor: '#6c757d', showCloseButton: true });
+                                    return;
+                                }
                                 Swal.fire({
                                     icon: 'warning',
                                     title: 'Insufficient Wallet Balance',
-                                    html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>Top up the franchise wallet in <b>Utility &rsaquo; Franchise Top-Up</b> and save again, or switch to Spot Payment.`,
+                                    html: `Available Wallet: <b>₹${credit.walletBalance.toFixed(2)}</b><br>Bill Amount: <b>₹${currentB2BTotal.toFixed(2)}</b> (Deficit: <b>₹${deficit.toFixed(2)}</b>)<br><br>${walletTopUpHint} and save again, or switch to Spot Payment.`,
                                     showCloseButton: true,          // ✕ button — closes popup, no action (user can edit the form)
                                     showCancelButton: true,
                                     confirmButtonText: '<i class="bi bi-cash-coin me-1"></i>Spot Payment',
@@ -1951,6 +1950,7 @@
             // Reset Button
             $('#btnResetForm').on('click', function() {
                 document.getElementById('frmB2BBooking').reset();
+                window.lockPatientPhone?.(false);
                 $('#PatientId').val('');
                 $('#PatientCode').val('');
                 $('#loadedPatientBadge').addClass('d-none').text('');
@@ -1970,6 +1970,19 @@
         });
 
         // ── Auto-populate patient data (Same as B2C) ──
+        // existing patient loaded: the Phone Number is read-only here (Patient Master > Edit changes it)
+        window.lockPatientPhone = function (on) {
+            const ph = document.getElementById('phoneNumber');
+            if (!ph) return;
+            ph.readOnly = !!on;
+            ph.classList.toggle('bg-light', !!on);
+            ph.title = on ? 'Phone number of an existing patient can be changed only in Patient Master > Edit' : '';
+        };
+        // a page opened for an existing patient (?patientId=) starts locked
+        document.addEventListener('DOMContentLoaded', () => {
+            if ((parseInt(document.getElementById('PatientId')?.value) || 0) > 0) window.lockPatientPhone(true);
+        });
+
         async function populatePatient(patientId) {
             const phoneDrop = document.getElementById('phoneSearchDropdown');
             if (phoneDrop) phoneDrop.style.display = 'none';
@@ -1994,7 +2007,10 @@
             setVal('MiddleName', p.middleName);
             setVal('LastName', p.lastName);
             setVal('EmailId', p.emailId);
-            setVal('Address', p.address);
+            // the saved address ends with ", PIN: nnnnnn" (2339): the PIN goes to its own box
+            const pinM = (p.address || '').match(/\s*,?\s*PIN\s*:\s*(\d{6})\s*$/i);
+            setVal('Address', pinM ? p.address.slice(0, pinM.index).trim().replace(/,$/, '').trim() : p.address);
+            setVal('Pincode', p.pincode || (pinM ? pinM[1] : ''));
             setVal('HomeCollectionAddress', p.homeCollectionAddress || p.address);
             if (p.homeCollectionAddress || p.address) {
                 const btnClearHome = document.getElementById('btnClearHomeAddr');
@@ -2020,6 +2036,14 @@
             if (p.gender) $('#ddlGender').val(p.gender).trigger('change.select2');
             if (p.relationId) $('#ddlRelation').val(p.relationId).trigger('change.select2');
             if (p.bloodGroup) $('#ddlBloodGroup').val(p.bloodGroup).trigger('change.select2');
+            // identification (patient master)
+            $('#ddlIdType').val(p.identificationTypeId ? String(p.identificationTypeId) : '').trigger('change.select2');
+            setVal('IdentificationNumber', p.identificationNumber || '');
+            setVal('AbhaNumber', p.abhaNumber || '');
+            setVal('AbhaAddress', p.abhaAddress || '');
+            setVal('IdentificationFilePath', p.identificationFilePath || '');
+            // the ID document already on record: Preview under "Upload ID Document"
+            window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');
 
             // Date of birth & Age
             if (p.dateOfBirth) {
@@ -2033,6 +2057,9 @@
                 if (window._refreshDob) window._refreshDob();
             }
 
+            // an existing patient's phone number is changed only in Patient Master > Edit (the server keeps the stored one too)
+            window.lockPatientPhone?.(true);
+
             const ph = document.getElementById('phoneNumber');
             const phErr = document.getElementById('phoneError');
             if (ph) {
@@ -2042,6 +2069,29 @@
             if (phErr) phErr.style.display = 'none';
 
             loadInvestigations();
+            focusTestPickerWhenReady();
+        }
+
+        // After an existing patient is loaded: go to "Select Test / Investigation / Profile" once its list is ready. The list
+        // needs a franchise / company first (its rate list), so without one the partner dropdown is opened instead.
+        function focusTestPickerWhenReady() {
+            const started = Date.now();
+            let readySince = 0;   // ready must hold briefly: a gender / age change can start a second reload of the list
+            (function wait() {
+                const $inv = $('#ddlInvestigations');
+                const partnerChosen = typeof currentAgentId !== 'undefined' && currentAgentId > 0;
+                if (!partnerChosen) {
+                    const $p = currentAgentType === 'C' ? $('#ddlCompany') : $('#ddlFranchise');
+                    if ($p.length) { $p[0].closest('.card, section, .row')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => $p.select2('open'), 250); }
+                    return;
+                }
+                const ready = !$inv.prop('disabled') && $inv.find('option[value!=""]').length > 0;
+                if (!ready) { readySince = 0; if (Date.now() - started < 6000) setTimeout(wait, 150); return; }
+                if (!readySince) readySince = Date.now();
+                if (Date.now() - readySince < 450) { setTimeout(wait, 150); return; }
+                $inv.next('.select2-container')[0]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => { $inv.select2('open'); }, 250);
+            })();
         }
 
         // ── Search Result Modal (Same as B2C) ──
@@ -2157,11 +2207,11 @@
                     return;
                 }
 
-                // Validate Years <= 150
-                if (y > 150 || y < 0) {
+                // Validate Years <= 110 (maximum age)
+                if (y > 110 || y < 0) {
                     yearsInput?.classList.add('is-invalid');
                     if (feedbackEl) {
-                        feedbackEl.textContent = 'Years must be between 0 and 150.';
+                        feedbackEl.textContent = 'Age cannot be more than 110 years (0 - 110).';
                         feedbackEl.classList.remove('d-none');
                     }
                     isUpdating = false;
@@ -2280,13 +2330,15 @@
                                 var b2b = (x.b2BRate !== undefined && x.b2BRate !== null) ? x.b2BRate : ((x.b2bRate !== undefined && x.b2bRate !== null) ? x.b2bRate : x.mrp);
                                 map.set(key, b2b);
                             });
-                            lineItems.forEach(item => {
-                                var key = item.itemType + '_' + item.id;
-                                if (map.has(key)) {
-                                    item.b2bRate = map.get(key);
-                                }
-                            });
+                            // 2256: a test not on the new partner's rate list cannot be billed to it - take it off the bill
+                            var dropped = lineItems.filter(item => !map.has(item.itemType + '_' + item.id));
+                            dropped.forEach(item => lineItems.splice(lineItems.indexOf(item), 1));
+                            lineItems.forEach(item => { item.b2bRate = map.get(item.itemType + '_' + item.id); });
                             renderTable();
+                            if (dropped.length) {
+                                Swal.fire({ icon: 'info', title: 'Removed from the bill',
+                                    text: `Not on this ${currentAgentType === 'C' ? 'company' : 'franchise'}'s rate list: ${dropped.map(i => i.name || i.code).join(', ')}.` });
+                            }
                         }
                     });
                 }
@@ -2315,7 +2367,7 @@
                 $('#lblWalletBalance').text(`₹ ${credit.walletBalance.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
 
                 // Only default to checked on initial partner selection, NEVER override user's choice during re-fetch
-                if (isInitial || $('#hdnDeductFromWallet').val() === '') {
+                if (isInitial || walletOnly || $('#hdnDeductFromWallet').val() === '') {
                     $('#chkDeductWallet').prop('checked', true);
                     $('#hdnDeductFromWallet').val('true');
                 }
@@ -2371,9 +2423,16 @@
                 return;
             }
 
-            // 2. Postpaid Credit Limit
+            // 2. Postpaid Credit Limit (creditLimit includes the temporary increase while valid - 2262)
             if (partnerCreditData.creditFacilityType === 2 && partnerCreditData.creditLimit > 0) {
                 var totalWithBill = partnerCreditData.currentOutstanding + b2bTotal;
+                var baseLim = partnerCreditData.baseCreditLimit || partnerCreditData.creditLimit;
+                if (partnerCreditData.tempLimitActive && totalWithBill > baseLim && totalWithBill <= partnerCreditData.creditLimit) {
+                    alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
+                        .html(`<i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Temporary credit in use:</strong> Outstanding (₹${partnerCreditData.currentOutstanding.toFixed(2)}) + This Bill (₹${b2bTotal.toFixed(2)}) is over the credit limit (₹${baseLim.toFixed(2)}) and within the temporary increase of ₹${partnerCreditData.tempLimitIncrease.toFixed(2)}. Temporary credit left after this bill: <strong>₹${(partnerCreditData.creditLimit - totalWithBill).toFixed(2)}</strong>.`);
+                    $('#btnSaveB2BSubmit').prop('disabled', false);
+                    return;
+                }
                 if (totalWithBill > partnerCreditData.creditLimit) {
                     var over = totalWithBill - partnerCreditData.creditLimit;
                     alertEl.removeClass('d-none alert-warning alert-info').addClass('alert-danger')
@@ -2391,12 +2450,18 @@
 
             // 3. Prepaid Wallet
             if (partnerCreditData.creditFacilityType === 1) {
-                var isDeduct = $('#chkDeductWallet').is(':checked');
+                var isDeduct = walletOnly || $('#chkDeductWallet').is(':checked');
                 if (isDeduct) {
                     if (partnerCreditData.walletBalance < b2bTotal) {
                         var shortfall = b2bTotal - partnerCreditData.walletBalance;
+                        if (walletOnly) {
+                            alertEl.removeClass('d-none alert-info alert-warning').addClass('alert-danger')
+                                .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. ${walletTopUpHint} before booking.`);
+                            $('#btnSaveB2BSubmit').prop('disabled', true);
+                            return;
+                        }
                         alertEl.removeClass('d-none alert-danger alert-info').addClass('alert-warning')
-                            .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. Top up the wallet in Utility &rsaquo; Franchise Top-Up, or uncheck to collect spot payment.`);
+                            .html(`<i class="bi bi-wallet2 me-1"></i><strong>Insufficient Wallet Balance:</strong> Shortfall of <strong>₹${shortfall.toFixed(2)}</strong>. ${walletTopUpHint}, or uncheck to collect spot payment.`);
                         $('#btnSaveB2BSubmit').prop('disabled', false);
                         return;
                     } else {
@@ -2424,6 +2489,7 @@
         }
 
         function triggerPrepaidSpotPayment() {
+            if (walletOnly) return;   // no spot payment for a franchise login
             var fname = ($('#FirstName').val() || '').trim();
             var lname = ($('#LastName').val() || '').trim();
             var sal = $('#ddlSalutation').val() || '';
@@ -2604,108 +2670,54 @@
             });
         }
 
+        // Home Collection Address search: one server call (Google Places when configured, else OpenStreetMap - ranked,
+        // biased to the chosen district / city, cached). A newer search cancels the older one; one Google session token
+        // covers typing and the pick (cheapest billing).
+        let addrAbort = null;
+        let addrSession = null;
+        function addrSessionToken() {
+            if (!addrSession) addrSession = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
+            return addrSession;
+        }
         async function fetchAddressSuggestions(query) {
+            const ddl = id => (typeof getSelectedDropdownText === 'function' ? getSelectedDropdownText(id) : '');
             const qs = new URLSearchParams({
-                query: query
+                query: query, country: ddl('ddlCountry'), state: ddl('ddlState'), district: ddl('ddlDistrict'), city: ddl('ddlCity'),
+                sessionToken: addrSessionToken()
             });
-
-            // 1. Try server-side controller proxy
+            if (addrAbort) addrAbort.abort();
+            addrAbort = new AbortController();
             try {
-                const res = await fetch(`/LabOrderBooking/SearchAddressGeoSuggestions?${qs.toString()}`);
+                const res = await fetch(`/LabOrderBooking/SearchAddressGeoSuggestions?${qs.toString()}`, { signal: addrAbort.signal });
                 if (res.ok) {
                     const data = await res.json();
-                    if (Array.isArray(data) && data.length > 0) {
-                        return data;
-                    }
+                    if (Array.isArray(data)) return data;
                 }
             } catch (e) {
-                console.warn('Server address search error, attempting client-side fallback...', e);
+                if (e.name === 'AbortError') return null;      // a newer search is running
+                console.warn('Address search error', e);
             }
-
-            // 2. Client-side fallback: Try Nominatim first
-            try {
-                const nomRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=in&limit=6`);
-                if (nomRes.ok) {
-                    const nomList = await nomRes.json();
-                    if (Array.isArray(nomList) && nomList.length > 0) {
-                        return nomList.map(item => {
-                            const addr = item.address || {};
-                            const name = item.name || (item.display_name ? item.display_name.split(',')[0] : '');
-                            const road = addr.road || '';
-                            const sub = addr.suburb || addr.neighbourhood || '';
-                            const dist = addr.county || addr.state_district || '';
-                            const st = addr.state || '';
-                            const pc = addr.postcode || '';
-                            const cnt = addr.country || 'India';
-
-                            const subParts = [];
-                            if (road && road !== name) subParts.push(road);
-                            if (sub && sub !== name) subParts.push(sub);
-                            if (dist && dist !== name) subParts.push(dist);
-                            if (st) subParts.push(pc ? `${st} ${pc}` : st);
-                            if (cnt) subParts.push(cnt);
-
-                            const secondary = subParts.filter((v, i, a) => a.indexOf(v) === i).join(', ');
-                            const fullAddress = secondary ? `${name}, ${secondary}` : name;
-
-                            return {
-                                name: name || fullAddress,
-                                secondary,
-                                fullAddress,
-                                latitude: parseFloat(item.lat),
-                                longitude: parseFloat(item.lon),
-                                city: dist,
-                                district: dist,
-                                state: st,
-                                postcode: pc,
-                                country: cnt
-                            };
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn('Client-side Nominatim search error:', e);
-            }
-
-            // 3. Photon Fallback
-            try {
-                const clientRes = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=8`);
-                if (clientRes.ok) {
-                    const geojson = await clientRes.json();
-                    if (geojson?.features?.length) {
-                        return geojson.features.map(feat => {
-                            const props = feat.properties || {};
-                            const coords = feat.geometry?.coordinates || [0, 0];
-                            const name = props.name || '';
-                            const subParts = [];
-                            if (props.street && props.street !== name) subParts.push(props.housenumber ? `${props.housenumber} ${props.street}` : props.street);
-                            if (props.district && props.district !== name) subParts.push(props.district);
-                            if (props.city && props.city !== name) subParts.push(props.city);
-                            if (props.county && props.county !== props.city && props.county !== name) subParts.push(props.county);
-                            if (props.state) subParts.push(props.postcode ? `${props.state} ${props.postcode}` : props.state);
-                            if (props.country) subParts.push(props.country);
-                            const secondary = subParts.filter((v, i, a) => a.indexOf(v) === i).join(', ');
-                            const fullAddress = secondary ? `${name}, ${secondary}` : name;
-                            return {
-                                name: name || fullAddress,
-                                secondary,
-                                fullAddress,
-                                latitude: coords[1],
-                                longitude: coords[0],
-                                city: props.city || '',
-                                district: props.district || '',
-                                state: props.state || '',
-                                postcode: props.postcode || '',
-                                country: props.country || ''
-                            };
-                        });
-                    }
-                }
-            } catch (e) {
-                console.warn('Client-side photon search error:', e);
-            }
-
             return [];
+        }
+
+        // pick a suggestion: a Google one gets its coordinates from the place details first
+        async function pickAddressSuggestion(el, lat, lon, addr) {
+            const placeId = el && el.dataset ? el.dataset.place : '';
+            if (placeId && (!Number(lat) || !Number(lon))) {
+                try {
+                    const r = await fetch(`/LabOrderBooking/AddressPlaceDetails?placeId=${encodeURIComponent(placeId)}&sessionToken=${encodeURIComponent(addrSessionToken())}`);
+                    if (r.ok) {
+                        const d = await r.json();
+                        lat = d.latitude; lon = d.longitude; addr = d.fullAddress || addr;
+                    }
+                } catch (e) { console.warn('Place details error', e); }
+                addrSession = null;   // the session ends with the pick
+            }
+            if (Number(lat) && Number(lon)) selectAddressSuggestion(lat, lon, addr);
+            else {
+                if (homeAddrInput) homeAddrInput.value = addr;
+                if (homeAddrDrop) homeAddrDrop.style.display = 'none';
+            }
         }
 
         if (homeAddrInput && homeAddrDrop) {
@@ -2715,7 +2727,7 @@
                 clearTimeout(addrDebounceTimer);
                 addrKbdIndex = -1;
 
-                if (val.length < 2) {
+                if (val.length < 3) {
                     homeAddrDrop.style.display = 'none';
                     if (iconSearch) iconSearch.className = 'bi bi-search';
                     return;
@@ -2731,6 +2743,7 @@
 
                 addrDebounceTimer = setTimeout(async () => {
                     const results = await fetchAddressSuggestions(val);
+                    if (results === null) return;   // replaced by a newer search
                     if (iconSearch) iconSearch.className = 'bi bi-search';
 
                     if (!results.length) {
@@ -2748,6 +2761,7 @@
                                 class="list-group-item list-group-item-action py-2.5 px-3 geo-addr-sug ${idx === 0 ? 'kbd-active' : ''}"
                                 data-lat="${item.latitude}"
                                 data-lon="${item.longitude}"
+                                data-place="${escapeHtml(item.placeId || '')}"
                                 data-address="${escapeHtml(item.fullAddress)}"
                                 tabindex="-1">
                             <div class="d-flex align-items-start gap-2">
@@ -2756,7 +2770,7 @@
                                     <div class="d-flex justify-content-between align-items-baseline gap-2">
                                         <span class="fw-bold text-dark text-truncate">${escapeHtml(item.name)}</span>
                                         <span class="badge bg-light text-secondary border font-monospace flex-shrink-0" style="font-size:0.7rem;">
-                                            <i class="bi bi-pin-map-fill text-danger me-0.5"></i>${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}
+                                            ${item.placeId ? '<i class="bi bi-google text-primary me-0.5"></i>Google' : `<i class="bi bi-pin-map-fill text-danger me-0.5"></i>${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)}`}
                                         </span>
                                     </div>
                                     <div class="small text-muted text-truncate mt-0.5" title="${escapeHtml(item.secondary || item.fullAddress)}">
@@ -2768,7 +2782,7 @@
                     `).join('');
                     homeAddrDrop.style.display = 'block';
                     addrKbdIndex = 0;
-                }, 300);
+                }, 350);
             });
 
             // Keyboard navigation
@@ -2793,7 +2807,7 @@
                         const lat  = items[targetIdx].dataset.lat;
                         const lon  = items[targetIdx].dataset.lon;
                         const addr = items[targetIdx].dataset.address;
-                        selectAddressSuggestion(lat, lon, addr);
+                        pickAddressSuggestion(items[targetIdx], lat, lon, addr);
                     }
                 } else if (e.key === 'Escape') {
                     homeAddrDrop.style.display = 'none';
@@ -2807,7 +2821,7 @@
                 const lat  = this.dataset.lat;
                 const lon  = this.dataset.lon;
                 const addr = this.dataset.address;
-                selectAddressSuggestion(lat, lon, addr);
+                pickAddressSuggestion(this, lat, lon, addr);
                 if (homeAddrInput) homeAddrInput.focus();
             });
 
@@ -3049,7 +3063,7 @@
 
         // In-Modal Search functionality
         async function searchLocationInsideMap(query) {
-            if (!query || query.trim().length < 2) return;
+            if (!query || query.trim().length < 3) return;
             $('#mapLoadingOverlay').css('display', 'flex');
 
             const qs = new URLSearchParams({ query: query.trim() });
@@ -3060,6 +3074,13 @@
                     const list = await res.json();
                     if (Array.isArray(list) && list.length > 0) {
                         const first = list[0];
+                        if (first.placeId && !(Number(first.latitude) && Number(first.longitude))) {
+                            // a Google suggestion: its coordinates come from the place details
+                            try {
+                                const dr = await fetch(`/LabOrderBooking/AddressPlaceDetails?placeId=${encodeURIComponent(first.placeId)}`);
+                                if (dr.ok) { const d = await dr.json(); first.latitude = d.latitude; first.longitude = d.longitude; first.fullAddress = d.fullAddress || first.fullAddress; }
+                            } catch (e) { console.warn('Place details error', e); }
+                        }
                         if (first.latitude && first.longitude && leafletMap) {
                             leafletMap.setView([first.latitude, first.longitude], 16);
                             mapMarker.setLatLng([first.latitude, first.longitude]);
@@ -3265,12 +3286,17 @@
             var gender = $('#ddlGender').val() || '';
             var ageYears = $('#AgeYears').val() || '';
 
-            var rateType = 'B2C';
-            var agentParam = '';
-            if (currentAgentId && currentAgentId > 0) {
-                rateType = currentAgentType === 'C' ? 'Corporate' : 'Franchise';
-                agentParam = `&agentId=${currentAgentId}`;
+            // B2B billing lists only the selected partner's rate list (2256): nothing until a franchise / company is chosen
+            var $ddl = $('#ddlInvestigations');
+            if (!(currentAgentId && currentAgentId > 0)) {
+                $ddl.empty().append('<option value=""></option>').val('').prop('disabled', true).trigger('change.select2');
+                $('#lblAvailCount').text('0');
+                $('#noPartnerRates').removeClass('d-none').find('span')
+                    .text(`Select a ${currentAgentType === 'C' ? 'company' : 'franchise'} first; the tests come from its rate list.`);
+                return;
             }
+            var rateType = currentAgentType === 'C' ? 'Corporate' : 'Franchise';
+            var agentParam = `&agentId=${currentAgentId}`;
 
             var branchId = '@(User.GetCurrentBranchId() ?? 1)';
             var url = `/LabOrderBooking/GetAvailableInvestigations?branchId=${branchId}&rateType=${rateType}${agentParam}`;
@@ -3280,11 +3306,14 @@
             if (gender) url += `&gender=${encodeURIComponent(gender)}`;
             if (ageYears) url += `&ageInYears=${ageYears}`;
 
-            var $ddl = $('#ddlInvestigations');
             $ddl.prop('disabled', true);
 
             $.get(url, function(res) {
                 $ddl.empty().append('<option value=""></option>');
+                var noRates = rateType !== 'B2C' && !(res.isSuccess && res.data && res.data.length) && !dept && !cat && !subCat;
+                var partnerWord = rateType === 'Corporate' ? 'company' : 'franchise';
+                $('#noPartnerRates').toggleClass('d-none', !noRates).find('span')
+                    .text(`No investigations or packages are on this ${partnerWord}'s rate list for this branch. Set them up in ${rateType === 'Corporate' ? 'Corporate' : 'Franchise'} Rate List first; tests from the B2C rate list cannot be billed to a ${partnerWord}.`);
                 if (res.isSuccess && res.data && res.data.length > 0) {
                     $('#lblAvailCount').text(res.data.length);
 
@@ -3391,31 +3420,31 @@
                 b2bTotal += b2b;
 
                 var typeBadge = item.isPackage
-                    ? '<span class="badge bg-success-subtle text-success border border-success-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-box me-1"></i>Package</span>'
+                    ? '<span class="badge ln-type bg-success-subtle text-success border border-success-subtle"><i class="bi bi-box me-1"></i>Package</span>'
                     : (item.isProfile
-                        ? '<span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-layers me-1"></i>Profile</span>'
-                        : '<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle ms-1" style="font-size:0.7rem;"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>');
+                        ? '<span class="badge ln-type bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-layers me-1"></i>Profile</span>'
+                        : '<span class="badge ln-type bg-secondary-subtle text-secondary border border-secondary-subtle"><i class="bi bi-file-earmark-medical me-1"></i>Investigation</span>');
 
-                var sampleBadge = item.sampleType ? `<span class="badge bg-light text-dark border">${item.sampleType}</span>` : '<span class="text-muted">--</span>';
-                var tatBadge = item.tat ? `<span class="badge bg-light text-secondary border">${item.tat} hrs</span>` : '<span class="text-muted">--</span>';
+                var sampleCell = item.sampleType ? `<span class="small text-dark">${item.sampleType}</span>` : '<span class="text-muted">—</span>';
+                var tatCell = item.tat ? `<span class="small text-secondary text-nowrap"><i class="bi bi-clock me-1"></i>${item.tat} hrs</span>` : '<span class="text-muted">—</span>';
 
                 var rowHtml = `
                     <tr>
                         <td class="text-center text-muted fw-semibold">${idx + 1}</td>
                         <td><span class="badge bg-light text-primary font-monospace border px-2 py-1">${item.code}</span></td>
                         <td>
-                            <div class="fw-semibold text-dark">${item.name} ${typeBadge}</div>
-                            ${item.method ? `<small class="text-muted">Method: ${item.method}</small>` : ''}
+                            <div class="ln-name">${item.name}${typeBadge}</div>
+                            ${item.method ? `<div class="ln-meta">${item.method}</div>` : ''}
                         </td>
-                        <td>${sampleBadge}</td>
-                        <td>${tatBadge}</td>
-                        <td class="text-end font-monospace text-muted">₹ ${mrp.toFixed(2)}</td>
-                        <td class="text-end font-monospace fw-bold text-primary bg-primary-subtle">₹ ${b2b.toFixed(2)}</td>
+                        <td>${sampleCell}</td>
+                        <td>${tatCell}</td>
+                        <td class="num font-monospace text-muted">${mrp.toFixed(2)}</td>
+                        <td class="num col-b2b font-monospace fw-bold text-primary">${b2b.toFixed(2)}</td>
                         <td class="text-center">
                             <input type="checkbox" class="form-check-input" ${item.isUrgent ? 'checked' : ''} onchange="toggleUrgent(${idx}, this.checked)" />
                         </td>
                         <td class="text-center">
-                            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeLineItem(${idx})" title="Remove">
+                            <button type="button" class="btn btn-sm btn-outline-danger border-0 rounded-circle ln-remove" onclick="removeLineItem(${idx})" title="Remove">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>
@@ -3447,4 +3476,11 @@
             }
         }
     </script>
+<script src="~/js/views/LabOrderBooking/B2BBooking.js" asp-append-version="true"></script>
+    <script src="~/js/doctor-suspension.js" asp-append-version="true" data-url="@Url.Action("SuspensionStatus", "Doctors")"></script>   @* SQLScripts/2484 *@
+
+    @if (await AiBillingFeatures.IsEnabledAsync(Context))
+    {
+        <partial name="_IdDocumentAssist" view-data='new ViewDataDictionary(ViewData) { ["IdAiPage"] = "LAB.LABORDERBOOKING.B2BBOOKING", ["IdAiAction"] = "B2BIdDocumentAssist" }' />
+    }
 }

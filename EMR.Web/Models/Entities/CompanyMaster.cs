@@ -57,6 +57,12 @@ public class CompanyMaster
 
     public bool IsActive { get; set; } = true;
     public int? CreatedBy { get; set; }
+    /// <summary>Web sign-in of the company's users is allowed only from Valid From to Valid To (both included), SQLScripts/2472.</summary>
+    [System.ComponentModel.DataAnnotations.Schema.Column(TypeName = "date")]
+    public DateTime ValidFrom { get; set; } = DateTime.Today;
+    [System.ComponentModel.DataAnnotations.Schema.Column(TypeName = "date")]
+    public DateTime ValidTo { get; set; } = DateTime.Today.AddYears(1);
+
     public DateTime CreatedDate { get; set; } = DateTime.Now;
     public int? ModifiedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }

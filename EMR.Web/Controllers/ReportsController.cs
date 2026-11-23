@@ -51,9 +51,55 @@ public class ReportsController : Controller
     }
 
     [HttpGet]
-    public IActionResult PatientRegister()
+    public async Task<IActionResult> PatientRegister()
     {
+        var branchId = User.GetCurrentBranchId() ?? 0;
+        using var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection();
+        ViewBag.BranchName = await Dapper.SqlMapper.ExecuteScalarAsync<string?>(con,
+            "SELECT BranchName FROM dbo.Branchmaster WHERE BranchID = @branchId", new { branchId });
+        ViewBag.CompanyName = User.GetCompanyName();
+        ViewBag.CanSeeAllBranches = CanSeeAllCollections();
         return View();
+    }
+
+    /// <summary>Reports > Patient Register (SQLScripts/2283 usp_Report_PatientRegister). The current branch; every
+    /// branch of the company only for an Administrator / super admin.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetPatientRegisterReport(DateTime? fromDate, DateTime? toDate, bool allBranches = false,
+        string? scope = null, string? gender = null, int? ageFrom = null, int? ageTo = null, string? membership = null,
+        string? status = "A", string? search = null)
+    {
+        var from = (fromDate ?? DateTime.Today).Date;
+        var to = (toDate ?? DateTime.Today).Date;
+        if (to < from) return Json(new { success = false, message = "To Date cannot be before From Date." });
+        if ((to - from).TotalDays > 366) return Json(new { success = false, message = "Choose a period of at most one year." });
+        if (ageFrom is < 0 || ageTo is < 0 || (ageFrom.HasValue && ageTo.HasValue && ageTo < ageFrom))
+            return Json(new { success = false, message = "Check the age range." });
+
+        int? branchId = allBranches && CanSeeAllCollections() ? null : User.GetCurrentBranchId() ?? 0;
+        try
+        {
+            using var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection();
+            var rows = await Dapper.SqlMapper.QueryAsync<PatientRegisterRow>(con, "dbo.usp_Report_PatientRegister", new
+            {
+                CompanyId = User.GetCompanyId(),
+                BranchId = branchId,
+                FromDate = from,
+                ToDate = to,
+                Scope = scope is "HEAD" or "DEP" ? scope : "ALL",
+                Gender = gender is "Male" or "Female" or "Other" ? gender : null,
+                AgeFrom = ageFrom,
+                AgeTo = ageTo,
+                Membership = membership is "Y" or "N" ? membership : null,
+                Status = status is "A" or "I" ? status : null,
+                Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim()
+            }, commandType: System.Data.CommandType.StoredProcedure, commandTimeout: 90);
+            return Json(new { success = true, data = rows });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 2812)
+        {
+            return Json(new { success = false, message = "Run SQLScripts/2283_patient_register_report.sql on this database first." });
+        }
     }
 
     [HttpGet]
@@ -72,7 +118,7 @@ public class ReportsController : Controller
         return Json(new { success = false, message = result.ErrorMessage });
     }
 
-    // ── Reports > LAB > B2C Collection Register ─────────────────────────────
+    // ── Reports > LAB > Daily Collection Register (B2C + direct B2B receipts, SQLScripts/2255) ──
     /// <summary>Administrator (active role) or super admin sees every user's collections; others only their own.</summary>
     private bool CanSeeAllCollections() =>
         User.IsSuperAdmin() || string.Equals(User.GetActiveRole(), "Administrator", StringComparison.OrdinalIgnoreCase);
@@ -85,7 +131,7 @@ public class ReportsController : Controller
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetLabB2CCollectionRegisterData(string fromDate, string toDate, int? paymentMethodId, int? collectedBy, string? search)
+    public async Task<IActionResult> GetLabB2CCollectionRegisterData(string fromDate, string toDate, int? paymentMethodId, int? collectedBy, string? search, string? billingType)
     {
         var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
         if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
@@ -96,7 +142,8 @@ public class ReportsController : Controller
 
         var seeAll = CanSeeAllCollections();
         var result = await _reportApi.GetLabB2CCollectionRegisterAsync(branchId, fDate, tDate, paymentMethodId,
-            seeAll ? collectedBy : User.GetUserId(), search, User.GetUserId(), seeAll, User.IsSuperAdmin());
+            seeAll ? collectedBy : User.GetUserId(), search, User.GetUserId(), seeAll, User.IsSuperAdmin(),
+            string.IsNullOrWhiteSpace(billingType) ? null : billingType.Trim().ToUpperInvariant());
         if (result.IsSuccess)
         {
             return Json(new { success = true, data = result.Data, scope = seeAll ? "ALL" : "SELF" });
@@ -201,8 +248,11 @@ public class ReportsController : Controller
         ["patient-orders"]      = new[] { "reportStatus", "createdBy" },
         ["cancellation-refund"] = new[] { "cancellationType", "refundStatus", "cancelledBy", "billingType" },
         ["membership-points"]   = new[] { "txnType", "planId", "createdBy" },
+        ["ref-doctor-billing"]  = new[] { "doctorIds", "billingType", "paymentStatus" },   // SQLScripts/2379
+        ["marketing-business"]  = new[] { "executiveIds", "execType", "billingType" },     // SQLScripts/2443
         // B2B partner-account reports: branch-wide for every user of the branch
         ["b2b-partner-billing"] = new[] { "partnerType", "partner", "paymentMethod" },
+        ["b2b-billing-report"]  = new[] { "partnerType", "partner", "paymentMethod" },   // SQLScripts/2340
         ["franchise-wallet"]    = new[] { "transactionType", "franchiseId" },
         ["b2b-outstanding"]     = new[] { "partnerType", "ageBucket" },
         // Sample stage (LR-10 / LR-11 / LR-12)
@@ -223,8 +273,29 @@ public class ReportsController : Controller
         ["unauthorized"]        = new[] { "withdrawAction", "outcome", "amended", "unapprovedBy", "departmentId" },
         // LR-24 / LR-26 / LR-27 (SQLScripts/2210)
         ["revenue-trend"]       = new[] { "billingType", "createdBy" },
+        ["test-revenue"]        = new[] { "kind", "billingType", "departmentId", "createdBy" },   // LR-23 (SQLScripts/2267)
         ["patient-analytics"]   = new[] { "patientType", "ageBand", "gender", "createdBy" },
         ["staff-productivity"]  = new[] { "activity", "staffId" },
+        // Quality & Compliance BOM & costing (SQLScripts/2248)
+        // LF-06 equipment and EQAS register (SQLScripts/2253)
+        ["iqc-runs"]              = new[] { "runStatus", "analyzerId", "testId" },   // LF-05, SQLScripts/2254
+        ["equipment-due"]         = new[] { "dueState", "typeId", "departmentId" },
+        ["equipment-downtime"]    = new[] { "breakdownStatus", "typeId" },
+        ["eqas-performance"]      = new[] { "performance", "programId" },
+        ["capa-register"]         = new[] { "capaStatus", "sourceType" },
+        ["bom-consumption"]       = new[] { "runType", "departmentId", "itemId" },   // SQLScripts/2249
+        ["bom-register"]          = new[] { "appliesTo", "departmentId", "categoryId" },
+        ["bom-coverage"]          = new[] { "coverage", "departmentId" },
+        ["item-where-used"]       = new[] { "usage", "categoryId", "itemId" },
+        ["bom-history"]           = new[] { "eventType", "departmentId", "changedBy" },
+        ["test-cost-sheet"]       = new[] { "kind", "departmentId" },
+        ["price-vs-cost"]         = new[] { "kind", "marginBand", "departmentId" },
+        ["margin-alert"]          = new[] { "threshold", "kind", "departmentId" },
+        ["package-profitability"] = new[] { "kind" },
+        ["sample-kit-cost"]       = new[] { "kitStatus" },
+        ["analyzer-cost"]         = new[] { "analyzerId", "departmentId" },
+        ["price-impact"]          = new[] { "changePct", "itemId", "categoryId" },
+        ["dept-cost-summary"]     = new[] { "kind" },
     };
 
     private IActionResult LabReportPage(string viewName)
@@ -234,11 +305,14 @@ public class ReportsController : Controller
     }
 
     [HttpGet] public IActionResult LabBillingRegister() => LabReportPage("LabBillingRegister");
+    [HttpGet] public IActionResult LabRefDoctorBilling() => LabReportPage("LabRefDoctorBilling");   // SQLScripts/2379
+    [HttpGet] public IActionResult LabMarketingBusiness() => LabReportPage("LabMarketingBusiness");   // SQLScripts/2443
     [HttpGet] public IActionResult LabOutstandingDues() => LabReportPage("LabOutstandingDues");
     [HttpGet] public IActionResult LabPatientOrders() => LabReportPage("LabPatientOrders");
     [HttpGet] public IActionResult LabCancellationRefund() => LabReportPage("LabCancellationRefund");
     [HttpGet] public IActionResult LabMembershipPoints() => LabReportPage("LabMembershipPoints");
     [HttpGet] public IActionResult LabB2BPartnerBilling() => LabReportPage("LabB2BPartnerBilling");
+    [HttpGet] public IActionResult LabB2BBillingReport() => LabReportPage("LabB2BBillingReport");
     [HttpGet] public IActionResult LabFranchiseWallet() => LabReportPage("LabFranchiseWallet");
     [HttpGet] public IActionResult LabB2BOutstanding() => LabReportPage("LabB2BOutstanding");
     [HttpGet] public IActionResult LabSamplesPending() => LabReportPage("LabSamplesPending");
@@ -266,8 +340,30 @@ public class ReportsController : Controller
     [HttpGet] public IActionResult LabDispatchPrint() => LabReportPage("LabDispatchPrint");
     [HttpGet] public IActionResult LabUnauthorized() => LabReportPage("LabUnauthorized");
     [HttpGet] public IActionResult LabRevenueTrend() => LabReportPage("LabRevenueTrend");
+    [HttpGet] public IActionResult LabTestRevenue() => LabReportPage("LabTestRevenue");
     [HttpGet] public IActionResult LabPatientAnalytics() => LabReportPage("LabPatientAnalytics");
     [HttpGet] public IActionResult LabStaffProductivity() => LabReportPage("LabStaffProductivity");
+
+    // Quality & Compliance > BOM & costing reports (SQLScripts/2248): company masters, the same for every user of the branch
+    // LF-06 equipment and EQAS register (SQLScripts/2253): branch masters, the same for every user of the branch
+    [HttpGet] public IActionResult LabIqcRuns() => LabReportPage("LabIqcRuns");   // LF-05, SQLScripts/2254
+    [HttpGet] public IActionResult LabEquipmentDue() => LabReportPage("LabEquipmentDue");
+    [HttpGet] public IActionResult LabEquipmentDowntime() => LabReportPage("LabEquipmentDowntime");
+    [HttpGet] public IActionResult LabEqasPerformance() => LabReportPage("LabEqasPerformance");
+    [HttpGet] public IActionResult LabCapaRegister() => LabReportPage("LabCapaRegister");
+    [HttpGet] public IActionResult LabBomConsumption() => LabReportPage("LabBomConsumption");
+    [HttpGet] public IActionResult LabBomRegister() => LabReportPage("LabBomRegister");
+    [HttpGet] public IActionResult LabBomCoverage() => LabReportPage("LabBomCoverage");
+    [HttpGet] public IActionResult LabItemWhereUsed() => LabReportPage("LabItemWhereUsed");
+    [HttpGet] public IActionResult LabBomHistory() => LabReportPage("LabBomHistory");
+    [HttpGet] public IActionResult LabTestCostSheet() => LabReportPage("LabTestCostSheet");
+    [HttpGet] public IActionResult LabPriceVsCost() => LabReportPage("LabPriceVsCost");
+    [HttpGet] public IActionResult LabMarginAlert() => LabReportPage("LabMarginAlert");
+    [HttpGet] public IActionResult LabPackageProfitability() => LabReportPage("LabPackageProfitability");
+    [HttpGet] public IActionResult LabSampleKitCost() => LabReportPage("LabSampleKitCost");
+    [HttpGet] public IActionResult LabAnalyzerCost() => LabReportPage("LabAnalyzerCost");
+    [HttpGet] public IActionResult LabPriceImpact() => LabReportPage("LabPriceImpact");
+    [HttpGet] public IActionResult LabDeptCostSummary() => LabReportPage("LabDeptCostSummary");
 
     /// <summary>LF-18 Owner MIS & Test Revenue: one management view of the lab for a period (revenue view; cost comes with LF-07).</summary>
     [HttpGet]
@@ -364,6 +460,71 @@ public class ReportsController : Controller
         return Json(new { success = true, message = action == "sent" ? "Marked as sent to the outside lab." : "Outside-lab result recorded." });
     }
 
+    /// <summary>
+    /// Daily Billing Register as Excel or PDF, built on the server (SQLScripts/2385): Detail = bill by bill with its test
+    /// and misc-charge lines; Summary = the chosen grouping. Same data, scope and filters as the page (GetLabReportData);
+    /// drillField / drillValue narrow it to the Summary line opened in Detail.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> ExportLabBillingRegister(string format, string fromDate, string toDate, string? search,
+        string? billingType, string? paymentStatus, string? createdBy, string? view, string? group, string? drillField, string? drillValue)
+    {
+        var pdf = string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase);
+        if (!pdf && !string.Equals(format, "excel", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { success = false, message = "Choose Excel or PDF." });
+
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        if (!DateTime.TryParse(fromDate, out var fDate)) fDate = DateTime.Today;
+        if (!DateTime.TryParse(toDate, out var tDate)) tDate = DateTime.Today;
+        if (tDate < fDate) (fDate, tDate) = (tDate, fDate);
+        if ((tDate - fDate).TotalDays > 366)
+            return BadRequest(new { success = false, message = "Please select a date range of up to one year." });
+
+        var seeAll = CanSeeAllCollections();
+        var query = new Dictionary<string, string?>
+        {
+            ["branchId"] = branchId.ToString(), ["fromDate"] = fDate.ToString("yyyy-MM-dd"), ["toDate"] = tDate.ToString("yyyy-MM-dd"),
+            ["search"] = search, ["userId"] = User.GetUserId().ToString(),
+            ["isAdmin"] = seeAll ? "true" : "false", ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false",
+            ["billingType"] = billingType, ["paymentStatus"] = paymentStatus, ["createdBy"] = createdBy
+        };
+        var result = await _reportApi.RunLabReportRawAsync("billing-register", query);
+        if (!result.IsSuccess || string.IsNullOrWhiteSpace(result.Data))
+            return StatusCode(StatusCodes.Status502BadGateway, new { success = false, message = result.ErrorMessage ?? "Unable to load the billing register." });
+
+        using var json = System.Text.Json.JsonDocument.Parse(result.Data);
+        List<Dictionary<string, System.Text.Json.JsonElement>> Set(string name) =>
+            json.RootElement.TryGetProperty(name, out var a) && a.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? a.EnumerateArray().Select(x => x.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone())).ToList() : new();
+        var rows = Set("rows");
+        var lines = Set("lines");
+        var groups = Set("groups");
+        var S = EMR.Web.Services.Reports.LabBillingRegisterExport.S;
+        if (!string.IsNullOrWhiteSpace(drillField) && drillValue != null)
+            rows = rows.Where(r => S(r, drillField) == drillValue).ToList();
+        var ids = rows.Select(r => S(r, "LabOrderId")).ToHashSet();
+        lines = lines.Where(l => ids.Contains(S(l, "LabOrderId"))).ToList();
+
+        var groupKey = group is "byDate" or "byPaymentStatus" or "byBillingType" or "byCreatedBy" ? group : "byDate";
+        var groupLabel = groupKey switch { "byPaymentStatus" => "Payment status", "byBillingType" => "Billing type", "byCreatedBy" => "Billed by", _ => "Bill date" };
+        var filters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(billingType)) filters.Add("Billing: " + billingType);
+        if (!string.IsNullOrWhiteSpace(paymentStatus)) filters.Add("Payment: " + paymentStatus);
+        if (seeAll && !string.IsNullOrWhiteSpace(createdBy)) filters.Add("Billed by: " + (rows.FirstOrDefault() is { } fr ? S(fr, "CreatedBy") : "#" + createdBy));
+        if (!string.IsNullOrWhiteSpace(search)) filters.Add($"Search: \"{search.Trim()}\"");
+        if (!string.IsNullOrWhiteSpace(drillField) && drillValue != null) filters.Add($"{drillField}: {drillValue}");
+
+        var info = new EMR.Web.Services.Reports.BillingRegisterExportInfo(
+            User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? string.Empty,
+            fDate, tDate, filters, User.GetDisplayName(), DateTime.Now, seeAll);
+        var v = string.Equals(view, "summary", StringComparison.OrdinalIgnoreCase) ? "summary" : "detail";
+        var name = $"Daily_Billing_Register_{v}_{fDate:yyyy-MM-dd}_to_{tDate:yyyy-MM-dd}";
+        return pdf
+            ? File(EMR.Web.Services.Reports.LabBillingRegisterExport.BuildPdf(rows, lines, groups, v, groupKey, groupLabel, info), "application/pdf", name + ".pdf")
+            : File(EMR.Web.Services.Reports.LabBillingRegisterExport.BuildExcel(rows, lines, groups, v, groupKey, groupLabel, info),
+                   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name + ".xlsx");
+    }
+
     [HttpGet]
     public Task<IActionResult> GetLabReportData(string report, string fromDate, string toDate, string? search)
         => RegisterDataAsync(LabReportFilters, _reportApi.RunLabReportRawAsync, report, fromDate, toDate, search);
@@ -442,4 +603,43 @@ public class ReportsController : Controller
             return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
         return Content("{\"success\":true,\"scope\":\"" + (seeAll ? "ALL" : "SELF") + "\",\"data\":" + result.Data + "}", "application/json");
     }
+}
+
+/// <summary>A row of dbo.usp_Report_PatientRegister (SQLScripts/2283).</summary>
+public class PatientRegisterRow
+{
+    public int PatientId { get; set; }
+    public string? PatientCode { get; set; }
+    public DateTime RegistrationDate { get; set; }
+    public string? PatientName { get; set; }
+    public string? Gender { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public int? AgeYears { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? SecondaryPhoneNumber { get; set; }
+    public string? EmailId { get; set; }
+    public string? BloodGroup { get; set; }
+    public int? RelationId { get; set; }
+    public string? RelationName { get; set; }
+    public bool IsHead { get; set; }
+    public int? HeadPatientId { get; set; }
+    public string? HeadCode { get; set; }
+    public string? HeadName { get; set; }
+    public int FamilyCount { get; set; }
+    public string? Address { get; set; }
+    public string? AreaName { get; set; }
+    public string? CityName { get; set; }
+    public string? DistrictName { get; set; }
+    public string? StateName { get; set; }
+    public string? BranchName { get; set; }
+    public string? RegisteredBy { get; set; }
+    public string? ReferralDoctor { get; set; }
+    public int? CardId { get; set; }
+    public string? CardNo { get; set; }
+    public string? PlanName { get; set; }
+    public string? CardStatus { get; set; }
+    public int OpdVisits { get; set; }
+    public int LabBills { get; set; }
+    public DateTime? LastVisit { get; set; }
+    public bool IsActive { get; set; }
 }

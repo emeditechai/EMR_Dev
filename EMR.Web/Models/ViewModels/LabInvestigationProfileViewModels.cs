@@ -43,7 +43,7 @@ public class LabInvestigationProfileFormViewModel
 
     [Range(0, 100, ErrorMessage = "Discount % must be between 0 and 100.")]
     [Display(Name = "Discount (%)")]
-    public decimal Discount_Pct { get; set; }
+    public decimal? Discount_Pct { get; set; } = 0;   // optional: left blank, the package is saved with 0 %
 
     [Display(Name = "Effective Start Date")]
     [DataType(DataType.Date)]

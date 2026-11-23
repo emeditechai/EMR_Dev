@@ -18,16 +18,7 @@
 @section HeadStyles {
     <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
-    <style>
-        .stat-card { border-radius:12px; border:1px solid #e9ecef; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:1rem 1.4rem; }
-        .stat-card .stat-icon { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem; }
-        .stat-card .stat-val  { font-size:1.6rem;font-weight:700;line-height:1; }
-        .table>thead>tr>th { font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; border-bottom:2px solid #dee2e6; white-space:nowrap; }
-        .table>tbody>tr>td { font-size:.88rem; vertical-align:middle; }
-        .badge-status-R { background:#cfe2ff;color:#084298; }
-        .badge-status-C { background:#d1e7dd;color:#0a3622; }
-        .badge-status-X { background:#f8d7da;color:#842029; }
-    </style>
+    <link rel="stylesheet" href="~/css/views/OPD/ServiceBooking.css" asp-append-version="true" />
 }
 
 @* ── Booking Success Modal (shown after payment save / skip) ── *@
@@ -85,9 +76,14 @@
                         </button>
                         @if (newSvcId > 0)
                         {
-                            <a asp-permission="OPD.SERVICEBOOKING:PRINT" href="@Url.Action("PrintBill", "OPD", new { id = newSvcId })"
+                            <a asp-permission="OPD.SERVICEBOOKING:PRINT" href="@Url.ActionEncrypted("PrintBill", "OPD", new { id = newSvcId })"
                                target="_blank" class="btn btn-success px-4 fw-semibold">
                                 <i class="bi bi-printer-fill me-2"></i>Print Bill
+                            </a>
+                            @* SQLScripts/2527: the doctor's prescription pad of this visit *@
+                            <a asp-permission="OPD.SERVICEBOOKING:PRINT_PRESCRIPTION" href="@Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = newSvcId })"
+                               target="_blank" class="btn btn-outline-primary px-4 fw-semibold">
+                                <i class="bi bi-file-earmark-medical me-2"></i>Print Dr. Prescription
                             </a>
                         }
                     </div>
@@ -183,6 +179,15 @@
                 </div>
             </div>
             <div class="col-auto">
+                <label class="form-label small fw-semibold mb-1">Payment Status</label>
+                <select name="paymentStatus" id="ddlPaymentStatus" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach (var (val, text) in new[] { ("", "All"), ("DUE", "Full Due"), ("PARTIAL", "Partial Due"), ("PAID", "Paid"), ("PCAN", "Partial Cancelled"), ("FCAN", "Full Cancelled") })
+                    {
+                        <option value="@val" selected="@(Model.PaymentStatus == val ? "selected" : null)">@text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
                 <label class="form-label small fw-semibold mb-1">Per page</label>
                 <select name="pageSize" class="form-select form-select-sm" onchange="this.form.submit()">
                     @foreach (var ps in new[] { 10, 25, 50, 100 })
@@ -197,9 +202,9 @@
                     <i class="bi bi-funnel-fill me-1"></i>Filter
                 </button>
                 <a asp-action="ServiceBooking"
-                   asp-route-fromDate="@fromDate"
-                   asp-route-toDate="@toDate"
-                   asp-route-pageSize="@Model.PageSize"
+                   asp-encrypted-route-fromDate="@fromDate"
+                   asp-encrypted-route-toDate="@toDate"
+                   asp-encrypted-route-pageSize="@Model.PageSize"
                    class="btn btn-sm btn-outline-secondary">Reset</a>
             </div>
         </form>
@@ -288,9 +293,27 @@
                                             </li>
                                             <li>
                                                 <a asp-permission="OPD.SERVICEBOOKING:PRINT" class="dropdown-item"
-                                                   href="@Url.Action("PrintBill", "OPD", new { id = b.OPDServiceId })"
+                                                   href="@Url.ActionEncrypted("PrintBill", "OPD", new { id = b.OPDServiceId })"
                                                    target="_blank">
                                                     <i class="bi bi-printer-fill me-2 text-success"></i>Print Bill
+                                                </a>
+                                            </li>
+                                            @* SQLScripts/2527: the doctor's prescription pad - a visit with a consultation *@
+                                            @if ((b.ServiceTypesSummary ?? "").Contains("Consulting", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <li>
+                                                    <a asp-permission="OPD.SERVICEBOOKING:PRINT_PRESCRIPTION" class="dropdown-item"
+                                                       href="@Url.ActionEncrypted("PrintPrescriptionPad", "OPD", new { id = b.OPDServiceId })"
+                                                       target="_blank">
+                                                        <i class="bi bi-file-earmark-medical me-2 text-primary"></i>Print Dr. Prescription
+                                                    </a>
+                                                </li>
+                                            }
+                                            @* OPD > Certificates (SQLScripts/2341): a certificate written from this visit *@
+                                            <li>
+                                                <a asp-permission="OPD.CERTIFICATES:DRAFT" class="dropdown-item"
+                                                   href="@Url.ActionEncrypted("Create", "Certificates", new { opdServiceId = b.OPDServiceId })">
+                                                    <i class="bi bi-patch-check me-2 text-primary"></i>Issue Certificate
                                                 </a>
                                             </li>
                                         </ul>
@@ -324,11 +347,11 @@
                                 <li class="page-item @(!Model.HasPrev ? "disabled" : "")">
                                     <a class="page-link"
                                        asp-action="ServiceBooking"
-                                       asp-route-page="@(Model.Page - 1)"
-                                       asp-route-pageSize="@Model.PageSize"
-                                       asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search">
+                                       asp-encrypted-route-page="@(Model.Page - 1)"
+                                       asp-encrypted-route-pageSize="@Model.PageSize"
+                                       asp-encrypted-route-fromDate="@fromDate"
+                                       asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus"
+                                       asp-encrypted-route-search="@Model.Search">
                                         <i class="bi bi-chevron-left"></i>
                                     </a>
                                 </li>
@@ -340,9 +363,9 @@
                                 @if (startPage > 1)
                                 {
                                     <li class="page-item">
-                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="1"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">1</a>
+                                        <a class="page-link" asp-action="ServiceBooking" asp-encrypted-route-page="1"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-fromDate="@fromDate"
+                                           asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus" asp-encrypted-route-search="@Model.Search">1</a>
                                     </li>
                                     @if (startPage > 2)
                                     {
@@ -352,9 +375,9 @@
                                 @for (int pg = startPage; pg <= endPage; pg++)
                                 {
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
-                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="@pg"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@pg</a>
+                                        <a class="page-link" asp-action="ServiceBooking" asp-encrypted-route-page="@pg"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-fromDate="@fromDate"
+                                           asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus" asp-encrypted-route-search="@Model.Search">@pg</a>
                                     </li>
                                 }
                                 @if (endPage < Model.TotalPages)
@@ -364,19 +387,19 @@
                                         <li class="page-item disabled"><span class="page-link">…</span></li>
                                     }
                                     <li class="page-item">
-                                        <a class="page-link" asp-action="ServiceBooking" asp-route-page="@Model.TotalPages"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-fromDate="@fromDate"
-                                           asp-route-toDate="@toDate" asp-route-search="@Model.Search">@Model.TotalPages</a>
+                                        <a class="page-link" asp-action="ServiceBooking" asp-encrypted-route-page="@Model.TotalPages"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-fromDate="@fromDate"
+                                           asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus" asp-encrypted-route-search="@Model.Search">@Model.TotalPages</a>
                                     </li>
                                 }
                                 <li class="page-item @(!Model.HasNext ? "disabled" : "")">
                                     <a class="page-link"
                                        asp-action="ServiceBooking"
-                                       asp-route-page="@(Model.Page + 1)"
-                                       asp-route-pageSize="@Model.PageSize"
-                                       asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search">
+                                       asp-encrypted-route-page="@(Model.Page + 1)"
+                                       asp-encrypted-route-pageSize="@Model.PageSize"
+                                       asp-encrypted-route-fromDate="@fromDate"
+                                       asp-encrypted-route-toDate="@toDate" asp-encrypted-route-paymentStatus="@Model.PaymentStatus"
+                                       asp-encrypted-route-search="@Model.Search">
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
                                 </li>
@@ -406,6 +429,14 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <a asp-permission="OPD.SERVICEBOOKING:PRINT" class="btn btn-success btn-sm fw-semibold" id="btnPrintBillFromModal"
+                   style="display:none" target="_blank" href="#">
+                    <i class="bi bi-printer-fill me-1"></i>Print Bill
+                </a>
+                <a asp-permission="OPD.SERVICEBOOKING:PRINT_PRESCRIPTION" class="btn btn-outline-primary btn-sm fw-semibold" id="btnPrintRxFromModal"
+                   style="display:none" target="_blank" href="#">
+                    <i class="bi bi-file-earmark-medical me-1"></i>Print Dr. Prescription
+                </a>
                 <button class="btn btn-info btn-sm fw-semibold text-white" id="btnCollectPayFromModal"
                         style="display:none" onclick="collectPaymentFromModal()">
                     <i class="bi bi-cash-coin me-1"></i><span id="btnCollectPayLabel">Collect Payment</span>
@@ -486,7 +517,9 @@
         // Reset buttons while loading
         const printBtn    = document.getElementById('btnPrintBillFromModal');
         const collectBtn  = document.getElementById('btnCollectPayFromModal');
-        if (printBtn)   { printBtn.style.display   = 'none'; printBtn.dataset.svcId = ''; }
+        const rxBtn       = document.getElementById('btnPrintRxFromModal');
+        if (printBtn)   { printBtn.style.display   = 'none'; printBtn.href = '#'; }
+        if (rxBtn)      { rxBtn.style.display      = 'none'; rxBtn.href = '#'; }
         if (collectBtn) { collectBtn.style.display  = 'none'; }
         _currentViewBookingId = id;
 
@@ -502,7 +535,9 @@
             const pay = rPay.ok ? ((await rPay.json())?.data ?? null) : null;
 
             // Show print button
-            if (printBtn) { printBtn.style.display = ''; printBtn.dataset.svcId = id; }
+            // the print links (encrypted, from the server); the prescription pad only for a consultation visit
+            if (printBtn && d.printBillUrl) { printBtn.href = d.printBillUrl; printBtn.style.display = ''; }
+            if (rxBtn && d.prescriptionUrl && d.hasConsultation) { rxBtn.href = d.prescriptionUrl; rxBtn.style.display = ''; }
 
             // Show collect payment button if not fully paid
             if (collectBtn) {
@@ -667,10 +702,5 @@
         }, 350);
     }
 
-    function printBillFromModal() {
-        const btn = document.getElementById('btnPrintBillFromModal');
-        const svcId = btn?.dataset?.svcId;
-        if (svcId) window.open('@Url.Action("PrintBill", "OPD")?id=' + svcId, '_blank');
-    }
     </script>
 }

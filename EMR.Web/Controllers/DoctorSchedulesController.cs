@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using EMR.Web.ApiClients;
 using EMR.Web.ApiClients.Models;
 using EMR.Web.Models.ViewModels;
+using EMR.Web.Services;
 using System.Security.Claims;
 
 namespace EMR.Web.Controllers
@@ -17,14 +18,20 @@ namespace EMR.Web.Controllers
     {
         private readonly IDoctorScheduleApiClient _scheduleApiClient;
         private readonly IDoctorApiClient _doctorApiClient;
-        
+        // OPD Doctor Roster Notification (SQLScripts/2528): a roster change is sent to the doctor and the chosen users
+        private readonly IDoctorRosterNotificationService _rosterNotify;
+
         public DoctorSchedulesController(
             IDoctorScheduleApiClient scheduleApiClient,
-            IDoctorApiClient doctorApiClient)
+            IDoctorApiClient doctorApiClient,
+            IDoctorRosterNotificationService rosterNotify)
         {
             _scheduleApiClient = scheduleApiClient;
             _doctorApiClient = doctorApiClient;
+            _rosterNotify = rosterNotify;
         }
+
+        private string? ActorName => User.FindFirstValue("DisplayName") ?? User.Identity?.Name;
 
         private int GetCurrentUserId()
         {
@@ -118,6 +125,7 @@ namespace EMR.Web.Controllers
 
                 bool allSuccess = true;
                 string lastError = "";
+                var savedDays = new List<byte>();
 
                 foreach (var day in daysToProcess)
                 {
@@ -148,6 +156,17 @@ namespace EMR.Web.Controllers
                         allSuccess = false;
                         lastError = $"Failed to save schedule for day {day}. Ensure times don't overlap.";
                     }
+                    else savedDays.Add(day);
+                }
+
+                // 2528: the roster changed - the doctor and the chosen users are told (when the daily roster is on)
+                if (savedDays.Count > 0)
+                {
+                    var edited = daysToProcess.Count == 1 && request.ScheduleId > 0;
+                    var times = $"{DateTime.Today.Add(request.StartTime):hh:mm tt} - {DateTime.Today.Add(request.EndTime):hh:mm tt}";
+                    var change = (edited ? "Session changed: " : "New session: ")
+                                 + string.Join(", ", savedDays.OrderBy(d => d == 0 ? 7 : d).Select(RosterItem.DayName)) + " " + times;
+                    _rosterNotify.QueueRosterChange(request.DoctorId, request.BranchId, change, ActorName, request.RequestedByUserId);
                 }
 
                 if (allSuccess)
@@ -166,10 +185,13 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> DeleteSchedule(int id)
         {
             var deletedBy = GetCurrentUserId();
+            var item = await _rosterNotify.GetRosterItemAsync(id, null);   // 2528: what is removed, for the message
             var result = await _scheduleApiClient.DeleteAsync(id, deletedBy);
-            
+
             if (result.Success)
             {
+                if (item is not null)
+                    _rosterNotify.QueueRosterChange(item.DoctorId, item.BranchId, "Session deactivated: " + item.Describe(), ActorName, deletedBy);
                 return Json(new { success = true, message = result.Warning ?? "Schedule deleted." });
             }
             
@@ -199,6 +221,7 @@ namespace EMR.Web.Controllers
                 }
 
                 bool allSuccess = true;
+                bool anySaved = false;
 
                 for (var date = startDate; date <= endDate; date = date.AddDays(1))
                 {
@@ -224,6 +247,16 @@ namespace EMR.Web.Controllers
                     {
                         allSuccess = false;
                     }
+                    else anySaved = true;
+                }
+
+                // 2528: leave added / changed - the doctor and the chosen users are told (when the daily roster is on)
+                if (anySaved)
+                {
+                    var kind = string.IsNullOrWhiteSpace(request.ExceptionType) ? "Leave" : request.ExceptionType;
+                    var change = $"{kind} {(request.ExceptionId > 0 && startDate == endDate ? "changed" : "added")}: {RosterItem.Dates(startDate, endDate)}"
+                                 + (string.IsNullOrWhiteSpace(request.Reason) ? "" : $" ({request.Reason.Trim()})");
+                    _rosterNotify.QueueRosterChange(request.DoctorId, request.BranchId, change, ActorName, request.RequestedByUserId);
                 }
 
                 if (allSuccess)
@@ -242,10 +275,13 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> DeleteException(int id)
         {
             var deletedBy = GetCurrentUserId();
+            var item = await _rosterNotify.GetRosterItemAsync(null, id);   // 2528: what is removed, for the message
             var success = await _scheduleApiClient.DeleteExceptionAsync(id, deletedBy);
-            
+
             if (success)
             {
+                if (item is not null)
+                    _rosterNotify.QueueRosterChange(item.DoctorId, item.BranchId, "Leave removed: " + item.Describe(), ActorName, deletedBy);
                 return Json(new { success = true, message = "Exception deleted." });
             }
             

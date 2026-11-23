@@ -12,5 +12,8 @@ public interface IPatientApiClient
     Task<int?>           CreateAsync(PatientCreateRequest request);
     Task<bool>           UpdateAsync(PatientUpdateRequest request);
     Task<OpdDashboardData?> GetOpdDashboardAsync(int branchId, string date, int? companyId = null);
+
+    /// <summary>Patient Portal: saves a new login (password hash) for the patient; null when no active patient.</summary>
+    Task<PatientPortalLoginTarget?> SetPortalLoginAsync(int patientId, string passwordHash, string salt, int? companyId = null);
 }
 

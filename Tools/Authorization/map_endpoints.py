@@ -21,7 +21,9 @@ import json, os, re, subprocess, sys, tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-cs = dict(kv.split("=", 1) for kv in json.load(open(os.path.join(ROOT, "EMR.Web", "appsettings.json")))["ConnectionStrings"]["DefaultConnection"].split(";") if "=" in kv)
+sys.path.insert(0, os.path.join(ROOT, "Tools"))
+from conn_string import default_connection
+cs = dict(kv.split("=", 1) for kv in default_connection().split(";") if "=" in kv)
 SQLCMD = ["sqlcmd", "-S", cs["Server"], "-U", cs["User Id"], "-P", cs["Password"], "-C", "-d", cs["Database"], "-b"]
 
 def q(sql):

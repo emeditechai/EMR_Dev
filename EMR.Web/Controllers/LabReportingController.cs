@@ -42,7 +42,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> Index(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -88,7 +88,7 @@ namespace EMR.Web.Controllers
                 BranchId = branchId,
                 FromDate = effectiveFrom,
                 ToDate = effectiveTo,
-                DateFilterType = dateFilterType ?? "BookingDate",
+                DateFilterType = dateFilterType ?? "CollectionDate",
                 StatusFilter = statusFilter ?? "All",
                 Search = search,
                 DepartmentId = departmentId,
@@ -312,7 +312,7 @@ namespace EMR.Web.Controllers
             if (detail.Items.Count == 0)
             {
                 if (hasTemplateTests)
-                    return RedirectToAction("Entry", "MicrobiologyReporting", new { labOrderId });
+                    return this.RedirectToActionEncrypted("Entry", "MicrobiologyReporting", new { labOrderId });
                 TempData["ErrorMessage"] = "This order does not contain any eligible Numeric report tests.";
                 return RedirectToAction(nameof(Index));
             }
@@ -341,6 +341,10 @@ namespace EMR.Web.Controllers
                 RejectionReasons = rejectionReasons
             };
 
+            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
+            var labSerial = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Lab, CurrentBranchId());
+            ViewBag.LabSerialRequired = labSerial.Required;
+            ViewBag.LabSerialNo = labSerial.LabSerialNo;
             return View(viewModel);
         }
 
@@ -349,7 +353,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetHeadersJson(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -416,6 +420,101 @@ namespace EMR.Web.Controllers
             });
         }
 
+        // ── Delta check trend (SQLScripts/2295) ─────────────────────────────────────────────────────────────
+        /// <summary>The patient's last 5 earlier results of a test (same rule as the row's "Previous" value: other orders,
+        /// active entries with a value, newest first) for the trend popup on Lab Report Entry.</summary>
+        [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
+        public async Task<IActionResult> DeltaHistoryJson(int labOrderId, int investigationId)
+        {
+            if (labOrderId <= 0 || investigationId <= 0) return Json(new { success = false, message = "Invalid request." });
+            try
+            {
+                var con = dbContext.Database.GetDbConnection();
+                var rows = await Dapper.SqlMapper.QueryAsync<DeltaHistoryRow>(con, @"
+                    DECLARE @PatientId INT = (SELECT PatientId FROM dbo.LabOrder WHERE LabOrderId = @labOrderId);
+                    SELECT TOP 5 prev_led.TestValue AS Value, prev_lo.OrderDate, prev_lo.BillNo,
+                           COALESCE(NULLIF(prev_u.Unit_Symbol, ''), prev_u.Unit_Name, '') AS Unit,
+                           prev_led.ReportStatusId AS StatusId
+                      FROM dbo.labentrydetails prev_led
+                      JOIN dbo.LabOrder prev_lo ON prev_lo.LabOrderId = prev_led.LabOrderId
+                      LEFT JOIN dbo.LabInvestigationMaster prev_lim ON prev_lim.Test_ID = prev_led.InvestigationID
+                      LEFT JOIN dbo.LabUnitMaster prev_u ON prev_u.Unit_ID = prev_lim.Unit_ID
+                     WHERE @PatientId IS NOT NULL
+                       AND prev_led.PatientId = @PatientId
+                       AND prev_led.InvestigationID = @investigationId
+                       AND prev_led.LabOrderId <> @labOrderId
+                       AND prev_led.IsActive = 1
+                       AND prev_led.TestValue IS NOT NULL AND LTRIM(RTRIM(prev_led.TestValue)) <> ''
+                     ORDER BY prev_lo.OrderDate DESC, prev_led.LabEntryDetailId DESC",
+                    new { labOrderId, investigationId });
+                return Json(new
+                {
+                    success = true,
+                    items = rows.Select(r => new
+                    {
+                        value = r.Value?.Trim(),
+                        date = r.OrderDate?.ToString("dd MMM yyyy"),
+                        time = r.OrderDate?.ToString("hh:mm tt"),
+                        billNo = r.BillNo,
+                        unit = r.Unit,
+                        approved = r.StatusId == 5
+                    })
+                });
+            }
+            catch (Exception)
+            {
+                return Json(new { success = false, message = "Previous results could not be loaded." });
+            }
+        }
+
+        private sealed class DeltaHistoryRow
+        {
+            public string? Value { get; set; }
+            public DateTime? OrderDate { get; set; }
+            public string? BillNo { get; set; }
+            public string? Unit { get; set; }
+            public int? StatusId { get; set; }
+        }
+
+        // ── Reflex test suggestions (SQLScripts/2289; AI features switch) ─────────────────────────────────
+        /// <summary>Follow-up tests the order's entered results call for, per Master > Lab Master > Reflex Rules.</summary>
+        [HttpGet]
+        [EMR.Web.Filters.LabReportingAccess]
+        [EMR.Shared.Security.RequiresPermission("LAB.LABREPORTING", "REFLEX")]
+        public async Task<IActionResult> ReflexSuggestions(int labOrderId,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.Reflex.ILabReflexService reflex)
+        {
+            if (labOrderId <= 0 || !await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false, enabled = false });
+            try
+            {
+                return Json(new { success = true, enabled = true, items = await reflex.GetSuggestionsAsync(User.GetCompanyId(), labOrderId) });
+            }
+            catch (Exception)
+            {
+                return Json(new { success = false, enabled = true });   // reporting goes on without suggestions
+            }
+        }
+
+        /// <summary>Advise (A) or dismiss (D) a reflex suggestion. A recommendation only: bill, order and report are unchanged.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [EMR.Web.Filters.LabReportingAccess]
+        [EMR.Shared.Security.RequiresPermission("LAB.LABREPORTING", "REFLEX")]
+        public async Task<IActionResult> ReflexAction(int labOrderId, int ruleId, string? status, string? note,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.Reflex.ILabReflexService reflex)
+        {
+            if (labOrderId <= 0 || ruleId <= 0 || status is not ("A" or "D")) return Json(new { success = false, message = "Invalid request." });
+            if (!await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false, message = "AI features are switched off for this branch." });
+            var error = await reflex.RecordAsync(User.GetCompanyId(), CurrentBranchId(), User.GetUserId(), labOrderId, ruleId, status[0], note);
+            if (error is not null) return Json(new { success = false, message = error });
+            await auditLogService.LogAsync("LAB", "LAB.ReflexTest",
+                $"Reflex rule #{ruleId} {(status == "A" ? "advised" : "dismissed")} on lab order #{labOrderId}.");
+            return Json(new { success = true });
+        }
+
         [HttpPost]
         [EMR.Web.Filters.LabReportingAccess]
         public async Task<IActionResult> SaveEntryJson([FromBody] SaveLabReportingRequestDto request)
@@ -425,6 +524,12 @@ namespace EMR.Web.Controllers
 
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
+
+            // SQLScripts/2514: the Lab Serial No is required (server side) while the branch setting is Yes, and kept per lab order
+            var serialError = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>()
+                .SaveAsync(request.LabOrderId, LabSerialNoApiClient.Lab, CurrentBranchId(), request.LabSerialNo);
+            if (serialError != null)
+                return Json(new { success = false, code = "LAB_SERIAL_NO", message = serialError });
 
             // Validating and approving are actions of their own (Settings > Security > this page).
             if (request.ReportStatusId == 3
@@ -441,6 +546,15 @@ namespace EMR.Web.Controllers
                     success = false,
                     message = "Pathologist approval is required for this branch. Approve the report from the Pathologist Dashboard."
                 });
+
+            // LF-05 (SQLScripts/2254): a parameter with a rejected internal QC run (no corrective action yet) cannot be validated / approved
+            if (request.ReportStatusId is 3 or 5)
+            {
+                var iqcBlock = await EMR.Web.Controllers.Quality.IqcGate.BlockAsync(HttpContext, request.LabOrderId,
+                    (request.Entries ?? new()).Where(e => !string.IsNullOrWhiteSpace(e.TestValue)).Select(e => e.SamplecollectionID));
+                if (iqcBlock != null)
+                    return Json(new { success = false, code = "IQC_REJECTED", message = iqcBlock });
+            }
 
             // NABL: a Critical / Panic result needs its communication recorded before it is approved (SQLScripts/2202)
             if (request.ReportStatusId == 5)
@@ -867,6 +981,19 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, message = "Unable to load audit history right now. The service is unreachable." });
             }
+        }
+
+
+        /// <summary>
+        /// The bill's journey from booking to report delivery for the Audit History modal: every stage with where it
+        /// stands (done / in progress / waiting / needs attention), when and by whom - worked out from the order itself,
+        /// so a stage shows even when no activity was recorded for it. Read-only.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetOrderWorkflowJson(int labOrderId)
+        {
+            if (labOrderId <= 0) return Json(new { success = false, message = "Valid LabOrderId is required." });
+            return Json(await EMR.Common.LabOrderWorkflow.BuildAsync(dbContext.Database.GetDbConnection(), labOrderId));
         }
 
         // ── Audit helpers ────────────────────────────────────────────────────────

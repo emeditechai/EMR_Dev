@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Models.DTOs;
@@ -17,8 +18,239 @@ public class HospitalSettingsController(
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
     IWebHostEnvironment webHostEnvironment,
-    ILabDefaultSignatoryApiClient signatoryApiClient) : Controller
+    ILabDefaultSignatoryApiClient signatoryApiClient,
+    ILabFtpService labFtpService,
+    IAppApkService appApkService) : Controller
 {
+    // ── FTP credentials for external lab report documents (Lab tab, SQLScripts/2354) ─────────
+    // Saved on their own (not with the main form). The password is encrypted and never sent back to the page.
+
+    [HttpGet]
+    public async Task<IActionResult> FtpSettings()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var own = await labFtpService.GetOwnAsync(branchId.Value);
+        var used = own ?? await labFtpService.GetForBranchAsync(User.GetCompanyId(), branchId.Value);
+        return Json(new
+        {
+            success = true,
+            own = own is not null,
+            inheritedFromBranchId = own is null ? used?.BranchId : null,
+            host = used?.Host, port = used?.Port ?? 21, userName = used?.UserName,
+            rootFolder = used?.RootFolder ?? "emedidoc/reports", usePassive = used?.UsePassive ?? true, useFtps = used?.UseFtps ?? false,
+            hasPassword = !string.IsNullOrEmpty(own?.PasswordEnc), modifiedDate = own?.ModifiedDate
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        var own = await labFtpService.GetOwnAsync(branchId.Value);
+        if (string.IsNullOrEmpty(password) && string.IsNullOrEmpty(own?.PasswordEnc))
+            return Json(new { success = false, message = "Enter the FTP password." });
+
+        await labFtpService.SaveAsync(settings!, password, User.GetUserId());
+        await auditLogService.LogAsync("Update", "HospitalSettings",
+            $"FTP credentials for report documents saved (host {settings!.Host}, user {settings.UserName})", User.GetUserId(), branchId);
+        return Json(new { success = true, message = "FTP credentials saved." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> TestFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        if (string.IsNullOrEmpty(password))
+        {
+            var stored = await labFtpService.GetOwnAsync(branchId.Value);
+            if (string.IsNullOrEmpty(stored?.PasswordEnc)) return Json(new { success = false, message = "Enter the FTP password." });
+            settings!.PasswordEnc = stored.PasswordEnc;
+        }
+        var (ok, message) = await labFtpService.TestAsync(settings!, password);
+        return Json(new { success = ok, message });
+    }
+
+    // ── FTP server for App (APK) Upload (Lab tab, SQLScripts/2393): its own credentials, same pattern as above ─────────
+
+    [HttpGet]
+    public async Task<IActionResult> AppFtpSettings()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var own = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: true);
+        var used = own ?? await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: false);
+        return Json(new
+        {
+            success = true,
+            own = own is not null,
+            inheritedFromBranchId = own is null ? used?.BranchId : null,
+            host = used?.Host, port = used?.Port ?? 21, userName = used?.UserName,
+            rootFolder = used?.RootFolder ?? "emedidoc/apps", usePassive = used?.UsePassive ?? true, useFtps = used?.UseFtps ?? false,
+            hasPassword = !string.IsNullOrEmpty(own?.PasswordEnc), modifiedDate = own?.ModifiedDate
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveAppFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        var own = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: true);
+        if (string.IsNullOrEmpty(password) && string.IsNullOrEmpty(own?.PasswordEnc))
+            return Json(new { success = false, message = "Enter the FTP password." });
+
+        await appApkService.SaveFtpAsync(settings!, password, User.GetUserId());
+        await auditLogService.LogAsync("Update", "HospitalSettings",
+            $"FTP credentials for App (APK) upload saved (host {settings!.Host}, user {settings.UserName})", User.GetUserId(), branchId);
+        return Json(new { success = true, message = "FTP credentials saved." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> TestAppFtpSettings(string? host, int? port, string? userName, string? password, string? rootFolder,
+        bool usePassive, bool useFtps)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        var (settings, error) = await ReadFtpForm(branchId.Value, host, port, userName, rootFolder, usePassive, useFtps);
+        if (error is not null) return Json(new { success = false, message = error });
+        if (string.IsNullOrEmpty(password))
+        {
+            var stored = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: true);
+            if (string.IsNullOrEmpty(stored?.PasswordEnc)) return Json(new { success = false, message = "Enter the FTP password." });
+            settings!.PasswordEnc = stored.PasswordEnc;
+        }
+        var (ok, message) = await labFtpService.TestAsync(settings!, password);
+        return Json(new { success = ok, message });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ApkReleases()
+    {
+        var rows = await appApkService.ListAsync(User.GetCompanyId());
+        return Json(new { success = true, rows });
+    }
+
+    private const long MaxApkBytes = 300L * 1024 * 1024;
+
+    /// <summary>Uploads an Android app (.apk) to the App FTP: &lt;Root&gt;/&lt;App&gt;/&lt;Version&gt;/App_vVersion_yyyyMMddHHmmss.apk,
+    /// kept in the version history as the app's Latest.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(MaxApkBytes + 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxApkBytes + 1024 * 1024)]
+    public async Task<IActionResult> UploadApk(IFormFile? file, string? appName, string? versionName, int? versionCode, string? releaseNotes)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) return Json(new { success = false, message = "No active branch." });
+        appName = appName?.Trim(); versionName = versionName?.Trim();
+        if (string.IsNullOrWhiteSpace(appName) || appName.Length > 100) return Json(new { success = false, message = "Enter the app name (e.g. Phlebotomist App)." });
+        if (string.IsNullOrWhiteSpace(versionName) || versionName.Length > 50) return Json(new { success = false, message = "Enter the version (e.g. 1.0.3)." });
+        if (versionCode is < 0) return Json(new { success = false, message = "The version code must be a positive number." });
+        if (releaseNotes?.Length > 1000) return Json(new { success = false, message = "Release notes can be up to 1000 characters." });
+        if (file is null || file.Length == 0) return Json(new { success = false, message = "Choose the .apk file." });
+        if (!string.Equals(Path.GetExtension(file.FileName), ".apk", StringComparison.OrdinalIgnoreCase))
+            return Json(new { success = false, message = "Only an Android app file (.apk) can be uploaded here." });
+        if (file.Length > MaxApkBytes) return Json(new { success = false, message = "The file is larger than 300 MB." });
+
+        var settings = await appApkService.GetFtpAsync(User.GetCompanyId(), branchId.Value, ownOnly: false);
+        if (settings is null || string.IsNullOrEmpty(settings.PasswordEnc))
+            return Json(new { success = false, message = "Save the FTP credentials for App (APK) upload first." });
+
+        // an APK is a zip archive: it starts with "PK\x03\x04"
+        await using var stream = new MemoryStream();
+        await file.CopyToAsync(stream);
+        var bytes = stream.GetBuffer();
+        if (stream.Length < 4 || bytes[0] != 0x50 || bytes[1] != 0x4B || bytes[2] != 0x03 || bytes[3] != 0x04)
+            return Json(new { success = false, message = "The file is not a valid Android app (.apk)." });
+        var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream.ToArray())).ToLowerInvariant();
+
+        var fileName = labFtpService.SafeName($"{appName}_v{versionName}_{DateTime.Now:yyyyMMddHHmmss}") + ".apk";
+        string path;
+        try
+        {
+            stream.Position = 0;
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+            path = await labFtpService.UploadAsync(settings, [appName, versionName], fileName, stream, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "The FTP upload failed: " + ex.Message });
+        }
+
+        // Utility > App Downloads serves the web server's copy (the FTP server is slow for a large file)
+        try
+        {
+            var cacheFile = AppDownloadsController.CacheFile(webHostEnvironment.ContentRootPath, sha);
+            Directory.CreateDirectory(Path.GetDirectoryName(cacheFile)!);
+            await System.IO.File.WriteAllBytesAsync(cacheFile, stream.ToArray());
+        }
+        catch { /* the first download fills it instead */ }
+
+        var id = await appApkService.SaveReleaseAsync(new AppApkRelease
+        {
+            BranchId = branchId.Value, AppName = appName, VersionName = versionName, VersionCode = versionCode,
+            OriginalFileName = Path.GetFileName(file.FileName), FileName = fileName, FilePath = path,
+            FileSizeBytes = file.Length, Sha256 = sha, ReleaseNotes = releaseNotes
+        }, User.GetCompanyId(), User.GetUserId());
+        await auditLogService.LogAsync("Create", "HospitalSettings",
+            $"App (APK) uploaded: {appName} v{versionName}{(versionCode is null ? "" : $" ({versionCode})")} - {path}", User.GetUserId(), branchId);
+        return Json(new { success = true, apkId = id, path, message = $"{appName} v{versionName} uploaded and marked Latest." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetLatestApk(int apkId)
+    {
+        try { await appApkService.SetLatestAsync(User.GetCompanyId(), apkId, User.GetUserId()); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) { return Json(new { success = false, message = ex.Message }); }
+        await auditLogService.LogAsync("Update", "HospitalSettings", $"App (APK) release #{apkId} marked Latest", User.GetUserId(), User.GetCurrentBranchId());
+        return Json(new { success = true, message = "Marked as the latest release." });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveApk(int apkId)
+    {
+        try { await appApkService.RemoveAsync(User.GetCompanyId(), apkId, User.GetUserId()); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) { return Json(new { success = false, message = ex.Message }); }
+        await auditLogService.LogAsync("Delete", "HospitalSettings", $"App (APK) release #{apkId} removed from the list", User.GetUserId(), User.GetCurrentBranchId());
+        return Json(new { success = true, message = "Removed from the list (the file stays on the FTP server)." });
+    }
+
+    private async Task<(Services.LabFtpSettings? Settings, string? Error)> ReadFtpForm(int branchId, string? host, int? port,
+        string? userName, string? rootFolder, bool usePassive, bool useFtps)
+    {
+        host = host?.Trim().Replace("ftp://", "", StringComparison.OrdinalIgnoreCase).TrimEnd('/');
+        if (string.IsNullOrWhiteSpace(host) || host.Length > 200 || host.Any(char.IsWhiteSpace))
+            return (null, "Enter a valid FTP host name or IP address.");
+        if (port is < 1 or > 65535) return (null, "Port must be between 1 and 65535.");
+        if (string.IsNullOrWhiteSpace(userName)) return (null, "Enter the FTP user ID.");
+        rootFolder = (rootFolder ?? "").Trim().Replace('\\', '/').Trim('/');
+        if (rootFolder.Contains("..") || rootFolder.Length > 300) return (null, "Enter a valid root folder (e.g. emedidoc/reports).");
+        var companyId = await dbContext.BranchMasters.Where(b => b.BranchId == branchId).Select(b => b.CompanyId).FirstOrDefaultAsync();
+        return (new Services.LabFtpSettings
+        {
+            CompanyId = companyId == 0 ? User.GetCompanyId() : companyId, BranchId = branchId, Host = host,
+            Port = port ?? 21, UserName = userName.Trim(), RootFolder = rootFolder, UsePassive = usePassive, UseFtps = useFtps
+        }, null);
+    }
+
     // ── Default report signatories (Level 1..3) ──────────────────────────────
     // Configured when "Pathologist Approval Required" is switched off, so a released report still has named
     // signatories. Stored server-side only for now; no report or approval behaviour is changed by them yet.
@@ -173,21 +405,74 @@ public class HospitalSettingsController(
         }
 
         var branch = await dbContext.BranchMasters.FindAsync(branchId.Value);
+        // Copy from Head Office (SQLScripts/2318) is offered only on a branch
+        ViewBag.IsHeadOffice = branch?.IsHOBranch ?? false;
+        ViewBag.HeadOfficeName = branch is null ? null : await dbContext.BranchMasters
+            .Where(b => b.CompanyId == branch.CompanyId && b.IsHOBranch).Select(b => b.BranchName).FirstOrDefaultAsync();
         var settings = await dbContext.HospitalSettings
             .FirstOrDefaultAsync(x => x.BranchId == branchId.Value);
 
         if (settings is null)
         {
+            var governmentIds = await GovernmentIdOptionsAsync();
             var empty = new HospitalSettingsViewModel
             {
                 BranchId = branchId.Value,
-                BranchName = branch?.BranchName ?? string.Empty
+                BranchName = branch?.BranchName ?? string.Empty,
+                EnableAbha = governmentIds.Abha,
+                EnableAyushmanBharat = governmentIds.AyushmanBharat,
+                BillChangeApprovalRequired = await BillChangeApprovalForCompanyAsync()
             };
             return View(empty);
         }
 
         var model = MapToViewModel(settings, branch?.BranchName ?? string.Empty);
         return View(model);
+    }
+
+    /// <summary>
+    /// Copy from Head Office (SQLScripts/2318): every Hospital Settings value of the head office onto the branch signed in
+    /// to (not on the head office itself). The branch's previous values go to the audit log.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CopyFromHeadOffice([FromServices] IHttpClientFactory httpFactory)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId is null) { TempData["Error"] = "No active branch found."; return RedirectToAction(nameof(Index)); }
+        try
+        {
+            var http = httpFactory.CreateClient("EmrApi");
+            var res = await http.PostAsJsonAsync("api/hospital-settings/copy-from-ho", new { targetBranchId = branchId.Value, userId = User.GetUserId() });
+            System.Text.Json.JsonElement body = default;
+            try { body = await res.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>(); } catch (System.Text.Json.JsonException) { }
+            var ok = res.IsSuccessStatusCode && body.ValueKind == System.Text.Json.JsonValueKind.Object
+                     && body.TryGetProperty("success", out var sv) && sv.GetBoolean();
+            if (!ok)
+            {
+                TempData["Error"] = body.ValueKind == System.Text.Json.JsonValueKind.Object && body.TryGetProperty("message", out var m)
+                    ? m.GetString() : "The settings could not be copied - nothing was changed.";
+                return RedirectToAction(nameof(Index));
+            }
+            var data = body.GetProperty("data");
+            var source = data.TryGetProperty("sourceBranchName", out var sn) ? sn.GetString() : "Head Office";
+            var previous = data.TryGetProperty("previousValuesJson", out var pv) && pv.ValueKind == System.Text.Json.JsonValueKind.String ? pv.GetString() : null;
+            // the branch's previous values go into the metadata (no length limit), so they can be restored if needed
+            await auditLogService.LogActivityAsync(
+                eventType: "Update",
+                actionName: "HospitalSettings.CopyFromHeadOffice",
+                description: $"Hospital settings of branch {branchId} copied from {source} ({(data.TryGetProperty("columnsCopied", out var cc) ? cc.GetInt32() : 0)} settings). Previous values are in the metadata.",
+                userId: User.GetUserId(),
+                branchId: branchId,
+                moduleCode: "SETTINGS",
+                metadata: new { SourceBranch = source, PreviousValues = previous is null ? (System.Text.Json.JsonElement?)null : System.Text.Json.JsonDocument.Parse(previous).RootElement });
+            TempData["Success"] = $"All settings copied from {source}. Review them and use Edit Settings for anything this branch needs different (address, contacts, logo).";
+        }
+        catch (HttpRequestException)
+        {
+            TempData["Error"] = "The API is not reachable - nothing was copied.";
+        }
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]
@@ -206,10 +491,14 @@ public class HospitalSettingsController(
 
         if (settings is null)
         {
+            var governmentIds = await GovernmentIdOptionsAsync();
             return View(new HospitalSettingsViewModel
             {
                 BranchId = branchId.Value,
                 BranchName = branch?.BranchName ?? string.Empty,
+                EnableAbha = governmentIds.Abha,
+                EnableAyushmanBharat = governmentIds.AyushmanBharat,
+                BillChangeApprovalRequired = await BillChangeApprovalForCompanyAsync(),
                 IsActive = true
             });
         }
@@ -251,6 +540,8 @@ public class HospitalSettingsController(
             dbContext.HospitalSettings.Add(entity);
 
             await dbContext.SaveChangesAsync();
+            await SaveGovernmentIdOptionsForCompanyAsync(model);
+            await SaveBillChangeApprovalForCompanyAsync(model);
             await auditLogService.LogAsync("Create", "HospitalSettings",
                 $"Hospital settings created for branch {branchId}", userId, branchId);
             TempData["Success"] = "Hospital settings saved successfully.";
@@ -276,11 +567,18 @@ public class HospitalSettingsController(
             existing.CheckInTime = TimeSpan.TryParse(model.CheckInTime, out var cin) ? cin : null;
             existing.CheckOutTime = TimeSpan.TryParse(model.CheckOutTime, out var cout) ? cout : null;
             existing.OpdRegistrationValidityDays = model.OpdRegistrationValidityDays;
+            existing.OpdRegistrationChargesNotRequired = model.OpdRegistrationChargesNotRequired;
             existing.GlobalPatientSearchRequired = model.GlobalPatientSearchRequired;
+            existing.EnableAbha = model.EnableAbha;
+            existing.EnableAyushmanBharat = model.EnableAyushmanBharat;
             existing.EmailNotificationRequired = model.EmailNotificationRequired;
             existing.LabEmailNotificationRequired = model.LabEmailNotificationRequired;
             existing.IsSampleCollectionMandatory = model.IsSampleCollectionMandatory;
             existing.BarcodeGenerateAtBilling = model.BarcodeGenerateAtBilling;
+            existing.EnableAiBillingFeatures = model.EnableAiBillingFeatures;
+            EMR.Web.Services.AiBillingFeatures.Invalidate(HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), existing.BranchId);
+            existing.EnableAskAiFeatures = model.EnableAskAiFeatures;
+            EMR.Web.Services.AskAiFeatures.Invalidate(HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), existing.BranchId);
             existing.TokenGenerateOnDuePayment = model.TokenGenerateOnDuePayment;
             existing.LabReportEmailNotificationRequired = model.LabReportEmailNotificationRequired;
             existing.PathologistApprovalRequired = model.PathologistApprovalRequired;
@@ -288,6 +586,7 @@ public class HospitalSettingsController(
             existing.CriticalValueCommunicationRequired = model.CriticalValueCommunicationRequired;
             existing.CriticalValueInformMinutes = model.CriticalValueInformMinutes;
             existing.LabB2CBillPrintHeaderRequired = model.LabB2CBillPrintHeaderRequired;
+            existing.LabBillPrintPageSize = model.LabBillPrintPageSize == "A5L" ? "A5L" : "A4";
             existing.LabB2CReportPrintHeaderRequired = model.LabB2CReportPrintHeaderRequired;
             existing.DoctorIpComputeMode = model.DoctorIpComputeMode;
             existing.MembershipCardNoPrefix = string.IsNullOrWhiteSpace(model.MembershipCardNoPrefix) ? "MC" : model.MembershipCardNoPrefix.Trim().ToUpperInvariant();
@@ -305,12 +604,105 @@ public class HospitalSettingsController(
             existing.MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(model.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : model.MembershipCardMessageTemplate.Trim();
             existing.DoctorIpAutoRunTime = model.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(model.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null;
             existing.LabPatientPortalRequired = model.LabPatientPortalRequired;
+            existing.IsPhlebotomistAppRequired = model.IsPhlebotomistAppRequired;
+            existing.AllowPrintLabReportInDue = model.AllowPrintLabReportInDue;   // SQLScripts/2464
+            existing.IsLabSerialNoReq = model.IsLabSerialNoReq;                   // SQLScripts/2513
             existing.OpdFollowUpNotificationRequired = model.OpdFollowUpNotificationRequired;
+            existing.OpdCertificateNotificationRequired = model.OpdCertificateNotificationRequired;
+            existing.ShowQrOnB2BInvoice = model.ShowQrOnB2BInvoice;   // SQLScripts/2452
+            existing.DayClosingBlockBilling = model.DayClosingBlockBilling;
+            existing.DayClosingAllowSelfVerify = model.DayClosingAllowSelfVerify;
+            existing.DayClosingLoginReminder = model.DayClosingLoginReminder;
+            existing.PharmacyEnabled = model.PharmacyEnabled;
+            existing.PharmacyName = model.PharmacyName;
+            existing.PharmacyDrugLicence20B = model.PharmacyDrugLicence20B;
+            existing.PharmacyDrugLicence20BValidTo = model.PharmacyDrugLicence20BValidTo;
+            existing.PharmacyDrugLicence21B = model.PharmacyDrugLicence21B;
+            existing.PharmacyDrugLicence21BValidTo = model.PharmacyDrugLicence21BValidTo;
+            existing.PharmacyGstin = string.IsNullOrWhiteSpace(model.PharmacyGstin) ? null : model.PharmacyGstin.Trim().ToUpperInvariant();
+            existing.PharmacistName = model.PharmacistName;
+            existing.PharmacistRegNo = model.PharmacistRegNo;
+            existing.PharmacyNdpsLicenceNo = model.PharmacyNdpsLicenceNo;
+            existing.PharmacyContactNo = model.PharmacyContactNo;
+            existing.PharmacyAllowNegativeStock = model.PharmacyAllowNegativeStock;
+            existing.PharmacyMinShelfLifeSaleDays = model.PharmacyMinShelfLifeSaleDays;
+            existing.PharmacyMinShelfLifeIpdDays = model.PharmacyMinShelfLifeIpdDays;
+            existing.PharmacyMinShelfLifeGrnDays = model.PharmacyMinShelfLifeGrnDays;
+            existing.PharmacyNearExpiryAlertDays = model.PharmacyNearExpiryAlertDays;
+            existing.PharmacySaleReturnDays = model.PharmacySaleReturnDays;
+            existing.PharmacyLooseReturnAllowed = model.PharmacyLooseReturnAllowed;
+            existing.PharmacyMaxManualDiscountPercent = model.PharmacyMaxManualDiscountPercent;
+            existing.PharmacyIpdGstExempt = model.PharmacyIpdGstExempt;
+            existing.PharmacyBlockDischargeOnPendingIndent = model.PharmacyBlockDischargeOnPendingIndent;
+            existing.PharmacyTtoBillingMode = model.PharmacyTtoBillingMode == "SALE" ? "SALE" : "IPD";
+            // IPD (SQLScripts/2422)
+            existing.IpdNumberPrefix = string.IsNullOrWhiteSpace(model.IpdNumberPrefix) ? "IP" : model.IpdNumberPrefix.Trim().ToUpperInvariant();
+            existing.IpdNumberResetYearly = model.IpdNumberResetYearly;
+            existing.IpdBedChargeMode = (model.IpdBedChargeMode is "HOURLY24" or "CHECKINOUT" ? model.IpdBedChargeMode : "CALENDAR");
+            existing.IpdDischargeGraceHour = Math.Clamp(model.IpdDischargeGraceHour, 0, 23);
+            existing.IpdHourlyGraceHours = Math.Clamp(model.IpdHourlyGraceHours, 0, 12);
+            existing.IpdDefaultTariffCategoryId = model.IpdDefaultTariffCategoryId is > 0 ? model.IpdDefaultTariffCategoryId : null;
+            existing.IpdRoomGstThreshold = Math.Max(0, model.IpdRoomGstThreshold);
+            existing.IpdMinAdvanceDays = Math.Clamp(model.IpdMinAdvanceDays, 0, 60);
+            existing.IpdDepositAlertPercent = Math.Clamp(model.IpdDepositAlertPercent, 10, 100);
+            existing.IpdEstimateValidityDays = Math.Clamp(model.IpdEstimateValidityDays, 1, 90);
+            existing.IpdDefaultDischargeHour = Math.Clamp(model.IpdDefaultDischargeHour, 0, 23);
+            existing.IpdBlockWardGenderMismatch = model.IpdBlockWardGenderMismatch;
+            existing.IpdConsentRequired = model.IpdConsentRequired;
+            existing.IpdReleaseBedTo = model.IpdReleaseBedTo == "AVAILABLE" ? "AVAILABLE" : "CLEANING";
+            existing.IpdReservationHoldHours = Math.Clamp(model.IpdReservationHoldHours, 1, 168);
+            existing.PharmacyRoundOffBill = model.PharmacyRoundOffBill;
+            existing.PharmacyBillPrintFormat = model.PharmacyBillPrintFormat is "A5" or "80MM" ? model.PharmacyBillPrintFormat : "A4";
+            existing.PharmacyBillNotificationRequired = model.PharmacyBillNotificationRequired;
+            existing.PharmacyGrnNotRequired = model.PharmacyGrnNotRequired;
+            existing.PharmacyAutoReorderEnabled = model.PharmacyAutoReorderEnabled;
+            existing.PharmacyReorderSalesDays = Math.Clamp(model.PharmacyReorderSalesDays, 1, 180);
+            existing.PharmacyReorderSafetyDays = Math.Clamp(model.PharmacyReorderSafetyDays, 0, 60);
+            existing.PharmacyReorderCoverDays = Math.Clamp(model.PharmacyReorderCoverDays, 1, 120);
+            existing.PharmacySchemeAutoApply = model.PharmacySchemeAutoApply;
+            existing.PharmacyGs1ScanEnabled = model.PharmacyGs1ScanEnabled;
+            existing.PharmacyCountBlind = model.PharmacyCountBlind;
+            existing.PharmacyCountRecountPercent = Math.Clamp(model.PharmacyCountRecountPercent, 0m, 100m);
+            existing.PharmacyCycleCountDays = Math.Clamp(model.PharmacyCycleCountDays, 1, 365);
+            existing.PharmacyAbcAPercent = Math.Clamp(model.PharmacyAbcAPercent, 1m, 99m);
+            existing.PharmacyAbcBPercent = Math.Clamp(model.PharmacyAbcBPercent, 1m, 99m);
+            existing.PharmacySlowMovingDays = Math.Clamp(model.PharmacySlowMovingDays, 7, 365);
+            existing.PharmacyDeadStockDays = Math.Clamp(model.PharmacyDeadStockDays, 30, 730);
+            existing.PharmacySplitPaymentEnabled = model.PharmacySplitPaymentEnabled;
+            existing.PharmacySubstituteSuggest = model.PharmacySubstituteSuggest;
+            existing.PharmacyRxLinkEnabled = model.PharmacyRxLinkEnabled;
+            existing.PharmacyClinicalChecksEnabled = model.PharmacyClinicalChecksEnabled;
+            existing.PharmacyMajorInteractionBlock = model.PharmacyMajorInteractionBlock;
+            existing.PharmacyRefillReminderEnabled = model.PharmacyRefillReminderEnabled;
+            existing.PharmacyRefillReminderDaysBefore = Math.Clamp(model.PharmacyRefillReminderDaysBefore, 0, 15);
+            existing.PharmacyLoyaltyEnabled = model.PharmacyLoyaltyEnabled;
+            existing.PharmacyLoyaltyEarnPer100 = Math.Clamp(model.PharmacyLoyaltyEarnPer100, 0m, 100m);
+            existing.PharmacyLoyaltyPointValue = Math.Clamp(model.PharmacyLoyaltyPointValue, 0m, 100m);
+            existing.PharmacyLoyaltyMinRedeem = Math.Clamp(model.PharmacyLoyaltyMinRedeem, 0, 100000);
+            existing.PharmacyLoyaltyMaxRedeemPercent = Math.Clamp(model.PharmacyLoyaltyMaxRedeemPercent, 0m, 100m);
+            existing.PharmacyLoyaltyExpiryDays = Math.Clamp(model.PharmacyLoyaltyExpiryDays, 0, 3650);
+            existing.PharmacyLoyaltyType = model.PharmacyLoyaltyType == "DISCOUNT" ? "DISCOUNT" : "POINTS";
+            existing.PharmacyLoyaltyDiscountPercent = Math.Clamp(model.PharmacyLoyaltyDiscountPercent, 0m, 100m);
+            existing.PharmacyLoyaltyEarnPercent = Math.Clamp(model.PharmacyLoyaltyEarnPercent, 0m, 100m);
+            existing.PharmacyLoyaltyEarnBasis = model.PharmacyLoyaltyEarnBasis == "DISCOUNTABLE" ? "DISCOUNTABLE" : "NET";
+            existing.PharmacyLoyaltyMinBillToEarn = Math.Clamp(model.PharmacyLoyaltyMinBillToEarn, 0m, 1000000m);
+            existing.PharmacyLoyaltyMaxEarnPerBill = Math.Clamp(model.PharmacyLoyaltyMaxEarnPerBill, 0m, 1000000m);
+            existing.PharmacyLoyaltyEarnOnRedeemBill = model.PharmacyLoyaltyEarnOnRedeemBill;
+            existing.PharmacyLoyaltyLockInDays = Math.Clamp(model.PharmacyLoyaltyLockInDays, 0, 90);
+            existing.PharmacyLoyaltyMinBillToRedeem = Math.Clamp(model.PharmacyLoyaltyMinBillToRedeem, 0m, 1000000m);
+            existing.PharmacyLoyaltyRedeemOtp = model.PharmacyLoyaltyRedeemOtp;
+            existing.PharmacyLoyaltyWalkinByMobile = model.PharmacyLoyaltyWalkinByMobile;
+            existing.PharmacyLoyaltyNotifyWhatsApp = model.PharmacyLoyaltyNotifyWhatsApp;
+            existing.PharmacyLoyaltyExpiryReminderDays = Math.Clamp(model.PharmacyLoyaltyExpiryReminderDays, 0, 60);
+            existing.LoginRetryCount = model.LoginRetryCount;
+            existing.LoginAlertCount = model.LoginAlertCount;
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
 
             await dbContext.SaveChangesAsync();
+            await SaveGovernmentIdOptionsForCompanyAsync(model);
+            await SaveBillChangeApprovalForCompanyAsync(model);
             await auditLogService.LogAsync("Update", "HospitalSettings",
                 $"Hospital settings updated for branch {branchId}", userId, branchId);
             TempData["Success"] = "Hospital settings updated successfully.";
@@ -320,6 +712,35 @@ public class HospitalSettingsController(
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private Task<EMR.Web.Services.GovernmentIdOptions> GovernmentIdOptionsAsync() =>
+        HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IGovernmentIdFeatures>().GetAsync(HttpContext);
+
+    // Bill change approval is one setting for all branches of the company (SQLScripts/2382)
+    private async Task<bool> BillChangeApprovalForCompanyAsync()
+    {
+        var companyId = User.GetCompanyId();
+        return await dbContext.HospitalSettings.Where(s => s.CompanyId == companyId)
+            .Select(s => (bool?)s.BillChangeApprovalRequired).FirstOrDefaultAsync() ?? true;
+    }
+
+    private async Task SaveBillChangeApprovalForCompanyAsync(HospitalSettingsViewModel model)
+    {
+        var companyId = User.GetCompanyId();
+        await dbContext.HospitalSettings.Where(s => s.CompanyId == companyId).ExecuteUpdateAsync(u => u
+            .SetProperty(s => s.BillChangeApprovalRequired, model.BillChangeApprovalRequired));
+    }
+
+    // ABHA / Ayushman Bharat are one setting for all branches of the company (SQLScripts/2355)
+    private async Task SaveGovernmentIdOptionsForCompanyAsync(HospitalSettingsViewModel model)
+    {
+        var companyId = User.GetCompanyId();
+        await dbContext.HospitalSettings.Where(s => s.CompanyId == companyId).ExecuteUpdateAsync(u => u
+            .SetProperty(s => s.EnableAbha, model.EnableAbha)
+            .SetProperty(s => s.EnableAyushmanBharat, model.EnableAyushmanBharat));
+        EMR.Web.Services.GovernmentIdFeatures.Invalidate(
+            HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), companyId);
+    }
 
     private static HospitalSettingsViewModel MapToViewModel(HospitalSettings s, string branchName) =>
         new()
@@ -348,11 +769,17 @@ public class HospitalSettingsController(
             CheckOutTime = s.CheckOutTime.HasValue
                 ? s.CheckOutTime.Value.ToString(@"hh\:mm") : null,
             OpdRegistrationValidityDays = s.OpdRegistrationValidityDays,
+            OpdRegistrationChargesNotRequired = s.OpdRegistrationChargesNotRequired,
             GlobalPatientSearchRequired = s.GlobalPatientSearchRequired,
+            EnableAbha = s.EnableAbha,
+            EnableAyushmanBharat = s.EnableAyushmanBharat,
+            BillChangeApprovalRequired = s.BillChangeApprovalRequired,
             EmailNotificationRequired = s.EmailNotificationRequired,
             LabEmailNotificationRequired = s.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = s.BarcodeGenerateAtBilling,
+            EnableAiBillingFeatures = s.EnableAiBillingFeatures,
+            EnableAskAiFeatures = s.EnableAskAiFeatures,
             TokenGenerateOnDuePayment = s.TokenGenerateOnDuePayment,
             LabReportEmailNotificationRequired = s.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = s.PathologistApprovalRequired,
@@ -360,6 +787,7 @@ public class HospitalSettingsController(
             CriticalValueCommunicationRequired = s.CriticalValueCommunicationRequired,
             CriticalValueInformMinutes = s.CriticalValueInformMinutes,
             LabB2CBillPrintHeaderRequired = s.LabB2CBillPrintHeaderRequired,
+            LabBillPrintPageSize = s.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
             LabB2CReportPrintHeaderRequired = s.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = string.IsNullOrWhiteSpace(s.DoctorIpComputeMode) ? "Manual" : s.DoctorIpComputeMode,
             MembershipCardNoPrefix = string.IsNullOrWhiteSpace(s.MembershipCardNoPrefix) ? "MC" : s.MembershipCardNoPrefix,
@@ -377,7 +805,88 @@ public class HospitalSettingsController(
             MembershipCardMessageTemplate = s.MembershipCardMessageTemplate,
             DoctorIpAutoRunTime = s.DoctorIpAutoRunTime.HasValue ? s.DoctorIpAutoRunTime.Value.ToString(@"hh\:mm") : null,
             LabPatientPortalRequired = s.LabPatientPortalRequired,
+            IsPhlebotomistAppRequired = s.IsPhlebotomistAppRequired,
+            AllowPrintLabReportInDue = s.AllowPrintLabReportInDue,
+            IsLabSerialNoReq = s.IsLabSerialNoReq,
             OpdFollowUpNotificationRequired = s.OpdFollowUpNotificationRequired,
+            OpdCertificateNotificationRequired = s.OpdCertificateNotificationRequired,
+            ShowQrOnB2BInvoice = s.ShowQrOnB2BInvoice,
+            DayClosingBlockBilling = s.DayClosingBlockBilling,
+            DayClosingAllowSelfVerify = s.DayClosingAllowSelfVerify,
+            DayClosingLoginReminder = s.DayClosingLoginReminder,
+            PharmacyEnabled = s.PharmacyEnabled,
+            PharmacyName = s.PharmacyName,
+            PharmacyDrugLicence20B = s.PharmacyDrugLicence20B,
+            PharmacyDrugLicence20BValidTo = s.PharmacyDrugLicence20BValidTo,
+            PharmacyDrugLicence21B = s.PharmacyDrugLicence21B,
+            PharmacyDrugLicence21BValidTo = s.PharmacyDrugLicence21BValidTo,
+            PharmacyGstin = s.PharmacyGstin,
+            PharmacistName = s.PharmacistName,
+            PharmacistRegNo = s.PharmacistRegNo,
+            PharmacyNdpsLicenceNo = s.PharmacyNdpsLicenceNo,
+            PharmacyContactNo = s.PharmacyContactNo,
+            PharmacyAllowNegativeStock = s.PharmacyAllowNegativeStock,
+            PharmacyMinShelfLifeSaleDays = s.PharmacyMinShelfLifeSaleDays,
+            PharmacyMinShelfLifeIpdDays = s.PharmacyMinShelfLifeIpdDays,
+            PharmacyMinShelfLifeGrnDays = s.PharmacyMinShelfLifeGrnDays,
+            PharmacyNearExpiryAlertDays = s.PharmacyNearExpiryAlertDays,
+            PharmacySaleReturnDays = s.PharmacySaleReturnDays,
+            PharmacyLooseReturnAllowed = s.PharmacyLooseReturnAllowed,
+            PharmacyMaxManualDiscountPercent = s.PharmacyMaxManualDiscountPercent,
+            PharmacyIpdGstExempt = s.PharmacyIpdGstExempt,
+            PharmacyBlockDischargeOnPendingIndent = s.PharmacyBlockDischargeOnPendingIndent,
+            PharmacyTtoBillingMode = s.PharmacyTtoBillingMode,
+            IpdNumberPrefix = s.IpdNumberPrefix, IpdNumberResetYearly = s.IpdNumberResetYearly, IpdBedChargeMode = s.IpdBedChargeMode,
+            IpdDischargeGraceHour = s.IpdDischargeGraceHour, IpdHourlyGraceHours = s.IpdHourlyGraceHours, IpdDefaultTariffCategoryId = s.IpdDefaultTariffCategoryId,
+            IpdRoomGstThreshold = s.IpdRoomGstThreshold, IpdMinAdvanceDays = s.IpdMinAdvanceDays, IpdDepositAlertPercent = s.IpdDepositAlertPercent,
+            IpdEstimateValidityDays = s.IpdEstimateValidityDays, IpdDefaultDischargeHour = s.IpdDefaultDischargeHour,
+            IpdBlockWardGenderMismatch = s.IpdBlockWardGenderMismatch, IpdConsentRequired = s.IpdConsentRequired,
+            IpdReleaseBedTo = s.IpdReleaseBedTo, IpdReservationHoldHours = s.IpdReservationHoldHours,
+            PharmacyRoundOffBill = s.PharmacyRoundOffBill,
+            PharmacyBillPrintFormat = s.PharmacyBillPrintFormat,
+            PharmacyBillNotificationRequired = s.PharmacyBillNotificationRequired,
+            PharmacyGrnNotRequired = s.PharmacyGrnNotRequired,
+            PharmacyAutoReorderEnabled = s.PharmacyAutoReorderEnabled,
+            PharmacyReorderSalesDays = s.PharmacyReorderSalesDays,
+            PharmacyReorderSafetyDays = s.PharmacyReorderSafetyDays,
+            PharmacyReorderCoverDays = s.PharmacyReorderCoverDays,
+            PharmacySchemeAutoApply = s.PharmacySchemeAutoApply,
+            PharmacyGs1ScanEnabled = s.PharmacyGs1ScanEnabled,
+            PharmacyCountBlind = s.PharmacyCountBlind,
+            PharmacyCountRecountPercent = s.PharmacyCountRecountPercent,
+            PharmacyCycleCountDays = s.PharmacyCycleCountDays,
+            PharmacyAbcAPercent = s.PharmacyAbcAPercent,
+            PharmacyAbcBPercent = s.PharmacyAbcBPercent,
+            PharmacySlowMovingDays = s.PharmacySlowMovingDays,
+            PharmacyDeadStockDays = s.PharmacyDeadStockDays,
+            PharmacySplitPaymentEnabled = s.PharmacySplitPaymentEnabled,
+            PharmacySubstituteSuggest = s.PharmacySubstituteSuggest,
+            PharmacyRxLinkEnabled = s.PharmacyRxLinkEnabled,
+            PharmacyClinicalChecksEnabled = s.PharmacyClinicalChecksEnabled,
+            PharmacyMajorInteractionBlock = s.PharmacyMajorInteractionBlock,
+            PharmacyRefillReminderEnabled = s.PharmacyRefillReminderEnabled,
+            PharmacyRefillReminderDaysBefore = s.PharmacyRefillReminderDaysBefore,
+            PharmacyLoyaltyEnabled = s.PharmacyLoyaltyEnabled,
+            PharmacyLoyaltyEarnPer100 = s.PharmacyLoyaltyEarnPer100,
+            PharmacyLoyaltyPointValue = s.PharmacyLoyaltyPointValue,
+            PharmacyLoyaltyMinRedeem = s.PharmacyLoyaltyMinRedeem,
+            PharmacyLoyaltyMaxRedeemPercent = s.PharmacyLoyaltyMaxRedeemPercent,
+            PharmacyLoyaltyExpiryDays = s.PharmacyLoyaltyExpiryDays,
+            PharmacyLoyaltyType = s.PharmacyLoyaltyType,
+            PharmacyLoyaltyDiscountPercent = s.PharmacyLoyaltyDiscountPercent,
+            PharmacyLoyaltyEarnPercent = s.PharmacyLoyaltyEarnPercent,
+            PharmacyLoyaltyEarnBasis = s.PharmacyLoyaltyEarnBasis,
+            PharmacyLoyaltyMinBillToEarn = s.PharmacyLoyaltyMinBillToEarn,
+            PharmacyLoyaltyMaxEarnPerBill = s.PharmacyLoyaltyMaxEarnPerBill,
+            PharmacyLoyaltyEarnOnRedeemBill = s.PharmacyLoyaltyEarnOnRedeemBill,
+            PharmacyLoyaltyLockInDays = s.PharmacyLoyaltyLockInDays,
+            PharmacyLoyaltyMinBillToRedeem = s.PharmacyLoyaltyMinBillToRedeem,
+            PharmacyLoyaltyRedeemOtp = s.PharmacyLoyaltyRedeemOtp,
+            PharmacyLoyaltyWalkinByMobile = s.PharmacyLoyaltyWalkinByMobile,
+            PharmacyLoyaltyNotifyWhatsApp = s.PharmacyLoyaltyNotifyWhatsApp,
+            PharmacyLoyaltyExpiryReminderDays = s.PharmacyLoyaltyExpiryReminderDays,
+            LoginRetryCount = s.LoginRetryCount,
+            LoginAlertCount = s.LoginAlertCount,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -407,11 +916,16 @@ public class HospitalSettingsController(
             CheckInTime = TimeSpan.TryParse(m.CheckInTime, out var cin) ? cin : null,
             CheckOutTime = TimeSpan.TryParse(m.CheckOutTime, out var cout) ? cout : null,
             OpdRegistrationValidityDays = m.OpdRegistrationValidityDays,
+            OpdRegistrationChargesNotRequired = m.OpdRegistrationChargesNotRequired,
             GlobalPatientSearchRequired = m.GlobalPatientSearchRequired,
+            EnableAbha = m.EnableAbha,
+            EnableAyushmanBharat = m.EnableAyushmanBharat,
             EmailNotificationRequired = m.EmailNotificationRequired,
             LabEmailNotificationRequired = m.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = m.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = m.BarcodeGenerateAtBilling,
+            EnableAiBillingFeatures = m.EnableAiBillingFeatures,
+            EnableAskAiFeatures = m.EnableAskAiFeatures,
             TokenGenerateOnDuePayment = m.TokenGenerateOnDuePayment,
             LabReportEmailNotificationRequired = m.LabReportEmailNotificationRequired,
             PathologistApprovalRequired = m.PathologistApprovalRequired,
@@ -419,6 +933,7 @@ public class HospitalSettingsController(
             CriticalValueCommunicationRequired = m.CriticalValueCommunicationRequired,
             CriticalValueInformMinutes = m.CriticalValueInformMinutes,
             LabB2CBillPrintHeaderRequired = m.LabB2CBillPrintHeaderRequired,
+            LabBillPrintPageSize = m.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
             LabB2CReportPrintHeaderRequired = m.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = m.DoctorIpComputeMode,
             MembershipCardNoPrefix = string.IsNullOrWhiteSpace(m.MembershipCardNoPrefix) ? "MC" : m.MembershipCardNoPrefix.Trim().ToUpperInvariant(),
@@ -436,7 +951,90 @@ public class HospitalSettingsController(
             MembershipCardMessageTemplate = string.IsNullOrWhiteSpace(m.MembershipCardMessageTemplate) ? HospitalSettings.DefaultMembershipCardMessage : m.MembershipCardMessageTemplate.Trim(),
             DoctorIpAutoRunTime = m.DoctorIpComputeMode != "Manual" && TimeSpan.TryParse(m.DoctorIpAutoRunTime, out var ipRun) ? ipRun : null,
             LabPatientPortalRequired = m.LabPatientPortalRequired,
+            IsPhlebotomistAppRequired = m.IsPhlebotomistAppRequired,
+            AllowPrintLabReportInDue = m.AllowPrintLabReportInDue,
+            IsLabSerialNoReq = m.IsLabSerialNoReq,
             OpdFollowUpNotificationRequired = m.OpdFollowUpNotificationRequired,
+            OpdCertificateNotificationRequired = m.OpdCertificateNotificationRequired,
+            ShowQrOnB2BInvoice = m.ShowQrOnB2BInvoice,
+            DayClosingBlockBilling = m.DayClosingBlockBilling,
+            DayClosingAllowSelfVerify = m.DayClosingAllowSelfVerify,
+            DayClosingLoginReminder = m.DayClosingLoginReminder,
+            PharmacyEnabled = m.PharmacyEnabled,
+            PharmacyName = m.PharmacyName,
+            PharmacyDrugLicence20B = m.PharmacyDrugLicence20B,
+            PharmacyDrugLicence20BValidTo = m.PharmacyDrugLicence20BValidTo,
+            PharmacyDrugLicence21B = m.PharmacyDrugLicence21B,
+            PharmacyDrugLicence21BValidTo = m.PharmacyDrugLicence21BValidTo,
+            PharmacyGstin = string.IsNullOrWhiteSpace(m.PharmacyGstin) ? null : m.PharmacyGstin.Trim().ToUpperInvariant(),
+            PharmacistName = m.PharmacistName,
+            PharmacistRegNo = m.PharmacistRegNo,
+            PharmacyNdpsLicenceNo = m.PharmacyNdpsLicenceNo,
+            PharmacyContactNo = m.PharmacyContactNo,
+            PharmacyAllowNegativeStock = m.PharmacyAllowNegativeStock,
+            PharmacyMinShelfLifeSaleDays = m.PharmacyMinShelfLifeSaleDays,
+            PharmacyMinShelfLifeIpdDays = m.PharmacyMinShelfLifeIpdDays,
+            PharmacyMinShelfLifeGrnDays = m.PharmacyMinShelfLifeGrnDays,
+            PharmacyNearExpiryAlertDays = m.PharmacyNearExpiryAlertDays,
+            PharmacySaleReturnDays = m.PharmacySaleReturnDays,
+            PharmacyLooseReturnAllowed = m.PharmacyLooseReturnAllowed,
+            PharmacyMaxManualDiscountPercent = m.PharmacyMaxManualDiscountPercent,
+            PharmacyIpdGstExempt = m.PharmacyIpdGstExempt,
+            PharmacyBlockDischargeOnPendingIndent = m.PharmacyBlockDischargeOnPendingIndent,
+            PharmacyTtoBillingMode = m.PharmacyTtoBillingMode == "SALE" ? "SALE" : "IPD",
+            IpdNumberPrefix = string.IsNullOrWhiteSpace(m.IpdNumberPrefix) ? "IP" : m.IpdNumberPrefix.Trim().ToUpperInvariant(),
+            IpdNumberResetYearly = m.IpdNumberResetYearly, IpdBedChargeMode = (m.IpdBedChargeMode is "HOURLY24" or "CHECKINOUT" ? m.IpdBedChargeMode : "CALENDAR"),
+            IpdDischargeGraceHour = Math.Clamp(m.IpdDischargeGraceHour, 0, 23), IpdHourlyGraceHours = Math.Clamp(m.IpdHourlyGraceHours, 0, 12),
+            IpdDefaultTariffCategoryId = m.IpdDefaultTariffCategoryId is > 0 ? m.IpdDefaultTariffCategoryId : null, IpdRoomGstThreshold = Math.Max(0, m.IpdRoomGstThreshold),
+            IpdMinAdvanceDays = Math.Clamp(m.IpdMinAdvanceDays, 0, 60), IpdDepositAlertPercent = Math.Clamp(m.IpdDepositAlertPercent, 10, 100),
+            IpdEstimateValidityDays = Math.Clamp(m.IpdEstimateValidityDays, 1, 90), IpdDefaultDischargeHour = Math.Clamp(m.IpdDefaultDischargeHour, 0, 23),
+            IpdBlockWardGenderMismatch = m.IpdBlockWardGenderMismatch, IpdConsentRequired = m.IpdConsentRequired,
+            IpdReleaseBedTo = m.IpdReleaseBedTo == "AVAILABLE" ? "AVAILABLE" : "CLEANING", IpdReservationHoldHours = Math.Clamp(m.IpdReservationHoldHours, 1, 168),
+            PharmacyRoundOffBill = m.PharmacyRoundOffBill,
+            PharmacyBillPrintFormat = m.PharmacyBillPrintFormat is "A5" or "80MM" ? m.PharmacyBillPrintFormat : "A4",
+            PharmacyBillNotificationRequired = m.PharmacyBillNotificationRequired,
+            PharmacyGrnNotRequired = m.PharmacyGrnNotRequired,
+            PharmacyAutoReorderEnabled = m.PharmacyAutoReorderEnabled,
+            PharmacyReorderSalesDays = Math.Clamp(m.PharmacyReorderSalesDays, 1, 180),
+            PharmacyReorderSafetyDays = Math.Clamp(m.PharmacyReorderSafetyDays, 0, 60),
+            PharmacyReorderCoverDays = Math.Clamp(m.PharmacyReorderCoverDays, 1, 120),
+            PharmacySchemeAutoApply = m.PharmacySchemeAutoApply,
+            PharmacyGs1ScanEnabled = m.PharmacyGs1ScanEnabled,
+            PharmacyCountBlind = m.PharmacyCountBlind,
+            PharmacyCountRecountPercent = Math.Clamp(m.PharmacyCountRecountPercent, 0m, 100m),
+            PharmacyCycleCountDays = Math.Clamp(m.PharmacyCycleCountDays, 1, 365),
+            PharmacyAbcAPercent = Math.Clamp(m.PharmacyAbcAPercent, 1m, 99m),
+            PharmacyAbcBPercent = Math.Clamp(m.PharmacyAbcBPercent, 1m, 99m),
+            PharmacySlowMovingDays = Math.Clamp(m.PharmacySlowMovingDays, 7, 365),
+            PharmacyDeadStockDays = Math.Clamp(m.PharmacyDeadStockDays, 30, 730),
+            PharmacySplitPaymentEnabled = m.PharmacySplitPaymentEnabled,
+            PharmacySubstituteSuggest = m.PharmacySubstituteSuggest,
+            PharmacyRxLinkEnabled = m.PharmacyRxLinkEnabled,
+            PharmacyClinicalChecksEnabled = m.PharmacyClinicalChecksEnabled,
+            PharmacyMajorInteractionBlock = m.PharmacyMajorInteractionBlock,
+            PharmacyRefillReminderEnabled = m.PharmacyRefillReminderEnabled,
+            PharmacyRefillReminderDaysBefore = Math.Clamp(m.PharmacyRefillReminderDaysBefore, 0, 15),
+            PharmacyLoyaltyEnabled = m.PharmacyLoyaltyEnabled,
+            PharmacyLoyaltyEarnPer100 = Math.Clamp(m.PharmacyLoyaltyEarnPer100, 0m, 100m),
+            PharmacyLoyaltyPointValue = Math.Clamp(m.PharmacyLoyaltyPointValue, 0m, 100m),
+            PharmacyLoyaltyMinRedeem = Math.Clamp(m.PharmacyLoyaltyMinRedeem, 0, 100000),
+            PharmacyLoyaltyMaxRedeemPercent = Math.Clamp(m.PharmacyLoyaltyMaxRedeemPercent, 0m, 100m),
+            PharmacyLoyaltyExpiryDays = Math.Clamp(m.PharmacyLoyaltyExpiryDays, 0, 3650),
+            PharmacyLoyaltyType = m.PharmacyLoyaltyType == "DISCOUNT" ? "DISCOUNT" : "POINTS",
+            PharmacyLoyaltyDiscountPercent = Math.Clamp(m.PharmacyLoyaltyDiscountPercent, 0m, 100m),
+            PharmacyLoyaltyEarnPercent = Math.Clamp(m.PharmacyLoyaltyEarnPercent, 0m, 100m),
+            PharmacyLoyaltyEarnBasis = m.PharmacyLoyaltyEarnBasis == "DISCOUNTABLE" ? "DISCOUNTABLE" : "NET",
+            PharmacyLoyaltyMinBillToEarn = Math.Clamp(m.PharmacyLoyaltyMinBillToEarn, 0m, 1000000m),
+            PharmacyLoyaltyMaxEarnPerBill = Math.Clamp(m.PharmacyLoyaltyMaxEarnPerBill, 0m, 1000000m),
+            PharmacyLoyaltyEarnOnRedeemBill = m.PharmacyLoyaltyEarnOnRedeemBill,
+            PharmacyLoyaltyLockInDays = Math.Clamp(m.PharmacyLoyaltyLockInDays, 0, 90),
+            PharmacyLoyaltyMinBillToRedeem = Math.Clamp(m.PharmacyLoyaltyMinBillToRedeem, 0m, 1000000m),
+            PharmacyLoyaltyRedeemOtp = m.PharmacyLoyaltyRedeemOtp,
+            PharmacyLoyaltyWalkinByMobile = m.PharmacyLoyaltyWalkinByMobile,
+            PharmacyLoyaltyNotifyWhatsApp = m.PharmacyLoyaltyNotifyWhatsApp,
+            PharmacyLoyaltyExpiryReminderDays = Math.Clamp(m.PharmacyLoyaltyExpiryReminderDays, 0, 60),
+            LoginRetryCount = m.LoginRetryCount,
+            LoginAlertCount = m.LoginAlertCount,
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

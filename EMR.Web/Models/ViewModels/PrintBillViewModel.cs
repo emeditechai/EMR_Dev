@@ -2,6 +2,9 @@ namespace EMR.Web.Models.ViewModels;
 
 public class PrintBillViewModel
 {
+    /// <summary>"A4" (default, portrait) or "A5L" (A5 landscape) - Hospital Settings > LAB > LAB Bill Print Page Size.</summary>
+    public string PageSize { get; set; } = "A4";
+
     // ── Hospital / Branch Info ────────────────────────────────────────────────
     public string? HospitalName { get; set; }
     public string? HospitalType { get; set; }
@@ -25,15 +28,17 @@ public class PrintBillViewModel
     public string? PhoneNumber { get; set; }
     public string? EmailId { get; set; }
     public string? Gender { get; set; }
+    public DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
     public int? Age { get; set; }
     public DateTime? DateOfBirth { get; set; }
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public string? Address { get; set; }
 
     // ── Order Info ────────────────────────────────────────────────────────────
     public int LabOrderId { get; set; }
     public string? BillNo { get; set; }
     public string? TokenNo { get; set; }
+    public string? BookingNo { get; set; }   // 2384: with "Is Booking Req"
     public DateTime OrderDate { get; set; }
     public DateTime CreatedDate { get; set; }
     public DateTime? BookingDate { get; set; }

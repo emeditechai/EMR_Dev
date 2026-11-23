@@ -4,26 +4,7 @@
     bool Can(string c) => perms.TryGetValue(c, out var v) && v;
 }
 
-<style>
-    .dp-flow { display:flex; flex-wrap:wrap; gap:.5rem; }
-    .dp-step { flex:1 1 180px; display:flex; gap:.6rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; padding:.6rem .8rem; }
-    .dp-step .n { width:26px; height:26px; border-radius:50%; background:#1d4ed8; color:#fff; font-weight:700; font-size:.8rem; display:flex; align-items:center; justify-content:center; flex:0 0 26px; }
-    .dp-step b { font-size:.82rem; color:#0f172a; display:block; }
-    .dp-step span { font-size:.72rem; color:#64748b; }
-    .dp-kpi { background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--k, #1d4ed8); border-radius:.75rem; padding:.7rem .9rem; height:100%; }
-    .dp-kpi .l { font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#64748b; }
-    .dp-kpi .v { font-size:1.35rem; font-weight:800; color:#0f172a; font-variant-numeric:tabular-nums; }
-    .dp-kpi .s { font-size:.72rem; color:#64748b; }
-    .dp-card { background:#fff; border:1px solid #e2e8f0; border-radius:.75rem; }
-    .dp-table th { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; white-space:nowrap; background:#f8fafc; }
-    .dp-table td { vertical-align:middle; font-size:.85rem; }
-    .dp-table .amt { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    .dp-lines td { font-size:.78rem; background:#f8fafc; }
-    .dp-pill { font-size:.68rem; font-weight:700; letter-spacing:.03em; }
-    .nav-pills .nav-link { font-weight:600; }
-    .dp-sum { display:grid; grid-template-columns:1fr auto; gap:.2rem .75rem; font-size:.86rem; }
-    .dp-sum .t { border-top:1px solid #e2e8f0; padding-top:.3rem; font-weight:800; }
-</style>
+<link rel="stylesheet" href="~/css/views/DoctorDisbursal/Index.css" asp-append-version="true" />
 
 <div class="container-fluid px-0">
     @Html.AntiForgeryToken()
@@ -158,22 +139,44 @@
     </div></div>
 </div>
 
-<!-- Pay settlement -->
-<div class="modal fade" id="payModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-cash-coin me-2 text-success"></i>Record payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<!-- Pay settlement (SQLScripts/2525: paid from a fund of Utility > Accounts > Fund Master) -->
+<div class="modal fade bf-modal" id="payModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header">
+            <div class="d-flex align-items-center gap-3">
+                <div class="bf-ico" style="width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:rgba(255,255,255,.18);color:#fff;font-size:1.2rem"><i class="bi bi-cash-coin"></i></div>
+                <div><h5 class="modal-title fw-bold mb-0">Record payment</h5><div class="bf-sub">Pay the doctor's share from a fund - the fund balance is reduced and the payment is kept in its history</div></div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
         <div class="modal-body">
-            <div class="fw-bold" id="payTitle"></div>
-            <div class="small text-muted mb-2" id="payPayee"></div>
-            <div class="row g-2">
-                <div class="col-6"><label class="form-label small fw-bold mb-0">Mode</label>
-                    <select class="form-select form-select-sm" id="payMode"><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>IMPS</option><option>Cheque</option></select></div>
-                <div class="col-6"><label class="form-label small fw-bold mb-0">Payment date</label><input type="date" class="form-control form-control-sm" id="payDate" /></div>
-                <div class="col-12"><label class="form-label small fw-bold mb-0" id="payRefLabel">Reference (UTR / transaction ID / cheque no.)</label><input class="form-control form-control-sm" id="payRef" maxlength="100" /></div>
-                <div class="col-12"><label class="form-label small fw-bold mb-0">Remarks</label><input class="form-control form-control-sm" id="payRemarks" maxlength="500" /></div>
+            <div class="bf-section">
+                <div class="bf-section-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <div><div class="fw-bold fs-6" id="payTitle"></div><div class="small text-muted" id="payPayee"></div></div>
+                    <div class="text-end"><div class="small text-muted text-uppercase fw-semibold" style="letter-spacing:.06em">Net payable</div><div class="fs-3 fw-bold text-success" id="payAmount">—</div></div>
+                </div>
+            </div>
+            <div class="bf-section">
+                <div class="bf-section-head"><div class="bf-ico c-indigo"><i class="bi bi-safe2"></i></div><div><div class="bf-title">Pay from fund <span class="text-danger" id="payFundReq">*</span></div><div class="bf-hint">Utility &gt; Accounts &gt; Fund Master - a fund cannot go below zero</div></div></div>
+                <div class="bf-section-body">
+                    <div class="row g-2" id="payFunds"><div class="col-12 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading funds…</div></div>
+                    <div class="alert alert-success py-2 small mt-3 mb-0 d-none" id="payAfter"></div>
+                </div>
+            </div>
+            <div class="bf-section mb-0">
+                <div class="bf-section-head"><div class="bf-ico c-green"><i class="bi bi-receipt"></i></div><div><div class="bf-title">Payment details</div><div class="bf-hint" id="payModeHint">The modes the chosen fund can pay by</div></div></div>
+                <div class="bf-section-body"><div class="row g-3">
+                    <div class="col-md-6"><label class="form-label" for="payMode">Mode <span class="text-danger">*</span></label>
+                        <select class="form-select" id="payMode"><option>Cash</option><option>UPI</option><option>NEFT</option><option>RTGS</option><option>IMPS</option><option>Cheque</option></select></div>
+                    <div class="col-md-6"><label class="form-label" for="payDate">Payment date <span class="text-danger">*</span></label><input type="date" class="form-control" id="payDate" /></div>
+                    <div class="col-12"><label class="form-label" for="payRef" id="payRefLabel">Reference</label>
+                        <input class="form-control" id="payRef" maxlength="100" /><div class="invalid-feedback">Enter the UTR / transaction ID / cheque number.</div></div>
+                    <div class="col-12"><label class="form-label" for="payRemarks">Remarks</label><input class="form-control" id="payRemarks" maxlength="500" placeholder="Optional" /></div>
+                </div></div>
             </div>
         </div>
-        <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Close</button><button class="btn btn-success" id="paySave"><i class="bi bi-check2 me-1"></i>Record payment</button></div>
+        <div class="modal-footer"><button class="btn btn-light border px-4" data-bs-dismiss="modal">Close</button>
+            <button class="btn btn-success px-4" id="paySave"><i class="bi bi-check2-circle me-1"></i>Record payment</button></div>
     </div></div>
 </div>
 
@@ -211,6 +214,7 @@
 </div>
 
 @section Scripts {
+<link rel="stylesheet" href="~/css/views/Masters/bank-fund.css" asp-append-version="true" />
 <script>
 (function () {
     const CAN = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(perms));
@@ -220,7 +224,7 @@
         profiles: '@Url.Action("ProfilesData")', approvers: '@Url.Action("ApproversData")', voucher: '@Url.Action("Voucher")', saveProfile: '@Url.Action("SaveProfile")',
         prepare: '@Url.Action("PrepareSettlement")', prepareDay: '@Url.Action("PrepareDay")', approve: '@Url.Action("ApproveSettlement")',
         reject: '@Url.Action("RejectSettlement")', cancel: '@Url.Action("CancelSettlement")', pay: '@Url.Action("PaySettlement")',
-        ruleNew: '@Url.Action("Create", "DoctorCommissionConfigs")'
+        ruleNew: '@Url.Action("Create", "DoctorCommissionConfigs")', visitItems: '@Url.Action("VisitItemsData")', payFunds: '@Url.Action("PayFunds")'
     };
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const money = n => (Number(n) < 0 ? '-₹' : '₹') + Math.abs(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -259,6 +263,7 @@
         $.get(URL.board, { date: $('#dayDate').val() }).done(res => {
             if (!res.success) { $('#dayBody').html(`<tr><td colspan="9" class="text-center text-danger py-4">${esc(res.message)}</td></tr>`); return; }
             board = res.data; renderBoard();
+            setTimeout(() => loadApprovers(), 0);   // warm the approvers hint for the Settlements tab
         }).fail(() => $('#dayBody').html('<tr><td colspan="9" class="text-center text-danger py-4">Server error. Please try again.</td></tr>'));
     }
 
@@ -318,13 +323,38 @@
         const tr = $(this).closest('tr'), id = tr.data('doc');
         if (tr.next().hasClass('dp-lines')) { tr.next().remove(); return; }
         const ls = (board.lines || []).filter(l => l.DoctorId === id);
-        const html = ls.length ? `<table class="table table-sm mb-0"><thead><tr><th>Share date</th><th>Type</th><th>Bill</th><th>Patient</th><th class="text-end">Bill net</th><th class="text-end">Collected</th><th>Rule</th><th class="text-end">Share</th><th>Status</th></tr></thead><tbody>` +
-            ls.map(l => { const t = LINE[l.LineType] || [l.LineType, '']; return `<tr><td>${fmtD(l.ShareDate)}</td><td class="${t[1]} fw-semibold">${t[0]}</td><td>${esc(l.BillNo)}<div class="text-muted">${esc(l.TokenNo || '')}</div></td>
+        const html = ls.length ? `<table class="table table-sm mb-0"><thead><tr><th>Share date</th><th>Type</th><th>Bill</th><th>Patient</th><th class="text-end">Bill net</th><th class="text-end">Collected</th><th>Rule</th><th class="text-end">Share</th><th>Status</th><th></th></tr></thead><tbody>` +
+            ls.map(l => { const t = LINE[l.LineType] || [l.LineType, '']; return `<tr data-visit="${l.VisitId || ''}"><td>${fmtD(l.ShareDate)}</td><td class="${t[1]} fw-semibold">${t[0]}</td><td>${esc(l.BillNo)}<div class="text-muted">${esc(l.TokenNo || '')}</div></td>
                 <td>${esc(l.PatientName)}</td><td class="text-end">${money(l.NetBillAmount)}</td><td class="text-end">${money(l.CollectedAmount)}</td><td>${esc(l.CommissionRule)}</td>
                 <td class="text-end fw-semibold ${Number(l.NetPayable) < 0 ? 'text-danger' : ''}">${money(l.NetPayable)}</td>
-                <td>${l.IsOpen ? '<span class="badge bg-light text-dark border dp-pill">Not settled</span>' : pill(l.SettlementStatus) + ` <span class="text-muted">${esc(l.SettlementNo)}</span>`}</td></tr>`; }).join('') + '</tbody></table>'
+                <td>${l.IsOpen ? '<span class="badge bg-light text-dark border dp-pill">Not settled</span>' : pill(l.SettlementStatus) + ` <span class="text-muted">${esc(l.SettlementNo)}</span>`}</td>
+                <td class="text-end">${l.VisitId ? '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 dp-items-btn" title="Show the bill item by item: consultation and services, each with its rule and share"><i class="bi bi-list-nested me-1"></i>Items</button>' : ''}</td></tr>`; }).join('') + '</tbody></table>'
             : '<div class="text-muted p-2">No share lines.</div>';
         tr.after(`<tr class="dp-lines"><td colspan="9" class="p-2 px-4">${html}</td></tr>`);
+    });
+
+    // SQLScripts/2519: a bill's share item by item - consultation, services, registration - with the rule and share of each
+    $('#dayBody').on('click', '.dp-items-btn', function () {
+        const tr = $(this).closest('tr'), visit = tr.data('visit');
+        if (tr.next().hasClass('dp-items')) { tr.next().remove(); return; }
+        const cols = tr.children('td').length;
+        const row = $(`<tr class="dp-items"><td colspan="${cols}" class="bg-light p-2 ps-4"><span class="spinner-border spinner-border-sm me-2"></span>Loading the bill items…</td></tr>`);
+        tr.after(row);
+        $.get(URL.visitItems, { visitId: visit }).done(res => {
+            if (!res.success) { row.children('td').html(`<span class="text-danger">${esc(res.message)}</span>`); return; }
+            const items = (res.data && res.data.items) || [], bill = ((res.data && res.data.bill) || [])[0] || {};
+            if (!items.length) { row.children('td').html('<span class="text-muted">No item on this bill.</span>'); return; }
+            const TYPE = { Consultation: 'bg-primary-subtle text-primary', Service: 'bg-warning-subtle text-dark', Registration: 'bg-secondary-subtle text-secondary' };
+            const part = Number(bill.Ratio) < 1 ? ` <span class="text-muted">(earned so far: ${(Number(bill.Ratio) * 100).toFixed(0)}% of the bill collected)</span>` : '';
+            row.children('td').html(`<div class="small fw-semibold mb-1"><i class="bi bi-receipt me-1"></i>${esc(bill.BillNo || '')} - item-wise share${part}</div>
+                <table class="table table-sm table-bordered bg-white mb-0 small"><thead class="table-light"><tr><th>Item</th><th>Type</th><th class="text-end">Amount</th><th class="text-end">Discount</th><th class="text-end">Net</th><th>Rule</th><th class="text-end">Share</th><th class="text-end">Earned</th></tr></thead><tbody>` +
+                items.map(i => `<tr class="${Number(i.Share) ? '' : 'text-muted'}"><td>${esc(i.ItemName)} <span class="text-muted">${esc(i.ItemCode || '')}</span></td>
+                    <td><span class="badge ${TYPE[i.ItemType] || 'bg-light text-dark'}">${esc(i.ItemType)}</span></td>
+                    <td class="text-end">${money(i.Gross)}</td><td class="text-end">${Number(i.Discount) ? money(i.Discount) : '—'}</td><td class="text-end">${money(i.Net)}</td>
+                    <td>${esc(i.RuleText)}</td><td class="text-end fw-semibold">${money(i.Share)}</td><td class="text-end">${money(i.Earned)}</td></tr>`).join('') +
+                `</tbody><tfoot class="fw-semibold"><tr><td colspan="6" class="text-end">Total</td><td class="text-end">${money(items.reduce((a, i) => a + Number(i.Share || 0), 0))}</td>
+                    <td class="text-end">${money(items.reduce((a, i) => a + Number(i.Earned || 0), 0))}</td></tr></tfoot></table>`);
+        }).fail(() => row.children('td').html('<span class="text-danger">Server error. Please try again.</span>'));
     });
 
     // prepare one doctor
@@ -381,8 +411,10 @@
     // ── 2. settlements ──────────────────────────────────────────────────
     let setRows = [], setLoaded = false, approvers = null;
     // who may approve at this branch: shown on settlements awaiting approval (the one who prepared it is left out, except a Super Admin)
+    let approversCall = null;
     const loadApprovers = () => approvers ? $.Deferred().resolve().promise()
-        : $.get(URL.approvers).done(res => { approvers = res.success ? (res.data.rows || []) : []; });
+        : (approversCall = approversCall || $.get(URL.approvers).done(res => { approvers = res.success ? (res.data.rows || []) : []; })
+                                                          .fail(() => { approversCall = null; }));
     const approversFor = r => (approvers || []).filter(a => a.UserId !== r.PreparedBy || a.IsSuperAdmin);
     const today = new Date(), monthAgo = new Date(); monthAgo.setDate(today.getDate() - 30);
     $('#setFrom').val(iso(monthAgo)); $('#setTo').val(iso(today));
@@ -396,8 +428,10 @@
         $.get(URL.settlements, { fromDate: $('#setFrom').val(), toDate: $('#setTo').val(), status: $('#setStatus').val() }).done(res => {
             if (!res.success) { $('#setBody').html(`<tr><td colspan="10" class="text-center text-danger py-4">${esc(res.message)}</td></tr>`); return; }
             setRows = res.data.rows || [];
-            if (setRows.some(r => r.Status === 'PREPARED')) loadApprovers().always(renderSettlements); else renderSettlements();
-        });
+            // the list shows at once; who may approve (only a hint on the buttons) fills in when it arrives
+            renderSettlements();
+            if (!approvers && setRows.some(r => r.Status === 'PREPARED')) loadApprovers().done(renderSettlements);
+        }).fail(() => $('#setBody').html('<tr><td colspan="10" class="text-center text-danger py-4">Could not load the settlements. Press Apply to try again.</td></tr>'));
     }
 
     function renderSettlements() {
@@ -414,7 +448,7 @@
             if ((r.Status === 'PREPARED' || r.Status === 'APPROVED') && CAN.APPROVE) acts.push(`<button class="btn btn-sm btn-outline-danger st-reject" title="Reject"><i class="bi bi-x-circle"></i></button>`);
             if (r.Status === 'PREPARED' && CAN.CANCEL) acts.push(`<button class="btn btn-sm btn-outline-secondary st-cancel" title="Cancel"><i class="bi bi-trash"></i></button>`);
             if (r.Status === 'APPROVED' && CAN.PAYOUT) acts.push(`<button class="btn btn-sm btn-primary st-pay" title="Record payment"><i class="bi bi-cash-coin me-1"></i>Pay</button>`);
-            const who = r.Status === 'PAID' ? `paid ${fmtD(r.PaymentDate)} · ${esc(r.PaymentMode)}${r.PaymentReference ? ' · ' + esc(r.PaymentReference) : ''}`
+            const who = r.Status === 'PAID' ? `paid ${fmtD(r.PaymentDate)} · ${esc(r.PaymentMode)}${r.PaymentReference ? ' · ' + esc(r.PaymentReference) : ''}${r.FundName ? ' · <i class="bi bi-safe2"></i> ' + esc(r.FundName) : ''}`
                 : r.Status === 'APPROVED' ? `approved by ${esc(r.ApprovedByName)}`
                 : (r.Status === 'REJECTED' || r.Status === 'CANCELLED') ? `${esc(r.ClosedByName)}: ${esc(r.CloseReason)}`
                 : `prepared by ${esc(r.PreparedByName)}`;
@@ -465,25 +499,73 @@
         reason(`Cancel ${r.SettlementNo}?`, 'Reason (its shares go back to be settled again)', 'Cancel settlement', '#64748b')
             .then(x => { if (x.isConfirmed) act(URL.cancel, { settlementId: r.SettlementId, settlementNo: r.SettlementNo, remarks: x.value }); });
     });
+    // ── pay (SQLScripts/2525): from a fund; the modes follow the fund; a fund cannot go below zero ──
+    const FUND_MODES = { BANK: ['UPI', 'NEFT', 'RTGS', 'IMPS', 'Cheque'], WALLET: ['Cash', 'UPI'], NONE: ['Cash', 'UPI', 'NEFT', 'RTGS', 'IMPS', 'Cheque'] };
+    let payFunds = [], payFund = null, payPreferred = 'NEFT';
+    const maskAcc = a => a ? (String(a).length > 4 ? '•••• ' + String(a).slice(-4) : a) : '';
+    function payModes() {
+        const allowed = FUND_MODES[payFund ? payFund.FundType : 'NONE'], cur = $('#payMode').val();
+        $('#payMode').html(allowed.map(m => `<option>${m}</option>`).join(''));
+        $('#payMode').val(allowed.includes(cur) ? cur : allowed.includes(payPreferred) ? payPreferred : allowed[0]).trigger('change');
+        $('#payModeHint').text(payFund ? (payFund.FundType === 'BANK' ? 'A bank fund pays by UPI, NEFT, RTGS, IMPS or Cheque' : 'A wallet pays by Cash or UPI') : 'Choose the fund first');
+    }
+    function renderPayFunds() {
+        const net = Number(current.NetPayable) || 0;
+        if (!payFunds.length) {
+            $('#payFundReq').addClass('d-none');
+            $('#payFunds').html('<div class="col-12"><div class="alert alert-light border small mb-0"><i class="bi bi-info-circle me-1"></i>No active fund is set up - the payment is recorded without a fund. Set funds up in Utility &gt; Accounts &gt; Fund Master to pay from them.</div></div>');
+            payFund = null; $('#payAfter').addClass('d-none'); payModes(); return;
+        }
+        $('#payFundReq').removeClass('d-none');
+        $('#payFunds').html(payFunds.map(f => {
+            const short = Number(f.CurrentBalance) < net;
+            return `<div class="col-md-6"><label class="w-100 m-0"><input type="radio" class="btn-check" name="payFund" value="${f.FundId}" ${short ? 'disabled' : ''}>
+                <div class="pay-fund ${short ? 'is-short' : ''}">
+                    <div class="d-flex align-items-center gap-2"><div class="bf-avatar ${f.FundType === 'WALLET' ? 'wallet' : ''}" style="width:34px;height:34px"><i class="bi ${f.FundType === 'WALLET' ? 'bi-wallet2' : 'bi-bank'}"></i></div>
+                        <div class="flex-grow-1 min-w-0"><div class="fw-semibold text-truncate">${esc(f.FundName)}</div>
+                        <div class="small text-muted text-truncate">${f.FundType === 'BANK' ? esc((f.BankName || '') + ' ' + maskAcc(f.AccountNumber)) : 'Wallet'}</div></div>
+                        <div class="text-end"><div class="fw-bold ${short ? 'text-danger' : 'text-success'}">${money(f.CurrentBalance)}</div><div class="small ${short ? 'text-danger' : 'text-muted'}">${short ? 'Insufficient' : 'balance'}</div></div></div>
+                </div></label></div>`; }).join(''));
+        const first = payFunds.find(f => Number(f.CurrentBalance) >= net);
+        if (first) $(`input[name="payFund"][value="${first.FundId}"]`).prop('checked', true);
+        payFund = first || null;
+        payAfter(); payModes();
+    }
+    function payAfter() {
+        if (!payFund) { $('#payAfter').removeClass('d-none alert-success').addClass('alert-warning').html(payFunds.length ? '<i class="bi bi-exclamation-triangle me-1"></i>No fund has enough balance for this payment - top a fund up first.' : ''); if (!payFunds.length) $('#payAfter').addClass('d-none'); return; }
+        const after = Number(payFund.CurrentBalance) - (Number(current.NetPayable) || 0);
+        $('#payAfter').removeClass('d-none alert-warning').addClass('alert-success').html(`<i class="bi bi-safe2 me-1"></i><b>${esc(payFund.FundName)}</b>: ${money(payFund.CurrentBalance)} → <b>${money(after)}</b> after this payment`);
+    }
+    $('#payFunds').on('change', 'input[name="payFund"]', function () { payFund = payFunds.find(f => f.FundId === Number(this.value)) || null; payAfter(); payModes(); });
     $('#setBody').on('click', '.st-pay', function () {
         const r = rowOf(this); current = r;
-        $('#payTitle').text(`${r.SettlementNo} · ${r.DoctorName} · ${money(r.NetPayable)}`);
+        $('#payTitle').text(`${r.SettlementNo} · ${r.DoctorName}`);
+        $('#payAmount').text(money(r.NetPayable));
         $('#payPayee').text('Loading payee details…');
-        $('#payRef, #payRemarks').val(''); $('#payDate').val(iso(new Date())).attr('max', iso(new Date()));
+        $('#payRef, #payRemarks').val(''); $('#payRef').removeClass('is-invalid'); $('#payDate').val(iso(new Date())).attr('max', iso(new Date()));
+        $('#payFunds').html('<div class="col-12 text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading funds…</div>'); $('#payAfter').addClass('d-none');
         $.get(URL.settlement, { id: r.SettlementId }).done(res => {
             const h = res.success ? (res.data.header || [])[0] || {} : {};
             const parts = [h.PayeeName, h.BankName && h.AccountNo ? `${h.BankName} a/c ${h.AccountNo} · IFSC ${h.IFSC}` : (h.AccountNo ? `a/c ${h.AccountNo} · IFSC ${h.IFSC}` : ''), h.UpiId ? 'UPI ' + h.UpiId : ''].filter(Boolean);
-            $('#payPayee').text(parts.length ? 'Pay to: ' + parts.join(' · ') : 'No bank / UPI details on the doctor\'s payout profile.');
-            if (h.AccountNo) $('#payMode').val('NEFT'); else if (h.UpiId) $('#payMode').val('UPI'); else $('#payMode').val('Cash');
-            $('#payMode').trigger('change');
+            $('#payPayee').html(parts.length ? '<i class="bi bi-person-check me-1"></i>Pay to: ' + esc(parts.join(' · ')) : '<span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>No bank / UPI details on the doctor\'s payout profile.</span>');
+            payPreferred = h.AccountNo ? 'NEFT' : h.UpiId ? 'UPI' : 'Cash';
+            if (payFunds.length) payModes();
         });
+        $.get(URL.payFunds).done(res => { payFunds = res.success ? (res.data.rows || []) : []; renderPayFunds(); })
+            .fail(() => { payFunds = []; $('#payFunds').html('<div class="col-12 text-danger small">The funds could not be loaded. Close and try again.</div>'); });
         new bootstrap.Modal('#payModal').show();
     });
-    $('#payMode').on('change', function () { $('#payRefLabel').text($(this).val() === 'Cash' ? 'Reference (optional for cash)' : $(this).val() === 'Cheque' ? 'Cheque number' : 'UTR / transaction ID'); });
+    $('#payMode').on('change', function () {
+        const m = $(this).val();
+        $('#payRefLabel').html((m === 'Cash' ? 'Reference <span class="text-muted fw-normal">(optional for cash)</span>' : m === 'Cheque' ? 'Cheque number' : 'UTR / transaction ID') + (m === 'Cash' ? '' : ' <span class="text-danger">*</span>'));
+    });
     $('#paySave').on('click', function () {
+        if (payFunds.length && !payFund) { Swal.fire({ icon: 'warning', text: 'Choose a fund with enough balance - or top a fund up first.' }); return; }
+        if ($('#payMode').val() !== 'Cash' && !$('#payRef').val().trim()) { $('#payRef').addClass('is-invalid').focus(); return; }
+        $('#payRef').removeClass('is-invalid');
         const btn = $(this).prop('disabled', true);
         post(URL.pay, { settlementId: current.SettlementId, settlementNo: current.SettlementNo, paymentMode: $('#payMode').val(), paymentDate: $('#payDate').val(),
-                        paymentReference: $('#payRef').val(), remarks: $('#payRemarks').val() })
+                        paymentReference: $('#payRef').val(), remarks: $('#payRemarks').val(), fundId: payFund ? payFund.FundId : null, fundName: payFund ? payFund.FundName : null })
             .done(r => { if (r.success) { bootstrap.Modal.getInstance('#payModal').hide(); toast('success', r.message); loadSettlements(); loadBoard(); } else Swal.fire({ icon: 'warning', text: r.message }); })
             .fail(() => Swal.fire({ icon: 'error', text: 'Server error. Please try again.' }))
             .always(() => btn.prop('disabled', false));
@@ -499,7 +581,7 @@
             const h = (res.data.header || [])[0] || {}, ls = res.data.lines || [];
             const step = (label, who, when, extra) => `<div class="col"><div class="small text-muted">${label}</div><div class="fw-semibold">${esc(who || '—')}</div><div class="small text-muted">${when ? fmtDT(when) : ''}${extra ? ' · ' + esc(extra) : ''}</div></div>`;
             $('#viewBody').html(`<div class="row g-2 mb-3">${step('Prepared', h.PreparedByName, h.PreparedOn, h.PrepareRemarks)}${step('Approved', h.ApprovedByName, h.ApprovedOn, h.ApprovalRemarks)}
-                ${step('Paid', h.PaidByName, h.PaidOn, h.PaymentMode ? h.PaymentMode + (h.PaymentReference ? ' ' + h.PaymentReference : '') : '')}
+                ${step('Paid', h.PaidByName, h.PaidOn, h.PaymentMode ? h.PaymentMode + (h.PaymentReference ? ' ' + h.PaymentReference : '') + (h.FundName ? ' · from ' + h.FundName : '') : '')}
                 ${h.ClosedByName ? step(h.Status === 'REJECTED' ? 'Rejected' : 'Cancelled', h.ClosedByName, h.ClosedOn, h.CloseReason) : ''}</div>
                 <div class="row g-3"><div class="col-lg-8"><table class="table table-sm small"><thead><tr><th>Share date</th><th>Type</th><th>Bill</th><th>Patient</th><th class="text-end">Collected</th><th>Rule</th><th class="text-end">Share</th></tr></thead><tbody>` +
                 (ls.length ? ls.map(l => { const t = LINE[l.LineType] || [l.LineType, '']; return `<tr><td>${fmtD(l.ShareDate)}</td><td class="${t[1]}">${t[0]}</td><td>${esc(l.BillNo)}</td><td>${esc(l.PatientName)}</td>

@@ -1,0 +1,15 @@
+/* moved from Views/Users/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .um-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .85rem; object-fit: cover; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
+    .um-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
+    .um-sub { font-size: .76rem; color: #64748b; }
+    .um-role { font-size: .7rem; font-weight: 600; border: 1px solid transparent; }
+    .um-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; border-radius: 1rem; padding: .1rem .55rem; margin: 0 .2rem .2rem 0; white-space: nowrap; }
+    .um-table thead th { background: #f8fafc; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .um-table tbody tr { transition: background .12s; }
+    .um-table tbody tr.um-inactive td { opacity: .62; }
+    .um-table tbody tr.um-inactive td:last-child { opacity: 1; }
+    .um-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
+    .um-kpi .um-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
+    .um-kpi .um-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
+    .um-pager .page-link { min-width: 2.25rem; text-align: center; }
+    .um-loading { opacity: .55; pointer-events: none; transition: opacity .15s; }

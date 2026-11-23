@@ -125,11 +125,15 @@ public class MembershipRenewalReminderBackgroundService(
             .Replace("{Points}", r.PointsBalance.ToString("0.##"))
             .Trim();
 
-        return $"<p>{WebUtility.HtmlEncode(message).Replace("\n", "<br/>")}</p>"
-             + $"<p style=\"color:#475569;font-size:13px\">Card No: <b>{WebUtility.HtmlEncode(r.CardNo)}</b><br/>"
-             + $"Plan: {WebUtility.HtmlEncode(r.PlanName)}<br/>"
-             + $"Valid to: {r.ValidTo:dd MMM yyyy}<br/>"
-             + $"Points balance: {r.PointsBalance:0.##}</p>";
+        return EmailLayout.Wrap(
+            EmailLayout.P(WebUtility.HtmlEncode(message).Replace("\n", "<br/>"))
+            + EmailLayout.Details(
+                ("Card No", WebUtility.HtmlEncode(r.CardNo)),
+                ("Plan", WebUtility.HtmlEncode(r.PlanName)),
+                ("Valid to", r.ValidTo.ToString("dd MMM yyyy")),
+                ("Points balance", r.PointsBalance.ToString("0.##"))),
+            heading: r.DaysLeft <= 0 ? "Your membership expires today" : "Your membership is due for renewal",
+            organisation: HospitalName(r));
     }
 
     private sealed class DueReminder

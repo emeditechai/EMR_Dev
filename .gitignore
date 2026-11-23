@@ -48,6 +48,7 @@ wwwroot/uploads/
 
 # Uploaded pathologist signatures (kept outside the public web root)
 EMR.Web/App_Data/
+EMR.Api/App_Data/
 
 # Runtime uploads of LAB compliance documents (patient files, not source)
 EMR.Web/wwwroot/uploads/lab-compliance/
@@ -58,3 +59,8 @@ __pycache__/
 # AI model files (large binaries) - fetched with Tools/AiModels/download-trocr.*
 EMR.Web/AiModels/**/*.onnx
 EMR.Web/AiModels/**/tokenizer.json
+EMR.Web/wwwroot/uploads/logos/hospital_logo_ec1e55fb0d4545b8973990b9e780e3b0.jpeg
+EMR.Web/wwwroot/Patient Membership Card Industry Practice and Lab Implementation Plan.docx
+
+# user uploads (patient photos, certificates, pharmacy bill scans): data, not code
+EMR.Web/wwwroot/uploads/

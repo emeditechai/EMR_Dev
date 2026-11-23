@@ -1,0 +1,289 @@
+@{
+    ViewData["Title"] = "Equipment Card";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@* Quality & Compliance > Equipment Register > Equipment Card (SQLScripts/2253, LF-06): the equipment's history - calibrations with
+   certificates, maintenance, breakdowns and CAPAs - and the actions that record them. *@
+<div class="container-fluid px-4 py-3">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+        <li class="breadcrumb-item"><a asp-controller="QcEquipment" asp-action="Index">Equipment Register</a></li>
+        <li class="breadcrumb-item active" id="bcName">Equipment</li></ol></nav>
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+        <div>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-card-checklist me-2"></i><span id="hName">Equipment</span></h4>
+            <div class="small text-muted" id="hSub"></div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap" id="actions">
+            <button type="button" class="btn btn-success btn-sm" id="btnCal" asp-permission="QC.EQUIPMENT:CALIBRATE"><i class="bi bi-speedometer2 me-1"></i>Record calibration</button>
+            <button type="button" class="btn btn-primary btn-sm" id="btnPm" asp-permission="QC.EQUIPMENT:MAINTAIN"><i class="bi bi-wrench me-1"></i>Record maintenance</button>
+            <button type="button" class="btn btn-danger btn-sm" id="btnBd" asp-permission="QC.EQUIPMENT:MAINTAIN"><i class="bi bi-exclamation-octagon me-1"></i>Report breakdown</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnStatus" asp-permission="QC.EQUIPMENT:STATUS"><i class="bi bi-toggle-on me-1"></i>Change status</button>
+        </div>
+    </div>
+    <div id="alertBox"></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body"><div class="row g-3 small" id="info"></div></div></div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom-0 pt-3">
+            <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tCal" type="button"><i class="bi bi-speedometer2 me-1"></i>Calibration <span class="badge bg-light text-dark border" id="nCal">0</span></button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tPm" type="button"><i class="bi bi-wrench me-1"></i>Maintenance <span class="badge bg-light text-dark border" id="nPm">0</span></button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tBd" type="button"><i class="bi bi-exclamation-octagon me-1"></i>Breakdowns <span class="badge bg-light text-dark border" id="nBd">0</span></button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tCapa" type="button"><i class="bi bi-clipboard2-check me-1"></i>CAPA <span class="badge bg-light text-dark border" id="nCapa">0</span></button></li>
+            </ul>
+        </div>
+        <div class="card-body p-0 tab-content">
+            <div class="tab-pane fade show active" id="tCal"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+                <th class="ps-3">Calibrated on</th><th>Agency</th><th>Certificate</th><th class="text-center">Result</th><th>Next due</th><th>Remarks</th><th>By</th></tr></thead><tbody id="rCal"></tbody></table></div></div>
+            <div class="tab-pane fade" id="tPm"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+                <th class="ps-3">Done on</th><th>Type</th><th>Done by</th><th>Checklist / findings</th><th>Next PM due</th><th class="text-end">Cost</th><th>Report</th></tr></thead><tbody id="rPm"></tbody></table></div></div>
+            <div class="tab-pane fade" id="tBd"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+                <th class="ps-3">Reported</th><th>Problem / impact</th><th>Vendor call</th><th class="text-center">Status</th><th>Resolution</th><th class="text-end">Downtime</th><th class="text-end">Cost</th><th>CAPA</th><th></th></tr></thead><tbody id="rBd"></tbody></table></div></div>
+            <div class="tab-pane fade" id="tCapa"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+                <th class="ps-3">CAPA</th><th>Source</th><th>Title</th><th>Responsible</th><th>Target</th><th class="text-center">Status</th></tr></thead><tbody id="rCapa"></tbody></table></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- calibration -->
+<div class="modal fade" id="mCal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold">Record calibration</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+        <div class="col-md-4"><label class="form-label fw-semibold">Calibrated on <span class="text-danger">*</span></label><input type="date" id="cOn" class="form-control" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Done by <span class="text-danger">*</span></label><select id="cAgency" class="form-select"><option value="EXTERNAL">External agency / vendor</option><option value="INTERNAL">Internal (lab staff)</option></select></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Result <span class="text-danger">*</span></label><select id="cResult" class="form-select">
+            <option value="PASS">Pass</option><option value="ADJUSTED">Pass after adjustment</option><option value="FAIL">Fail</option></select></div>
+        <div class="col-md-6 ext"><label class="form-label fw-semibold">Vendor</label><select id="cVendor" class="form-select"></select></div>
+        <div class="col-md-6 ext"><label class="form-label fw-semibold">or agency name</label><input id="cAgencyName" class="form-control" maxlength="200" placeholder="NABL-accredited calibration lab" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Certificate no.</label><input id="cCert" class="form-control" maxlength="100" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Next due on</label><input type="date" id="cNext" class="form-control" /><div class="form-text" id="cNextHint"></div></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Certificate (PDF / image)</label><input type="file" id="cFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp" /></div>
+        <div class="col-12"><label class="form-label fw-semibold">Remarks</label><textarea id="cRemarks" class="form-control" rows="2" maxlength="500"></textarea></div>
+        <div class="col-12 d-none" id="cFailNote"><div class="alert alert-danger py-2 mb-0 small"><i class="bi bi-exclamation-triangle me-1"></i>A failed calibration takes the equipment <b>out of service</b> and opens a <b>CAPA</b>. It returns to use with a passed calibration.</div></div>
+    </div></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-success" id="cSave"><i class="bi bi-save me-1"></i>Save calibration</button></div>
+</div></div></div>
+
+<!-- maintenance -->
+<div class="modal fade" id="mPm" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold">Record maintenance</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+        <div class="col-md-4"><label class="form-label fw-semibold">Type <span class="text-danger">*</span></label><select id="pType" class="form-select">
+            <option value="DAILY">Daily maintenance</option><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option><option value="QUARTERLY">Quarterly</option>
+            <option value="HALF_YEARLY">Half-yearly</option><option value="YEARLY">Yearly</option><option value="PREVENTIVE">Preventive maintenance (PM)</option><option value="SERVICE_VISIT">Vendor service visit</option></select></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Done on <span class="text-danger">*</span></label><input type="date" id="pOn" class="form-control" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Done by</label><input id="pBy" class="form-control" maxlength="150" placeholder="Technician / engineer" /></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Vendor (service visit)</label><select id="pVendor" class="form-select"></select></div>
+        <div class="col-md-3 pm"><label class="form-label fw-semibold">Next PM due</label><input type="date" id="pNext" class="form-control" /><div class="form-text" id="pNextHint"></div></div>
+        <div class="col-md-3"><label class="form-label fw-semibold">Cost (₹)</label><input type="number" id="pCost" min="0" step="0.01" class="form-control" /></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Checklist done</label><textarea id="pChecklist" class="form-control" rows="3" maxlength="1000" placeholder="Probe cleaned, tubing checked, waste emptied..."></textarea></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Findings</label><textarea id="pFindings" class="form-control" rows="3" maxlength="1000"></textarea></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Service report (PDF / image)</label><input type="file" id="pFile" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp" /></div>
+    </div></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="pSave"><i class="bi bi-save me-1"></i>Save maintenance</button></div>
+</div></div></div>
+
+<!-- breakdown -->
+<div class="modal fade" id="mBd" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold">Report breakdown</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+        <div class="col-md-4"><label class="form-label fw-semibold">Reported on <span class="text-danger">*</span></label><input type="datetime-local" id="bOn" class="form-control" /></div>
+        <div class="col-md-8"><label class="form-label fw-semibold">Problem <span class="text-danger">*</span></label><input id="bProblem" class="form-control" maxlength="1000" /></div>
+        <div class="col-12"><label class="form-label fw-semibold">Impact on testing</label><input id="bImpact" class="form-control" maxlength="500" placeholder="e.g. CBC moved to the Mindray / samples sent to the main branch" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Vendor</label><select id="bVendor" class="form-select"></select></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Vendor ticket no.</label><input id="bTicket" class="form-control" maxlength="100" /></div>
+        <div class="col-md-4"><label class="form-label fw-semibold">Call logged on</label><input type="datetime-local" id="bCall" class="form-control" /></div>
+        <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" id="bCapa" /><label class="form-check-label" for="bCapa">Open a CAPA for this breakdown (repeated or serious failure)</label></div>
+        <div class="col-12"><div class="alert alert-warning py-2 mb-0 small"><i class="bi bi-info-circle me-1"></i>The equipment goes <b>out of service</b> until the breakdown is resolved and QC passes.</div></div>
+    </div></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-danger" id="bSave"><i class="bi bi-exclamation-octagon me-1"></i>Report breakdown</button></div>
+</div></div></div>
+
+<!-- resolve -->
+<div class="modal fade" id="mRes" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold">Resolve breakdown</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+        <div class="col-md-6"><label class="form-label fw-semibold">Resolved on <span class="text-danger">*</span></label><input type="datetime-local" id="rOn" class="form-control" /></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Repair cost (₹)</label><input type="number" id="rCost" min="0" step="0.01" class="form-control" /></div>
+        <div class="col-12"><label class="form-label fw-semibold">What was done <span class="text-danger">*</span></label><textarea id="rRes" class="form-control" rows="2" maxlength="1000"></textarea></div>
+        <div class="col-12"><label class="form-label fw-semibold">Parts replaced</label><input id="rParts" class="form-control" maxlength="500" /></div>
+        <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" id="rQc" /><label class="form-check-label fw-semibold" for="rQc">QC was run after the repair and passed <span class="text-danger">*</span></label></div>
+    </div></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-success" id="rSave"><i class="bi bi-check2-circle me-1"></i>Resolve</button></div>
+</div></div></div>
+
+<!-- status -->
+<div class="modal fade" id="mSt" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold">Change status</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+        <div class="col-12"><label class="form-label fw-semibold">Status</label><select id="sStatus" class="form-select">
+            <option value="IN_USE">In use</option><option value="OUT_OF_SERVICE">Out of service</option><option value="RETIRED">Retired (disposed / replaced)</option></select></div>
+        <div class="col-12"><label class="form-label fw-semibold">Reason</label><input id="sReason" class="form-control" maxlength="300" /></div>
+    </div></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="sSave">Save</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson), id = @(ViewBag.EquipmentId ?? 0);
+    const $ = x => document.getElementById(x);
+    const capaUrl = '@Url.Action("Index", "QcCapa")';
+    const M = k => new bootstrap.Modal($(k));
+    const mCal = M('mCal'), mPm = M('mPm'), mBd = M('mBd'), mRes = M('mRes'), mSt = M('mSt');
+    let eq = null, bdId = null;
+    const today = () => new Date().toISOString().slice(0, 10);
+    const nowLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+    const addDays = (iso, n) => { const d = new Date(iso); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+    const file = l => l ? `<a href="${QC.esc(l)}" target="_blank"><i class="bi bi-paperclip"></i> view</a>` : '';
+    ['cVendor', 'pVendor', 'bVendor'].forEach(k => $(k).innerHTML = QC.options(L.suppliers, '', '-- Not set --'));
+    const resBadge = r => ({ PASS: 'bg-success', ADJUSTED: 'bg-info text-dark', FAIL: 'bg-danger' })[r];
+    const resText = r => ({ PASS: 'Pass', ADJUSTED: 'Pass after adjustment', FAIL: 'Fail' })[r] || r;
+    const typeText = t => ({ DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly', HALF_YEARLY: 'Half-yearly', YEARLY: 'Yearly', PREVENTIVE: 'Preventive (PM)', SERVICE_VISIT: 'Service visit' })[t] || t;
+    const dueBadge = (state, date) => {
+        const t = { OVERDUE: ['text-danger fw-bold', 'overdue'], NEVER: ['text-danger fw-bold', 'not done'], DUE_30: ['text-warning-emphasis fw-semibold', 'due soon'], OK: ['text-success', ''] }[state];
+        return t ? `<span class="${t[0]}">${date ? QC.date(date) : '—'}${t[1] ? ' · ' + t[1] : ''}</span>` : '<span class="text-muted">—</span>';
+    };
+
+    async function load() {
+        const r = await QC.get('@Url.Action("CardData", "QcEquipment")', { id });
+        if (!r.success) { $('info').innerHTML = `<div class="text-danger">${QC.esc(r.message)}</div>`; return; }
+        const d = r.data; eq = d.equipment;
+        document.title = `${eq.AssetCode} · ${eq.EquipmentName}`;
+        $('bcName').textContent = eq.AssetCode; $('hName').textContent = `${eq.AssetCode} · ${eq.EquipmentName}`;
+        const st = { IN_USE: '<span class="badge bg-success">In use</span>', OUT_OF_SERVICE: '<span class="badge bg-danger">Out of service</span>', RETIRED: '<span class="badge bg-secondary">Retired</span>' }[eq.Status];
+        $('hSub').innerHTML = `${st} · ${QC.esc(eq.TypeName)} · ${QC.esc(eq.BranchName || '')}${eq.AnalyzerName ? ` · <i class="bi bi-cpu"></i> ${QC.esc(eq.AnalyzerName)}` : ''}`;
+        $('alertBox').innerHTML = eq.Status === 'OUT_OF_SERVICE'
+            ? `<div class="alert alert-danger py-2"><i class="bi bi-x-octagon me-1"></i><b>Out of service</b>${eq.StatusOn ? ' since ' + QC.dateTime(eq.StatusOn) : ''}: ${QC.esc(eq.StatusReason || '')}. Do not report patient results from this equipment.</div>`
+            : (eq.CalibrationState === 'OVERDUE' || eq.CalibrationState === 'NEVER' ? '<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-1"></i>Calibration is overdue.</div>' : '');
+        const retired = eq.Status === 'RETIRED';
+        ['btnCal', 'btnPm', 'btnBd'].forEach(k => $(k)?.classList.toggle('d-none', retired));
+        const f = (label, v) => `<div class="col-6 col-md-3"><div class="text-muted">${label}</div><div class="fw-semibold">${v || '—'}</div></div>`;
+        $('info').innerHTML = f('Make / model', QC.esc([eq.Make, eq.Model].filter(Boolean).join(' '))) + f('Serial no.', QC.esc(eq.SerialNo))
+            + f('Department', QC.esc(eq.DepartmentName)) + f('Location', QC.esc(eq.Location))
+            + f('Installed on', QC.date(eq.InstallDate)) + f('Warranty up to', QC.date(eq.WarrantyUpto)) + f('Supplied by', QC.esc(eq.SupplierName))
+            + f('Purchase cost', eq.PurchaseCost != null ? QC.money(eq.PurchaseCost) : '')
+            + f('Service contract', eq.ContractType === 'NONE' ? 'None' : `${eq.ContractType} · ${QC.esc(eq.ContractVendorName || '')} · up to ${QC.date(eq.ContractUpto)}`)
+            + f('Calibration', `every ${eq.CalibrationFreqDays ?? '—'} days · next ${dueBadge(eq.CalibrationState, eq.NextCalibrationDue)}`)
+            + f('Preventive maintenance', `every ${eq.PmFreqDays ?? '—'} days · next ${dueBadge(eq.PmState, eq.NextPmDue)}`)
+            + f('Last calibration', eq.LastCalibratedOn ? `${QC.date(eq.LastCalibratedOn)} · ${resText(eq.LastCalibrationResult)}` : '');
+
+        $('nCal').textContent = d.calibrations.length; $('nPm').textContent = d.maintenance.length; $('nBd').textContent = d.breakdowns.length; $('nCapa').textContent = d.capas.length;
+        const empty = (n, t) => `<tr><td colspan="${n}" class="text-center text-muted py-3">${t}</td></tr>`;
+        $('rCal').innerHTML = d.calibrations.length ? d.calibrations.map(c => `<tr>
+            <td class="ps-3">${QC.date(c.CalibratedOn)}</td><td>${c.Agency === 'INTERNAL' ? 'Internal' : QC.esc(c.VendorName || c.AgencyName || 'External')}</td>
+            <td>${QC.esc(c.CertificateNo || '')} ${file(c.CertificatePath)}</td><td class="text-center"><span class="badge ${resBadge(c.Result)}">${resText(c.Result)}</span></td>
+            <td>${c.NextDueOn ? QC.date(c.NextDueOn) : '—'}</td><td class="small">${QC.esc(c.Remarks || '')}</td><td class="small">${QC.esc(c.CreatedByName || '')}</td></tr>`).join('')
+            : empty(7, 'No calibration recorded.');
+        $('rPm').innerHTML = d.maintenance.length ? d.maintenance.map(m => `<tr>
+            <td class="ps-3">${QC.date(m.DoneOn)}</td><td>${typeText(m.MaintType)}</td><td class="small">${QC.esc(m.DoneByName || m.VendorName || m.CreatedByName || '')}</td>
+            <td class="small">${QC.esc(m.Checklist || '')}${m.Findings ? `<div class="text-muted">${QC.esc(m.Findings)}</div>` : ''}</td>
+            <td>${m.NextDueOn ? QC.date(m.NextDueOn) : '—'}</td><td class="text-end">${m.Cost != null ? QC.money(m.Cost) : ''}</td><td>${file(m.ReportPath)}</td></tr>`).join('')
+            : empty(7, 'No maintenance recorded.');
+        const canMaintain = !!$('btnBd');
+        $('rBd').innerHTML = d.breakdowns.length ? d.breakdowns.map(b => `<tr class="${b.Status === 'OPEN' ? 'table-danger' : ''}">
+            <td class="ps-3 small">${QC.dateTime(b.ReportedOn)}<div class="text-muted">${QC.esc(b.ReportedByName || '')}</div></td>
+            <td class="small"><b>${QC.esc(b.Problem)}</b>${b.Impact ? `<div class="text-muted">${QC.esc(b.Impact)}</div>` : ''}</td>
+            <td class="small">${QC.esc(b.VendorName || '')}${b.VendorTicketNo ? ' · #' + QC.esc(b.VendorTicketNo) : ''}${b.CallLoggedOn ? `<div class="text-muted">${QC.dateTime(b.CallLoggedOn)}</div>` : ''}</td>
+            <td class="text-center">${b.Status === 'OPEN' ? '<span class="badge bg-danger">Open</span>' : '<span class="badge bg-success">Resolved</span>'}</td>
+            <td class="small">${b.Status === 'RESOLVED' ? `${QC.dateTime(b.ResolvedOn)}<div>${QC.esc(b.Resolution || '')}</div>${b.PartsReplaced ? `<div class="text-muted">Parts: ${QC.esc(b.PartsReplaced)}</div>` : ''}` : ''}</td>
+            <td class="text-end">${QC.num(b.DowntimeHours, 1)} h</td><td class="text-end">${b.Cost != null ? QC.money(b.Cost) : ''}</td>
+            <td>${b.CapaNo ? `<a href="${capaUrl}?id=${b.CapaId}">${QC.esc(b.CapaNo)}</a>` : ''}</td>
+            <td class="text-end pe-2">${b.Status === 'OPEN' && canMaintain ? `<button class="btn btn-sm btn-success act-res" data-id="${b.BreakdownId}">Resolve</button>` : ''}</td></tr>`).join('')
+            : empty(9, 'No breakdowns.');
+        const capaSt = s => ({ OPEN: '<span class="badge bg-danger">Open</span>', ACTION_TAKEN: '<span class="badge bg-warning text-dark">Action taken</span>', CLOSED: '<span class="badge bg-success">Closed</span>' })[s];
+        $('rCapa').innerHTML = d.capas.length ? d.capas.map(c => `<tr><td class="ps-3"><a href="${capaUrl}?id=${c.CapaId}">${QC.esc(c.CapaNo)}</a></td><td>${QC.esc(c.SourceType)}</td>
+            <td>${QC.esc(c.Title)}</td><td>${QC.esc(c.ResponsibleName || '—')}</td><td>${QC.date(c.TargetDate)}</td><td class="text-center">${capaSt(c.Status)}</td></tr>`).join('')
+            : empty(6, 'No CAPA.');
+    }
+
+    // calibration
+    const syncAgency = () => document.querySelectorAll('#mCal .ext').forEach(el => el.classList.toggle('d-none', $('cAgency').value !== 'EXTERNAL'));
+    const calHint = () => {
+        const fail = $('cResult').value === 'FAIL';
+        $('cFailNote').classList.toggle('d-none', !fail); $('cNext').disabled = fail;
+        $('cNextHint').textContent = fail ? 'due again now' : (eq?.CalibrationFreqDays && $('cOn').value && !$('cNext').value ? `blank = ${QC.date(addDays($('cOn').value, eq.CalibrationFreqDays))} (every ${eq.CalibrationFreqDays} days)` : '');
+    };
+    ['cAgency'].forEach(k => $(k).addEventListener('change', syncAgency));
+    ['cResult', 'cOn', 'cNext'].forEach(k => $(k).addEventListener('change', calHint));
+    $('btnCal')?.addEventListener('click', () => {
+        ['cAgencyName', 'cCert', 'cNext', 'cRemarks', 'cFile'].forEach(k => $(k).value = ''); $('cVendor').value = eq.ContractVendorId || '';
+        $('cOn').value = today(); $('cOn').max = today(); $('cResult').value = 'PASS'; $('cAgency').value = 'EXTERNAL'; syncAgency(); calHint(); mCal.show();
+    });
+    $('cSave').addEventListener('click', async function () {
+        this.disabled = true;
+        const r = await QC.postForm('@Url.Action("AddCalibration", "QcEquipment")', {
+            EquipmentId: id, CalibratedOn: $('cOn').value, Agency: $('cAgency').value, VendorId: $('cAgency').value === 'EXTERNAL' ? $('cVendor').value : '',
+            AgencyName: $('cAgency').value === 'EXTERNAL' ? $('cAgencyName').value : '', CertificateNo: $('cCert').value, Result: $('cResult').value,
+            NextDueOn: $('cResult').value === 'FAIL' ? '' : $('cNext').value, Remarks: $('cRemarks').value }, { Certificate: $('cFile').files[0] });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mCal.hide(); QC.ok(r.data?.capaId ? 'Calibration failed: equipment out of service, CAPA opened' : 'Calibration recorded'); load();
+    });
+
+    // maintenance
+    const pmHint = () => {
+        const pm = ['PREVENTIVE', 'SERVICE_VISIT'].includes($('pType').value);
+        document.querySelectorAll('#mPm .pm').forEach(el => el.classList.toggle('d-none', !pm));
+        $('pNextHint').textContent = pm && eq?.PmFreqDays && $('pOn').value && !$('pNext').value ? `blank = ${QC.date(addDays($('pOn').value, eq.PmFreqDays))}` : '';
+    };
+    ['pType', 'pOn', 'pNext'].forEach(k => $(k).addEventListener('change', pmHint));
+    $('btnPm')?.addEventListener('click', () => {
+        ['pBy', 'pNext', 'pCost', 'pChecklist', 'pFindings', 'pFile'].forEach(k => $(k).value = ''); $('pVendor').value = '';
+        $('pType').value = 'DAILY'; $('pOn').value = today(); $('pOn').max = today(); pmHint(); mPm.show();
+    });
+    $('pSave').addEventListener('click', async function () {
+        this.disabled = true;
+        const pm = ['PREVENTIVE', 'SERVICE_VISIT'].includes($('pType').value);
+        const r = await QC.postForm('@Url.Action("AddMaintenance", "QcEquipment")', {
+            EquipmentId: id, MaintType: $('pType').value, DoneOn: $('pOn').value, DoneByName: $('pBy').value, VendorId: $('pVendor').value,
+            Checklist: $('pChecklist').value, Findings: $('pFindings').value, NextDueOn: pm ? $('pNext').value : '', Cost: $('pCost').value }, { Report: $('pFile').files[0] });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mPm.hide(); QC.ok('Maintenance recorded'); load();
+    });
+
+    // breakdown
+    $('btnBd')?.addEventListener('click', () => {
+        ['bProblem', 'bImpact', 'bTicket', 'bCall'].forEach(k => $(k).value = ''); $('bVendor').value = eq.ContractVendorId || ''; $('bCapa').checked = false;
+        $('bOn').value = nowLocal(); mBd.show();
+    });
+    $('bSave').addEventListener('click', async function () {
+        if (!$('bProblem').value.trim()) return QC.fail('Describe the problem.');
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("OpenBreakdown", "QcEquipment")', { equipmentId: id, reportedOn: $('bOn').value, problem: $('bProblem').value,
+            impact: $('bImpact').value, vendorId: $('bVendor').value ? +$('bVendor').value : null, vendorTicketNo: $('bTicket').value,
+            callLoggedOn: $('bCall').value || null, raiseCapa: $('bCapa').checked });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mBd.hide(); QC.ok('Breakdown reported: equipment out of service'); load();
+    });
+    $('rBd').addEventListener('click', e => {
+        const b = e.target.closest('.act-res'); if (!b) return;
+        bdId = +b.dataset.id; ['rCost', 'rRes', 'rParts'].forEach(k => $(k).value = ''); $('rQc').checked = false; $('rOn').value = nowLocal(); mRes.show();
+    });
+    $('rSave').addEventListener('click', async function () {
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("ResolveBreakdown", "QcEquipment")', { breakdownId: bdId, resolvedOn: $('rOn').value, resolution: $('rRes').value,
+            partsReplaced: $('rParts').value, cost: $('rCost').value ? +$('rCost').value : null, qcVerified: $('rQc').checked });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mRes.hide(); QC.ok('Breakdown resolved'); load();
+    });
+
+    // status
+    $('btnStatus')?.addEventListener('click', () => { $('sStatus').value = eq.Status; $('sReason').value = ''; mSt.show(); });
+    $('sSave').addEventListener('click', async function () {
+        if ($('sStatus').value === 'RETIRED' && !await QC.confirm('Retire this equipment?', 'It leaves the due lists; its history is kept.', 'Retire')) return;
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("SetStatus", "QcEquipment")', { id, status: $('sStatus').value, reason: $('sReason').value });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mSt.hide(); QC.ok('Status changed'); load();
+    });
+    load();
+})();
+</script>
+}

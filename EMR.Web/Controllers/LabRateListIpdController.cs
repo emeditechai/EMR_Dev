@@ -1,0 +1,388 @@
+using System.Text.Json;
+using EMR.Web.ApiClients;
+using EMR.Web.ApiClients.Models;
+using EMR.Web.Models.ViewModels;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
+using EMR.Web.Extensions;
+using EMR.Web.Services;
+
+using EMR.Web.Data;
+using EMR.Web.Models.Entities;
+using Microsoft.EntityFrameworkCore;
+
+namespace EMR.Web.Controllers;
+
+/// <summary>
+/// Master > IPD Master > IPD LAB Rate List (SQLScripts/2435): branch-wise LAB rates of tests, profiles and packages for admitted
+/// patients (rate type IPD in LabRateCardMaster, same API and procedures as the out-patient list). IPD LAB orders (Phase 4) are charged from it.
+/// </summary>
+public class LabRateListIpdController(
+    ILabRateCardApiClient rateCardApi,
+    IGeneralMasterApiClient masterApiClient,
+    ILabTestCategoryApiClient categoryApiClient,
+    ILabTestSubCategoryApiClient subCategoryApiClient,
+    ApplicationDbContext dbContext) : Controller
+{
+    private const string IpdRateType = "IPD";
+
+    // the B2C rate list views are shared: page code and titles of this page
+    public override void OnActionExecuting(Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext context)
+    {
+        ViewData["RatePage"] = "MASTER.IPD_LABRATELIST";
+        ViewData["RateLabel"] = "IPD LAB Rate List";
+        ViewData["RateKind"] = "IPD";
+        base.OnActionExecuting(context);
+    }
+
+    private async Task<List<SelectListItem>> GetDepartmentListAsync()
+    {
+        try
+        {
+            var departments = await masterApiClient.GetDepartmentsAsync("Lab");
+            return departments
+                .Where(d => d.IsActive && (string.Equals(d.DeptType, "Lab", StringComparison.OrdinalIgnoreCase) || d.DeptType.Contains("Lab", StringComparison.OrdinalIgnoreCase)))
+                .Select(d => new SelectListItem { Value = d.DeptId.ToString(), Text = $"{d.DeptName} ({d.DeptCode})" })
+                .ToList();
+        }
+        catch { return []; }
+    }
+
+    private async Task<List<SelectListItem>> GetCategoryListAsync()
+    {
+        try
+        {
+            var categories = await categoryApiClient.GetListAsync(status: true);
+            return categories.Select(c => new SelectListItem { Value = c.Category_ID.ToString(), Text = $"{c.Category_Name} ({c.Category_Code})" }).ToList();
+        }
+        catch { return []; }
+    }
+
+    private async Task<List<SelectListItem>> GetSubCategoryListAsync()
+    {
+        try
+        {
+            var subCategories = await subCategoryApiClient.GetListAsync(status: true);
+            return subCategories.Select(s => new SelectListItem { Value = s.SubCategory_ID.ToString(), Text = $"{s.SubCategory_Name} ({s.SubCategory_Code})" }).ToList();
+        }
+        catch { return []; }
+    }
+
+    private bool CheckIsHOBranch()
+    {
+        // 1. Check Session
+        var sessionVal = HttpContext.Session.GetString("IsHOBranch");
+        if (!string.IsNullOrEmpty(sessionVal) && bool.TryParse(sessionVal, out var isHOSession))
+        {
+            return isHOSession;
+        }
+
+        // 2. Check User Claims
+        if (User.IsHOBranch())
+        {
+            return true;
+        }
+
+        // 3. Fallback check DB for the branch
+        var currentBranchId = User.GetCurrentBranchId();
+        if (currentBranchId.HasValue)
+        {
+            var branch = dbContext.BranchMasters.Find(currentBranchId.Value);
+            return branch?.IsHOBranch == true;
+        }
+
+        return false;
+    }
+
+    private async Task<List<SelectListItem>> GetBranchListAsync(int? selectedId = null)
+    {
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+
+        IQueryable<BranchMaster> query = dbContext.BranchMasters.Where(b => b.IsActive && b.CompanyId == User.GetCompanyId());
+        if (!isHO && currentBranchId.HasValue)
+        {
+            query = query.Where(b => b.BranchId == currentBranchId.Value);
+        }
+
+        var branches = await query.OrderBy(b => b.BranchName).ToListAsync();
+        return branches.Select(b => new SelectListItem
+        {
+            Value = b.BranchId.ToString(),
+            Text = b.BranchName,
+            Selected = selectedId.HasValue && b.BranchId == selectedId.Value
+        }).ToList();
+    }
+
+    public async Task<IActionResult> Index()
+    {
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+        var branchList = await GetBranchListAsync(isHO ? null : currentBranchId);
+
+        var vm = new LabRateCardIndexViewModel
+        {
+            IsHOBranch = isHO,
+            Branch_ID = isHO ? null : currentBranchId,
+            BranchList = new SelectList(branchList, "Value", "Text", isHO ? null : currentBranchId?.ToString())
+        };
+        return View("~/Views/LabRateListB2C/Index.cshtml", vm);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> LoadData(int? branchId, bool? status, [FromServices] IQueryStringEncryptionService encryptionService)
+    {
+        var isHO = CheckIsHOBranch();
+        if (!isHO)
+        {
+            branchId = User.GetCurrentBranchId();
+        }
+        var list = await rateCardApi.GetListAsync(IpdRateType, branchId, status, User.GetCompanyId());
+        var result = list.Select(item => new
+        {
+            item.RateCard_ID,
+            item.CompanyId,
+            item.Branch_ID,
+            item.Branch_Name,
+            item.Rate_Type,
+            item.Effective_From,
+            item.Effective_To,
+            item.Status,
+            item.ItemCount,
+            EncryptedId = encryptionService.EncryptParameters(new Dictionary<string, string?> { { "id", item.RateCard_ID.ToString() } })
+        });
+        return Json(new { data = result }, new JsonSerializerOptions { PropertyNamingPolicy = null });
+    }
+
+    public async Task<IActionResult> Create()
+    {
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+        var branches = await GetBranchListAsync(currentBranchId);
+        var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive && b.CompanyId == User.GetCompanyId()).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
+        var depts = await GetDepartmentListAsync();
+        var cats = await GetCategoryListAsync();
+        var subCats = await GetSubCategoryListAsync();
+
+        var vm = new LabRateCardFormViewModel
+        {
+            CompanyId = User.GetCompanyId(),
+            Rate_Type = IpdRateType,
+            IsHOBranch = isHO,
+            Branch_ID = currentBranchId ?? 0,
+            BranchList = new SelectList(branches, "Value", "Text", currentBranchId),
+            SourceBranchList = new SelectList(allBranches, "Value", "Text"),
+            DepartmentList = new SelectList(depts, "Value", "Text"),
+            CategoryList = new SelectList(cats, "Value", "Text"),
+            SubCategoryList = new SelectList(subCats, "Value", "Text")
+        };
+        return View("~/Views/LabRateListB2C/Form.cshtml", vm);
+    }
+
+    public async Task<IActionResult> Edit(int id)
+    {
+        var item = await rateCardApi.GetByIdAsync(id);
+        if (item == null || item.Header.CompanyId != User.GetCompanyId() || item.Header.Rate_Type != IpdRateType) return NotFound();
+
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+
+        // Non-HO users can only view/edit their own branch rate card
+        if (!isHO && currentBranchId.HasValue && item.Header.Branch_ID != currentBranchId.Value)
+        {
+            TempData["ErrorMessage"] = "You do not have access to manage rate cards for other branches.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var branches = await GetBranchListAsync(item.Header.Branch_ID);
+        var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive && b.CompanyId == User.GetCompanyId()).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
+        var depts = await GetDepartmentListAsync();
+        var cats = await GetCategoryListAsync();
+        var subCats = await GetSubCategoryListAsync();
+
+        var vm = new LabRateCardFormViewModel
+        {
+            IsHOBranch = isHO,
+            RateCard_ID = item.Header.RateCard_ID,
+            CompanyId = item.Header.CompanyId,
+            Branch_ID = item.Header.Branch_ID,
+            Rate_Type = item.Header.Rate_Type,
+            Effective_From = item.Header.Effective_From,
+            Effective_To = item.Header.Effective_To,
+            Status = item.Header.Status,
+            BranchList = new SelectList(branches, "Value", "Text", item.Header.Branch_ID),
+            SourceBranchList = new SelectList(allBranches, "Value", "Text"),
+            DepartmentList = new SelectList(depts, "Value", "Text"),
+            CategoryList = new SelectList(cats, "Value", "Text"),
+            SubCategoryList = new SelectList(subCats, "Value", "Text"),
+            DetailsJson = JsonSerializer.Serialize(item.Details, new JsonSerializerOptions { PropertyNamingPolicy = null })
+        };
+        return View("~/Views/LabRateListB2C/Form.cshtml", vm);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Save(LabRateCardFormViewModel vm)
+    {
+        var isHO = CheckIsHOBranch();
+        var currentBranchId = User.GetCurrentBranchId();
+        // a rate card belongs to the user's company, for one of its branches; an existing card must be the company's own
+        vm.CompanyId = User.GetCompanyId();
+        vm.Rate_Type = IpdRateType;   // this page only ever saves IPD rate lists
+        if (!await dbContext.BranchMasters.AnyAsync(b => b.BranchId == vm.Branch_ID && b.CompanyId == vm.CompanyId)
+            || (vm.RateCard_ID is > 0 && !await OwnsRateCardAsync(vm.RateCard_ID.Value)))
+            return NotFound();
+        if (!isHO && currentBranchId.HasValue)
+        {
+            vm.Branch_ID = currentBranchId.Value;
+        }
+
+        vm.IsHOBranch = isHO;
+
+        if (!ModelState.IsValid)
+        {
+            var branches = await GetBranchListAsync(vm.Branch_ID);
+            var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive && b.CompanyId == User.GetCompanyId()).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
+            var depts = await GetDepartmentListAsync();
+            var cats = await GetCategoryListAsync();
+            var subCats = await GetSubCategoryListAsync();
+
+            vm.BranchList = new SelectList(branches, "Value", "Text", vm.Branch_ID);
+            vm.SourceBranchList = new SelectList(allBranches, "Value", "Text");
+            vm.DepartmentList = new SelectList(depts, "Value", "Text");
+            vm.CategoryList = new SelectList(cats, "Value", "Text");
+            vm.SubCategoryList = new SelectList(subCats, "Value", "Text");
+            return View("~/Views/LabRateListB2C/Form.cshtml", vm);
+        }
+
+        try
+        {
+            var details = JsonSerializer.Deserialize<List<LabRateCardDetailModel>>(
+                vm.DetailsJson, 
+                new JsonSerializerOptions { PropertyNamingPolicy = null }
+            ) ?? new List<LabRateCardDetailModel>();
+
+            var req = new LabRateCardSaveRequestModel
+            {
+                RateCard_ID = vm.RateCard_ID,
+                CompanyId = vm.CompanyId,
+                Branch_ID = vm.Branch_ID,
+                Rate_Type = vm.Rate_Type,
+                Effective_From = vm.Effective_From,
+                Effective_To = vm.Effective_To,
+                Status = vm.Status,
+                UserId = User.GetUserId() > 0 ? User.GetUserId() : 1,
+                Details = details
+            };
+
+            await rateCardApi.SaveAsync(req);
+            TempData["SuccessMessage"] = "Rate List saved successfully.";
+            return RedirectToAction(nameof(Index));
+        }
+        catch (Exception ex)
+        {
+            ModelState.AddModelError("", ex.Message);
+            var branches = await GetBranchListAsync(vm.Branch_ID);
+            var allBranches = isHO ? branches : await dbContext.BranchMasters.Where(b => b.IsActive && b.CompanyId == User.GetCompanyId()).OrderBy(b => b.BranchName).Select(b => new SelectListItem { Value = b.BranchId.ToString(), Text = b.BranchName }).ToListAsync();
+            var depts = await GetDepartmentListAsync();
+            var cats = await GetCategoryListAsync();
+            var subCats = await GetSubCategoryListAsync();
+
+            vm.BranchList = new SelectList(branches, "Value", "Text", vm.Branch_ID);
+            vm.SourceBranchList = new SelectList(allBranches, "Value", "Text");
+            vm.DepartmentList = new SelectList(depts, "Value", "Text");
+            vm.CategoryList = new SelectList(cats, "Value", "Text");
+            vm.SubCategoryList = new SelectList(subCats, "Value", "Text");
+            return View("~/Views/LabRateListB2C/Form.cshtml", vm);
+        }
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> ToggleStatus([FromBody] LabRateCardToggleStatusRequestModel req)
+    {
+        try
+        {
+            if (!await OwnsRateCardAsync(req.RateCard_ID)) return NotFound();
+            req.UserId = User.GetUserId() > 0 ? User.GetUserId() : 1;
+            await rateCardApi.ToggleStatusAsync(req);
+            return Json(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpDelete]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            if (!await OwnsRateCardAsync(id)) return NotFound();
+            await rateCardApi.DeleteAsync(id, User.GetUserId() > 0 ? User.GetUserId() : 1);
+            return Json(new { success = true });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    // a rate card of the user's company (another company's card is "not found")
+    private async Task<bool> OwnsRateCardAsync(int rateCardId)
+        => (await rateCardApi.GetByIdAsync(rateCardId)) is { } c && c.Header.CompanyId == User.GetCompanyId() && c.Header.Rate_Type == IpdRateType;
+
+    // Helper for Copy from Branch
+    [HttpGet]
+    public async Task<IActionResult> GetDetailsForBranch(int branchId)
+    {
+        // First get the rate card for that branch & rate type
+        var cards = await rateCardApi.GetListAsync(IpdRateType, branchId, true, User.GetCompanyId());
+        var activeCard = cards.FirstOrDefault();
+        if (activeCard == null)
+        {
+            return Json(new { success = false, message = "No active IPD LAB rate list found for the selected branch." });
+        }
+
+        var fullCard = await rateCardApi.GetByIdAsync(activeCard.RateCard_ID);
+        return Json(new { success = true, data = fullCard?.Details ?? new List<LabRateCardDetailModel>() }, new JsonSerializerOptions { PropertyNamingPolicy = null });
+    }
+
+    // Helper for Dropdown All Items
+    [HttpGet]
+    public async Task<IActionResult> GetAllItems()
+    {
+        var items = await rateCardApi.GetAllItemsAsync(User.GetCompanyId());
+        return Json(new { success = true, data = items }, new JsonSerializerOptions { PropertyNamingPolicy = null });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetCategories(int? departmentId = null)
+    {
+        try
+        {
+            var categories = await categoryApiClient.GetListAsync(departmentId, status: true);
+            var list = categories.Select(c => new { id = c.Category_ID, name = $"{c.Category_Name} ({c.Category_Code})" });
+            return Json(new { success = true, data = list });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetSubCategories(int? categoryId = null)
+    {
+        try
+        {
+            var subCategories = await subCategoryApiClient.GetListAsync(categoryId, status: true);
+            var list = subCategories.Select(s => new { id = s.SubCategory_ID, name = $"{s.SubCategory_Name} ({s.SubCategory_Code})" });
+            return Json(new { success = true, data = list });
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+    }
+}

@@ -1,0 +1,156 @@
+@{
+    ViewData["Title"] = "Daily QC Entry";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@* Quality & Compliance > Internal QC > Daily QC Entry (SQLScripts/2254, LF-05): the control results of an analyzer, one run per
+   parameter, judged by the Westgard rules (1-2s warning; 1-3s, 2-2s, R-4s, optional 4-1s / 10x reject). A rejected run blocks
+   validation of the parameter until its corrective action is recorded here. *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li><li class="breadcrumb-item text-muted">Internal QC</li>
+                <li class="breadcrumb-item active">Daily QC Entry</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-clipboard-pulse me-2"></i>Daily QC Entry</h4>
+            <div class="text-muted small">Run the controls before patient samples; a rejected run blocks validation of that parameter</div>
+        </div>
+        <span id="canEntry" class="d-none" asp-permission="QC.IQC.ENTRY:ENTRY"></span>
+        <span id="canAction" class="d-none" asp-permission="QC.IQC.ENTRY:ACTION"></span>
+        <a class="btn btn-outline-primary" asp-controller="IqcChart" asp-action="Index"><i class="bi bi-graph-up me-1"></i>Levey-Jennings charts</a>
+    </div>
+
+    <div id="pendingBox"></div>
+
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3"><div class="row g-2 align-items-end">
+        <div class="col-md-5"><label class="form-label small fw-semibold text-muted">Analyzer</label><select id="fAnalyzer" class="form-select"></select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Run date / time</label><input type="datetime-local" id="fRunAt" class="form-control" /></div>
+        <div class="col-md-4 text-end"><button type="button" class="btn btn-primary px-4" id="btnSave"><i class="bi bi-check2-circle me-1"></i>Save &amp; judge QC</button></div>
+    </div></div></div>
+
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table align-middle mb-0"><thead class="bg-light"><tr><th class="ps-3">Parameter</th><th>Control levels (value · z)</th><th style="width:220px">Remarks</th><th class="text-center pe-3" style="width:170px">Judgement</th></tr></thead>
+            <tbody id="gRows"><tr><td colspan="4" class="text-center text-muted py-4">Choose the analyzer.</td></tr></tbody></table>
+        <div class="small text-muted px-3 py-2"><i class="bi bi-info-circle me-1"></i>The judgement shown while typing covers this run only; 2-2s across runs, 4-1s and 10x are added when saved.</div>
+    </div></div></div>
+
+    <div class="card border-0 shadow-sm"><div class="card-header bg-white fw-semibold">Runs on this analyzer today</div>
+        <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Time</th><th>Parameter</th><th>Values</th><th class="text-center">Status</th><th>Corrective action</th><th>By</th></tr></thead><tbody id="tRows"></tbody></table></div></div></div>
+</div>
+
+<div class="modal fade" id="mAct" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header py-2"><div><h6 class="modal-title fw-bold mb-0">Corrective action</h6><div class="small text-muted" id="actSub"></div></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3">
+        <div class="col-12"><label class="form-label fw-semibold">Root cause</label><input id="aRoot" class="form-control" maxlength="500" placeholder="e.g. calibration drift, reagent deterioration, control mishandled" /></div>
+        <div class="col-12"><label class="form-label fw-semibold">Corrective action <span class="text-danger">*</span></label><textarea id="aAction" class="form-control" rows="2" maxlength="1000" placeholder="e.g. recalibrated, new reagent bottle, QC repeated and accepted"></textarea></div>
+        <div class="col-12"><label class="form-label fw-semibold">Patient results look-back <span class="text-danger">*</span></label><textarea id="aImpact" class="form-control" rows="2" maxlength="500" placeholder="Patient results since the last accepted QC: reviewed / repeated / reports amended"></textarea></div>
+        <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" id="aCapa" /><label class="form-check-label" for="aCapa">Also open a CAPA (repeated failure or patient impact)</label></div>
+        <div class="col-12"><div class="alert alert-info py-2 small mb-0"><i class="bi bi-unlock me-1"></i>Saving unblocks validation of this parameter. Run QC again and confirm it is accepted before releasing patient results.</div></div>
+    </div></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-success" id="aSave"><i class="bi bi-check2-circle me-1"></i>Record corrective action</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson);
+    const canEntry = !!document.getElementById('canEntry'), canAction = !!document.getElementById('canAction');
+    const $ = x => document.getElementById(x);
+    const mAct = new bootstrap.Modal($('mAct'));
+    let targets = [], tests = [], actRun = null;
+    const nowLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+    $('fRunAt').value = nowLocal(); $('fRunAt').max = nowLocal();
+    $('fAnalyzer').innerHTML = QC.options(L.analyzers.filter(a => a.Status), '', '-- Choose analyzer --');   // active analyzers of the Analyzer master
+    $('btnSave').classList.toggle('d-none', !canEntry);
+    const stBadge = (s, rules) => ({ ACCEPTED: '<span class="badge bg-success">Accepted</span>', WARNING: `<span class="badge bg-warning text-dark">Warning ${QC.esc(rules || '1-2s')}</span>`,
+        REJECTED: `<span class="badge bg-danger">Rejected ${QC.esc(rules || '')}</span>` })[s] || '';
+    const zCls = z => z == null ? 'text-muted' : Math.abs(z) > 3 ? 'text-danger fw-bold' : Math.abs(z) > 2 ? 'text-warning-emphasis fw-bold' : 'text-success';
+
+    async function loadPending() {
+        const r = await QC.get('@Url.Action("Pending", "IqcEntry")');
+        const list = r.success ? r.data : [];
+        $('pendingBox').innerHTML = list.length ? `<div class="alert alert-danger"><div class="fw-bold mb-1"><i class="bi bi-lock-fill me-1"></i>${list.length} rejected QC run(s) waiting for corrective action: these parameters cannot be validated or approved.</div>
+            ${list.map(p => `<div class="d-flex justify-content-between align-items-center border-top pt-1 mt-1 small"><span><b>${QC.esc(p.TestName)}</b> on ${QC.esc(p.AnalyzerName || '')} · ${QC.dateTime(p.RunAt)} · ${QC.esc(p.Rules || '')} · ${QC.esc(p.ValuesText || '')} <span class="text-muted">(${QC.num(p.HoursOpen, 1)} h)</span></span>
+              ${canAction ? `<button class="btn btn-sm btn-light act" data-id="${p.RunId}" data-sub="${QC.esc(p.TestName + ' · ' + (p.AnalyzerName || '') + ' · ' + (p.Rules || ''))}">Record action</button>` : ''}</div>`).join('')}</div>` : '';
+    }
+
+    async function loadGrid() {
+        const an = $('fAnalyzer').value;
+        if (!an) { $('gRows').innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Choose the analyzer.</td></tr>'; $('tRows').innerHTML = ''; return; }
+        const r = await QC.get('@Url.Action("Grid", "IqcEntry")', { analyzerId: an });
+        if (!r.success) return QC.fail(r.message);
+        targets = r.data.targets;
+        tests = [...new Map(targets.map(t => [t.TestId, { TestId: t.TestId, TestName: t.TestName, Unit: t.Unit }])).values()];
+        $('gRows').innerHTML = tests.length ? tests.map(t => {
+            const lv = targets.filter(x => x.TestId === t.TestId);
+            return `<tr data-test="${t.TestId}"><td class="ps-3"><div class="fw-semibold">${QC.esc(t.TestName)}</div><div class="small text-muted">${QC.esc(t.Unit || '')}</div></td>
+                <td><div class="d-flex flex-wrap gap-3">${lv.map(x => `<div style="min-width:170px">
+                    <div class="small text-muted">${QC.esc(x.ControlLevel)} · lot ${QC.esc(x.LotNo)}${x.DaysToExpiry <= 30 ? ` <span class="text-danger">exp ${QC.date(x.ExpiryDate)}</span>` : ''}</div>
+                    <div class="input-group input-group-sm"><input type="number" step="any" class="form-control qv" data-target="${x.TargetId}" data-mean="${x.Mean}" data-sd="${x.Sd}" ${canEntry ? '' : 'disabled'} />
+                    <span class="input-group-text zv" style="min-width:64px">z —</span></div>
+                    <div class="small text-muted">${QC.num(x.Mean, 2)} ± ${QC.num(x.Sd, 2)}</div></div>`).join('')}</div></td>
+                <td><input class="form-control form-control-sm qr" maxlength="500" ${canEntry ? '' : 'disabled'} /></td>
+                <td class="text-center pe-3 judge"><span class="text-muted small">not entered</span></td></tr>`;
+        }).join('') : '<tr><td colspan="4" class="text-center text-muted py-4">No QC targets for this analyzer. Set them up in QC Materials, Lots &amp; Targets.</td></tr>';
+        $('tRows').innerHTML = r.data.runs.length ? r.data.runs.map(x => `<tr class="${x.Status === 'REJECTED' && !x.CorrectiveAction ? 'table-danger' : ''}">
+            <td class="ps-3">${QC.dateTime(x.RunAt)}</td><td>${QC.esc(x.TestName)}</td><td class="small">${QC.esc(x.ValuesText || '')}</td><td class="text-center">${stBadge(x.Status, x.Rules)}</td>
+            <td class="small">${x.CorrectiveAction ? QC.esc(x.CorrectiveAction) : (x.Status === 'REJECTED' ? (canAction ? `<button class="btn btn-sm btn-outline-danger act" data-id="${x.RunId}" data-sub="${QC.esc(x.TestName + ' · ' + (x.Rules || ''))}">Record action</button>` : '<span class="text-danger">pending</span>') : '')}</td>
+            <td class="small">${QC.esc(x.EnteredByName || '')}</td></tr>`).join('') : '<tr><td colspan="6" class="text-center text-muted py-3">No QC run today.</td></tr>';
+    }
+
+    // live judgement of this run (within-run rules)
+    $('gRows').addEventListener('input', e => {
+        const tr = e.target.closest('tr[data-test]'); if (!tr) return;
+        const zs = [];
+        tr.querySelectorAll('.qv').forEach(inp => {
+            const v = inp.value === '' ? null : Number(inp.value), z = v == null ? null : (v - Number(inp.dataset.mean)) / Number(inp.dataset.sd);
+            const cell = inp.parentElement.querySelector('.zv');
+            cell.textContent = z == null ? 'z —' : 'z ' + z.toFixed(2); cell.className = 'input-group-text zv ' + zCls(z);
+            if (z != null) zs.push(z);
+        });
+        if (!zs.length) { tr.querySelector('.judge').innerHTML = '<span class="text-muted small">not entered</span>'; return; }
+        const rules = [];
+        if (zs.some(z => Math.abs(z) > 3)) rules.push('1-3s');
+        if (zs.filter(z => z > 2).length >= 2 || zs.filter(z => z < -2).length >= 2) rules.push('2-2s');
+        if (zs.some(z => z > 2) && zs.some(z => z < -2)) rules.push('R-4s');
+        const st = rules.length ? 'REJECTED' : zs.some(z => Math.abs(z) > 2) ? 'WARNING' : 'ACCEPTED';
+        tr.querySelector('.judge').innerHTML = stBadge(st, rules.join(', ') || (st === 'WARNING' ? '1-2s' : '')) + '<div class="small text-muted">preview</div>';
+    });
+
+    $('btnSave').addEventListener('click', async function () {
+        const runs = [...document.querySelectorAll('#gRows tr[data-test]')].map(tr => ({
+            testId: +tr.dataset.test, remarks: tr.querySelector('.qr').value || null,
+            values: [...tr.querySelectorAll('.qv')].filter(i => i.value !== '').map(i => ({ targetId: +i.dataset.target, value: Number(i.value) }))
+        })).filter(r => r.values.length);
+        if (!runs.length) return QC.fail('Enter at least one QC value.');
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("SaveRuns", "IqcEntry")', { analyzerId: +$('fAnalyzer').value, runAt: $('fRunAt').value, runs });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        const bad = r.data.filter(x => !x.ok), rej = r.data.filter(x => x.ok && x.status === 'REJECTED');
+        await loadGrid(); await loadPending();
+        r.data.forEach(x => { const tr = document.querySelector(`#gRows tr[data-test="${x.testId ?? x.TestId}"]`); if (tr) tr.querySelector('.judge').innerHTML = x.ok ? stBadge(x.status, x.rules) + '<div class="small text-muted">saved</div>' : `<span class="text-danger small">${QC.esc(x.message)}</span>`; });
+        if (bad.length) QC.fail(bad.map(x => x.message).join('\n'));
+        else if (rej.length && window.Swal) Swal.fire({ icon: 'error', title: `${rej.length} run(s) rejected`, text: 'Do not report patient results for these parameters. Record the corrective action to unblock validation.' });
+        else QC.ok('QC saved');
+        $('fRunAt').value = nowLocal();
+    });
+
+    document.addEventListener('click', e => {
+        const b = e.target.closest('.act'); if (!b) return;
+        actRun = +b.dataset.id; $('actSub').textContent = b.dataset.sub; ['aRoot', 'aAction', 'aImpact'].forEach(k => $(k).value = ''); $('aCapa').checked = false; mAct.show();
+    });
+    $('aSave').addEventListener('click', async function () {
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("Action", "IqcEntry")', { runId: actRun, rootCause: $('aRoot').value, correctiveAction: $('aAction').value, patientImpact: $('aImpact').value, raiseCapa: $('aCapa').checked });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mAct.hide(); QC.ok('Corrective action recorded'); loadPending(); loadGrid();
+    });
+    $('fAnalyzer').addEventListener('change', loadGrid);
+    loadPending();
+})();
+</script>
+}

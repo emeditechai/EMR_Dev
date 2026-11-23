@@ -6,6 +6,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+// warnings / errors also to App_Data/logs/api-yyyyMMdd.log (an intermittent failure leaves a trace); a failing
+// background service is logged and the application keeps running (the .NET default would stop it)
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.AddErrorFile(builder.Logging, builder.Environment.ContentRootPath, "api");
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.KeepRunningOnBackgroundFailure(builder.Services);
+builder.Configuration.DecryptConnectionStrings();
+// Central_Lic_DB (mobile apps: a user's company ID and API address) - built in code, see EMR.Api/Data/CentralLicDb.cs
+CentralLicDb.Initialize(builder.Configuration);
 
 // ── Services ─────────────────────────────────────────────────────────────────
 // ── Authentication: every call carries a token (see EMR.Api/Security/ApiCallerFilter) ──
@@ -62,12 +69,25 @@ builder.Services.AddSwaggerGen(c =>
 
 // ── Data & Application services ───────────────────────────────────────────────
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+builder.Services.AddSingleton<EMR.Common.IDbConnections>(sp => sp.GetRequiredService<IDbConnectionFactory>());
+builder.Services.AddScoped<EMR.Common.ILedgerService, EMR.Common.LedgerService>();   // the bill ledger postings, as EMR.Web makes them
 builder.Services.AddScoped<IDoctorService,           DoctorService>();
 
 builder.Services.AddScoped<IDiscountTypeService,     DiscountTypeService>();
 builder.Services.AddScoped<IMembershipService,       MembershipService>();
 builder.Services.AddScoped<IPatientService,          PatientService>();
 builder.Services.AddScoped<IReportService,           ReportService>();
+builder.Services.AddScoped<IOpdVisitHistoryService,  OpdVisitHistoryService>();
+builder.Services.AddScoped<IUserListService, UserListService>();
+// Utility > API data: Standard Laboratory Test Master (LOINC), SQLScripts/2316
+builder.Services.AddScoped<ITerminologyService, TerminologyService>();
+builder.Services.AddSingleton<TerminologyStorage>();
+builder.Services.AddSingleton<TerminologyImportQueue>();
+builder.Services.AddHostedService<TerminologyImportWorker>();
+builder.Services.AddHttpClient("LoincSearch");
+builder.Services.AddScoped<ILoincTerminologyClient, LoincSearchClient>();   // User Master server paging (SQLScripts/2314)
+builder.Services.AddScoped<IBillingSubmissionService, BillingSubmissionService>();   // one bill per booking (SQLScripts/2310)
+builder.Services.AddScoped<ICompanyOnboardingService, CompanyOnboardingService>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)
 builder.Services.AddScoped<IServiceBookingService,   ServiceBookingService>();
 builder.Services.AddScoped<IPaymentSummaryService,   PaymentSummaryService>();
 builder.Services.AddScoped<IVitalService,            VitalService>();
@@ -98,6 +118,13 @@ builder.Services.AddScoped<ILabTestSubCategoryService, LabTestSubCategoryService
 builder.Services.AddScoped<ILabSampleTypeService,      LabSampleTypeService>();
 builder.Services.AddScoped<ILabTestMethodService,      LabTestMethodService>();
 builder.Services.AddScoped<ILabUnitService,            LabUnitService>();
+builder.Services.AddScoped<IPharmacyMasterService,     PharmacyMasterService>();   // Pharmacy masters + Item Master (SQLScripts/2357)
+builder.Services.AddScoped<IPharmacyPurchaseService,   PharmacyPurchaseService>(); // Pharmacy > Purchase (SQLScripts/2358)
+builder.Services.AddScoped<IPharmacyProcService,       PharmacyProcService>();     // pharmacy stored procedures for Sales / Inventory (SQLScripts/2359+)
+builder.Services.AddScoped<IIpdProcService,            IpdProcService>();          // IPD transactions api/ipd (SQLScripts/2422-2424)
+builder.Services.AddScoped<IQcStockProcService,        QcStockProcService>();      // Quality & Compliance > Stock Management api/qc/stock (SQLScripts/2498-2500)
+builder.Services.AddSingleton<EMR.Api.Services.BillReader.BillTextSource>();   // pharmacy "Read bill": PdfPig / Tesseract (SQLScripts/2367)
+builder.Services.AddScoped<EMR.Api.Services.BillReader.IBillReaderService, EMR.Api.Services.BillReader.BillReaderService>();
 builder.Services.AddScoped<IAnalyzerService,           AnalyzerService>();
 builder.Services.AddScoped<ILabInvestigationService,        LabInvestigationService>();
 builder.Services.AddScoped<ILabInvestigationProfileService, LabInvestigationProfileService>();
@@ -114,6 +141,7 @@ builder.Services.AddScoped<ILabSampleRejectionReasonService,LabSampleRejectionRe
 builder.Services.AddScoped<ILabMiscChargeService, LabMiscChargeService>();
 builder.Services.AddScoped<ILabFranchiseService,            LabFranchiseService>();
 builder.Services.AddScoped<ILabFranchiseBarcodeService,      LabFranchiseBarcodeService>();
+builder.Services.AddScoped<ILabPhleboBarcodeService, LabPhleboBarcodeService>();   // SQLScripts/2401
 builder.Services.AddScoped<ILabReferenceRangeService,        LabReferenceRangeService>();
 builder.Services.AddScoped<ILabFormulaParameterService,      LabFormulaParameterService>();
 builder.Services.AddScoped<ILabDescriptiveTestTemplateService, LabDescriptiveTestTemplateService>();
@@ -122,9 +150,37 @@ builder.Services.AddScoped<ILabReportDispatchService,              LabReportDisp
 builder.Services.AddScoped<ILabUnapproveService,                  LabUnapproveService>();
 builder.Services.AddScoped<IPathologistDashboardService,          PathologistDashboardService>();
 builder.Services.AddScoped<ILabCriticalCommunicationService,      LabCriticalCommunicationService>();
+builder.Services.AddScoped<ICampaignService, CampaignService>();   // Utility > Campaigns (SQLScripts/2299)
+// Utility > Help Center (SQLScripts/2300); the Help Assistant may use Claude when HelpAssistant:AnthropicApiKey is set
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("Anthropic");
+builder.Services.AddScoped<IHelpService, HelpService>();
+builder.Services.AddHostedService<HelpLearningWorker>();   // Ask AI daily learning (SQLScripts/2321)
 builder.Services.AddScoped<ILabDefaultSignatoryService,           LabDefaultSignatoryService>();
 builder.Services.AddScoped<ILabApprovalFlowService,                LabApprovalFlowService>();
 builder.Services.AddScoped<IB2BBillingService,              B2BBillingService>();
+builder.Services.AddScoped<IPrintTemplateService,           PrintTemplateService>();   // Utility > Print Templates (SQLScripts/2324)
+builder.Services.AddScoped<ICompanyCopyService,            CompanyCopyService>();     // Company > Copy master data (SQLScripts/2328)
+builder.Services.AddScoped<ICompanyPurgeService,           CompanyPurgeService>();    // Company > Remove data / Delete company (SQLScripts/2337)
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IWhatsAppTextSender,            WhatsAppTextSender>();
+builder.Services.AddScoped<ISmtpEmailSender, SmtpEmailSender>();                 // e-mail with EMR.Web's SMTP configuration
+builder.Services.AddSingleton<IPatientAppNotices, PatientAppNotices>();          // the patient app's booking WhatsApp / e-mail
+// the patient app's report and bill PDFs (copies of EMR.Web's report code, fed by this API's services)
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<EMR.Api.PatientApp.PatientAppFiles>();
+builder.Services.AddScoped<EMR.Api.PatientApp.PatientReportData>();
+builder.Services.AddScoped<EMR.Api.PatientApp.ILabFtpService>(sp => new EMR.Api.PatientApp.LabFtpService(sp.GetRequiredService<IDbConnectionFactory>(),
+    WebKeyRing.Provider(sp.GetRequiredService<IDbConnectionFactory>()), sp.GetRequiredService<ILogger<EMR.Api.PatientApp.LabFtpService>>()));
+builder.Services.AddScoped<EMR.Api.PatientApp.ILabReportPdfService, EMR.Api.PatientApp.LabReportPdfService>();
+builder.Services.AddScoped<EMR.Api.PatientApp.IPatientDocumentService, EMR.Api.PatientApp.PatientDocumentService>();
+builder.Services.AddScoped<IPatientBillPdfs, EMR.Api.PatientApp.PatientBillPdfs>();   // the bill attached to the booking messages
+builder.Services.AddScoped<IPasswordOtpService,            PasswordOtpService>();     // Forgot password by WhatsApp code (SQLScripts/2384)
+builder.Services.AddScoped<IPatientOtpService,             PatientOtpService>();      // Patient app first sign-in / forgot password by WhatsApp code (SQLScripts/2486)
+builder.Services.AddScoped<IPhleboService,                 PhleboService>();          // Phlebotomist app (SQLScripts/2373, 2374)
+builder.Services.AddScoped<IMarketingService,              MarketingService>();       // Marketing executive app (SQLScripts/2446)
+builder.Services.AddSingleton<IGeocodingService,           GeocodingService>();       // its clinic addresses on the map (SQLScripts/2459)
+builder.Services.AddHttpClient("Geocoding");
 
 // Lab master bulk upload (Excel)
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.LabBulkLookups>();
@@ -137,6 +193,8 @@ builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.B2C));
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.Franchise));
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
+    sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.Corporate));
 builder.Services.AddScoped<ILabBulkUploadService,             LabBulkUploadService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────

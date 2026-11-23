@@ -97,6 +97,10 @@ namespace EMR.Web.Models.ViewModels
         [Display(Name = "Address")]
         public string? Address { get; set; }
 
+        [RegularExpression(@"^\d{6}$", ErrorMessage = "Pincode must be 6 digits.")]
+        [Display(Name = "Pincode")]
+        public string? Pincode { get; set; }
+
         [MaxLength(500)]
         [Display(Name = "Home Collection Address")]
         public string? HomeCollectionAddress { get; set; }
@@ -113,6 +117,17 @@ namespace EMR.Web.Models.ViewModels
         [MaxLength(100)]
         [Display(Name = "Identification Number")]
         public string? IdentificationNumber { get; set; }
+
+        // Optional (SQLScripts/2355). Empty stays "" so a cleared field differs from a field the form did not show.
+        [DisplayFormat(ConvertEmptyStringToNull = false)]
+        [RegularExpression(@"^\s*\d{2}-?\d{4}-?\d{4}-?\d{4}\s*$", ErrorMessage = "ABHA Number must have 14 digits.")]
+        [Display(Name = "ABHA Number")]
+        public string? AbhaNumber { get; set; }
+
+        [DisplayFormat(ConvertEmptyStringToNull = false)]
+        [MaxLength(100)]
+        [Display(Name = "ABHA Address")]
+        public string? AbhaAddress { get; set; }
 
         // ── Section 2: Other Info ─────────────────────────────────────────────────
 
@@ -148,6 +163,13 @@ namespace EMR.Web.Models.ViewModels
 
         [Display(Name = "Booking Date & Time")]
         public DateTime BookingDateTime { get; set; } = DateTime.Now;
+        /// <summary>2384: "Is Booking Req" - on: the booking date & time from the screen and a booking number; off: as before (billing time).</summary>
+        public bool IsBookingRequired { get; set; }
+
+        /// <summary>2453: last menstrual period - asked only when Gender is Female; stored on the bill.</summary>
+        [DataType(DataType.Date)]
+        [Display(Name = "LMP Date")]
+        public DateTime? LmpDate { get; set; }
 
         // ── Section 2: LAB Order Filters ─────────────────────────────────────────
         [Display(Name = "Department")]

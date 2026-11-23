@@ -1,0 +1,102 @@
+@{
+    ViewData["Title"] = "BOM Cost Preview";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@* Quality & Compliance > Bill of Material > BOM Cost Preview (SQLScripts/2247): material + collection kit cost of every test,
+   profile test and package against the branch's B2C rate. Packages = sum of member tests, one kit per distinct sample type. *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item active">BOM Cost Preview</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-calculator me-2"></i>BOM Cost Preview</h4>
+            <div class="text-muted small">Material cost per test against the B2C rate of the current branch</div>
+        </div>
+        <button type="button" class="btn btn-outline-success" id="btnCsv"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV</button>
+    </div>
+    <div class="row g-3 mb-3" id="kpis"></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3"><div class="row g-2 align-items-end">
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Type</label><select id="fKind" class="form-select">
+            <option value="">All</option><option value="Test">Tests</option><option value="Profile">Profile tests</option><option value="Package">Packages</option></select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Department</label><select id="fDept" class="form-select"></select></div>
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Search</label><input type="text" id="fSearch" class="form-control" placeholder="Name or code..." /></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Show</label><select id="fShow" class="form-select">
+            <option value="">Everything</option><option value="loss">Cost above rate</option><option value="low">Margin below 30%</option><option value="missing">BOM missing</option><option value="norate">No B2C rate</option></select></div>
+        <div class="col-md-2"><button type="button" class="btn btn-secondary w-100" id="btnFilter"><i class="bi bi-funnel me-1"></i>Filter</button></div>
+    </div></div></div>
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Type</th><th>Code</th><th>Name</th><th>Department</th><th class="text-end">Material</th><th class="text-end">Kit</th>
+            <th class="text-end">Total cost</th><th class="text-end">B2C rate</th><th class="text-end">Margin</th><th class="text-end pe-3">Margin %</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="10" class="text-center text-muted py-4">Loading...</td></tr></tbody></table>
+    </div></div></div>
+    <div class="small text-muted mt-2"><i class="bi bi-info-circle me-1"></i>Costs use the default BOM (no analyzer) and the items' current unit cost. A missing BOM counts as ₹0 material, so its margin is overstated.</div>
+</div>
+
+@section Scripts {
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson);
+    const $ = id => document.getElementById(id);
+    let data = [], shown = [];
+    $('fDept').innerHTML = QC.options(L.departments, '', 'All departments');
+    $('fKind').addEventListener('change', () => { $('fDept').disabled = $('fKind').value === 'Package'; });
+
+    const kpi = (label, value, cls, icon) => `<div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100"><div class="card-body py-2">
+        <div class="small text-muted"><i class="bi ${icon} me-1"></i>${label}</div><div class="fs-5 fw-bold ${cls}">${value}</div></div></div></div>`;
+    const filterRow = r => {
+        switch ($('fShow').value) {
+            case 'loss': return r.Margin != null && r.Margin < 0;
+            case 'low': return r.MarginPct != null && r.MarginPct < 30;
+            case 'missing': return r.MissingBom > 0;
+            case 'norate': return r.Rate == null;
+            default: return true;
+        }
+    };
+    function render() {
+        shown = data.filter(filterRow);
+        const costed = data.filter(r => !r.MissingBom), loss = data.filter(r => r.Margin != null && r.Margin < 0);
+        const withRate = costed.filter(r => r.MarginPct != null), avg = withRate.length ? withRate.reduce((s, r) => s + r.MarginPct, 0) / withRate.length : null;
+        $('kpis').innerHTML = kpi('Items listed', data.length, '', 'bi-list-ul') + kpi('Fully costed', `${costed.length} <span class="fs-6 text-muted">/ ${data.length}</span>`, 'text-success', 'bi-check2-circle')
+            + kpi('Cost above rate', loss.length, loss.length ? 'text-danger' : '', 'bi-exclamation-triangle') + kpi('Average margin (costed)', avg == null ? '—' : QC.num(avg, 1) + '%', '', 'bi-graph-up');
+        $('rows').innerHTML = shown.length ? shown.map(r => {
+            const kindBadge = { Test: 'bg-light text-dark', Profile: 'bg-info-subtle text-info-emphasis', Package: 'bg-primary-subtle text-primary' }[r.Kind] || 'bg-light';
+            const miss = r.MissingBom > 0 ? (r.Kind === 'Package' ? `<span class="badge bg-warning-subtle text-warning-emphasis border ms-1">${r.MissingBom} of ${r.Tests} tests without BOM</span>`
+                : '<span class="badge bg-warning-subtle text-warning-emphasis border ms-1">No BOM</span>') : '';
+            const neg = r.Margin != null && r.Margin < 0;
+            return `<tr class="${neg ? 'table-danger' : ''}">
+                <td class="ps-3"><span class="badge ${kindBadge} border">${r.Kind}</span></td><td class="font-monospace small">${QC.esc(r.Code || '')}</td>
+                <td><span class="fw-semibold">${QC.esc(r.Name)}</span>${miss}${r.Kind === 'Package' ? `<div class="small text-muted">${r.Tests} tests</div>` : ''}</td>
+                <td class="small">${QC.esc(r.DepartmentName || '—')}</td>
+                <td class="text-end">${QC.money(r.MaterialCost)}</td><td class="text-end">${QC.money(r.KitCost)}</td><td class="text-end fw-semibold">${QC.money(r.TotalCost)}</td>
+                <td class="text-end">${r.Rate == null ? '<span class="text-muted small">No rate</span>' : QC.money(r.Rate)}</td>
+                <td class="text-end ${neg ? 'text-danger fw-bold' : ''}">${QC.money(r.Margin)}</td>
+                <td class="text-end pe-3 ${neg ? 'text-danger fw-bold' : (r.MarginPct != null && r.MarginPct < 30 ? 'text-warning-emphasis' : 'text-success')}">${r.MarginPct == null ? '—' : QC.num(r.MarginPct, 1) + '%'}</td></tr>`;
+        }).join('') : '<tr><td colspan="10" class="text-center text-muted py-4">Nothing matches.</td></tr>';
+    }
+    async function load() {
+        $('rows').innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Loading...</td></tr>';
+        const kind = $('fKind').value;
+        const r = await QC.get('@Url.Action("List", "QcCostPreview")', { kind, departmentId: kind === 'Package' ? '' : $('fDept').value, search: $('fSearch').value });
+        if (!r.success) { $('rows').innerHTML = `<tr><td colspan="10" class="text-danger text-center py-4">${QC.esc(r.message)}</td></tr>`; return; }
+        data = r.data || []; render();
+    }
+    $('btnCsv').addEventListener('click', () => {
+        const head = ['Type', 'Code', 'Name', 'Department', 'Tests', 'Tests without BOM', 'Material cost', 'Kit cost', 'Total cost', 'B2C rate', 'Margin', 'Margin %'];
+        const cell = v => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const csv = [head, ...shown.map(r => [r.Kind, r.Code, r.Name, r.DepartmentName, r.Tests, r.MissingBom, r.MaterialCost, r.KitCost, r.TotalCost, r.Rate, r.Margin, r.MarginPct])]
+            .map(row => row.map(cell).join(',')).join('\r\n');
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
+        a.download = `BOM_Cost_Preview_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+    });
+    $('btnFilter').addEventListener('click', load);
+    $('fShow').addEventListener('change', render);
+    $('fSearch').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+    load();
+})();
+</script>
+}

@@ -18,6 +18,8 @@ public interface IDoctorCommissionService
         string? revenueType = null, bool? isActive = null, string? search = null, int? companyId = null);
     Task<DoctorCommissionConfigDto?> GetCommissionConfigByIdAsync(int id);
     Task<int> SaveCommissionConfigAsync(DoctorCommissionConfigSaveRequest request);
+    Task SetCommissionConfigServicesAsync(int id, IEnumerable<int>? serviceIds);   // SQLScripts/2517
+    Task<IEnumerable<DoctorCommissionServiceOptionDto>> GetCommissionServiceOptionsAsync(int companyId, int? branchId);
     Task<bool> DeleteCommissionConfigAsync(int id);
 
     // 3. Doctor Disbursal Workbench

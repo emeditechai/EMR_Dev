@@ -1,0 +1,8 @@
+@* Lab Reporting / Image Report Entry / Microbiology Report Entry list pages: the Department, Category and Sub Category
+   filters become type-to-search dropdowns (Select2). The page's own code keeps filling, cascading and reading these
+   <select> elements exactly as before; this only puts a search box on top and keeps its display in step. *@
+<link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" asp-append-version="true" />
+<link rel="stylesheet" href="~/css/views/Shared/_FilterAutoSuggest.css" asp-append-version="true" />
+<script src="~/lib/select2/dist/js/select2.min.js" asp-append-version="true"></script>
+<script src="~/js/views/Shared/_FilterAutoSuggest.js" asp-append-version="true"></script>

@@ -13,18 +13,7 @@
 }
 
 @section HeadStyles {
-    <style>
-        .stat-card { border-radius:12px; border:1px solid #e9ecef; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:1rem 1.4rem; }
-        .stat-card .stat-icon { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem; }
-        .stat-card .stat-val  { font-size:1.6rem;font-weight:700;line-height:1; }
-        .table>thead>tr>th { font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; border-bottom:2px solid #dee2e6; white-space:nowrap; }
-        .table>tbody>tr>td { font-size:.88rem; vertical-align:middle; }
-        .badge-status-P { background:#d1e7dd; color:#0f5132; }
-        .badge-status-R { background:#fff3cd; color:#664d03; }
-        .badge-status-U { background:#f8d7da; color:#842029; }
-        .partner-badge-F { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
-        .partner-badge-C { background:#f3e8ff; color:#6b21a8; border:1px solid #e9d5ff; }
-    </style>
+    <link rel="stylesheet" href="~/css/views/LabOrderBooking/B2BRegistration.css" asp-append-version="true" />
 }
 
 @* ── Payment Modal (Standby mode for on-demand collection) ── *@
@@ -107,21 +96,7 @@
 </div>
 
 @* ── Filter bar ── *@
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const type = document.getElementById('ddlAgentType'), partner = document.getElementById('ddlAgentId');
-        if (!type || !partner) return;
-        // Franchise / Company lists only partners of the chosen type; "All" types = all partners
-        type.addEventListener('change', function () {
-            const t = type.value;
-            [...partner.options].forEach(o => { if (o.value) o.hidden = !!t && o.dataset.type !== t; });
-            partner.value = '';
-            partner.disabled = !t;
-            type.form.submit();
-        });
-        partner.addEventListener('change', () => partner.form.submit());
-    });
-</script>
+<script src="~/js/views/LabOrderBooking/B2BRegistration.js" asp-append-version="true"></script>
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body py-2 px-3">
         <form method="get" asp-action="B2BRegistration" class="row g-2 align-items-end">
@@ -226,6 +201,10 @@
                             {
                                 <span class="badge bg-secondary-subtle text-secondary ms-1 font-monospace">@item.TokenNo</span>
                             }
+                            @if (!string.IsNullOrEmpty(item.BookingNo))
+                            {
+                                <div class="mt-1"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" title="Booking No"><i class="bi bi-journal-bookmark me-1"></i>@item.BookingNo</span></div>
+                            }
                             @if (item.IsUrgent)
                             {
                                 <span class="badge bg-danger ms-1" style="font-size:0.7rem;"><i class="bi bi-lightning-charge-fill me-0.5"></i>Urgent</span>
@@ -263,7 +242,7 @@
                             <div class="text-muted small">@(!string.IsNullOrEmpty(item.AgentCode) ? item.AgentCode : ("ID: " + item.B2BAgentId))</div>
                         </td>
                         <td>
-                            <span class="badge bg-light text-dark border me-1">@item.ItemCount test@(item.ItemCount != 1 ? "s" : "")</span>
+                            <span class="badge bg-light text-dark border">@item.ItemCount test@(item.ItemCount != 1 ? "s" : "")</span><button type="button" class="btn btn-sm btn-link p-0 ms-1 me-1 align-baseline btn-bill-tests" data-order-id="@item.LabOrderId" data-bill-no="@item.BillNo" title="View the tests of this bill"><i class="bi bi-eye"></i></button>
                             @if (!string.IsNullOrEmpty(item.TestNamesSummary))
                             {
                                 <span class="text-muted small text-truncate d-inline-block" style="max-width:180px;" title="@item.TestNamesSummary">
@@ -296,7 +275,7 @@
                                 <button type="button" class="btn btn-outline-secondary" onclick="viewOrderDetail(@item.LabOrderId)" title="View Order Details">
                                     <i class="bi bi-eye"></i>
                                 </button>
-                                <a asp-permission="LAB.LABORDERBOOKING.B2BREGISTRATION:PRINT" href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = item.LabOrderId })" target="_blank" class="btn btn-outline-success" title="Print Bill">
+                                <a asp-permission="LAB.LABORDERBOOKING.B2BREGISTRATION:PRINT" href="@Url.ActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId = item.LabOrderId })" target="_blank" class="btn btn-outline-success" title="Print Bill">
                                     <i class="bi bi-printer"></i>
                                 </a>
                                 @if (showLabReportPrint && item.ApprovedTestCount > 0)
@@ -328,16 +307,16 @@
             <nav>
                 <ul class="pagination pagination-sm mb-0">
                     <li class="page-item @(!Model.HasPrevious ? "disabled" : "")">
-                        <a class="page-link" asp-action="B2BRegistration" asp-route-page="@(Model.Page - 1)" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-agentType="@agentType" asp-route-agentId="@agentIdRoute">&laquo;</a>
+                        <a class="page-link" asp-action="B2BRegistration" asp-encrypted-route-page="@(Model.Page - 1)" asp-encrypted-route-fromDate="@fromDate" asp-encrypted-route-toDate="@toDate" asp-encrypted-route-search="@Model.Search" asp-encrypted-route-agentType="@agentType" asp-encrypted-route-agentId="@agentIdRoute">&laquo;</a>
                     </li>
                     @for (int p = Math.Max(1, Model.Page - 2); p <= Math.Min(Model.TotalPages, Model.Page + 2); p++)
                     {
                         <li class="page-item @(p == Model.Page ? "active" : "")">
-                            <a class="page-link" asp-action="B2BRegistration" asp-route-page="@p" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-agentType="@agentType" asp-route-agentId="@agentIdRoute">@p</a>
+                            <a class="page-link" asp-action="B2BRegistration" asp-encrypted-route-page="@p" asp-encrypted-route-fromDate="@fromDate" asp-encrypted-route-toDate="@toDate" asp-encrypted-route-search="@Model.Search" asp-encrypted-route-agentType="@agentType" asp-encrypted-route-agentId="@agentIdRoute">@p</a>
                         </li>
                     }
                     <li class="page-item @(!Model.HasNext ? "disabled" : "")">
-                        <a class="page-link" asp-action="B2BRegistration" asp-route-page="@(Model.Page + 1)" asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-agentType="@agentType" asp-route-agentId="@agentIdRoute">&raquo;</a>
+                        <a class="page-link" asp-action="B2BRegistration" asp-encrypted-route-page="@(Model.Page + 1)" asp-encrypted-route-fromDate="@fromDate" asp-encrypted-route-toDate="@toDate" asp-encrypted-route-search="@Model.Search" asp-encrypted-route-agentType="@agentType" asp-encrypted-route-agentId="@agentIdRoute">&raquo;</a>
                     </li>
                 </ul>
             </nav>
@@ -367,6 +346,8 @@
         </div>
     </div>
 </div>
+
+<partial name="_BillTestsPopup" />
 
 @section Scripts {
     <script src="~/js/lab-compliance-docs-viewer.js"></script>
@@ -465,6 +446,7 @@
                                 <div class="text-muted small">Patient</div>
                                 <div class="fw-bold">${data.patientName || '—'}</div>
                                 <div class="text-muted small">${data.patientCode || '—'} &bull; ${data.gender || ''} &bull; ${data.age || ''} yrs</div>
+                                ${data.lmpDate ? `<div class="small fw-semibold" style="color:#be185d">LMP ${new Date(data.lmpDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>` : ''}
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -473,6 +455,7 @@
                                 <div>${partnerBadge} <strong class="ms-1">${partnerName}</strong></div>
                                 <div class="text-muted small">Collection: ${data.collectionType || 'B2BCollector'}</div>
                                 <div class="text-muted small">Referred By: <span class="fw-semibold text-dark">${data.referralDoctorName || 'Self'}</span></div>
+                                ${data.marketingExecutiveName ? `<div class="text-muted small">Marketing Exec.: <span class="fw-semibold" style="color:#9a3412;"><i class="bi bi-person-badge me-1"></i>${data.marketingExecutiveName} · ${data.marketingExecutiveType === 'MED' ? 'MED (Pharmacy)' : (data.marketingExecutiveType || '')}</span></div>` : ''}
                             </div>
                         </div>
                         <div class="col-md-3">

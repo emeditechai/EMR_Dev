@@ -1,0 +1,131 @@
+@{
+    // Reports > LAB > B2B Billing Report (SQLScripts/2340): every B2B bill with all its billed tests, in bill-date order.
+    // Same bills and filters as the B2B Partner Billing Register (same procedure); Excel / PDF are grouped partner-wise.
+    ViewData["Title"] = "B2B Billing Report";
+    ViewData["ReportSubtitle"] = "bill-wise detail of every franchise / corporate bill with its tests and rates";
+    ViewData["ReportIcon"] = "bi-list-columns-reverse";
+    ViewData["ReportAccent"] = "#0369a1";
+    ViewData["DateLabel"] = "bill date";
+    ViewData["BranchWide"] = true;
+    // 2260: a franchise login sees only the bills it created or that are for its own franchise
+    if (User.IsFranchiseUser()) { ViewData["ScopeNote"] = "Your franchise's bills only"; }
+}
+<partial name="_LabReportShell" />
+<style>#lrDetail td.lr-partner { min-width: 190px; }</style>
+
+@section Scripts {
+<script src="~/js/lab-report.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const billUrl = '@Url.Action("PrintBill", "LabOrderBooking")';
+    const typePill = (v, h) => v === 'Franchise' ? h.pill('Franchise', 'bg-info-subtle text-info-emphasis border-info-subtle') : h.pill('Corporate', 'bg-primary-subtle text-primary border-primary-subtle');
+    const payChip = (part, h) => part === 'Credit' ? h.pill('Credit', 'bg-warning-subtle text-warning-emphasis border-warning-subtle')
+        : part === 'Wallet' ? h.pill('Wallet', 'bg-primary-subtle text-primary border-primary-subtle')
+        : h.pill(h.esc(part), 'bg-success-subtle text-success border-success-subtle');
+    const statusPill = (s, h) => s === 'Paid' ? h.pill('Paid', 'bg-success-subtle text-success border-success-subtle')
+        : s === 'Partially Paid' ? h.pill('Partially Paid', 'bg-warning-subtle text-warning-emphasis border-warning-subtle')
+        : s === 'Cancelled' ? h.pill('Cancelled', 'bg-light text-secondary border')
+        : h.pill('Unpaid', 'bg-danger-subtle text-danger border-danger-subtle');
+    const ageSex = r => [r.PatientAge, r.Gender].filter(Boolean).join(' / ') || '—';
+    const invoiced = r => r.InvoiceNo ? 'Yes' : 'No';
+    // the bill's billed items (tests, profiles, packages and misc charges) at the rate billed to the partner
+    const linesOf = (r, data) => (data?.lines || []).filter(l => l.LabOrderId === r.LabOrderId);
+    const itemName = l => `${l.TestName}${l.ItemType && l.ItemType !== 'Test' ? ' [' + l.ItemType + ']' : ''}`;
+    let loaded = null;   // the last load (columns read its test lines)
+    const byDate = (a, b) => String(a.BillDate).localeCompare(String(b.BillDate)) || a.LabOrderId - b.LabOrderId;
+
+    LabReport.init({
+        report: 'b2b-billing-report', title: 'B2B Billing Report', defaultRange: 'month', startView: 'detail',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Bill No, Token, patient or partner name...',
+        filters: [
+            { id: 'partnerType', label: 'Partner type', allLabel: 'Franchise & corporate', options: [['F', 'Franchise'], ['C', 'Corporate']] },
+            { id: 'partner', label: 'Partner', allLabel: 'All partners', fromOptions: 'partner' },
+            { id: 'paymentMethod', label: 'Payment method', allLabel: 'All methods', fromOptions: 'paymentMethod',
+              options: [['CREDIT', 'Credit'], ['WALLET', 'Wallet'], ['SPOT', 'Spot payment (any mode)']] }
+        ],
+        // the list in bill-date order (oldest first)
+        // (afterLoad also gets a graph placeholder from the shared script; this page has no graph)
+        afterLoad: data => { loaded = data; (data.rows || []).sort(byDate); $('#lrExtra').empty(); },
+        kpis: [
+            { label: 'Bills', color: '#0369a1', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.PartnerCount)} partners` },
+            { label: 'Tests', color: '#7c3aed', value: (s, h) => h.num(s.TestCount), sub: () => 'billed items' },
+            { label: 'Billed', color: '#475569', value: (s, h) => h.money(s.ContractAmount), sub: () => 'at partner rates' },
+            { label: 'Collected', color: '#15803d', value: (s, h) => h.money(s.PaidAmount), sub: (s, h) => `wallet ${h.money(s.WalletAmount)} · spot ${h.money(s.SpotAmount)}` },
+            { label: 'Due', color: '#b91c1c', value: (s, h) => h.money(s.DueAmount), sub: (s, h) => `${h.num(s.NotInvoiced)} bill(s) not invoiced yet` }
+        ],
+        groups: [
+            { key: 'byPartner', label: 'Partner', rowField: 'PartnerName', name: (r, h) => `${h.esc(r.GroupName)} <span class="ms-1">${typePill(r.Detail, h)}</span>` },
+            { key: 'byDate', label: 'Bill date', rowField: 'BillDay', name: (r, h) => h.fmtD(r.GroupName) },
+            { key: 'byPartnerType', label: 'Partner type', rowField: 'PartnerType', name: (r, h) => typePill(r.GroupName, h) },
+            { key: 'byPayMethod', label: 'Payment method', rowField: 'PaymentMethod', name: (r, h) => String(r.GroupName || 'Credit').split(' + ').map(p => payChip(p, h)).join(' ') }
+        ],
+        groupCols: [
+            { field: 'BillCount', label: 'Bills', num: true }, { field: 'TestCount', label: 'Tests', num: true },
+            { field: 'ContractAmount', label: 'Billed', money: true }, { field: 'PaidAmount', label: 'Collected', money: true }, { field: 'DueAmount', label: 'Due', money: true }
+        ],
+        shareOf: 'ContractAmount',
+        cols: [
+            { label: 'Bill Date', cls: 'text-nowrap', html: (r, h) => h.fmtDT(r.BillDate), text: (r, h) => h.fmtDT(r.BillDate) },
+            { label: 'Bill No', html: (r, h) => `<span class="fw-semibold font-monospace">${h.esc(r.BillNo)}</span>`, text: r => r.BillNo },
+            { label: 'Token No', html: (r, h) => `<span class="font-monospace fs-9">${h.esc(r.TokenNo || '')}</span>`, text: r => r.TokenNo || '' },
+            { label: 'Partner', cls: 'lr-partner', html: (r, h) => `<div class="fw-semibold">${h.esc(r.PartnerName)}</div><div class="fs-9">${typePill(r.PartnerType, h)}</div>`, text: r => r.PartnerName },
+            { label: 'Patient Name', html: (r, h) => h.esc(r.PatientName), text: r => r.PatientName },
+            { label: 'Patient ID', html: (r, h) => `<span class="font-monospace fs-9">${h.esc(r.PatientCode)}</span>`, text: r => r.PatientCode },
+            { label: 'Age/Sex', cls: 'text-nowrap', html: (r, h) => h.esc(ageSex(r)), text: r => ageSex(r) },
+            // every billed item of the bill on its own line, its rate beside it in the next column
+            { label: 'Tests Item', html: (r, h) => { const ls = linesOf(r, loaded);
+                  return ls.length ? ls.map(l => `<div class="text-nowrap">${h.esc(itemName(l))}</div>`).join('') +
+                      `<div class="text-muted border-top mt-1 pt-1">${ls.length} item${ls.length === 1 ? '' : 's'}</div>` : h.esc(r.TestNames || ''); },
+              text: r => r.TestNames || '' },
+            { label: 'Rate', cls: 'text-end amt', html: (r, h) => linesOf(r, loaded).map(l => `<div>${h.money(l.ContractAmount)}</div>`).join('') +
+                `<div class="fw-semibold border-top mt-1 pt-1">${h.money(r.ContractAmount)}</div>`, text: r => r.ContractAmount, sum: 'ContractAmount' },
+            { label: 'Payment Method', html: (r, h) => String(r.PaymentMethod || 'Credit').split(' + ').map(p => payChip(p, h)).join(' '), text: r => r.PaymentMethod || 'Credit' },
+            { label: 'Billed By', cls: 'text-nowrap', html: (r, h) => h.esc(r.CreatedBy), text: r => r.CreatedBy },
+            { label: 'Payment Status', html: (r, h) => statusPill(r.PaymentStatus, h), text: r => r.PaymentStatus },
+            { label: 'Invoice Generated', html: (r, h) => r.InvoiceNo ? `<span class="badge bg-success-subtle text-success border border-success-subtle">Yes</span><div class="font-monospace fs-9">${h.esc(r.InvoiceNo)}</div>`
+                : '<span class="badge bg-light text-secondary border">No</span>', text: r => invoiced(r) },
+            { label: 'Bill', cls: 'text-center no-print', noExport: true, html: r => `<a class="btn btn-sm btn-outline-primary py-0 px-2" target="_blank" title="Print bill" href="${billUrl}?labOrderId=${r.LabOrderId}"><i class="bi bi-printer"></i></a>` }
+        ],
+        rowClass: r => r.IsCancelled ? 'row-muted' : '',
+        // Excel / PDF (Detail): partner-wise sections; in each, the bills in bill-date order with every test on its own row
+        // (the bill's columns span its tests), a total per bill, a subtotal per partner and a grand total. Same column names as the screen.
+        exportGrouped: (rows, data, h) => {
+            const sum = xs => xs.reduce((a, r) => a + (Number(r.ContractAmount) || 0), 0);
+            const partners = [];
+            [...rows].sort(byDate).forEach(r => {
+                let p = partners.find(x => x.name === r.PartnerName);
+                if (!p) partners.push(p = { name: r.PartnerName, type: r.PartnerType, rows: [] });
+                p.rows.push(r);
+            });
+            partners.sort((a, b) => a.name.localeCompare(b.name));
+            let no = 0;
+            return {
+                head: ['#', 'Bill Date', 'Bill No', 'Token No', 'Patient Name', 'Patient ID', 'Age/Sex', 'Tests Item', 'Rate (₹)',
+                       'Payment Method', 'Billed By', 'Payment Status', 'Invoice Generated'],
+                left: 7, valueAt: 8, right: 4,
+                sections: partners.map(p => {
+                    const tests = p.rows.reduce((a, r) => a + linesOf(r, data).length, 0);
+                    return {
+                        title: `Partner: ${p.name} (${p.type})  ·  ${p.rows.length} bill(s), ${tests} test(s)`,
+                        bills: p.rows.map(r => {
+                            const ls = linesOf(r, data);
+                            return {
+                                cells: [++no, h.fmtDT(r.BillDate), r.BillNo, r.TokenNo || '', r.PatientName, r.PatientCode, ageSex(r)],
+                                lines: ls.length ? ls.map(l => [itemName(l), l.ContractAmount || 0]) : [[r.TestNames || '', r.ContractAmount || 0]],
+                                after: [r.PaymentMethod || 'Credit', r.CreatedBy || '', r.PaymentStatus || '',
+                                        r.InvoiceNo ? `Yes (${r.InvoiceNo})` : 'No'],
+                                total: { label: `Bill ${r.BillNo} total`, values: [r.ContractAmount || 0] }
+                            };
+                        }),
+                        subtotal: { label: `Subtotal for ${p.name}`, values: [sum(p.rows)] }
+                    };
+                }),
+                grand: { label: `Grand total  ·  ${rows.length} bill(s)`, values: [sum(rows)] }
+            };
+        }
+    });
+})();
+</script>
+}

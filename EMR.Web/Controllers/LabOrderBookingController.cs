@@ -46,8 +46,52 @@ namespace EMR.Web.Controllers
         IB2BBillingApiClient b2bBillingApiClient,
         ILogger<LabOrderBookingController> logger,
         EMR.Shared.Security.IActionPermissionGuard permissionGuard,
-        IPatientPortalLoginService portalLoginService) : Controller
+        IPatientPortalLoginService portalLoginService,
+        IBillingSubmissionApiClient billingSubmissionApiClient) : Controller
     {
+        /// <summary>SQLScripts/2484: the refusal (with the reason) when the referral doctor is suspended, else null.</summary>
+        private Task<string?> DoctorSuspendedAsync(int? doctorId) =>
+            HttpContext.RequestServices.GetRequiredService<IDoctorService>().SuspensionBlockAsync(doctorId, "the referral doctor");
+
+        /// <summary>One bill per booking (SQLScripts/2310): the billed tests / packages / misc lines, to tell a retry of the
+        /// same booking from a changed one.</summary>
+        private static string LabItemsSignature(IEnumerable<LabOrderItemRequestDto> items, IEnumerable<object>? misc)
+        {
+            var parts = items.Select(x => $"{x.Type}:{x.InvestigationId}:{x.Price:0.00}").OrderBy(x => x, StringComparer.Ordinal).ToList();
+            if (misc != null) parts.AddRange(misc.Select(m => "M:" + System.Text.Json.JsonSerializer.Serialize(m)).OrderBy(x => x, StringComparer.Ordinal));
+            var text = string.Join(",", parts);
+            return text.Length <= 1000 ? text
+                : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)));
+        }
+
+        /// <summary>For a franchise login the partner on a B2B bill is always its own franchise, whatever the form posted.</summary>
+        private void LockToOwnFranchise(LabOrderBookingViewModel model)
+        {
+            if (User.GetFranchiseId() is not int ownFranchiseId) return;
+            model.IsB2B = true;
+            model.AgentType = "F";
+            model.B2BAgentId = ownFranchiseId;
+        }
+
+        /// <summary>A franchise login sees and acts only for its own franchise on the B2B invoice / settlement screens,
+        /// whoever generated the invoice; other logins: any partner. True when the partner is allowed.</summary>
+        private bool FranchiseMayUsePartner(string? agentType, int? agentId)
+        {
+            if (User.GetFranchiseId() is not int ownFranchiseId) return true;
+            var type = agentType?.Trim().ToUpperInvariant();
+            return (type == "F" || type == "FRANCHISE") && agentId == ownFranchiseId;
+        }
+
+        /// <summary>True unless a franchise login asks for a bill that is not its own (created by that login, or for its franchise - 2258).</summary>
+        private async Task<bool> FranchiseOwnsOrderAsync(int labOrderId)
+        {
+            if (User.GetFranchiseId() is not int ownFranchiseId) return true;
+            var owned = await dbContext.Database
+                .SqlQuery<int>($"SELECT COUNT(1) AS Value FROM dbo.LabOrder WHERE LabOrderId = {labOrderId} AND ((AgentType = 'F' AND B2BAgentID = {ownFranchiseId}) OR CreatedBy = {User.GetUserId()})")
+                .SingleAsync();
+            return owned > 0;
+        }
+
         [HttpGet]
         public async Task<IActionResult> B2BBooking(int? patientId)
         {
@@ -57,6 +101,11 @@ namespace EMR.Web.Controllers
                 AgentType = "F",
                 CollectionType = "B2BCollector"
             };
+            // a franchise login bills only for its own franchise: preselected, and the selector is locked in the view
+            if (User.GetFranchiseId() is int ownFranchiseId)
+            {
+                model.B2BAgentId = ownFranchiseId;
+            }
 
             if (patientId.HasValue && patientId > 0)
             {
@@ -73,7 +122,7 @@ namespace EMR.Web.Controllers
                     model.DateOfBirth = patient.DateOfBirth;
                     if (patient.DateOfBirth.HasValue)
                     {
-                        var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
+                        var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
                         model.AgeYears = y;
                         model.AgeMonths = m;
                         model.AgeDays = d;
@@ -82,7 +131,10 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
-                    model.Address = patient.Address;
+                    model.AbhaNumber = patient.AbhaNumber;
+                    model.AbhaAddress = patient.AbhaAddress;
+                    model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
+                    model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
                     model.Latitude = patient.Latitude;
                     model.Longitude = patient.Longitude;
@@ -101,6 +153,7 @@ namespace EMR.Web.Controllers
             IFormFile? consentFile, string? consentRemarks)
         {
             model.IsB2B = true;
+            LockToOwnFranchise(model);
             var branchId = User.GetCurrentBranchId();
             if (branchId is null)
             {
@@ -118,6 +171,9 @@ namespace EMR.Web.Controllers
                 else if (PaymentService.HasDiscount(discountCheck)
                          && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BBOOKING", EMR.Shared.Security.PermissionControls.Discount))
                     ModelState.AddModelError(string.Empty, PaymentService.DiscountNotPermittedMessage);
+                // Hospital Settings "Block Billing Until Day Closed" (SQLScripts/2275)
+                if (await DayClosingGuard.BlockMessageAsync(HttpContext, "LAB", branchId, User.GetUserId()) is string dayClosingBlock)
+                    ModelState.AddModelError(string.Empty, dayClosingBlock);
             }
 
             if (!model.DemographicsOnly)
@@ -130,6 +186,8 @@ namespace EMR.Web.Controllers
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;
+            // 2384: "Is Booking Req" off - the booking is now, as before (the screen's date is ignored)
+            if (!model.IsBookingRequired) model.BookingDateTime = DateTime.Now;
             if (!model.DemographicsOnly)
             {
                 if (model.BookingDateTime < DateTime.Now.AddMinutes(-2))
@@ -175,6 +233,10 @@ namespace EMR.Web.Controllers
                 {
                     ModelState.AddModelError(nameof(model.LineItemsJson), "One or more tests have an invalid Investigation ID. Please re-select the tests.");
                 }
+                else if (lineItems.Any(x => (x.B2BRate is > 0 ? x.B2BRate.Value : x.Price) <= 0))
+                {
+                    ModelState.AddModelError(nameof(model.LineItemsJson), ZeroPriceMessage(lineItems.Where(x => (x.B2BRate is > 0 ? x.B2BRate.Value : x.Price) <= 0)));
+                }
             }
 
             // Validate & Reconcile Age / Date of Birth
@@ -197,7 +259,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                    model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
                 }
             }
             else if (model.DateOfBirth.HasValue)
@@ -208,7 +270,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                    var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                     model.AgeYears = y;
                     model.AgeMonths = m;
                     model.AgeDays = d;
@@ -218,6 +280,10 @@ namespace EMR.Web.Controllers
             {
                 ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
             }
+            if (LmpError(model) is { } lmpError) ModelState.AddModelError(nameof(model.LmpDate), lmpError);   // 2453
+            // a suspended doctor cannot be the referral doctor of a booking (SQLScripts/2484)
+            if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ReferralDoctorId) is { } suspended)
+                ModelState.AddModelError(nameof(model.ReferralDoctorId), suspended);
 
             if (!ModelState.IsValid)
             {
@@ -271,6 +337,7 @@ namespace EMR.Web.Controllers
                 model.PhotoPath = $"/uploads/patients/{fileName}";
             }
 
+            await KeepStoredPhoneAsync(model);   // an existing patient's phone is changed only in Patient Master
             var patient = new PatientMaster
             {
                 PatientId = model.PatientId,
@@ -288,6 +355,8 @@ namespace EMR.Web.Controllers
                 IdentificationFilePath = model.IdentificationFilePath,
                 IdentificationTypeId = model.IdentificationTypeId,
                 IdentificationNumber = model.IdentificationNumber,
+                AbhaNumber = model.AbhaNumber,
+                AbhaAddress = model.AbhaAddress,
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -296,6 +365,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -306,10 +376,17 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1,
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            {
+                ModelState.AddModelError(string.Empty, "The selected patient does not belong to this company. Search the patient again.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             int actualPatientId = model.PatientId;
             if (model.PatientId == 0)
             {
@@ -324,6 +401,23 @@ namespace EMR.Web.Controllers
                 var existing = await patientService.GetByIdAsync(model.PatientId);
                 if (string.IsNullOrWhiteSpace(model.IdentificationFilePath)) patient.IdentificationFilePath = existing?.IdentificationFilePath;
                 if (string.IsNullOrWhiteSpace(model.PhotoPath)) patient.PhotoPath = existing?.PhotoPath;
+                // The B2B form has no religion, guardian, country/state/district/city/area, occupation, marital status,
+                // language, allergies or remarks fields: keep what the patient already has (B2C / OPD may have set them).
+                if (existing is not null)
+                {
+                    patient.ReligionId = existing.ReligionId;
+                    patient.GuardianName = existing.GuardianName;
+                    patient.CountryId = existing.CountryId;
+                    patient.StateId = existing.StateId;
+                    patient.DistrictId = existing.DistrictId;
+                    patient.CityId = existing.CityId;
+                    patient.AreaId = existing.AreaId;
+                    patient.OccupationId = existing.OccupationId;
+                    patient.MaritalStatusId = existing.MaritalStatusId;
+                    patient.LanguageId = existing.LanguageId;
+                    patient.KnownAllergies = existing.KnownAllergies;
+                    patient.Remarks = existing.Remarks;
+                }
 
                 await patientService.UpdateDemographicsAsync(patient, User.GetUserId());
                 patient.PatientCode = existing?.PatientCode;   // after the save: the update itself is unchanged
@@ -332,7 +426,7 @@ namespace EMR.Web.Controllers
             if (model.DemographicsOnly)
             {
                 TempData["Success"] = $"Patient demographics updated successfully.";
-                return RedirectToAction(nameof(B2BBooking), new { patientId = actualPatientId });
+                return this.RedirectToActionEncrypted(nameof(B2BBooking), new { patientId = actualPatientId });
             }
 
             decimal totalAmount = lineItems!.Sum(x => x.Price);
@@ -377,6 +471,18 @@ namespace EMR.Web.Controllers
                     }
                 }
 
+                // a franchise login on a Prepaid (Wallet) facility pays from its wallet only - no spot payment
+                if (creditStatus.CreditFacilityType == 1 && User.IsFranchiseUser())
+                {
+                    if (!string.IsNullOrWhiteSpace(model.PaymentDataJson))
+                    {
+                        ModelState.AddModelError(string.Empty, "Spot payment is not available for a franchise login. The bill is paid from the franchise wallet.");
+                        await PopulateSelectLists(model);
+                        return View(model);
+                    }
+                    model.DeductFromWallet = true;
+                }
+
                 // If spot payment data is provided, precedence is given to Spot Payment (bypassing wallet deduction)
                 if (!string.IsNullOrWhiteSpace(model.PaymentDataJson))
                 {
@@ -391,7 +497,7 @@ namespace EMR.Web.Controllers
                         if (creditStatus.WalletBalance < b2bTotal)
                         {
                             var deficit = b2bTotal - creditStatus.WalletBalance;
-                            ModelState.AddModelError(string.Empty, $"Insufficient wallet balance for {creditStatus.PartnerName}! Available Wallet: ₹{creditStatus.WalletBalance:N2}, Required: ₹{b2bTotal:N2} (Deficit: ₹{deficit:N2}). Please recharge wallet or complete spot payment.");
+                            ModelState.AddModelError(string.Empty, $"Insufficient wallet balance for {creditStatus.PartnerName}! Available Wallet: ₹{creditStatus.WalletBalance:N2}, Required: ₹{b2bTotal:N2} (Deficit: ₹{deficit:N2}). " + (User.IsFranchiseUser() ? "Please contact the lab to top up your wallet." : "Please recharge wallet or complete spot payment."));
                             await PopulateSelectLists(model);
                             return View(model);
                         }
@@ -419,6 +525,9 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "B2BCollector" : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                IsBookingRequired = model.IsBookingRequired,   // 2384
+                LmpDate = string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase) ? model.LmpDate : null,   // 2453
+                PatientGender = model.Gender,
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 DueDate = dueDate,
                 IsB2B = true,
@@ -633,47 +742,7 @@ namespace EMR.Web.Controllers
                                 if (hs != null && hs.LabEmailNotificationRequired)
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
-                                    string body = $@"
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset=""utf-8"">
-<title>Your Lab Bill</title>
-<style>
-  body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }}
-  .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }}
-  .header {{ background-color: #4a6ee0; color: #ffffff; padding: 20px; text-align: center; }}
-  .header h1 {{ margin: 0; font-size: 24px; }}
-  .content {{ padding: 30px; color: #333333; line-height: 1.6; }}
-  .greeting {{ font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }}
-  .info-box {{ background-color: #f8f9fa; border-left: 4px solid #4a6ee0; padding: 15px; margin: 20px 0; border-radius: 4px; }}
-  .info-box p {{ margin: 5px 0; }}
-  .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; color: #777777; font-size: 14px; border-top: 1px solid #eeeeee; }}
-</style>
-</head>
-<body>
-<div class=""container"">
-  <div class=""header"">
-    <h1>{hs.HospitalName}</h1>
-  </div>
-  <div class=""content"">
-    <div class=""greeting"">Dear {patientNameStr},</div>
-    <p>Thank you for choosing <strong>{hs.HospitalName}</strong> for your healthcare needs.</p>
-    <div class=""info-box"">
-      <p><strong>Bill No:</strong> {savedBillNo}</p>
-      <p><strong>Date:</strong> {DateTime.Now:dd MMM yyyy}</p>
-    </div>
-    <p>Please find your detailed lab order bill attached to this email as a PDF document.</p>
-    <p>If you have any questions or require further assistance, please do not hesitate to contact us.</p>
-    <p>Wishing you the best of health,<br/><br/><strong>The {hs.HospitalName} Team</strong></p>
-  </div>
-  <div class=""footer"">
-    &copy; {DateTime.Now.Year} {hs.HospitalName}. All rights reserved.<br>
-    {hs.Address}
-  </div>
-</div>
-</body>
-</html>";
+                                    string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -739,9 +808,32 @@ namespace EMR.Web.Controllers
             TempData["B2BAgentId"]       = model.B2BAgentId?.ToString();
             TempData["B2BTotal"]         = b2bTotal.ToString("F2");
             TempData["TokenNo"]          = labOrderRes.TokenNo;
+            TempData["BookingNo"]        = labOrderRes.BookingNo;   // 2384
             TempData["PaymentMode"]      = paymentModeUsed;
             TempData["ShowPrintBarcode"] = b2bShowPrintBarcode ? "true" : "false"; // BarcodeGenerateAtBilling (B2B parity)
-            return RedirectToAction(nameof(B2BBooking), new { registered = true });
+            return this.RedirectToActionEncrypted(nameof(B2BBooking), new { registered = true });
+        }
+
+        /// <summary>A test with no price (Rs 0) cannot be billed.</summary>
+        private static string ZeroPriceMessage(IEnumerable<LabOrderItemRequestDto> items)
+        {
+            var names = items.Select(x => x.TestName ?? x.Name ?? x.TestCode ?? x.Code).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
+            return names.Count > 0
+                ? $"These tests have a price of Rs 0.00 and cannot be billed: {string.Join(", ", names)}. Set their rate first, or remove them."
+                : "One or more tests have a price of Rs 0.00 and cannot be billed. Set their rate first, or remove them.";
+        }
+
+        /// <summary>2453: LMP date of a female patient - optional; not in the future, at most a year back, after the date of
+        /// birth. Any other gender: the date is dropped (the field is hidden on the form). Checked again by usp_LabOrder_SetLmp.</summary>
+        private static string? LmpError(LabOrderBookingViewModel model)
+        {
+            if (!string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase)) { model.LmpDate = null; return null; }
+            if (model.LmpDate is not DateTime lmp) return null;
+            var today = DateTime.Today;
+            if (lmp.Date > today) return "The LMP date cannot be in the future.";
+            if (lmp.Date < today.AddDays(-365)) return "The LMP date can be at most one year back.";
+            if (model.DateOfBirth is DateTime dob && lmp.Date <= dob.Date) return "The LMP date must be after the date of birth.";
+            return null;
         }
 
         [HttpGet]
@@ -764,7 +856,7 @@ namespace EMR.Web.Controllers
                     model.DateOfBirth = patient.DateOfBirth;
                     if (patient.DateOfBirth.HasValue)
                     {
-                        var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
+                        var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(patient.DateOfBirth.Value);
                         model.AgeYears = y;
                         model.AgeMonths = m;
                         model.AgeDays = d;
@@ -773,7 +865,10 @@ namespace EMR.Web.Controllers
                     model.Salutation = patient.Salutation;
                     model.PhotoPath = patient.PhotoPath;
                     model.IdentificationFilePath = patient.IdentificationFilePath;
-                    model.Address = patient.Address;
+                    model.AbhaNumber = patient.AbhaNumber;
+                    model.AbhaAddress = patient.AbhaAddress;
+                    model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
+                    model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
                     model.Latitude = patient.Latitude;
                     model.Longitude = patient.Longitude;
@@ -795,6 +890,8 @@ namespace EMR.Web.Controllers
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;
+            // 2384: "Is Booking Req" off - the booking is now, as before (the screen's date is ignored)
+            if (!model.IsBookingRequired) model.BookingDateTime = DateTime.Now;
             if (!model.DemographicsOnly)
             {
                 if (model.BookingDateTime < DateTime.Now.AddMinutes(-2))
@@ -840,6 +937,10 @@ namespace EMR.Web.Controllers
                 {
                     ModelState.AddModelError(nameof(model.LineItemsJson), "One or more tests have an invalid Investigation ID. Please re-select the tests.");
                 }
+                else if (lineItems.Any(x => x.Price <= 0))
+                {
+                    ModelState.AddModelError(nameof(model.LineItemsJson), ZeroPriceMessage(lineItems.Where(x => x.Price <= 0)));
+                }
             }
 
             // Validate & Reconcile Age / Date of Birth
@@ -862,7 +963,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                    model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
                 }
             }
             else if (model.DateOfBirth.HasValue)
@@ -873,7 +974,7 @@ namespace EMR.Web.Controllers
                 }
                 else
                 {
-                    var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                    var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                     model.AgeYears = y;
                     model.AgeMonths = m;
                     model.AgeDays = d;
@@ -883,6 +984,10 @@ namespace EMR.Web.Controllers
             {
                 ModelState.AddModelError(nameof(model.AgeYears), "Age or Date of Birth is required.");
             }
+            if (LmpError(model) is { } lmpError) ModelState.AddModelError(nameof(model.LmpDate), lmpError);   // 2453
+            // a suspended doctor cannot be the referral doctor of a booking (SQLScripts/2484)
+            if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ReferralDoctorId) is { } suspended)
+                ModelState.AddModelError(nameof(model.ReferralDoctorId), suspended);
 
             if (!ModelState.IsValid)
             {
@@ -936,6 +1041,7 @@ namespace EMR.Web.Controllers
                 model.PhotoPath = $"/uploads/patients/{fileName}";
             }
 
+            await KeepStoredPhoneAsync(model);   // an existing patient's phone is changed only in Patient Master
             var patient = new PatientMaster
             {
                 PatientId = model.PatientId,
@@ -953,6 +1059,8 @@ namespace EMR.Web.Controllers
                 IdentificationFilePath = model.IdentificationFilePath,
                 IdentificationTypeId = model.IdentificationTypeId,
                 IdentificationNumber = model.IdentificationNumber,
+                AbhaNumber = model.AbhaNumber,
+                AbhaAddress = model.AbhaAddress,
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -961,6 +1069,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -971,10 +1080,17 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1, // Default
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+            {
+                ModelState.AddModelError(string.Empty, "The selected patient does not belong to this company. Search the patient again.");
+                await PopulateSelectLists(model);
+                return View(model);
+            }
             int actualPatientId = model.PatientId;
             if (model.PatientId == 0)
             {
@@ -996,7 +1112,7 @@ namespace EMR.Web.Controllers
             if (model.DemographicsOnly)
             {
                 TempData["Success"] = $"Patient demographics updated successfully.";
-                return RedirectToAction(nameof(B2CBooking), new { patientId = actualPatientId });
+                return this.RedirectToActionEncrypted(nameof(B2CBooking), new { patientId = actualPatientId });
             }
 
             // Create Lab Order
@@ -1007,6 +1123,9 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? "Lab" : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                IsBookingRequired = model.IsBookingRequired,   // 2384
+                LmpDate = string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase) ? model.LmpDate : null,   // 2453
+                PatientGender = model.Gender,
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 CreatedBy = User.GetUserId(),
                 Items = lineItems!
@@ -1065,23 +1184,27 @@ namespace EMR.Web.Controllers
             TempData["NewPatientName"]  = patientFullName;
             TempData["BillNo"]          = labOrderRes.BillNo;
             TempData["NewLabOrderId"]   = labOrderRes.LabOrderId.ToString();
-            return RedirectToAction(nameof(B2CBooking), new { registered = true });
+            return this.RedirectToActionEncrypted(nameof(B2CBooking), new { registered = true });
         }
 
         /// <summary>
-        /// Hospital Settings > LAB "Required Patient Portal" (B2C only, default No; script 2219): when Yes, the booked
-        /// patient gets a Patient Portal login with the credentials e-mailed, as OPD registration does (once per patient,
-        /// only with a mobile number and an e-mail). Never stops or delays the booking.
+        /// Hospital Settings "Required Patient Portal" (script 2219, checked in PatientPortalLoginService for OPD and B2C
+        /// alike): when Yes, the booked patient gets a Patient Portal login with the credentials sent, once per patient.
+        /// B2B bookings never call this. Never stops or delays the booking.
         /// </summary>
+        /// <summary>An existing patient's phone number is changed only in Patient Master > Edit: a booking keeps the stored one,
+        /// whatever the form sends (the field is also locked on the page once a patient is loaded).</summary>
+        private async Task KeepStoredPhoneAsync(LabOrderBookingViewModel model)
+        {
+            if (model.PatientId <= 0) return;
+            var stored = await patientService.GetByIdAsync(model.PatientId);
+            if (stored is not null && !string.IsNullOrWhiteSpace(stored.PhoneNumber)) model.PhoneNumber = stored.PhoneNumber;
+        }
+
         private async Task TryCreatePortalLoginForB2CAsync(int branchId, int patientId, string? patientCode, PatientMaster patient)
         {
             try
             {
-                var required = await dbContext.HospitalSettings
-                    .Where(s => s.BranchId == branchId && s.IsActive)
-                    .Select(s => s.LabPatientPortalRequired)
-                    .FirstOrDefaultAsync();
-                if (!required) return;
                 if (string.IsNullOrWhiteSpace(patientCode)) patientCode = (await patientService.GetByIdAsync(patientId))?.PatientCode;
                 if (string.IsNullOrWhiteSpace(patientCode)) return;
                 await portalLoginService.TryGenerateAsync(patientId, patientCode, patient.PhoneNumber ?? "", patient.EmailId ?? "",
@@ -1104,8 +1227,20 @@ namespace EMR.Web.Controllers
             [FromForm] IFormFile? ovdDocumentFile,
             [FromForm] string? ovdDocumentRemarks,
             [FromForm] IFormFile? consentFile,
-            [FromForm] string? consentRemarks)
+            [FromForm] string? consentRemarks,
+            [FromForm] string? bookingRequestKey)
         {
+            LockToOwnFranchise(model);
+            // This route does not stop on ModelState: refuse a wrong ABHA Number before anything is saved (SQLScripts/2355)
+            if (ModelState[nameof(model.AbhaNumber)]?.Errors.Count > 0)
+                return Json(new { success = false, error = "ABHA Number must have 14 digits." });
+            if (LmpError(model) is { } lmpErr) return Json(new { success = false, error = lmpErr });   // 2453
+            // a suspended doctor cannot be the referral doctor of a booking (SQLScripts/2484)
+            if (!model.DemographicsOnly && await DoctorSuspendedAsync(model.ReferralDoctorId) is { } suspendedRef)
+                return Json(new { success = false, error = suspendedRef });
+            // One bill per booking (SQLScripts/2310): the key of this booking form; a retry reuses the bill it created
+            Guid requestKey = Guid.TryParse(bookingRequestKey, out var rk) ? rk : Guid.Empty;
+            bool keyClaimed = false;      // this request holds the key and has not created the bill yet
             try
             {
             var branchId = User.GetCurrentBranchId();
@@ -1113,6 +1248,10 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, error = "Please select a branch first." });
             }
+
+            // Hospital Settings "Block Billing Until Day Closed" (SQLScripts/2275): refuse before anything is saved
+            if (await DayClosingGuard.BlockMessageAsync(HttpContext, "LAB", branchId, User.GetUserId()) is string dayClosingBlock)
+                return Json(new { success = false, error = dayClosingBlock });
 
             // A discount must carry its reason and approver: refuse before anything is saved.
             if (!string.IsNullOrWhiteSpace(paymentDataJson))
@@ -1159,6 +1298,8 @@ namespace EMR.Web.Controllers
                 return Json(new { success = false, error = $"Invalid line items data: {ex.Message}" });
             }
 
+            // 2384: "Is Booking Req" off - the booking is now, as before (the screen's date is ignored)
+            if (!model.IsBookingRequired) model.BookingDateTime = DateTime.Now;
             if (model.BookingDateTime < DateTime.Now.AddHours(-1))
             {
                 return Json(new { success = false, error = "Booking Date & Time cannot be less than current Date & Time." });
@@ -1168,6 +1309,9 @@ namespace EMR.Web.Controllers
             {
                 return Json(new { success = false, error = "Please select at least one investigation test." });
             }
+
+            if (lineItems.Any(x => x.Price <= 0))
+                return Json(new { success = false, error = ZeroPriceMessage(lineItems.Where(x => x.Price <= 0)) });
 
             // misc charges (SQLScripts/2240): ids and quantities only - priced from the master by the order procedure
             var (bookingMisc, bookingMiscError) = EMR.Web.Services.LabMiscCharges.Parse(model.MiscChargesJson);
@@ -1217,20 +1361,53 @@ namespace EMR.Web.Controllers
                 int d = model.AgeDays ?? 0;
                 if (y > 0 || m > 0 || d > 0)
                 {
-                    model.DateOfBirth = EMR.Web.Utils.AgeCalculator.ToDateOfBirth(y, m, d);
+                    model.DateOfBirth = EMR.Common.AgeCalculator.ToDateOfBirth(y, m, d);
                 }
             }
             else if (model.DateOfBirth.HasValue)
             {
-                var (y, m, d) = EMR.Web.Utils.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
+                var (y, m, d) = EMR.Common.AgeCalculator.FromDateOfBirth(model.DateOfBirth.Value);
                 model.AgeYears = y;
                 model.AgeMonths = m;
                 model.AgeDays = d;
             }
 
+            // ── One bill per booking (SQLScripts/2310) ─────────────────────────────────────────────────────────
+            // A retry of this booking (payment refused / timed out, Collect clicked again) reuses the bill created the
+            // first time - same bill no. and, once paid, the same token - instead of creating a second bill.
+            var itemsSignature = LabItemsSignature(lineItems, bookingMisc?.Cast<object>());
+            BillingSubmissionClaim? reuse = null;
+            if (requestKey != Guid.Empty)
+            {
+                var claim = await billingSubmissionApiClient.ClaimAsync(requestKey, "LAB", User.GetUserId());
+                switch (claim.Status)
+                {
+                    case "BUSY":
+                        return Json(new { success = false, error = "This booking is still being saved. Please wait a few seconds and check the B2C Order List before clicking Collect again." });
+                    case "EXISTS" when claim.ModuleRefId is > 0:
+                        if (!string.Equals(claim.Stage, "READY", StringComparison.OrdinalIgnoreCase))
+                            return Json(new { success = false, billNo = claim.BillNo,
+                                error = $"Bill {claim.BillNo} was already created for this booking, but its set-up did not finish. Open it from the B2C Order List (collect its payment there) instead of booking again." });
+                        if (!string.Equals(claim.ItemsSignature, itemsSignature, StringComparison.Ordinal))
+                            return Json(new { success = false, billNo = claim.BillNo,
+                                error = $"Bill {claim.BillNo} was already created for this booking with a different list of tests. Collect its payment from the B2C Order List, or cancel it there, before billing other tests." });
+                        if (claim.HasPayment)
+                            return await LabBookingAlreadySavedAsync(claim, model, branchId.Value);
+                        reuse = claim;
+                        break;
+                    case "NEW":
+                        keyClaimed = true;
+                        break;
+                    default:
+                        requestKey = Guid.Empty;   // a key of another user / module: book as before, without retry protection
+                        break;
+                }
+            }
+
+            await KeepStoredPhoneAsync(model);   // an existing patient's phone is changed only in Patient Master
             var patient = new PatientMaster
             {
-                PatientId = model.PatientId,
+                PatientId = reuse?.PatientId ?? model.PatientId,
                 FirstName = model.FirstName,
                 LastName = model.LastName,
                 PhoneNumber = model.PhoneNumber,
@@ -1243,6 +1420,8 @@ namespace EMR.Web.Controllers
                 IdentificationFilePath = model.IdentificationFilePath,
                 IdentificationTypeId = model.IdentificationTypeId,
                 IdentificationNumber = model.IdentificationNumber,
+                AbhaNumber = model.AbhaNumber,
+                AbhaAddress = model.AbhaAddress,
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -1251,6 +1430,7 @@ namespace EMR.Web.Controllers
                 CityId = model.CityId,
                 AreaId = model.AreaId,
                 Address = string.IsNullOrWhiteSpace(model.Address) ? model.HomeCollectionAddress : model.Address,
+                Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),
                 HomeCollectionAddress = string.IsNullOrWhiteSpace(model.HomeCollectionAddress) ? model.Address : model.HomeCollectionAddress,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
@@ -1263,12 +1443,37 @@ namespace EMR.Web.Controllers
                 KnownAllergies = model.KnownAllergies,
                 Remarks = model.Remarks,
                 BranchId = branchId,
-                CompanyId = 1,
+                CompanyId = User.GetCompanyId(),
                 IsActive = true
             };
 
+            // an existing patient must be of the user's company (patients are company-wise; GetByIdAsync hides others)
+            if (model.PatientId > 0 && await patientService.GetByIdAsync(model.PatientId) == null)
+                return Json(new { success = false, error = "The selected patient does not belong to this company. Search the patient again." });
             int actualPatientId = model.PatientId;
             string actualPatientCode = model.PatientCode ?? string.Empty;
+            LabOrderResponseDto labOrderRes;
+            decimal totalAmount = lineItems.Sum(x => x.Price);
+            string patientFullName;
+            if (reuse != null)
+            {
+                // retry of a booking whose bill exists: the patient and the bill were saved the first time - only the payment is left
+                actualPatientId = reuse.PatientId ?? model.PatientId;
+                var savedPatient = await patientService.GetByIdAsync(actualPatientId);
+                actualPatientCode = savedPatient?.PatientCode ?? actualPatientCode;
+                patient.PatientId = actualPatientId;
+                labOrderRes = new LabOrderResponseDto { LabOrderId = reuse.ModuleRefId!.Value, BillNo = reuse.BillNo ?? string.Empty, TokenNo = reuse.TokenNo ?? string.Empty };
+                patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+                await auditLogService.LogActivityAsync(
+                    eventType: "LAB Billing",
+                    actionName: "LAB.OrderRetryPayment",
+                    description: $"Payment retried on Lab Order Bill {labOrderRes.BillNo} (the same booking - no new bill created).",
+                    userId: User.GetUserId(), branchId: branchId, moduleCode: "LAB",
+                    referenceNo: labOrderRes.BillNo, referenceId: labOrderRes.LabOrderId, patientCode: actualPatientCode,
+                    metadata: new { labOrderRes.LabOrderId, labOrderRes.BillNo, RequestKey = requestKey });
+            }
+            else
+            {
             if (model.PatientId == 0)
             {
                 actualPatientId = await patientService.CreateDemographicsOnlyAsync(patient, User.GetUserId());
@@ -1294,6 +1499,9 @@ namespace EMR.Web.Controllers
                 CollectionType = string.IsNullOrWhiteSpace(model.CollectionType) ? (model.IsB2B ? "B2BCollector" : "Lab") : model.CollectionType,
                 PhlebotomistId = model.CollectionType == "Home Collection" ? model.PhlebotomistId : null,
                 BookingDate = model.BookingDateTime,
+                IsBookingRequired = model.IsBookingRequired,   // 2384
+                LmpDate = string.Equals(model.Gender, "Female", StringComparison.OrdinalIgnoreCase) ? model.LmpDate : null,   // 2453
+                PatientGender = model.Gender,
                 ReferralDoctorId = model.ReferralDoctorId is > 0 ? model.ReferralDoctorId : null,
                 IsB2B = model.IsB2B,
                 B2BAgentId = model.B2BAgentId,
@@ -1304,7 +1512,6 @@ namespace EMR.Web.Controllers
                 MiscCharges = bookingMisc
             };
 
-            LabOrderResponseDto labOrderRes;
             try
             {
                 labOrderRes = await labOrderApiClient.CreateOrderAsync(labOrderReq);
@@ -1312,19 +1519,25 @@ namespace EMR.Web.Controllers
             catch (InvalidOperationException ex)
             {
                 // a billing rule refused the order (e.g. a test not on the branch's rate list - script 2199)
+                await ReleaseBookingKeyAsync(requestKey, keyClaimed);
                 return Json(new { success = false, error = ex.Message });
+            }
+            if (requestKey != Guid.Empty)
+            {
+                // the bill exists: from here a retry of this booking reuses it
+                await billingSubmissionApiClient.UpdateAsync(requestKey, labOrderRes.LabOrderId, labOrderRes.BillNo, actualPatientId, itemsSignature, "CREATED");
+                keyClaimed = false;
             }
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
             await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
                 prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
 
-            decimal totalAmount = lineItems.Sum(x => x.Price);
             // revenue = tests + misc charges (taxable); the misc GST goes to GST Output Payable
             var bookingMiscTotals = await ReadLabMiscTotalsAsync(labOrderRes.LabOrderId);
             await ledgerService.PostLabBillLedgerAsync(labOrderRes.LabOrderId, totalAmount + bookingMiscTotals.MiscAmount, branchId, patient.CompanyId, User.GetUserId(), labOrderRes.BillNo);
             await SyncLabGstAsync(labOrderRes.LabOrderId);
 
-            string patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
+            patientFullName = ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim();
             await auditLogService.LogActivityAsync(
                 eventType: "LAB Billing",
                 actionName: "LAB.OrderBooked",
@@ -1345,6 +1558,11 @@ namespace EMR.Web.Controllers
                 });
 
             await TryCreatePortalLoginForB2CAsync(branchId.Value, actualPatientId, actualPatientCode, patient);
+
+            // the bill is fully set up: a retry of this booking now only redoes the payment
+            if (requestKey != Guid.Empty)
+                await billingSubmissionApiClient.UpdateAsync(requestKey, labOrderRes.LabOrderId, null, null, null, "READY");
+            }
 
             // Process Payment
             SavePaymentResult? paymentResult = null;
@@ -1387,7 +1605,11 @@ namespace EMR.Web.Controllers
                     paymentResult = await paymentService.SavePaymentAsync(paymentReq, User.GetUserId());
                     if (paymentResult != null && !paymentResult.Success)
                     {
-                        return Json(new { success = false, error = paymentResult.Error ?? "Failed to save payment." });
+                        // the bill stays as it is: correcting the payment and clicking Collect again pays this same bill
+                        var payError = paymentResult.Error ?? "Failed to save payment.";
+                        if (requestKey != Guid.Empty)
+                            payError += $" Bill {labOrderRes.BillNo} is kept for this booking - correct the payment and click Collect again; the same bill no. will be used.";
+                        return Json(new { success = false, error = payError, billNo = labOrderRes.BillNo, labOrderId = labOrderRes.LabOrderId });
                     }
 
                     if (paymentResult != null && paymentResult.Success)
@@ -1514,47 +1736,7 @@ namespace EMR.Web.Controllers
                                 else if (hs != null && hs.LabEmailNotificationRequired)
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
-                                    string body = $@"
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset=""utf-8"">
-<title>Your Lab Bill</title>
-<style>
-  body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }}
-  .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }}
-  .header {{ background-color: #4a6ee0; color: #ffffff; padding: 20px; text-align: center; }}
-  .header h1 {{ margin: 0; font-size: 24px; }}
-  .content {{ padding: 30px; color: #333333; line-height: 1.6; }}
-  .greeting {{ font-size: 18px; font-weight: 600; margin-bottom: 20px; color: #2c3e50; }}
-  .info-box {{ background-color: #f8f9fa; border-left: 4px solid #4a6ee0; padding: 15px; margin: 20px 0; border-radius: 4px; }}
-  .info-box p {{ margin: 5px 0; }}
-  .footer {{ background-color: #f8f9fa; padding: 20px; text-align: center; color: #777777; font-size: 14px; border-top: 1px solid #eeeeee; }}
-</style>
-</head>
-<body>
-<div class=""container"">
-  <div class=""header"">
-    <h1>{hs.HospitalName}</h1>
-  </div>
-  <div class=""content"">
-    <div class=""greeting"">Dear {patientNameStr},</div>
-    <p>Thank you for choosing <strong>{hs.HospitalName}</strong> for your healthcare needs.</p>
-    <div class=""info-box"">
-      <p><strong>Bill No:</strong> {savedBillNo}</p>
-      <p><strong>Date:</strong> {DateTime.Now:dd MMM yyyy}</p>
-    </div>
-    <p>Please find your detailed lab order bill attached to this email as a PDF document.</p>
-    <p>If you have any questions or require further assistance, please do not hesitate to contact us.</p>
-    <p>Wishing you the best of health,<br/><br/><strong>The {hs.HospitalName} Team</strong></p>
-  </div>
-  <div class=""footer"">
-    &copy; {DateTime.Now.Year} {hs.HospitalName}. All rights reserved.<br>
-    {hs.Address}
-  </div>
-</div>
-</body>
-</html>";
+                                    string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -1607,6 +1789,7 @@ namespace EMR.Web.Controllers
                 success = true,
                 labOrderId = labOrderRes.LabOrderId,
                 billNo = labOrderRes.BillNo,
+                bookingNo = labOrderRes.BookingNo,   // 2384
                 tokenNo = paymentResult?.TokenNo,
                 patientCode = actualPatientCode,
                 patientName = patientFullName,
@@ -1620,8 +1803,55 @@ namespace EMR.Web.Controllers
             }
             catch (Exception ex)
             {
+                await ReleaseBookingKeyAsync(requestKey, keyClaimed);
                 return Json(new { success = false, error = $"An error occurred while saving the booking: {ex.Message}" });
             }
+        }
+
+        /// <summary>One bill per booking (SQLScripts/2310): a request that stopped before creating the bill frees its key.</summary>
+        private async Task ReleaseBookingKeyAsync(Guid requestKey, bool keyClaimed)
+        {
+            if (requestKey == Guid.Empty || !keyClaimed) return;
+            try { await billingSubmissionApiClient.ReleaseAsync(requestKey); }
+            catch (Exception ex) { logger.LogWarning(ex, "Could not release booking request key {Key}", requestKey); }
+        }
+
+        /// <summary>
+        /// One bill per booking (SQLScripts/2310): the booking was saved with its payment already (e.g. the answer was lost
+        /// on the way back) - answer with that bill instead of creating another one.
+        /// </summary>
+        private async Task<IActionResult> LabBookingAlreadySavedAsync(BillingSubmissionClaim claim, LabOrderBookingViewModel model, int branchId)
+        {
+            var labOrderId = claim.ModuleRefId!.Value;
+            var con = dbContext.Database.GetDbConnection();
+            if (con.State != System.Data.ConnectionState.Open) await con.OpenAsync();
+            var ph = await con.QueryFirstOrDefaultAsync<(decimal NetAmount, decimal TotalPaid, decimal BalanceDue, string PaymentStatus, decimal SubTotal)>(@"
+                SELECT ISNULL(NetAmount, 0), ISNULL(TotalPaid, 0), ISNULL(BalanceDue, 0), ISNULL(PaymentStatus, 'U'), ISNULL(SubTotal, 0)
+                FROM dbo.PaymentHeader WHERE ModuleCode = 'LAB' AND ModuleRefId = @Id AND IsActive = 1", new { Id = labOrderId });
+            var patient = claim.PatientId is > 0 ? await patientService.GetByIdAsync(claim.PatientId.Value) : null;
+            var showPrintBarcode = await con.ExecuteScalarAsync<bool>(@"
+                SELECT CASE WHEN EXISTS (SELECT 1 FROM dbo.HospitalSettings hs WHERE hs.BranchId = @BranchId AND hs.IsActive = 1 AND hs.BarcodeGenerateAtBilling = 1)
+                             AND EXISTS (SELECT 1 FROM dbo.SampleCollection WHERE Laborderid = @LabOrderId AND BarcodeNo IS NOT NULL AND LTRIM(RTRIM(BarcodeNo)) <> '')
+                            THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END", new { BranchId = branchId, LabOrderId = labOrderId });
+            var name = patient != null
+                ? ((patient.Salutation ?? "") + " " + patient.FirstName + " " + patient.LastName).Trim()
+                : ((model.Salutation ?? "") + " " + model.FirstName + " " + model.LastName).Trim();
+            return Json(new
+            {
+                success = true,
+                alreadySaved = true,
+                labOrderId,
+                billNo = claim.BillNo,
+                tokenNo = claim.TokenNo,
+                patientCode = patient?.PatientCode ?? model.PatientCode,
+                patientName = name,
+                totalAmount = ph.SubTotal,
+                netAmount = ph.NetAmount,
+                totalPaid = ph.TotalPaid,
+                balanceDue = ph.BalanceDue,
+                paymentStatus = ph.PaymentStatus,
+                showPrintBarcode
+            });
         }
 
         /// <summary>
@@ -1688,60 +1918,51 @@ namespace EMR.Web.Controllers
         {
             var branchId = User.GetCurrentBranchId();
 
-            model.RelationOptions = await dbContext.RelationMasters
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.SortOrder).ThenBy(x => x.RelationName)
-                .Select(x => new SelectListItem(x.RelationName, x.RelationId.ToString()))
-                .ToListAsync();
+            // the three catalogue lists come from the API: asked for now, in parallel with the database below
+            var departmentsTask = labOrderApiClient.GetDepartmentsAsync();
+            var categoriesTask = labOrderApiClient.GetCategoriesAsync();
+            var subCategoriesTask = labOrderApiClient.GetSubCategoriesAsync();
 
-            model.IdentificationTypeOptions = await dbContext.IdentificationTypeMasters
-                .Where(i => i.IsActive)
-                .OrderBy(i => i.IdentificationTypeName)
-                .Select(i => new SelectListItem(i.IdentificationTypeName, i.IdentificationTypeId.ToString()))
-                .ToListAsync();
-
-            model.ReligionOptions = await dbContext.ReligionMasters
-                .Where(r => r.IsActive)
-                .OrderBy(r => r.ReligionName)
-                .Select(r => new SelectListItem(r.ReligionName, r.ReligionId.ToString()))
-                .ToListAsync();
-
-            model.OccupationOptions = await dbContext.OccupationMasters
-                .Where(o => o.IsActive)
-                .OrderBy(o => o.OccupationName)
-                .Select(o => new SelectListItem(o.OccupationName, o.OccupationId.ToString()))
-                .ToListAsync();
-
-            model.MaritalStatusOptions = await dbContext.MaritalStatusMasters
-                .Where(m => m.IsActive)
-                .OrderBy(m => m.StatusName)
-                .Select(m => new SelectListItem(m.StatusName, m.MaritalStatusId.ToString()))
-                .ToListAsync();
-
-            model.LanguageOptions = await dbContext.LanguageMasters
-                .Where(l => l.IsActive)
-                .OrderBy(l => l.LanguageName)
-                .Select(l => new SelectListItem(l.LanguageName, l.LanguageId.ToString()))
-                .ToListAsync();
-
-            // Referral doctor = Doctor Master doctors assigned to a LAB-type department (script 2127)
+            // every master list of the form in ONE database round trip (was one round trip per list); same filters and order
             var refCon = dbContext.Database.GetDbConnection();
             if (refCon.State != System.Data.ConnectionState.Open)
                 await refCon.OpenAsync();
-            var referralDoctors = await refCon.QueryAsync<(int DoctorId, string DoctorName, string? SpecialityName, string? DepartmentNames)>(
-                "dbo.usp_Lab_GetReferralDoctors",
-                new { CompanyId = User.GetCompanyId(), BranchId = branchId },
-                commandType: System.Data.CommandType.StoredProcedure);
-            model.ReferralDoctorOptions = referralDoctors
-                .Select(r => new SelectListItem(
-                    string.IsNullOrWhiteSpace(r.DepartmentNames) ? r.DoctorName : $"{r.DoctorName} ({r.DepartmentNames})",
-                    r.DoctorId.ToString()))
-                .ToList();
-
-            var countries = await countryService.GetActiveAsync();
-            model.CountryOptions = countries
-                .Select(c => new SelectListItem(c.CountryName, c.CountryId.ToString()))
-                .ToList();
+            using (var lists = await refCon.QueryMultipleAsync(@"
+                SELECT RelationName AS Text, CONVERT(varchar(11), RelationId) AS Value FROM dbo.RelationMaster WHERE IsActive = 1 ORDER BY SortOrder, RelationName;
+                SELECT IdentificationTypeName AS Text, CONVERT(varchar(11), IdentificationTypeId) AS Value FROM dbo.IdentificationTypeMaster WHERE IsActive = 1 ORDER BY IdentificationTypeName;
+                SELECT ReligionName AS Text, CONVERT(varchar(11), ReligionId) AS Value FROM dbo.ReligionMaster WHERE IsActive = 1 ORDER BY ReligionName;
+                SELECT OccupationName AS Text, CONVERT(varchar(11), OccupationId) AS Value FROM dbo.OccupationMaster WHERE IsActive = 1 ORDER BY OccupationName;
+                SELECT StatusName AS Text, CONVERT(varchar(11), MaritalStatusId) AS Value FROM dbo.MaritalStatusMaster WHERE IsActive = 1 ORDER BY StatusName;
+                SELECT LanguageName AS Text, CONVERT(varchar(11), LanguageId) AS Value FROM dbo.LanguageMaster WHERE IsActive = 1 ORDER BY LanguageName;
+                SELECT CountryName AS Text, CONVERT(varchar(11), CountryId) AS Value FROM dbo.CountryMaster WHERE IsActive = 1 ORDER BY CountryName;
+                -- Phlebotomists of this branch: same people as the Dispatch screen (usp_Lab_HomeDispatch_Phlebotomists)
+                SELECT COALESCE(u.FullName, u.Username) AS Text, CONVERT(varchar(11), u.Id) AS Value
+                  FROM dbo.Users u
+                  JOIN dbo.UserBranches ub ON ub.UserId = u.Id AND ub.BranchID = @BranchId AND ub.IsActive = 1
+                 WHERE u.IsPhlebotomist = 1 AND u.IsActive = 1
+                 ORDER BY COALESCE(u.FullName, u.Username);
+                -- Referral doctor = Doctor Master doctors assigned to a LAB-type department (script 2127)
+                EXEC dbo.usp_Lab_GetReferralDoctors @CompanyId = @CompanyId, @BranchId = @BranchId;",
+                new { CompanyId = User.GetCompanyId(), BranchId = branchId }))
+            {
+                async Task<List<SelectListItem>> Next() =>
+                    (await lists.ReadAsync<(string Text, string Value)>()).Select(x => new SelectListItem(x.Text, x.Value)).ToList();
+                model.RelationOptions = await Next();
+                model.IdentificationTypeOptions = await Next();
+                model.ReligionOptions = await Next();
+                model.OccupationOptions = await Next();
+                model.MaritalStatusOptions = await Next();
+                model.LanguageOptions = await Next();
+                model.CountryOptions = await Next();
+                model.PhlebotomistOptions = (await lists.ReadAsync<(string Text, string Value)>())
+                    .Select(x => new SelectListItem { Value = x.Value, Text = x.Text }).ToList();
+                var referralDoctors = await lists.ReadAsync<(int DoctorId, string DoctorName, string? SpecialityName, string? DepartmentNames)>();
+                model.ReferralDoctorOptions = referralDoctors
+                    .Select(r => new SelectListItem(
+                        string.IsNullOrWhiteSpace(r.DepartmentNames) ? r.DoctorName : $"{r.DoctorName} ({r.DepartmentNames})",
+                        r.DoctorId.ToString()))
+                    .ToList();
+            }
 
             if (model.CountryId.HasValue)
             {
@@ -1778,32 +1999,28 @@ namespace EMR.Web.Controllers
                     .Select(a => new SelectListItem(a.AreaName, a.AreaId.ToString()))
                     .ToList();
             }
-            var departments = await labOrderApiClient.GetDepartmentsAsync();
+            var departments = await departmentsTask;
             model.DepartmentOptions = departments
                 .Select(x => new SelectListItem { Value = x.DepartmentId.ToString(), Text = x.DepartmentName })
                 .ToList();
 
-            var categories = await labOrderApiClient.GetCategoriesAsync();
+            var categories = await categoriesTask;
             model.CategoryOptions = categories
                 .Select(x => new SelectListItem { Value = x.CategoryId.ToString(), Text = x.CategoryName })
                 .ToList();
 
-            var subCategories = await labOrderApiClient.GetSubCategoriesAsync();
+            var subCategories = await subCategoriesTask;
             model.SubCategoryOptions = subCategories
                 .Select(x => new SelectListItem { Value = x.SubCategoryId.ToString(), Text = x.SubCategoryName })
                 .ToList();
-
-            model.PhlebotomistOptions = await dbContext.Users
-                .Where(u => u.IsPathologist && u.IsActive)
-                .OrderBy(u => u.FullName ?? u.Username)
-                .Select(u => new SelectListItem { Value = u.Id.ToString(), Text = u.FullName ?? u.Username })
-                .ToListAsync();
 
             if (model.IsB2B)
             {
                 try
                 {
                     var franchises = await franchiseApiClient.GetListAsync(status: null, isActive: true);
+                    if (User.GetFranchiseId() is int onlyFranchiseId)
+                        franchises = franchises.Where(f => f.Franchise_ID == onlyFranchiseId).ToList();
                     model.FranchiseOptions = franchises
                         .OrderBy(f => f.Franchise_Name)
                         .Select(f => new SelectListItem { Value = f.Franchise_ID.ToString(), Text = $"{f.Franchise_Name} ({f.Franchise_Code})" })
@@ -1817,6 +2034,7 @@ namespace EMR.Web.Controllers
                 try
                 {
                     var corporates = await corporateApiClient.GetListAsync(type: null, status: true);
+                    if (User.IsFranchiseUser()) corporates = [];   // a franchise login never bills for a company
                     model.CorporateOptions = corporates
                         .Where(c => string.IsNullOrEmpty(c.Corporate_Type) || c.Corporate_Type == "ALL" || c.Corporate_Type == "LAB" || c.Corporate_Type == "OPD" || c.Corporate_Type == "MED")
                         .OrderBy(c => c.Corporate_Name)
@@ -1845,14 +2063,16 @@ namespace EMR.Web.Controllers
         [ValidateAntiForgeryToken]
         [RequestSizeLimit(20_000_000)]
         [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_ASSIST")]
-        public async Task<IActionResult> PrescriptionAssist(IFormFile? prescription, string? gender, int? ageInYears,
+        public async Task<IActionResult> PrescriptionAssist(IFormFile? prescription, string? gender, int? ageInYears, string? crop,
             [FromServices] Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
             [FromServices] EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine ocr,
             [FromServices] EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher matcher,
+            [FromServices] EMR.Web.ApiClients.LabRxLearningApiClient learning,
             CancellationToken ct)
         {
             var o = assistOptions.CurrentValue;
-            if (!o.Enabled) return Json(new { success = false, message = "AI assist is switched off." });
+            if (!o.Enabled || !await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IAiBillingFeatures>().IsEnabledAsync(HttpContext))
+                return Json(new { success = false, message = "AI features are switched off for this branch (Hospital Settings > LAB > Enable AI Features at Billing)." });
             if (prescription is null || prescription.Length == 0) return Json(new { success = false, message = "Choose a prescription image first." });
             if (prescription.Length > o.MaxFileSizeMb * 1024L * 1024L)
                 return Json(new { success = false, message = $"The image is larger than {o.MaxFileSizeMb} MB. Use a smaller photo." });
@@ -1868,11 +2088,15 @@ namespace EMR.Web.Controllers
 
                 EMR.Web.Services.PrescriptionAssist.PrescriptionReading reading;
                 await using (var stream = prescription.OpenReadStream())
-                    reading = await ocr.ReadAsync(stream, ext, matcher.HandwritingCandidates(catalogue), ct);
+                    // the area the user marked around the tests (fractions of the first page): read on its own, every word
+                    reading = await ocr.ReadAsync(stream, ext, matcher.HandwritingCandidates(catalogue), ct,
+                        EMR.Web.Services.PrescriptionAssist.PrescriptionCrop.Parse(crop));
                 var text = reading.Text;
                 var catalogueKey = $"{branchId}|{gender}|{ageInYears}|{catalogue.Count}|" +
                     string.Join(',', catalogue.Select(t => $"{(t.IsPackage ? 'P' : 'I')}{t.InvestigationId}:{t.TestName}")).GetHashCode();
-                var result = matcher.Match(text, catalogue, catalogueKey, o.MinScore, o.PreselectScore, reading.Handwriting);
+                // what users of this company confirmed / rejected before (SQLScripts/2439): the assist improves with use
+                var learned = await learning.GetAsync(User.GetCompanyId());
+                var result = matcher.Match(text, catalogue, catalogueKey, o.MinScore, o.PreselectScore, reading.Handwriting, learned);
 
                 await auditLogService.LogAsync("LAB", "LAB.PrescriptionAssist",
                     $"AI assist read a prescription: {result.Suggestions.Count} test(s) suggested, {result.UnmatchedLines.Count} line(s) not matched.");
@@ -1900,6 +2124,232 @@ namespace EMR.Web.Controllers
             }
         }
 
+        /// <summary>
+        /// Feedback of AI Prescription Assist (SQLScripts/2439): the suggestions the user kept (confirmed) or unticked (rejected),
+        /// and a "Not matched" text the user searched and then added a test for. Learnt per company; the next readings use it.
+        /// </summary>
+        public sealed class RxLearnItem { public string? Phrase { get; set; } public string? OptionKey { get; set; } public bool Accepted { get; set; } }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_ASSIST")]
+        public async Task<IActionResult> PrescriptionLearn([FromBody] List<RxLearnItem>? items, [FromServices] EMR.Web.ApiClients.LabRxLearningApiClient learning)
+        {
+            var clean = (items ?? []).Take(60)
+                .Select(i => new { Phrase = EMR.Web.Services.PrescriptionAssist.PrescriptionTestMatcher.LearnKey(i.Phrase), i.OptionKey, i.Accepted })
+                .Where(i => i.Phrase.Length >= 2 && i.OptionKey is { Length: <= 20 } k && System.Text.RegularExpressions.Regex.IsMatch(k, @"^[IP]_\d{1,9}$"))
+                .ToList();
+            if (clean.Count == 0) return Json(new { success = true, recorded = 0 });
+            var ok = await learning.LearnAsync(User.GetCompanyId(), clean);
+            return Json(new { success = ok, recorded = ok ? clean.Count : 0 });
+        }
+
+        /// <summary>
+        /// The first page of an uploaded PDF prescription as a PNG (about 1200 px), so the user can see it and mark the area of the
+        /// tests. Rendered in memory on this server; nothing is stored.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(20_000_000)]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_ASSIST")]
+        public async Task<IActionResult> PrescriptionPreview(IFormFile? prescription, CancellationToken ct)
+        {
+            if (prescription is null || prescription.Length == 0 || prescription.Length > 20_000_000
+                || !Path.GetExtension(prescription.FileName ?? "").Equals(".pdf", StringComparison.OrdinalIgnoreCase)) return BadRequest();
+            try
+            {
+                byte[] bytes;
+                using (var ms = new MemoryStream()) { await prescription.CopyToAsync(ms, ct); bytes = ms.ToArray(); }
+                // PDFtoImage closes the stream it is given: a fresh one for each call
+                System.Drawing.SizeF size;
+                using (var s1 = new MemoryStream(bytes)) size = PDFtoImage.Conversion.GetPageSize(s1, 0);
+                var longInches = Math.Max(size.Width, size.Height) / 72.0;
+                var dpi = (int)Math.Clamp(1200 / Math.Max(longInches, 0.1), 40, 150);
+                using var outMs = new MemoryStream();
+                using (var s2 = new MemoryStream(bytes)) PDFtoImage.Conversion.SavePng(outMs, s2, 0, options: new PDFtoImage.RenderOptions(Dpi: dpi));
+                return File(outMs.ToArray(), "image/png");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogInformation(ex, "Prescription preview: the PDF could not be rendered");
+                return BadRequest();
+            }
+        }
+
+        /// <summary>
+        /// AI test suggestions for a B2C bill (SQLScripts/2287): tests usually billed with the selected ones, learned from
+        /// past B2C bills, and profiles / packages that cover several of the selected tests. Keys as the booking screen
+        /// uses them ("I_12", "P_7"). Only with Hospital Settings > Enable AI Features at Billing; suggestions only.
+        /// </summary>
+        [HttpGet]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_SUGGEST")]
+        public async Task<IActionResult> TestSuggestions(string? keys, string? gender, int? referralDoctorId,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.TestSuggestions.ILabTestSuggestionService suggestions)
+        {
+            if (!await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false, enabled = false });
+            var list = (keys ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(k => System.Text.RegularExpressions.Regex.IsMatch(k, @"^[IP]_\d{1,9}$")).Take(60).ToList();
+            var branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 0;
+            try
+            {
+                var r = await suggestions.SuggestAsync(User.GetCompanyId(), branchId, list,
+                    new EMR.Web.Services.TestSuggestions.TestSuggestionContext(gender, referralDoctorId is > 0 ? referralDoctorId : null));
+                return Json(new { success = true, enabled = true, together = r.Together, bundles = r.Bundles, learnedFromBills = r.LearnedFromBills, companyWide = r.CompanyWide });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "AI test suggestions failed");
+                return Json(new { success = false, enabled = true });   // billing goes on without suggestions
+            }
+        }
+
+        /// <summary>Follow-up tests the pathologist advised for this patient (reflex testing, SQLScripts/2289) that no
+        /// later bill carries yet - shown on B2C booking for the front desk to offer. Read only.</summary>
+        [HttpGet]
+        public async Task<IActionResult> ReflexAdvised(int patientId,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.Reflex.ILabReflexService reflex)
+        {
+            if (patientId <= 0 || !await aiFeatures.IsEnabledAsync(HttpContext)) return Json(new { success = false });
+            try { return Json(new { success = true, items = await reflex.GetOpenAdviceAsync(User.GetCompanyId(), patientId) }); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Reflex advice not loaded");
+                return Json(new { success = false });
+            }
+        }
+
+        /// <summary>A suggestion accepted (Add / Switch) or dismissed (x): the engine learns from it (SQLScripts/2288).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "AI_SUGGEST")]
+        public async Task<IActionResult> TestSuggestionFeedback(string? key, string? contextKey, string? kind, string? action,
+            [FromServices] EMR.Web.Services.IAiBillingFeatures aiFeatures,
+            [FromServices] EMR.Web.Services.TestSuggestions.ILabTestSuggestionService suggestions)
+        {
+            static bool IsKey(string? k) => k is not null && System.Text.RegularExpressions.Regex.IsMatch(k, @"^[IP]_\d{1,9}$");
+            if (!await aiFeatures.IsEnabledAsync(HttpContext) || !IsKey(key) || (contextKey is not null && !IsKey(contextKey))
+                || kind is not ("T" or "B") || action is not ("A" or "D"))
+                return Json(new { success = false });
+            try
+            {
+                var branchId = HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 0;
+                await suggestions.RecordFeedbackAsync(User.GetCompanyId(), branchId, User.GetUserId(), key!, contextKey, kind[0], action[0]);
+                return Json(new { success = true });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "AI test suggestion feedback not saved");
+                return Json(new { success = false });
+            }
+        }
+
+        private static readonly string[] IdDocumentTypes = [".jpg", ".jpeg", ".png", ".pdf"];
+
+        /// <summary>
+        /// ID document assist (SQLScripts/2284): reads the uploaded ID document with OCR on this server (nothing is stored
+        /// or sent anywhere), recognises its type (ML.NET) and number (each document's format and check digit) and returns
+        /// the matching ID Type of the master. The page fills ID Type / ID Number; the user can change them.
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(20_000_000)]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2CBOOKING", "ID_AI_ASSIST")]
+        public Task<IActionResult> IdDocumentAssist(IFormFile? document,
+            [FromServices] Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
+            [FromServices] EMR.Web.Services.IdDocumentAssist.IIdDocumentReader reader,
+            CancellationToken ct) => ReadIdDocumentAsync(document, assistOptions, reader, "B2C", ct);
+
+        /// <summary>The same ID document assist on B2B booking (SQLScripts/2285), under that page's own control.</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(20_000_000)]
+        [RequiresPermission("LAB.LABORDERBOOKING.B2BBOOKING", "ID_AI_ASSIST")]
+        public Task<IActionResult> B2BIdDocumentAssist(IFormFile? document,
+            [FromServices] Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
+            [FromServices] EMR.Web.Services.IdDocumentAssist.IIdDocumentReader reader,
+            CancellationToken ct) => ReadIdDocumentAsync(document, assistOptions, reader, "B2B", ct);
+
+        private async Task<IActionResult> ReadIdDocumentAsync(IFormFile? document,
+            Microsoft.Extensions.Options.IOptionsMonitor<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions> assistOptions,
+            EMR.Web.Services.IdDocumentAssist.IIdDocumentReader reader, string screen, CancellationToken ct)
+        {
+            var o = assistOptions.CurrentValue;
+            if (!o.Enabled || !await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IAiBillingFeatures>().IsEnabledAsync(HttpContext))
+                return Json(new { success = false, message = "AI features are switched off for this branch (Hospital Settings > LAB > Enable AI Features at Billing)." });
+            if (document is null || document.Length == 0) return Json(new { success = false, message = "Choose the ID document first." });
+            if (document.Length > o.MaxFileSizeMb * 1024L * 1024L)
+                return Json(new { success = false, message = $"The file is larger than {o.MaxFileSizeMb} MB." });
+            var ext = Path.GetExtension(document.FileName ?? string.Empty).ToLowerInvariant();
+            if (!IdDocumentTypes.Contains(ext) || !LooksLikeImage(document))
+                return Json(new { success = false, message = "Upload a photo, scan or PDF of the ID document (JPG, PNG or PDF)." });
+
+            try
+            {
+                EMR.Web.Services.IdDocumentAssist.IdDocumentReading r;
+                await using (var stream = document.OpenReadStream())
+                    r = await reader.ReadAsync(stream, ext, ct);
+
+                if (r.Kind == EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Unknown)
+                    return Json(new { success = true, recognised = false, message = "This does not look like a supported ID document (Aadhaar, PAN, Voter ID, Passport, Driving Licence, Ration Card). Select the ID Type and enter the number yourself." });
+
+                var pattern = r.Kind switch
+                {
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Aadhaar => "aadha?ar",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Pan => @"\bpan\b",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.VoterId => "voter|epic|election",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Passport => "passport",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.DrivingLicence => "driving|licen[cs]e",
+                    _ => "ration"
+                };
+                var types = await dbContext.IdentificationTypeMasters.AsNoTracking().Where(x => x.IsActive)
+                    .Select(x => new { x.IdentificationTypeId, x.IdentificationTypeName }).ToListAsync(ct);
+                var type = types.FirstOrDefault(x => System.Text.RegularExpressions.Regex.IsMatch(x.IdentificationTypeName ?? "", pattern,
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+                var label = r.Kind switch
+                {
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Aadhaar => "Aadhaar Card",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Pan => "PAN Card",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.VoterId => "Voter ID Card",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.Passport => "Passport",
+                    EMR.Web.Services.IdDocumentAssist.IdDocumentKind.DrivingLicence => "Driving Licence",
+                    _ => "Ration Card"
+                };
+
+                await auditLogService.LogAsync("LAB", "LAB.IdDocumentAssist",
+                    $"AI assist read an ID document ({screen} booking): {label}, number {(r.Number is null ? "not found" : r.NumberVerified ? "verified" : "found")}.");
+                return Json(new
+                {
+                    success = true,
+                    recognised = true,
+                    documentType = type?.IdentificationTypeName ?? label,
+                    identificationTypeId = type?.IdentificationTypeId,
+                    number = r.Number,
+                    verified = r.NumberVerified,
+                    masked = r.NumberMasked,
+                    confidence = r.Confidence,
+                    evidence = r.Evidence,
+                    // Aadhaar / passport holder details: the page checks them against the entered details on Save
+                    person = r.Person
+                });
+            }
+            catch (EMR.Web.Services.PrescriptionAssist.PrescriptionOcrUnavailableException ex)
+            {
+                logger.LogError(ex, "ID document assist: OCR engine unavailable");
+                return Json(new { success = false, message = "The OCR engine (Tesseract) is not available on the server. Select the ID Type and enter the number yourself." });
+            }
+            catch (TimeoutException)
+            {
+                return Json(new { success = false, message = "Reading the document took too long. Try a smaller or clearer image." });
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "ID document assist failed");
+                return Json(new { success = false, message = "The document could not be read. Try a clearer photo, or enter the details yourself." });
+            }
+        }
+
         /// <summary>Checks the file starts like an image (JPEG, PNG, WEBP, BMP, TIFF) or a PDF, not just that its name says so.</summary>
         private static bool LooksLikeImage(IFormFile file)
         {
@@ -1918,6 +2368,9 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAvailableInvestigations(int? branchId, int? departmentId, int? categoryId, int? subCategoryId, string? gender = null, int? ageInYears = null, string? rateType = "B2C", int? agentId = null)
         {
+            // a franchise login always prices from its own franchise rate list
+            if (User.GetFranchiseId() is int ownFranchiseId) { rateType = "Franchise"; agentId = ownFranchiseId; }
+
             int resolvedBranchId = branchId.HasValue && branchId.Value > 0
                 ? branchId.Value
                 : (HttpContext.Session.GetInt32("SelectedBranchId") ?? User.GetCurrentBranchId() ?? 1);
@@ -2235,16 +2688,24 @@ namespace EMR.Web.Controllers
             // Partner Type (F franchise / C company) and one partner of that type - script 2234; a partner needs its type
             var effectiveAgentType = agentType?.Trim().ToUpperInvariant() is "F" or "C" ? agentType.Trim().ToUpperInvariant() : null;
             var effectiveAgentId = effectiveAgentType != null && agentId is > 0 ? agentId : null;
+            // a franchise login sees the bills it created or that are for its own franchise (2258)
+            int? createdBy = null;
+            if (User.GetFranchiseId() is int ownFranchiseId)
+            {
+                effectiveAgentType = "F";
+                effectiveAgentId = ownFranchiseId;
+                createdBy = User.GetUserId();
+            }
             ViewBag.AgentType = effectiveAgentType ?? string.Empty;
             ViewBag.AgentId = effectiveAgentId ?? 0;
             ViewBag.Partners = (await dbContext.Database.GetDbConnection().QueryAsync<(string Type, int Id, string Name, string? Code)>(@"
                 SELECT 'F', Franchise_ID, Franchise_Name, Franchise_Code FROM dbo.LabFranchiseMaster WHERE ISNULL(IsDeleted, 0) = 0
                 UNION ALL
                 SELECT 'C', Corporate_ID, Corporate_Name, Corporate_Code FROM dbo.CorporateMaster
-                ORDER BY 1, 3")).ToList();
+                ORDER BY 1, 3")).Where(p => createdBy == null || (p.Type == "F" && p.Id == effectiveAgentId)).ToList();
 
             var result = await labOrderApiClient.GetPagedOrdersAsync(resolvedBranchId, effectiveFromDate, effectiveToDate, search, page, pageSize, isB2B: true,
-                agentType: effectiveAgentType, agentId: effectiveAgentId);
+                agentType: effectiveAgentType, agentId: effectiveAgentId, createdBy: createdBy);
 
             var branches = await dbContext.BranchMasters
                 .Where(b => b.IsActive)
@@ -2317,6 +2778,9 @@ namespace EMR.Web.Controllers
         {
             public int PatientId { get; set; }
             public List<MemberBenefitPreviewLine> Items { get; set; } = [];
+            /// <summary>A saved bill not paid yet (due collection): the benefit of its saved lines, worked out exactly as the
+            /// first payment will (LabMembershipBenefits.ForOrderAsync). Each line comes back with its bill ids to match.</summary>
+            public int? LabOrderId { get; set; }
         }
         public sealed class MemberBenefitPreviewLine
         {
@@ -2330,10 +2794,36 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> MembershipBenefitPreview([FromBody] MemberBenefitPreviewRequest req)
         {
             var branchId = User.GetCurrentBranchId();
+            if (req is { LabOrderId: > 0 })
+            {
+                var con = dbContext.Database.GetDbConnection();
+                var saved = await EMR.Common.LabMembershipBenefits.ForOrderAsync(con, req.LabOrderId.Value);
+                if (saved == null) return Json(new { success = true, data = (object?)null });
+                // the bill's ids behind each key: I<LabOrderItemId> (test id too), M<LabOrderMiscChargeId> (misc charge id too)
+                var ids = (await con.QueryAsync<(string Key, int RefId, int AltId)>(@"
+                    SELECT 'I' + CAST(LabOrderItemId AS VARCHAR(12)), LabOrderItemId, InvestigationId FROM dbo.LabOrderItem WHERE LabOrderId = @Id AND IsActive = 1
+                    UNION ALL
+                    SELECT 'M' + CAST(LabOrderMiscChargeId AS VARCHAR(12)), LabOrderMiscChargeId, MiscChargeId FROM dbo.LabOrderMiscCharge WHERE LabOrderId = @Id AND IsActive = 1",
+                    new { Id = req.LabOrderId.Value })).ToDictionary(x => x.Key);
+                return Json(new
+                {
+                    success = true,
+                    data = new
+                    {
+                        saved.CardNo, saved.PlanName, saved.FreeHomeCollection, saved.TestDiscount, saved.MiscDiscount, saved.Total,
+                        lines = saved.Lines.Select(kv => new
+                        {
+                            key = kv.Key, discount = kv.Value.Discount, rule = kv.Value.Rule,
+                            kind = kv.Key.StartsWith('M') ? "M" : "T",
+                            refId = ids.TryGetValue(kv.Key, out var x) ? x.RefId : 0, altId = ids.TryGetValue(kv.Key, out var y) ? y.AltId : 0
+                        })
+                    }
+                });
+            }
             if (req == null || req.PatientId <= 0 || branchId == null) return Json(new { success = true, data = (object?)null });
             var lines = (req.Items ?? []).Where(i => !string.IsNullOrWhiteSpace(i.Key) && i.ItemId > 0)
-                .Select(i => new EMR.Web.Services.LabBenefitLineInput(i.Key, (i.Kind ?? "T").ToUpperInvariant() is "P" or "M" ? i.Kind!.ToUpperInvariant() : "T", i.ItemId, i.Price));
-            var b = await EMR.Web.Services.LabMembershipBenefits.ComputeAsync(dbContext.Database.GetDbConnection(), req.PatientId, branchId.Value, lines);
+                .Select(i => new EMR.Common.LabBenefitLineInput(i.Key, (i.Kind ?? "T").ToUpperInvariant() is "P" or "M" ? i.Kind!.ToUpperInvariant() : "T", i.ItemId, i.Price));
+            var b = await EMR.Common.LabMembershipBenefits.ComputeAsync(dbContext.Database.GetDbConnection(), req.PatientId, branchId.Value, lines);
             if (b == null) return Json(new { success = true, data = (object?)null });
             return Json(new
             {
@@ -2425,9 +2915,12 @@ namespace EMR.Web.Controllers
                 {
                     var (ok, _) = await HttpContext.RequestServices.GetRequiredService<IEmailService>()
                         .SendEmailAsync(branchId, email!, $"OTP to redeem membership points - card {cardNo}",
-                            $"<p>Dear {System.Net.WebUtility.HtmlEncode(name)},</p><p>Your OTP to redeem <strong>{request.Points:0} points</strong> " +
-                            $"(Rs {value:0.00}) on membership card <strong>{System.Net.WebUtility.HtmlEncode(cardNo)}</strong> is:</p>" +
-                            $"<p style=\"font-size:24px;font-weight:bold;letter-spacing:4px\">{code}</p><p>It is valid for 10 minutes. Do not share it with anyone except the billing counter.</p>");
+                            EmailLayout.Wrap(
+                                EmailLayout.Greeting(name ?? "Member")
+                                + EmailLayout.P($"Your OTP to redeem <strong>{request.Points:0} points</strong> (Rs {value:0.00}) on membership card <strong>{System.Net.WebUtility.HtmlEncode(cardNo)}</strong> is:")
+                                + $"<p style=\"margin:20px 0;text-align:center;\"><span style=\"display:inline-block;font-size:28px;font-weight:800;letter-spacing:8px;color:{EmailLayout.Purple};background:#f5f1fa;border:1px dashed {EmailLayout.Purple};border-radius:8px;padding:10px 22px;\">{code}</span></p>"
+                                + EmailLayout.Callout("It is valid for 10 minutes. Do not share it with anyone except the billing counter.", "warn"),
+                                heading: "Your membership OTP"));
                     if (ok) channels.Add("e-mail");
                 }
                 catch (Exception ex) { logger.LogWarning(ex, "Membership OTP e-mail failed for card {CardNo}", cardNo); }
@@ -2510,6 +3003,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetOrderDetail(int id)
         {
             if (id <= 0) return BadRequest("Invalid order ID.");
+            if (!await FranchiseOwnsOrderAsync(id)) return Forbid();
             var detail = await labOrderApiClient.GetOrderDetailAsync(id);
             if (detail == null) return NotFound();
             // + cancelled tests, cancellation notes and refunds, so the order details add up after a cancellation
@@ -2536,9 +3030,10 @@ namespace EMR.Web.Controllers
             IsDueCollection = p.IsDueCollection
         };
 
-        public async Task<IActionResult> PrintBill(int labOrderId)
+        public async Task<IActionResult> PrintBill(int labOrderId, int? previewTemplateId = null)
         {
             if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
+            if (!await FranchiseOwnsOrderAsync(labOrderId)) return Forbid();
 
             var detail = await labOrderApiClient.GetOrderDetailAsync(labOrderId);
             if (detail == null) return NotFound("Lab order not found.");
@@ -2604,6 +3099,7 @@ namespace EMR.Web.Controllers
                 // B2C: Hospital Settings > LAB > Required B2C Bill Print Header. B2B: a franchise's Report Header Required
                 // (Franchise Master); a company's B2B bill always has the header / footer.
                 ShowHeaderFooter      = detail.IsB2B ? (franchiseHeader ?? true) : (settings?.LabB2CBillPrintHeaderRequired ?? true),
+                PageSize              = settings?.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
                 // Hospital
                 HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
                 HospitalType          = settings?.HospitalType,
@@ -2627,6 +3123,7 @@ namespace EMR.Web.Controllers
                 PhoneNumber  = detail.PhoneNumber,
                 EmailId      = detail.EmailId,
                 Gender       = detail.Gender,
+                LmpDate      = detail.LmpDate,   // 2453
                 Age          = detail.Age,
                 DateOfBirth  = detail.DateOfBirth,
                 Address      = detail.Address,
@@ -2635,6 +3132,7 @@ namespace EMR.Web.Controllers
                 LabOrderId        = detail.LabOrderId,
                 BillNo            = detail.BillNo,
                 TokenNo           = detail.TokenNo,
+                BookingNo         = detail.BookingNo,   // 2384
                 OrderDate         = detail.OrderDate,
                 CreatedDate       = detail.CreatedDate,
                 BookingDate       = detail.BookingDate,
@@ -2692,9 +3190,34 @@ namespace EMR.Web.Controllers
                     : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
             };
 
+            await ApplyBillTemplateAsync(vm, branchId, previewTemplateId);
             return View(vm);
         }
 
+        /// <summary>
+        /// Utility > Print Templates (SQLScripts/2324): the branch's Bill template for the header and footer (none = Classic).
+        /// previewTemplateId: the designer's Preview shows that template's draft (only to a user who may open Print Templates).
+        /// </summary>
+        private async Task ApplyBillTemplateAsync(PrintBillViewModel vm, int branchId, int? previewTemplateId)
+        {
+            var runtime = HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>();
+            if (previewTemplateId is > 0) vm.ShowHeaderFooter = true;   // the designer's preview always shows the header and footer
+            await runtime.ApplyToBillAsync(ViewData, User, branchId, new PrintDocInfo
+            {
+                DocNo = vm.BillNo,
+                DocDate = (vm.CreatedDate > DateTime.MinValue ? vm.CreatedDate : vm.OrderDate).ToString("dd-MMM-yyyy hh:mm tt"),
+                TokenNo = vm.TokenNo,
+                CopyLabel = vm.IsActive ? "Original" : "Cancelled",
+                PrintedBy = vm.PrintedByName,
+                CreatedBy = vm.CreatedByName ?? vm.CreatedByUsername
+            }, previewTemplateId);
+        }
+
+        /// <summary>
+        /// Home Collection Address search (LAB B2C / B2B booking): Google Places when GoogleMaps:ApiKey is configured
+        /// (signed-in users only - the key is billed), otherwise the free OpenStreetMap services; biased to the chosen
+        /// district / city, ranked and cached. See <see cref="GeoAddressService"/>.
+        /// </summary>
         [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> SearchAddressGeoSuggestions(
@@ -2703,475 +3226,35 @@ namespace EMR.Web.Controllers
             [FromQuery] string? state,
             [FromQuery] string? district,
             [FromQuery] string? city,
-            [FromServices] IHttpClientFactory httpFactory)
+            [FromQuery] string? sessionToken,
+            [FromServices] GeoAddressService geo,
+            CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
+            if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 3) return Json(Array.Empty<object>());
+            // the Google key is billed: only signed-in users use it; anonymous calls get the free services
+            var signedIn = User.Identity?.IsAuthenticated == true;
+            var list = await geo.SearchAsync(query, country, state, district, city, signedIn ? sessionToken : null, ct, allowGoogle: signedIn);
+            return Json(list.Select(x => new
             {
-                return Json(Array.Empty<object>());
-            }
+                name = x.Name, secondary = x.Secondary, fullAddress = x.FullAddress, latitude = x.Latitude, longitude = x.Longitude,
+                city = x.City, district = x.District, state = x.State, postcode = x.Postcode, country = x.Country, placeId = x.PlaceId, source = x.Source
+            }));
+        }
 
-            try
+        /// <summary>Coordinates and full address of a picked Google suggestion (signed-in users only).</summary>
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> AddressPlaceDetails([FromQuery] string placeId, [FromQuery] string? sessionToken,
+            [FromServices] GeoAddressService geo, CancellationToken ct)
+        {
+            if (User.Identity?.IsAuthenticated != true) return Unauthorized();
+            var d = await geo.PlaceDetailsAsync(placeId, sessionToken, ct);
+            if (d is null) return NotFound();
+            return Json(new
             {
-                var client = httpFactory.CreateClient();
-                client.Timeout = TimeSpan.FromSeconds(5);
-                client.DefaultRequestHeaders.Add("User-Agent", "eClinicPlus-EMR/1.0 (AddressSearch)");
-
-                string cleanQuery = query.Trim();
-
-                // Helper to clean dropdown values
-                static string CleanGeo(string? val)
-                {
-                    if (string.IsNullOrWhiteSpace(val)) return "";
-                    val = val.Trim();
-                    if (val.StartsWith("--", StringComparison.Ordinal)) return "";
-                    return val;
-                }
-
-                string cleanCountry = CleanGeo(country);
-                string cleanState = CleanGeo(state);
-                string cleanDistrict = CleanGeo(district);
-                string cleanCity = CleanGeo(city);
-
-                // Stop words that do not count as distinctive address identifiers
-                var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    "para", "pally", "sarani", "road", "rd", "street", "st", "lane", "ln", "avenue", "ave",
-                    "block", "blk", "bazar", "bazaar", "market", "mkt", "nagar", "colony", "near", "opp",
-                    "opposite", "beside", "behind", "dist", "district", "po", "ps", "vill", "village",
-                    "more", "crossing", "chowk", "ground", "pond", "pukur", "flat", "apartment", "floor",
-                    "house", "building", "sector", "sec", "west", "bengal", "india", "hno", "house"
-                };
-                if (!string.IsNullOrWhiteSpace(cleanDistrict)) stopWords.Add(cleanDistrict);
-                if (!string.IsNullOrWhiteSpace(cleanCity)) stopWords.Add(cleanCity);
-                if (!string.IsNullOrWhiteSpace(cleanState)) stopWords.Add(cleanState);
-                if (!string.IsNullOrWhiteSpace(cleanCountry)) stopWords.Add(cleanCountry);
-
-                var rawWords = cleanQuery.Split(new[] { ' ', ',', '-', '/', '.' }, StringSplitOptions.RemoveEmptyEntries);
-                var distinctiveTokens = rawWords
-                    .Where(w => w.Length >= 3 && !stopWords.Contains(w) && !w.All(char.IsDigit))
-                    .ToList();
-
-                var candidates = new List<GeoSuggestionItem>();
-
-                // Helper to geocode a 6-digit pincode to lat/lon
-                async Task<(double lat, double lon)> GeocodePincodeAsync(string pin)
-                {
-                    try
-                    {
-                        var geoPinUrl = $"https://photon.komoot.io/api/?q={pin}&limit=1";
-                        var geoResp = await client.GetAsync(geoPinUrl);
-                        if (geoResp.IsSuccessStatusCode)
-                        {
-                            var geoJson = await geoResp.Content.ReadAsStringAsync();
-                            using var geoDoc = JsonDocument.Parse(geoJson);
-                            if (geoDoc.RootElement.TryGetProperty("features", out var fArr) && fArr.ValueKind == JsonValueKind.Array && fArr.GetArrayLength() > 0)
-                            {
-                                var c = fArr[0].GetProperty("geometry").GetProperty("coordinates");
-                                return (c[1].GetDouble(), c[0].GetDouble());
-                            }
-                        }
-
-                        // Nominatim fallback for pincode
-                        var nomPinUrl = $"https://nominatim.openstreetmap.org/search?postalcode={pin}&country=India&format=json&limit=1";
-                        var nomResp = await client.GetAsync(nomPinUrl);
-                        if (nomResp.IsSuccessStatusCode)
-                        {
-                            var nomJson = await nomResp.Content.ReadAsStringAsync();
-                            using var nomDoc = JsonDocument.Parse(nomJson);
-                            if (nomDoc.RootElement.ValueKind == JsonValueKind.Array && nomDoc.RootElement.GetArrayLength() > 0)
-                            {
-                                var first = nomDoc.RootElement[0];
-                                if (double.TryParse(first.GetProperty("lat").GetString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double nLat) &&
-                                    double.TryParse(first.GetProperty("lon").GetString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double nLon))
-                                {
-                                    return (nLat, nLon);
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                    return (0, 0);
-                }
-
-                // 1. Pincode Direct Search (if 6-digit pincode is typed)
-                var pinMatch = System.Text.RegularExpressions.Regex.Match(cleanQuery, @"\b(\d{6})\b");
-                if (pinMatch.Success)
-                {
-                    string pincode = pinMatch.Groups[1].Value;
-                    try
-                    {
-                        var pinUrl = $"https://api.postalpincode.in/pincode/{pincode}";
-                        var pinResp = await client.GetAsync(pinUrl);
-                        if (pinResp.IsSuccessStatusCode)
-                        {
-                            var pinJson = await pinResp.Content.ReadAsStringAsync();
-                            using var pinDoc = JsonDocument.Parse(pinJson);
-                            var rootArray = pinDoc.RootElement;
-                            if (rootArray.ValueKind == JsonValueKind.Array && rootArray.GetArrayLength() > 0)
-                            {
-                                var firstObj = rootArray[0];
-                                string status = firstObj.TryGetProperty("Status", out var st) ? st.GetString() ?? "" : "";
-                                if (string.Equals(status, "Success", StringComparison.OrdinalIgnoreCase) &&
-                                    firstObj.TryGetProperty("PostOffice", out var poArray) &&
-                                    poArray.ValueKind == JsonValueKind.Array)
-                                {
-                                    var (pLat, pLon) = await GeocodePincodeAsync(pincode);
-                                    string otherKeywords = cleanQuery.Replace(pincode, "").Trim(' ', ',');
-
-                                    foreach (var po in poArray.EnumerateArray())
-                                    {
-                                        string poName = po.TryGetProperty("Name", out var pon) ? pon.GetString() ?? "" : "";
-                                        string poDistrict = po.TryGetProperty("District", out var pod) ? pod.GetString() ?? "" : "";
-                                        string poState = po.TryGetProperty("State", out var pos) ? pos.GetString() ?? "" : "";
-                                        string poCountry = po.TryGetProperty("Country", out var poc) ? poc.GetString() ?? "India" : "India";
-
-                                        if (!string.IsNullOrWhiteSpace(cleanState) && !poState.Equals(cleanState, StringComparison.OrdinalIgnoreCase))
-                                            continue;
-                                        if (!string.IsNullOrWhiteSpace(cleanDistrict) && !poDistrict.Equals(cleanDistrict, StringComparison.OrdinalIgnoreCase))
-                                            continue;
-
-                                        int score = 400;
-                                        if (!string.IsNullOrWhiteSpace(otherKeywords) && poName.Contains(otherKeywords, StringComparison.OrdinalIgnoreCase))
-                                            score += 100;
-
-                                        string displayName = !string.IsNullOrWhiteSpace(otherKeywords) ? $"{otherKeywords}, {poName} - {pincode}" : $"{poName} - {pincode}";
-                                        string secondary = $"{poDistrict}, {poState}, {poCountry}";
-                                        string fullAddr = $"{displayName}, {secondary}".TrimStart(',', ' ');
-
-                                        candidates.Add(new GeoSuggestionItem
-                                        {
-                                            Name = displayName,
-                                            Secondary = secondary,
-                                            FullAddress = fullAddr,
-                                            Latitude = pLat,
-                                            Longitude = pLon,
-                                            City = poDistrict,
-                                            District = poDistrict,
-                                            State = poState,
-                                            Postcode = pincode,
-                                            Country = poCountry,
-                                            Score = score
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                }
-
-                // 2. India Post PostOffice Lookup on Distinctive Words (e.g. "Unsani", "Santragachi", "Kadamtala")
-                var wordsToLookup = new List<string>();
-                if (distinctiveTokens.Count > 0)
-                {
-                    wordsToLookup.AddRange(distinctiveTokens.Take(2));
-                }
-                else if (rawWords.Length > 0 && !rawWords[0].All(char.IsDigit) && rawWords[0].Length >= 3)
-                {
-                    wordsToLookup.Add(rawWords[0]);
-                }
-
-                foreach (var word in wordsToLookup.Distinct(StringComparer.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        var poResp = await client.GetAsync($"https://api.postalpincode.in/postoffice/{Uri.EscapeDataString(word)}");
-                        if (poResp.IsSuccessStatusCode)
-                        {
-                            var poJson = await poResp.Content.ReadAsStringAsync();
-                            using var poDoc = JsonDocument.Parse(poJson);
-                            var root = poDoc.RootElement;
-                            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
-                            {
-                                var first = root[0];
-                                if (first.TryGetProperty("Status", out var st) && string.Equals(st.GetString(), "Success", StringComparison.OrdinalIgnoreCase) &&
-                                    first.TryGetProperty("PostOffice", out var pos) && pos.ValueKind == JsonValueKind.Array)
-                                {
-                                    foreach (var po in pos.EnumerateArray())
-                                    {
-                                        string poName = po.TryGetProperty("Name", out var pon) ? pon.GetString() ?? "" : "";
-                                        string poDistrict = po.TryGetProperty("District", out var pod) ? pod.GetString() ?? "" : "";
-                                        string poState = po.TryGetProperty("State", out var postt) ? postt.GetString() ?? "" : "";
-                                        string poPincode = po.TryGetProperty("Pincode", out var popc) ? popc.GetString() ?? "" : "";
-                                        string poCountry = po.TryGetProperty("Country", out var pocnt) ? pocnt.GetString() ?? "India" : "India";
-
-                                        if (!string.IsNullOrWhiteSpace(cleanState) && !poState.Equals(cleanState, StringComparison.OrdinalIgnoreCase))
-                                            continue;
-                                        if (!string.IsNullOrWhiteSpace(cleanDistrict) && !poDistrict.Equals(cleanDistrict, StringComparison.OrdinalIgnoreCase))
-                                            continue;
-
-                                        var (poLat, poLon) = await GeocodePincodeAsync(poPincode);
-
-                                        // If user typed custom sub-locality / lane along with this area (e.g. "Unsani Kachari para")
-                                        if (!cleanQuery.Equals(poName, StringComparison.OrdinalIgnoreCase) && cleanQuery.Length > poName.Length)
-                                        {
-                                            candidates.Add(new GeoSuggestionItem
-                                            {
-                                                Name = cleanQuery,
-                                                Secondary = $"{poName}, {poDistrict}, {poState} {poPincode}, {poCountry}",
-                                                FullAddress = $"{cleanQuery}, {poName}, {poDistrict}, {poState} {poPincode}, {poCountry}",
-                                                Latitude = poLat,
-                                                Longitude = poLon,
-                                                City = poDistrict,
-                                                District = poDistrict,
-                                                State = poState,
-                                                Postcode = poPincode,
-                                                Country = poCountry,
-                                                Score = 350
-                                            });
-                                        }
-
-                                        candidates.Add(new GeoSuggestionItem
-                                        {
-                                            Name = $"{poName} - {poPincode}",
-                                            Secondary = $"{poDistrict}, {poState}, {poCountry}",
-                                            FullAddress = $"{poName}, {poDistrict}, {poState} {poPincode}, {poCountry}",
-                                            Latitude = poLat,
-                                            Longitude = poLon,
-                                            City = poDistrict,
-                                            District = poDistrict,
-                                            State = poState,
-                                            Postcode = poPincode,
-                                            Country = poCountry,
-                                            Score = 300
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                }
-
-                // 3. Nominatim (OpenStreetMap) Structured Search
-                try
-                {
-                    string nomQuery = cleanQuery;
-                    if (!string.IsNullOrWhiteSpace(cleanDistrict) && !nomQuery.Contains(cleanDistrict, StringComparison.OrdinalIgnoreCase))
-                        nomQuery += $" {cleanDistrict}";
-                    if (!string.IsNullOrWhiteSpace(cleanState) && !nomQuery.Contains(cleanState, StringComparison.OrdinalIgnoreCase))
-                        nomQuery += $" {cleanState}";
-
-                    var nomUrl = $"https://nominatim.openstreetmap.org/search?q={Uri.EscapeDataString(nomQuery)}&format=json&addressdetails=1&countrycodes=in&limit=8";
-                    var nomResp = await client.GetAsync(nomUrl);
-                    if (nomResp.IsSuccessStatusCode)
-                    {
-                        var nomJson = await nomResp.Content.ReadAsStringAsync();
-                        using var nomDoc = JsonDocument.Parse(nomJson);
-                        if (nomDoc.RootElement.ValueKind == JsonValueKind.Array)
-                        {
-                            foreach (var item in nomDoc.RootElement.EnumerateArray())
-                            {
-                                string displayName = item.TryGetProperty("display_name", out var dn) ? dn.GetString() ?? "" : "";
-                                string name = item.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                                if (string.IsNullOrWhiteSpace(name)) name = displayName.Split(',').FirstOrDefault()?.Trim() ?? "";
-
-                                if (!double.TryParse(item.GetProperty("lat").GetString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lat) ||
-                                    !double.TryParse(item.GetProperty("lon").GetString(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double lon))
-                                {
-                                    continue;
-                                }
-
-                                string road = "", suburb = "", county = "", stateVal = "", postVal = "", countryVal = "India";
-                                if (item.TryGetProperty("address", out var addr) && addr.ValueKind == JsonValueKind.Object)
-                                {
-                                    if (addr.TryGetProperty("road", out var r)) road = r.GetString() ?? "";
-                                    if (addr.TryGetProperty("suburb", out var sb)) suburb = sb.GetString() ?? "";
-                                    if (addr.TryGetProperty("neighbourhood", out var nh) && string.IsNullOrWhiteSpace(suburb)) suburb = nh.GetString() ?? "";
-                                    if (addr.TryGetProperty("county", out var co)) county = co.GetString() ?? "";
-                                    if (addr.TryGetProperty("state_district", out var sd) && string.IsNullOrWhiteSpace(county)) county = sd.GetString() ?? "";
-                                    if (addr.TryGetProperty("state", out var stt)) stateVal = stt.GetString() ?? "";
-                                    if (addr.TryGetProperty("postcode", out var pc)) postVal = pc.GetString() ?? "";
-                                    if (addr.TryGetProperty("country", out var cnt)) countryVal = cnt.GetString() ?? "India";
-                                }
-
-                                // Relevance Scoring
-                                int score = 150;
-                                int matchedDistinctive = 0;
-                                if (distinctiveTokens.Count > 0)
-                                {
-                                    foreach (var token in distinctiveTokens)
-                                    {
-                                        if (displayName.Contains(token, StringComparison.OrdinalIgnoreCase) || name.Contains(token, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            matchedDistinctive++;
-                                        }
-                                    }
-                                    if (matchedDistinctive == 0)
-                                    {
-                                        continue; // Discard irrelevant matches that didn't match distinctive words
-                                    }
-                                    score += (matchedDistinctive * 50);
-                                }
-
-                                if (!string.IsNullOrWhiteSpace(cleanState) && stateVal.Equals(cleanState, StringComparison.OrdinalIgnoreCase)) score += 30;
-                                if (!string.IsNullOrWhiteSpace(cleanDistrict) && county.Equals(cleanDistrict, StringComparison.OrdinalIgnoreCase)) score += 30;
-
-                                var subList = new List<string>();
-                                if (!string.IsNullOrWhiteSpace(road) && !road.Equals(name, StringComparison.OrdinalIgnoreCase)) subList.Add(road);
-                                if (!string.IsNullOrWhiteSpace(suburb) && !suburb.Equals(name, StringComparison.OrdinalIgnoreCase)) subList.Add(suburb);
-                                if (!string.IsNullOrWhiteSpace(county) && !county.Equals(name, StringComparison.OrdinalIgnoreCase)) subList.Add(county);
-                                if (!string.IsNullOrWhiteSpace(stateVal)) subList.Add(!string.IsNullOrWhiteSpace(postVal) ? $"{stateVal} {postVal}" : stateVal);
-                                if (!string.IsNullOrWhiteSpace(countryVal)) subList.Add(countryVal);
-
-                                string secondary = string.Join(", ", subList.Distinct());
-                                string fullAddr = string.IsNullOrWhiteSpace(secondary) ? name : $"{name}, {secondary}";
-
-                                candidates.Add(new GeoSuggestionItem
-                                {
-                                    Name = name,
-                                    Secondary = secondary,
-                                    FullAddress = fullAddr,
-                                    Latitude = lat,
-                                    Longitude = lon,
-                                    City = county,
-                                    District = county,
-                                    State = stateVal,
-                                    Postcode = postVal,
-                                    Country = countryVal,
-                                    Score = score
-                                });
-                            }
-                        }
-                    }
-                }
-                catch { }
-
-                // 4. Photon Geocoding with Strict Word Relevance Filtering
-                try
-                {
-                    string photonQuery = cleanQuery;
-                    if (!string.IsNullOrWhiteSpace(cleanDistrict) && !photonQuery.Contains(cleanDistrict, StringComparison.OrdinalIgnoreCase))
-                        photonQuery += $" {cleanDistrict}";
-                    if (!string.IsNullOrWhiteSpace(cleanState) && !photonQuery.Contains(cleanState, StringComparison.OrdinalIgnoreCase))
-                        photonQuery += $" {cleanState}";
-
-                    var pUrl = $"https://photon.komoot.io/api/?q={Uri.EscapeDataString(photonQuery)}&limit=10";
-                    var pResp = await client.GetAsync(pUrl);
-                    if (pResp.IsSuccessStatusCode)
-                    {
-                        var pJson = await pResp.Content.ReadAsStringAsync();
-                        using var pDoc = JsonDocument.Parse(pJson);
-                        if (pDoc.RootElement.TryGetProperty("features", out var feats) && feats.ValueKind == JsonValueKind.Array)
-                        {
-                            foreach (var feat in feats.EnumerateArray())
-                            {
-                                var props = feat.GetProperty("properties");
-                                var geom = feat.GetProperty("geometry");
-                                var coords = geom.GetProperty("coordinates");
-                                double lon = coords[0].GetDouble();
-                                double lat = coords[1].GetDouble();
-
-                                string name = props.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
-                                string street = props.TryGetProperty("street", out var st) ? st.GetString() ?? "" : "";
-                                string housenumber = props.TryGetProperty("housenumber", out var hn) ? hn.GetString() ?? "" : "";
-                                string featDistrict = props.TryGetProperty("district", out var d) ? d.GetString() ?? "" : "";
-                                string featCity = props.TryGetProperty("city", out var c) ? c.GetString() ?? "" : "";
-                                string county = props.TryGetProperty("county", out var co) ? co.GetString() ?? "" : "";
-                                string featState = props.TryGetProperty("state", out var s) ? s.GetString() ?? "" : "";
-                                string postcode = props.TryGetProperty("postcode", out var pc) ? pc.GetString() ?? "" : "";
-                                string featCountry = props.TryGetProperty("country", out var cnt) ? cnt.GetString() ?? "" : "";
-
-                                string combinedText = $"{name} {street} {featDistrict} {featCity} {county}";
-
-                                int score = 100;
-                                int matchedDistinctive = 0;
-                                if (distinctiveTokens.Count > 0)
-                                {
-                                    foreach (var token in distinctiveTokens)
-                                    {
-                                        if (combinedText.Contains(token, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            matchedDistinctive++;
-                                        }
-                                    }
-                                    // CRITICAL: If none of user's distinctive tokens matched, discard this feature
-                                    if (matchedDistinctive == 0)
-                                    {
-                                        continue;
-                                    }
-                                    score += (matchedDistinctive * 50);
-                                }
-
-                                if (!string.IsNullOrWhiteSpace(cleanState) && featState.Equals(cleanState, StringComparison.OrdinalIgnoreCase)) score += 30;
-                                if (!string.IsNullOrWhiteSpace(cleanDistrict) && (featDistrict.Equals(cleanDistrict, StringComparison.OrdinalIgnoreCase) || county.Equals(cleanDistrict, StringComparison.OrdinalIgnoreCase))) score += 30;
-
-                                var subParts = new List<string>();
-                                if (!string.IsNullOrWhiteSpace(street) && !street.Equals(name, StringComparison.OrdinalIgnoreCase))
-                                    subParts.Add(!string.IsNullOrWhiteSpace(housenumber) ? $"{housenumber} {street}" : street);
-                                if (!string.IsNullOrWhiteSpace(featDistrict) && !featDistrict.Equals(name, StringComparison.OrdinalIgnoreCase))
-                                    subParts.Add(featDistrict);
-                                if (!string.IsNullOrWhiteSpace(featCity) && !featCity.Equals(name, StringComparison.OrdinalIgnoreCase))
-                                    subParts.Add(featCity);
-                                if (!string.IsNullOrWhiteSpace(county) && !county.Equals(featCity, StringComparison.OrdinalIgnoreCase) && !county.Equals(name, StringComparison.OrdinalIgnoreCase))
-                                    subParts.Add(county);
-                                if (!string.IsNullOrWhiteSpace(featState))
-                                    subParts.Add(!string.IsNullOrWhiteSpace(postcode) ? $"{featState} {postcode}" : featState);
-                                if (!string.IsNullOrWhiteSpace(featCountry))
-                                    subParts.Add(featCountry);
-
-                                string secondary = string.Join(", ", subParts.Distinct());
-                                string fullDisplay = string.IsNullOrWhiteSpace(secondary) ? name : $"{name}, {secondary}";
-
-                                candidates.Add(new GeoSuggestionItem
-                                {
-                                    Name = string.IsNullOrWhiteSpace(name) ? fullDisplay : name,
-                                    Secondary = secondary,
-                                    FullAddress = fullDisplay,
-                                    Latitude = lat,
-                                    Longitude = lon,
-                                    City = featCity,
-                                    District = featDistrict,
-                                    State = featState,
-                                    Postcode = postcode,
-                                    Country = featCountry,
-                                    Score = score
-                                });
-                            }
-                        }
-                    }
-                }
-                catch { }
-
-                // 5. Deduplication & Ranking
-                var results = new List<GeoSuggestionItem>();
-                foreach (var item in candidates.OrderByDescending(c => c.Score))
-                {
-                    bool isDuplicate = results.Any(existing =>
-                        (Math.Abs(existing.Latitude - item.Latitude) < 0.0015 && Math.Abs(existing.Longitude - item.Longitude) < 0.0015) ||
-                        string.Equals(existing.FullAddress, item.FullAddress, StringComparison.OrdinalIgnoreCase) ||
-                        (string.Equals(existing.Name, item.Name, StringComparison.OrdinalIgnoreCase) && string.Equals(existing.Postcode, item.Postcode, StringComparison.OrdinalIgnoreCase)));
-
-                    if (!isDuplicate)
-                    {
-                        results.Add(item);
-                        if (results.Count >= 8) break;
-                    }
-                }
-
-                if (results.Count > 0)
-                {
-                    return Json(results.Select(r => new
-                    {
-                        name = r.Name,
-                        secondary = r.Secondary,
-                        fullAddress = r.FullAddress,
-                        latitude = r.Latitude,
-                        longitude = r.Longitude,
-                        city = r.City,
-                        district = r.District,
-                        state = r.State,
-                        postcode = r.Postcode,
-                        country = r.Country
-                    }));
-                }
-            }
-            catch
-            {
-                // Fallback handled on client side
-            }
-
-            return Json(Array.Empty<object>());
+                name = d.Name, fullAddress = d.FullAddress, latitude = d.Latitude, longitude = d.Longitude,
+                city = d.City, district = d.District, state = d.State, postcode = d.Postcode, country = d.Country
+            });
         }
 
         [AllowAnonymous]
@@ -3323,148 +3406,10 @@ namespace EMR.Web.Controllers
 
             if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
 
-            var detail = await labOrderApiClient.GetOrderDetailAsync(labOrderId);
-            if (detail == null) return NotFound("Lab order not found.");
-
-            var branchId = detail.BranchId;
-
-            var settings = await dbContext.HospitalSettings
-                .Where(s => s.BranchId == branchId && s.IsActive)
-                .FirstOrDefaultAsync();
-
-            decimal grossAmount = detail.Items.Sum(i => i.Price);
-            // tests cancelled after billing: shown as "Less: cancelled tests" so gross - cancelled - discount = the bill
-            decimal cancelledAmount = detail.Items.Where(i => !i.IsActive).Sum(i => i.Price);
-            var printAdj = (await EMR.Web.Services.LabBillAdjustments.LoadAsync(dbContext.Database.GetDbConnection(), [labOrderId])).GetValueOrDefault(labOrderId);
-            decimal headerDiscount = detail.DiscountAmount;
-            bool hasRecordedLineDiscounts = detail.Items.Any(i => i.DiscountAmount > 0);
-
-            var lineItems = detail.Items.Select(i =>
-            {
-                decimal lineDiscount = hasRecordedLineDiscounts
-                    ? i.DiscountAmount
-                    : (grossAmount > 0 && headerDiscount > 0 ? Math.Round(headerDiscount * i.Price / grossAmount, 2) : 0);
-
-                return new PrintBillLineItem
-                {
-                    TestCode     = i.TestCode,
-                    TestName     = i.TestName,
-                    SampleType   = i.SampleType,
-                    MRP          = i.Price,
-                    DiscountAmount = lineDiscount,
-                    IsActive     = i.IsActive
-                };
-            }).ToList();
-
-            // misc charges (SQLScripts/2240) print after the investigations: amount, its discount, cancelled ones struck through;
-            // their GST is a row of its own in the summary
-            foreach (var m in printAdj?.MiscLines ?? [])
-                lineItems.Add(new PrintBillLineItem
-                {
-                    TestCode = m.ChargeType == "Home Collection" ? "HOME-COLL" : "MISC",
-                    TestName = m.DisplayName + (m.IsGstRequired ? $" (GST {m.GstPercentage:0.##}%)" : ""),
-                    SampleType = m.ChargeType == "Home Collection" ? "Home Collection" : "Misc Charge",
-                    MRP = detail.IsB2B ? m.Amount : m.Amount,
-                    DiscountAmount = detail.IsB2B ? 0 : m.DiscountAmount,
-                    IsActive = m.IsActive
-                });
-            decimal miscGross = printAdj?.MiscLines.Sum(m => m.Amount) ?? 0m;
-            decimal miscCancelled = printAdj?.MiscLines.Where(m => !m.IsActive).Sum(m => m.Amount) ?? 0m;
-            decimal miscGst = printAdj?.MiscGstAmount ?? 0m;
-            grossAmount += miscGross;
-            cancelledAmount += miscCancelled;
-
-            var vm = new PrintBillViewModel
-            {
-                IsActive              = detail.IsActive,
-                // the e-mailed / sent bill PDF: a franchise B2B bill follows the franchise's Report Header Required;
-                // B2C and company B2B bills keep the header / footer as before
-                ShowHeaderFooter      = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId) ?? true,
-                HospitalName          = settings?.HospitalName ?? "eMeditech Hospital",
-                HospitalType          = settings?.HospitalType,
-                RegistrationNumber    = settings?.RegistrationNumber,
-                HospitalAddress       = settings?.Address,
-                HospitalPhone         = settings?.ContactNumber1,
-                HospitalEmergencyPhone = settings?.EmergencyNumber,
-                HospitalEmail         = settings?.EmailAddress,
-                HospitalWebsite       = settings?.Website,
-                HospitalGSTIN         = settings?.GSTCode,
-                HospitalLogoPath      = settings?.LogoPath,
-                BranchName            = detail.BranchName,
-                NabhStatus            = settings?.NabhStatus,
-                NabhCertificateNo     = settings?.NabhCertificateNo,
-                NabhValidFrom         = settings?.NabhValidFrom,
-                NabhValidTo           = settings?.NabhValidTo,
-
-                PatientName  = detail.PatientName,
-                PatientCode  = detail.PatientCode,
-                PhoneNumber  = detail.PhoneNumber,
-                EmailId      = detail.EmailId,
-                Gender       = detail.Gender,
-                Age          = detail.Age,
-                DateOfBirth  = detail.DateOfBirth,
-                Address      = detail.Address,
-
-                LabOrderId        = detail.LabOrderId,
-                BillNo            = detail.BillNo,
-                TokenNo           = detail.TokenNo,
-                OrderDate         = detail.OrderDate,
-                CreatedDate       = detail.CreatedDate,
-                BookingDate       = detail.BookingDate,
-                CollectionType    = detail.CollectionType,
-                PhlebotomistName  = detail.PhlebotomistName,
-                ReferralDoctorName = detail.ReferralDoctorName,
-                CreatedByName     = detail.CreatedByName,
-                CreatedByUsername = detail.CreatedByUsername,
-                PrintedByName     = "Patient Portal",
-
-                // B2B vs B2C Payment & Billing Handling
-                IsB2B           = detail.IsB2B,
-                PartnerName     = detail.AgentName,
-                PartnerCode     = detail.AgentCode,
-                GrossAmount     = grossAmount,
-                DiscountAmount  = headerDiscount,
-                RoundOffAmount  = detail.RoundOffAmount,
-                CancelledAmount = cancelledAmount,
-                MiscCgstAmount  = printAdj?.MiscCgstAmount ?? 0m,
-                MiscSgstAmount  = printAdj?.MiscSgstAmount ?? 0m,
-                RefundedAmount  = detail.IsB2B ? 0m : (printAdj?.RefundedAmount ?? 0m),
-                MembershipCardNo     = detail.IsB2B ? null : printAdj?.MembershipCardNo,
-                PointsRedeemed       = detail.IsB2B ? 0m : (printAdj?.PointsRedeemed ?? 0m),
-                PointsRedeemedAmount = detail.IsB2B ? 0m : (printAdj?.PointsRedeemedAmount ?? 0m),
-                PointsEarned         = detail.IsB2B ? 0m : (printAdj?.PointsEarned ?? 0m),
-                MembershipDiscountAmount = detail.IsB2B ? 0m : (printAdj?.MembershipDiscountAmount ?? 0m),
-                GrandTotal      = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.NetAmount,
-                ReceivedAmount  = detail.IsB2B ? (grossAmount - cancelledAmount - headerDiscount + miscGst + detail.RoundOffAmount) : detail.TotalPaid,
-                Balance         = detail.IsB2B ? 0.00m : detail.BalanceDue,
-                PaymentStatus   = detail.IsB2B ? "P" : detail.PaymentStatus,
-
-                LineItems = lineItems,
-                Payments  = detail.IsB2B
-                    ? (detail.Payments.Any()
-                        ? detail.Payments.Select(p =>
-                          {
-                              var row = ToPrintBillPaymentRow(p);
-                              row.PaidAmount = grossAmount - headerDiscount + detail.RoundOffAmount;
-                              row.ReceivedByName ??= detail.CreatedByName ?? detail.CreatedByUsername;
-                              row.PaymentDate ??= detail.CreatedDate;
-                              return row;
-                          }).ToList()
-                        : new List<PrintBillPaymentRow>
-                          {
-                              new PrintBillPaymentRow
-                              {
-                                  MethodName     = "B2B Partner Credit",
-                                  PaidAmount     = grossAmount - headerDiscount + detail.RoundOffAmount,
-                                  ReceiptNo      = detail.BillNo,
-                                  // the partner's account is charged when the bill is booked: by whom and when
-                                  ReceivedByName = detail.CreatedByName ?? detail.CreatedByUsername,
-                                  PaymentDate    = detail.CreatedDate
-                              }
-                          })
-                    : detail.Payments.Select(ToPrintBillPaymentRow).ToList()
-            };
-
+            var built = await LabBillPrintBuilder.BuildAnonymousAsync(labOrderApiClient, dbContext, labOrderId);
+            if (built is not { } b) return NotFound("Lab order not found.");
+            var (vm, branchId) = b;
+            await ApplyBillTemplateAsync(vm, branchId, null);   // the shared link prints with the branch's template too
             return View("PrintBill", vm);
         }
 
@@ -3473,6 +3418,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetPartnerCreditStatus(string agentType, int agentId)
         {
+            if (User.GetFranchiseId() is int ownFranchiseId) { agentType = "F"; agentId = ownFranchiseId; }
             try
             {
                 var branchId = User.GetCurrentBranchId();
@@ -3494,6 +3440,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> FranchiseWalletStatement(int franchiseId, DateTime? fromDate, DateTime? toDate)
         {
+            if (User.IsFranchiseUser()) return Forbid();   // the wallet screens stay with the lab
             try
             {
                 var statement = await b2bBillingApiClient.GetWalletStatementAsync(franchiseId, fromDate, toDate);
@@ -3506,7 +3453,7 @@ namespace EMR.Web.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> B2BSettlement(string? agentType = "F", int? agentId = null)
+        public async Task<IActionResult> B2BSettlement(string? agentType = "F", int? agentId = null, int? invoiceId = null)
         {
             var branchId = User.GetCurrentBranchId();
             if (branchId == null)
@@ -3517,6 +3464,7 @@ namespace EMR.Web.Controllers
 
             ViewBag.SelectedAgentType = agentType ?? "F";
             ViewBag.SelectedAgentId = agentId ?? 0;
+            ViewBag.SelectedInvoiceId = invoiceId ?? 0;   // opened from B2B Invoices > Record payment: that invoice is ticked
 
             try
             {
@@ -3558,6 +3506,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetOutstandingBillsForSettlement(string agentType, int agentId)
         {
+            if (!FranchiseMayUsePartner(agentType, agentId)) return Json(new { success = false, error = "You can only work with your own franchise's bills." });
             try
             {
                 var branchId = User.GetCurrentBranchId();
@@ -3578,6 +3527,10 @@ namespace EMR.Web.Controllers
             {
                 var branchId = User.GetCurrentBranchId();
                 if (branchId.HasValue) request.BranchId = branchId.Value;
+
+                if (!await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BSETTLEMENT", "SETTLE")) return Json(new { success = false, error = "You do not have permission for this action." });
+                if (!FranchiseMayUsePartner(request.AgentType, request.AgentId))
+                    return Json(new { success = false, error = "You can only work with your own franchise's bills." });
 
                 if (request.PaidAmount <= 0)
                 {
@@ -3637,6 +3590,7 @@ namespace EMR.Web.Controllers
             }
 
             var receipt = await b2bBillingApiClient.GetSettlementReceiptAsync(receiptNo);
+            if (receipt != null && !FranchiseMayUsePartner(receipt.AgentType, receipt.AgentId)) receipt = null;
             if (receipt == null)
             {
                 return NotFound($"Settlement receipt '{receiptNo}' was not found.");
@@ -3733,6 +3687,15 @@ namespace EMR.Web.Controllers
                 ViewBag.Corporates = new List<SelectListItem>();
             }
 
+            // a franchise login: only its own franchise's invoices (whoever generated them)
+            if (User.GetFranchiseId() is int ownFranchiseId)
+            {
+                agentType = "F";
+                agentId = ownFranchiseId;
+                ViewBag.Franchises = ((List<SelectListItem>)ViewBag.Franchises).Where(f => f.Value == ownFranchiseId.ToString()).ToList();
+                ViewBag.Corporates = new List<SelectListItem>();
+            }
+
             ViewBag.CurrentAgentType = agentType;
             ViewBag.CurrentAgentId = agentId;
             ViewBag.CurrentStatus = status;
@@ -3748,6 +3711,7 @@ namespace EMR.Web.Controllers
         [HttpGet]
         public async Task<IActionResult> GetUninvoicedOrders(string agentType, int? agentId = null, string? agentIds = null, DateTime? fromDate = null, DateTime? toDate = null)
         {
+            if (User.GetFranchiseId() is int ownFranchiseId) { agentType = "F"; agentId = ownFranchiseId; agentIds = null; }
             try
             {
                 var orders = await b2bBillingApiClient.GetUninvoicedOrdersAsync(agentType, agentId, agentIds, fromDate, toDate);
@@ -3759,6 +3723,53 @@ namespace EMR.Web.Controllers
             }
         }
 
+        /// <summary>SQLScripts/2421: the money receipts of an invoice (Actions > Money Receipts).</summary>
+        [HttpGet]
+        public async Task<IActionResult> B2BInvoiceReceipts(int id)
+        {
+            try { return Json(new { success = true, receipts = await b2bBillingApiClient.GetInvoiceReceiptsAsync(id) }); }
+            catch (HttpRequestException) { return Json(new { success = false, message = "The service is unreachable. Please try again." }); }
+        }
+
+        public sealed class CancelB2BInvoiceRequest { public int InvoiceId { get; set; } public string? Reason { get; set; } }
+
+        /// <summary>B2B Invoices > Actions > Cancel (SQLScripts/2281): an unpaid invoice is cancelled with a reason, its bills
+        /// become un-invoiced again. Permission: LAB.LABORDERBOOKING.B2BINVOICES : CANCEL; the procedure checks the rules.</summary>
+        [HttpPost]
+        public async Task<IActionResult> CancelB2BInvoice([FromBody] CancelB2BInvoiceRequest request)
+        {
+            if (!await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BINVOICES", EMR.Shared.Security.PermissionControls.Cancel))
+                return Json(new { success = false, error = "You do not have permission to cancel invoices." });
+            if (request == null || request.InvoiceId <= 0) return Json(new { success = false, error = "Invoice not found." });
+            if (string.IsNullOrWhiteSpace(request.Reason)) return Json(new { success = false, error = "Enter the reason for cancelling the invoice." });
+            try
+            {
+                var con = dbContext.Database.GetDbConnection();
+                var r = await Dapper.SqlMapper.QueryFirstAsync<(int InvoiceId, string InvoiceNo, int BillsReleased)>(con, "dbo.usp_B2B_CancelInvoice",
+                    new { request.InvoiceId, Reason = request.Reason.Trim(), UserId = User.GetUserId(), FranchiseId = User.GetFranchiseId() },
+                    commandType: System.Data.CommandType.StoredProcedure);
+                await auditLogService.LogActivityAsync(
+                    eventType: "B2B Invoicing",
+                    actionName: "LAB.B2BInvoiceCancelled",
+                    description: $"B2B Invoice {r.InvoiceNo} cancelled ({r.BillsReleased} bill(s) released for re-invoicing). Reason: {request.Reason.Trim()}",
+                    userId: User.GetUserId(),
+                    branchId: User.GetCurrentBranchId(),
+                    moduleCode: "LAB",
+                    referenceNo: r.InvoiceNo,
+                    referenceId: r.InvoiceId);
+                return Json(new { success = true, message = $"Invoice {r.InvoiceNo} cancelled. {r.BillsReleased} bill(s) can be invoiced again." });
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number >= 50000)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "B2B invoice {InvoiceId} cancel failed", request.InvoiceId);
+                return Json(new { success = false, error = "The invoice could not be cancelled. Please try again." });
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> GenerateInvoice([FromBody] GenerateInvoiceRequestDto request)
         {
@@ -3766,6 +3777,14 @@ namespace EMR.Web.Controllers
             {
                 var branchId = User.GetCurrentBranchId();
                 if (branchId.HasValue) request.BranchId = branchId.Value;
+
+                if (!await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2BINVOICES", "GENERATE_INVOICE")) return Json(new { success = false, error = "You do not have permission for this action." });
+                // a franchise login: only its own franchise, in the single invoice and in every batch group
+                if (User.GetFranchiseId() is int ownId
+                    && (!string.Equals(request.AgentType, "F", StringComparison.OrdinalIgnoreCase)
+                        || (request.AgentId > 0 && request.AgentId != ownId)
+                        || (request.PartnerGroups != null && request.PartnerGroups.Any(g => g.AgentId != ownId))))
+                    return Json(new { success = false, error = "You can only work with your own franchise's bills." });
 
                 bool hasGroups = request.PartnerGroups != null && request.PartnerGroups.Any(g => !string.IsNullOrWhiteSpace(g.SelectedOrderIds));
                 bool hasSingle = request.AgentId > 0 && !string.IsNullOrWhiteSpace(request.SelectedOrderIds);
@@ -3833,13 +3852,40 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> B2BInvoiceDetail(int id)
         {
             var detail = await b2bBillingApiClient.GetInvoiceDetailAsync(id);
-            if (detail == null)
+            if (detail == null || !FranchiseMayUsePartner(detail.PartnerType, detail.PartnerId))
             {
                 TempData["Error"] = "Invoice not found.";
                 return RedirectToAction(nameof(B2BInvoices));
             }
             ViewBag.Letterhead = await BuildInvoiceLetterheadAsync(detail.BranchId);
+            ViewBag.PayQr = await BuildInvoicePayQrAsync(detail);
             return View(detail);
+        }
+
+        /// <summary>The UPI payment QR of the invoice (SQLScripts/2452): only when Hospital Settings (OPD tab) "Show QR on B2B
+        /// Invoice" is Yes for the invoice's branch, that branch's QR is set up and in use, the invoice is not cancelled and a
+        /// balance is due. Otherwise null and the invoice prints as before.</summary>
+        private async Task<EMR.Web.Models.ViewModels.InvoicePayQr?> BuildInvoicePayQrAsync(B2BInvoiceDetailDto detail)
+        {
+            var balance = Math.Max(0, detail.BalanceAmount);
+            if (detail.Status == "C" || balance <= 0) return null;
+            try
+            {
+                var show = await dbContext.HospitalSettings.AsNoTracking()
+                    .AnyAsync(s => s.BranchId == detail.BranchId && s.IsActive && s.ShowQrOnB2BInvoice);
+                if (!show) return null;
+                var api = HttpContext.RequestServices.GetRequiredService<EMR.Web.ApiClients.PaymentQrApiClient>();
+                var cfg = EMR.Web.Services.UpiQrConfig.From(await api.GetAsync($"/branch/{detail.BranchId}"));
+                if (cfg is not { IsActive: true }) return null;
+                var link = EMR.Web.Services.UpiQr.Link(cfg, balance, detail.InvoiceNo);
+                return new EMR.Web.Models.ViewModels.InvoicePayQr(EMR.Web.Services.UpiQr.PngDataUri(link, 6), cfg.UpiId, cfg.PayeeName,
+                    cfg.AmountMode == "DUE" ? balance : null, cfg.Caption, cfg.IncludeReference ? detail.InvoiceNo : null);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException)
+            {
+                logger.LogWarning(ex, "B2B invoice {InvoiceNo}: payment QR not shown", detail.InvoiceNo);
+                return null;   // the invoice still prints; only the QR is left out
+            }
         }
 
         private static readonly Dictionary<string, string> GstStates = new()
@@ -3921,4 +3967,5 @@ namespace EMR.Web.Controllers
         public string Country { get; set; } = "";
         public int Score { get; set; }
     }
+
 }

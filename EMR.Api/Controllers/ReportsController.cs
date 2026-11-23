@@ -41,7 +41,7 @@ public class ReportsController : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>Reports > LAB > B2C Collection Register: money receipts collected on B2C lab bills.</summary>
+    /// <summary>Reports > LAB > Daily Collection Register: money receipts of B2C bills and B2B bills paid directly (SQLScripts/2255).</summary>
     [HttpGet("lab/b2c-collection-register")]
     public async Task<IActionResult> GetLabB2CCollectionRegister(
         [FromQuery] int branchId,
@@ -52,7 +52,8 @@ public class ReportsController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] int userId = 0,
         [FromQuery] bool isAdmin = false,
-        [FromQuery] bool isSuperAdmin = false)
+        [FromQuery] bool isSuperAdmin = false,
+        [FromQuery] string? billingType = null)
     {
         if (branchId <= 0) return BadRequest(new { message = "Valid branchId is required." });
         if ((toDate.Date - fromDate.Date).TotalDays > 366)
@@ -61,7 +62,7 @@ public class ReportsController : ControllerBase
         try
         {
             var result = await _reportService.GetLabB2CCollectionRegisterAsync(branchId, fromDate, toDate, paymentMethodId, collectedBy, search,
-                userId, isAdmin, isSuperAdmin);
+                userId, isAdmin, isSuperAdmin, billingType?.Trim().ToUpperInvariant());
             return Ok(result);
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 50010 or 50011)
@@ -110,9 +111,15 @@ public class ReportsController : ControllerBase
             ["patient-orders"]      = ("dbo.usp_Api_LabReport_PatientOrders",      new[] { "ReportStatus" },                       new[] { "CreatedBy" }),
             ["cancellation-refund"] = ("dbo.usp_Api_LabReport_CancellationRefund", new[] { "CancellationType", "RefundStatus", "BillingType" }, new[] { "CancelledBy" }),
             // membership points earned / redeemed / given back / taken back / expired on B2C LAB bills (SQLScripts/2237)
+            // Referral Doctor Billing: bills by referral doctor with their test lines; DoctorIds is a list (SQLScripts/2379)
+            ["ref-doctor-billing"]  = ("dbo.usp_Api_LabReport_RefDoctorBilling",   new[] { "DoctorIds", "BillingType", "PaymentStatus" }, Array.Empty<string>()),
+            // Marketing Executive Business: bills by the executive of their referral doctor (SQLScripts/2443)
+            ["marketing-business"]  = ("dbo.usp_Api_LabReport_MarketingBusiness",  new[] { "ExecutiveIds", "ExecType", "BillingType" }, Array.Empty<string>()),
             ["membership-points"]   = ("dbo.usp_Api_LabReport_MembershipPoints",   new[] { "TxnType" },                            new[] { "PlanId", "CreatedBy" }),
             // B2B partner-account reports: branch-wide, not limited to the user's own records (SQLScripts/2125)
             ["b2b-partner-billing"] = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
+            // B2B Billing Report: the same bills and filters, shown bill-wise with every test (SQLScripts/2340)
+            ["b2b-billing-report"]  = ("dbo.usp_Api_LabReport_B2BPartnerBilling",  new[] { "PartnerType", "Partner", "PaymentMethod" }, Array.Empty<string>()),
             ["franchise-wallet"]    = ("dbo.usp_Api_LabReport_FranchiseWallet",    new[] { "TransactionType" },                     new[] { "FranchiseId" }),
             ["b2b-outstanding"]     = ("dbo.usp_Api_LabReport_B2BOutstanding",     new[] { "PartnerType", "AgeBucket" },            Array.Empty<string>()),
             // Sample stage: LR-10 / LR-11 / LR-12 (SQLScripts/2183)
@@ -134,6 +141,8 @@ public class ReportsController : ControllerBase
             ["unauthorized"]        = ("dbo.usp_Api_LabReport_Unauthorized",      new[] { "WithdrawAction", "Outcome", "Amended" }, new[] { "UnapprovedBy", "DepartmentId" }),
             // LR-24 / LR-26 / LR-27 management (SQLScripts/2210)
             ["revenue-trend"]       = ("dbo.usp_Api_LabReport_RevenueTrend",      new[] { "BillingType" },                          new[] { "CreatedBy" }),
+            // LR-23 (SQLScripts/2267)
+            ["test-revenue"]        = ("dbo.usp_Api_LabReport_TestRevenue",       new[] { "Kind", "BillingType" },                  new[] { "DepartmentId", "CreatedBy" }),
             ["patient-analytics"]   = ("dbo.usp_Api_LabReport_PatientAnalytics",  new[] { "PatientType", "AgeBand", "Gender" },     new[] { "CreatedBy" }),
             ["staff-productivity"]  = ("dbo.usp_Api_LabReport_StaffProductivity", new[] { "Activity" },                             new[] { "StaffId" }),
             // Doctor IP (referral doctor commission) reports: branch-wide (SQLScripts/2222)
@@ -142,6 +151,26 @@ public class ReportsController : ControllerBase
             ["doctorip-business"]     = ("dbo.usp_Api_LabReport_DoctorIpBusiness",     new[] { "CommissionStatus" },      new[] { "DoctorId" }),
             ["doctorip-pending"]      = ("dbo.usp_Api_LabReport_DoctorIpPending",      new[] { "ItemType", "Frequency" }, new[] { "DoctorId" }),
             ["doctorip-unconfigured"] = ("dbo.usp_Api_LabReport_DoctorIpUnconfigured", new[] { "Reason" },                new[] { "DoctorId" }),
+            // Quality & Compliance: BOM & costing, company masters against the branch's B2C rates (SQLScripts/2248)
+            // LF-06 equipment and EQAS register (SQLScripts/2253)
+            ["iqc-runs"]              = ("dbo.usp_Api_LabReport_IqcRuns",              new[] { "RunStatus" },             new[] { "AnalyzerId", "TestId" }),   // LF-05, SQLScripts/2254
+            ["equipment-due"]         = ("dbo.usp_Api_LabReport_EquipmentDue",         new[] { "DueState" },              new[] { "TypeId", "DepartmentId" }),
+            ["equipment-downtime"]    = ("dbo.usp_Api_LabReport_EquipmentDowntime",    new[] { "BreakdownStatus" },       new[] { "TypeId" }),
+            ["eqas-performance"]      = ("dbo.usp_Api_LabReport_EqasPerformance",      new[] { "Performance" },           new[] { "ProgramId" }),
+            ["capa-register"]         = ("dbo.usp_Api_LabReport_CapaRegister",         new[] { "CapaStatus", "SourceType" }, Array.Empty<string>()),
+            ["bom-consumption"]       = ("dbo.usp_Api_LabReport_BomConsumption",       new[] { "RunType" },               new[] { "DepartmentId", "ItemId" }),   // SQLScripts/2249
+            ["bom-register"]          = ("dbo.usp_Api_LabReport_BomRegister",          new[] { "AppliesTo" },             new[] { "DepartmentId", "CategoryId" }),
+            ["bom-coverage"]          = ("dbo.usp_Api_LabReport_BomCoverage",          new[] { "Coverage" },              new[] { "DepartmentId" }),
+            ["item-where-used"]       = ("dbo.usp_Api_LabReport_ItemWhereUsed",        new[] { "Usage" },                 new[] { "CategoryId", "ItemId" }),
+            ["bom-history"]           = ("dbo.usp_Api_LabReport_BomHistory",           new[] { "EventType" },             new[] { "DepartmentId", "ChangedBy" }),
+            ["test-cost-sheet"]       = ("dbo.usp_Api_LabReport_TestCostSheet",        new[] { "Kind" },                  new[] { "DepartmentId" }),
+            ["price-vs-cost"]         = ("dbo.usp_Api_LabReport_PriceVsCost",          new[] { "Kind", "MarginBand" },    new[] { "DepartmentId" }),
+            ["margin-alert"]          = ("dbo.usp_Api_LabReport_MarginAlert",          new[] { "Threshold", "Kind" },     new[] { "DepartmentId" }),
+            ["package-profitability"] = ("dbo.usp_Api_LabReport_PackageProfitability", new[] { "Kind" },                  Array.Empty<string>()),
+            ["sample-kit-cost"]       = ("dbo.usp_Api_LabReport_SampleKitCost",        new[] { "KitStatus" },             Array.Empty<string>()),
+            ["analyzer-cost"]         = ("dbo.usp_Api_LabReport_AnalyzerCost",         Array.Empty<string>(),             new[] { "AnalyzerId", "DepartmentId" }),
+            ["price-impact"]          = ("dbo.usp_Api_LabReport_PriceImpact",          new[] { "ChangePct" },             new[] { "ItemId", "CategoryId" }),
+            ["dept-cost-summary"]     = ("dbo.usp_Api_LabReport_DeptCostSummary",      new[] { "Kind" },                  Array.Empty<string>()),
         };
 
     /// <summary>LR-13: an outsourced test sent to an outside lab (or its sending details corrected). Validated by the procedure.</summary>
@@ -182,7 +211,7 @@ public class ReportsController : ControllerBase
     }
 
     private static readonly string[] OwnerMisSections =
-        { "summary", "trend", "tests", "departments", "doctors", "partners", "quality", "ageing", "modes", "branches" };
+        { "summary", "trend", "tests", "departments", "doctors", "partners", "quality", "ageing", "modes", "branches", "items", "executives" };   // items: SQLScripts/2252; executives: 2449
 
     /// <summary>LF-18 Owner MIS: revenue by test / department / doctor / partner, TAT, quality, collection and ageing.</summary>
     [HttpGet("lab/owner-mis")]
@@ -278,7 +307,11 @@ public class ReportsController : ControllerBase
         foreach (var f in def.TextFilters)
         {
             var v = Request.Query[char.ToLowerInvariant(f[0]) + f[1..]].ToString();
-            parameters[f] = string.IsNullOrWhiteSpace(v) ? null : v.Trim()[..Math.Min(v.Trim().Length, 20)];
+            // a "...Ids" filter is a comma-separated list of keys (letters, digits); every other text filter is a short code
+            if (f.EndsWith("Ids", StringComparison.Ordinal))
+                parameters[f] = string.IsNullOrWhiteSpace(v) || v.Length > 1000 || !System.Text.RegularExpressions.Regex.IsMatch(v, "^[A-Za-z0-9,]+$") ? null : v;
+            else
+                parameters[f] = string.IsNullOrWhiteSpace(v) ? null : v.Trim()[..Math.Min(v.Trim().Length, 20)];
         }
         foreach (var f in def.IdFilters)
         {

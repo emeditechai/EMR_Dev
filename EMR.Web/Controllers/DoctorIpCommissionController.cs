@@ -50,7 +50,7 @@ public class DoctorIpCommissionController(
         if (until == null || until.Value < DateTime.UtcNow)
         {
             HttpContext.Session.Remove(UnlockKey);
-            context.Result = RedirectToAction("Unlock", "DoctorIp",
+            context.Result = this.RedirectToActionEncrypted("Unlock", "DoctorIp",
                 new { returnUrl = Request.Method == "GET" ? Request.Path + Request.QueryString : Url.Action(nameof(Index)) });
             return;
         }
@@ -119,12 +119,12 @@ public class DoctorIpCommissionController(
         if ((await RunSettingsAsync(branchId.Value)).Mode == "Automatic")
         {
             TempData["ErrorMessage"] = "Doctor IP commission is set to Automatic in Hospital Settings; it is computed by the scheduled job only.";
-            return RedirectToAction(nameof(Index), new { doctorId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId });
         }
         if (fromDate == default || toDate == default || toDate.Date < fromDate.Date)
         {
             TempData["ErrorMessage"] = "Choose a valid From and To date before calculating.";
-            return RedirectToAction(nameof(Index), new { doctorId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId });
         }
 
         try
@@ -143,7 +143,7 @@ public class DoctorIpCommissionController(
             if (results.Count == 0)
             {
                 TempData["ErrorMessage"] = "No pending lab order items found for the selected doctor and period.";
-                return RedirectToAction(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
+                return this.RedirectToActionEncrypted(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
             }
 
             var items = results.Sum(r => r.Items_Computed);
@@ -153,17 +153,85 @@ public class DoctorIpCommissionController(
                 User.GetUserId(), branchId.Value);
 
             TempData["SuccessMessage"] = $"Commission computed for {results.Count} doctor(s): {items} test(s), total ₹{total:N2}.";
-            return RedirectToAction(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd"), tab = "computed" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd"), tab = "computed" });
         }
         catch (InvalidOperationException ex)
         {
             TempData["ErrorMessage"] = ex.Message;
-            return RedirectToAction(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
+            return this.RedirectToActionEncrypted(nameof(Index), new { doctorId, fromDate = fromDate.ToString("yyyy-MM-dd"), toDate = toDate.ToString("yyyy-MM-dd") });
         }
         catch (HttpRequestException)
         {
             ViewData["PageName"] = "Doctor IP Commission";
             return View("ApiDown");
+        }
+    }
+
+    /// <summary>A doctor's pending tests for the period, with the omitted ones flagged (test selection before calculating).</summary>
+    [HttpGet]
+    public async Task<IActionResult> PendingTests(int doctorId, DateTime fromDate, DateTime toDate)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (!branchId.HasValue) return Json(new { success = false, message = "Select a branch first." });
+        if (fromDate == default || toDate == default || toDate.Date < fromDate.Date)
+            return Json(new { success = false, message = "Choose a valid From and To date." });
+        try
+        {
+            var tests = await apiClient.GetPendingTestsAsync(branchId.Value, doctorId, fromDate.Date, toDate.Date, User.GetCompanyId());
+            return Json(new { success = true, tests }, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = null });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The API is not reachable. Try again." });
+        }
+    }
+
+    /// <summary>
+    /// Saves the test selection: omitted tests are left out of the commission by both the manual Calculate and
+    /// the scheduled run until they are included again. Computed tests cannot change.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveOmitted(int doctorId, DateTime fromDate, DateTime toDate, string? omitIds, string? includeIds, string? reason)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (!branchId.HasValue) return Json(new { success = false, message = "Select a branch first." });
+        if (fromDate == default || toDate == default || toDate.Date < fromDate.Date)
+            return Json(new { success = false, message = "Choose a valid From and To date." });
+        static List<int> Ids(string? csv) => (csv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out var n) ? n : 0).Where(n => n > 0).Distinct().ToList();
+        var omit = Ids(omitIds);
+        var include = Ids(includeIds).Except(omit).ToList();
+        if (omit.Count == 0 && include.Count == 0) return Json(new { success = true, omitted = 0, restored = 0 });
+        if (reason is { Length: > 250 }) reason = reason[..250];
+
+        try
+        {
+            var result = await apiClient.SetOmittedAsync(new DoctorIpCommissionOmitRequestModel
+            {
+                BranchId = branchId.Value,
+                DoctorId = doctorId,
+                FromDate = fromDate.Date,
+                ToDate = toDate.Date,
+                CompanyId = User.GetCompanyId(),
+                UserId = User.GetUserId(),
+                OmitIds = omit,
+                IncludeIds = include,
+                Reason = reason
+            });
+            if (result.Omitted_Count > 0 || result.Restored_Count > 0)
+                await auditLogService.LogAsync("Doctor IP Commission Test Selection", "Update",
+                    $"Doctor #{doctorId}, orders {fromDate:dd-MMM-yyyy} to {toDate:dd-MMM-yyyy}: {result.Omitted_Count} test(s) omitted, {result.Restored_Count} included again" +
+                    (string.IsNullOrWhiteSpace(reason) ? "" : $" - {reason.Trim()}"), User.GetUserId(), branchId.Value);
+            return Json(new { success = true, omitted = result.Omitted_Count, restored = result.Restored_Count });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The API is not reachable. Try again." });
         }
     }
 
@@ -177,7 +245,7 @@ public class DoctorIpCommissionController(
             if (item == null || (branchId.HasValue && item.Header.Branch_ID != branchId.Value))
             {
                 TempData["ErrorMessage"] = "Commission record not found for this branch.";
-                return RedirectToAction(nameof(Index), new { tab = "computed" });
+                return this.RedirectToActionEncrypted(nameof(Index), new { tab = "computed" });
             }
             return View(item);
         }

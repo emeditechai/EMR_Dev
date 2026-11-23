@@ -1,0 +1,12 @@
+/* LAB > Marketing Field Report (SQLScripts/2462) */
+#mfMap { height: 70vh; min-height: 380px; width: 100%; }
+.mf-table td { font-size: .86rem; }
+.mf-table .mf-addr { max-width: 280px; white-space: normal; }
+.mf-st { font-size: .72rem; font-weight: 700; padding: .25em .6em; border-radius: 999px; white-space: nowrap; display: inline-block; }
+.mf-st-VERIFIED, .mf-st-OK, .mf-st-CONFIRMED { background: #dcfce7; color: #166534; }
+.mf-st-UNCONFIRMED { background: #fef3c7; color: #92400e; }
+.mf-st-OUTSIDE, .mf-st-MOCK, .mf-st-FLAGGED, .mf-st-REJECTED { background: #fee2e2; color: #991b1b; }
+.mf-st-NO_PIN, .mf-st-NO_GPS, .mf-st-NONE { background: #f1f5f9; color: #475569; }
+.mf-warn { color: #b45309; font-size: .76rem; font-weight: 600; }
+.mf-kpi { border-left: 4px solid var(--mf-c, #2563eb) !important; }
+.mf-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 4px 0 12px; vertical-align: middle; }

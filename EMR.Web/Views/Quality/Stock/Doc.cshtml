@@ -1,0 +1,96 @@
+@* Quality & Compliance > Stock Management - one screen for every stock document (SQLScripts/2498-2500):
+   Opening Stock, Purchase Orders, Goods Receipt, Purchase Returns, Indents, Issue / Transfer, Adjustment / Write-off,
+   Physical Stock Count. The document type, rights and lookups come in window.QcStockDoc; the page logic is
+   wwwroot/js/views/Quality/qc-stock-doc.js. Web -> EMR.Api api/qc/stock -> stored procedures. *@
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+    <link rel="stylesheet" href="~/css/views/Quality/qc-stock.css" asp-append-version="true" />
+}
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item"><a asp-controller="QcStockDashboard" asp-action="Index">Stock Management</a></li>
+                <li class="breadcrumb-item active" id="qsCrumb">@ViewData["Title"]</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi me-2" id="qsIcon"></i><span id="qsTitle">@ViewData["Title"]</span></h4>
+            <div class="qs-sub" id="qsSub"></div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap" id="qsTopButtons"></div>
+    </div>
+
+    <div class="alert alert-warning py-2 d-none" id="qsLookupError"></div>
+
+    <ul class="nav nav-pills mb-2 d-none" id="qsScope"></ul>
+
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2"><label class="form-label small fw-semibold text-muted" for="fStatus">Status</label><select id="fStatus" class="form-select"></select></div>
+            <div class="col-md-2"><label class="form-label small fw-semibold text-muted" for="fFrom">From</label><input type="date" id="fFrom" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label small fw-semibold text-muted" for="fTo">To</label><input type="date" id="fTo" class="form-control" /></div>
+            <div class="col-md-4"><label class="form-label small fw-semibold text-muted" for="fSearch">Search</label>
+                <input type="text" id="fSearch" class="form-control" placeholder="Document no, supplier, bill no, item or lot..." /></div>
+            <div class="col-md-2"><button type="button" class="btn btn-secondary w-100" id="btnFilter"><i class="bi bi-funnel me-1"></i>Filter</button></div>
+        </div>
+    </div></div>
+
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light"><tr id="qsHead"></tr></thead>
+            <tbody id="qsRows"><tr><td class="text-center text-muted py-4">Loading...</td></tr></tbody>
+        </table>
+    </div></div></div>
+</div>
+
+@* editor *@
+<div class="modal fade" id="edModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="edTitle">Document</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div class="row g-2 mb-3" id="edHead"></div>
+        <div class="qs-add mb-2" id="edAdd"></div>
+        <div class="table-responsive"><table class="table table-sm qs-lines mb-2"><thead><tr id="edLinesHead"></tr></thead><tbody id="edLines"></tbody></table></div>
+        <div class="d-flex justify-content-between flex-wrap gap-2">
+            <div class="small text-muted" id="edHint"></div>
+            <table class="qs-totals small d-none" id="edTotals"></table>
+        </div>
+    </div>
+    <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-outline-primary" id="edSave"><i class="bi bi-save me-1"></i>Save draft</button>
+        <button type="button" class="btn btn-primary" id="edPrimary"></button>
+    </div>
+</div></div></div>
+
+@* viewer *@
+<div class="modal fade" id="vwModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-xl modal-fullscreen-lg-down modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="vwTitle">Document</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body" id="vwBody"></div>
+    <div class="modal-footer py-2 justify-content-between">
+        <div class="d-flex gap-2 flex-wrap" id="vwLeft"></div>
+        <div class="d-flex gap-2 flex-wrap" id="vwActions"></div>
+    </div>
+</div></div></div>
+
+@* new physical count *@
+<div class="modal fade" id="cntModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold">Start a physical stock count</h6><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body">
+        <div class="mb-3"><label class="form-label fw-semibold" for="cntStore">Store <span class="text-danger">*</span></label><select id="cntStore" class="form-select"></select></div>
+        <div class="mb-3"><label class="form-label fw-semibold" for="cntCategory">Category</label><select id="cntCategory" class="form-select"></select>
+            <div class="form-text">Leave blank to count everything in the store.</div></div>
+        <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="cntZero" /><label class="form-check-label" for="cntZero">Include lots with zero book stock</label></div>
+        <div><label class="form-label fw-semibold" for="cntRemarks">Remarks</label><input id="cntRemarks" class="form-control" maxlength="1000" /></div>
+        <div class="form-text mt-2">The book stock of every lot is frozen on the sheet now; differences are posted when the count is approved.</div>
+    </div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="cntCreate"><i class="bi bi-list-check me-1"></i>Create count sheet</button></div>
+</div></div></div>
+
+@section Scripts {
+<script>window.QcStockDoc = @Html.Raw(ViewBag.Config);</script>
+<script src="~/lib/select2/dist/js/select2.min.js"></script>
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script src="~/js/views/Quality/qc-stock-doc.js" asp-append-version="true"></script>
+}

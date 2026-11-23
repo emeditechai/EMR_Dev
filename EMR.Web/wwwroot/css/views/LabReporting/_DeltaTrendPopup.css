@@ -1,0 +1,33 @@
+/* moved from Views/LabReporting/_DeltaTrendPopup.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .delta-trend-btn {
+        border: 0; background: transparent; padding: 0 0.15rem; margin-left: 0.15rem;
+        color: #4f46e5; font-size: 0.85rem; line-height: 1; vertical-align: baseline; cursor: pointer; border-radius: 4px;
+    }
+    .delta-trend-btn:hover, .delta-trend-btn.active { color: #fff; background: #4f46e5; }
+    .delta-trend-btn:focus-visible { outline: 2px solid #4f46e5; outline-offset: 1px; }
+
+    .dt-pop {
+        position: absolute; z-index: 1085; width: 360px; max-width: calc(100vw - 24px);
+        background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+        box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); font-size: 0.82rem; color: #1e293b;
+    }
+    .dt-pop-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.8rem; border-bottom: 1px solid #eef2f7; }
+    .dt-pop-head .dt-title { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dt-pop-head .dt-sub { font-size: 0.72rem; color: #64748b; font-weight: 500; }
+    .dt-pop-close { border: 0; background: transparent; color: #64748b; font-size: 1rem; line-height: 1; padding: 0.15rem 0.3rem; border-radius: 4px; }
+    .dt-pop-close:hover { background: #f1f5f9; color: #0f172a; }
+    .dt-pop-body { padding: 0.6rem 0.8rem 0.75rem; }
+    .dt-chart { display: block; width: 100%; height: auto; margin-bottom: 0.5rem; }
+    .dt-legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.8rem; font-size: 0.7rem; color: #64748b; margin-bottom: 0.45rem; }
+    .dt-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 0.25rem; vertical-align: -1px; }
+    .dt-table { width: 100%; border-collapse: collapse; }
+    .dt-table th { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; font-weight: 700; padding: 0.3rem 0.25rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .dt-table td { padding: 0.32rem 0.25rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .dt-table tr:last-child td { border-bottom: 0; }
+    .dt-table .dt-val { font-weight: 700; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .dt-table th.dt-val { text-align: right; }
+    .dt-flag { display: inline-block; min-width: 1.1rem; text-align: center; font-size: 0.65rem; font-weight: 700; border-radius: 4px; padding: 0 0.2rem; margin-left: 0.25rem; }
+    .dt-flag-H { background: #fee2e2; color: #b91c1c; }
+    .dt-flag-L { background: #dbeafe; color: #1d4ed8; }
+    .dt-bill { color: #64748b; font-size: 0.72rem; }
+    .dt-empty { color: #64748b; text-align: center; padding: 0.75rem 0; }

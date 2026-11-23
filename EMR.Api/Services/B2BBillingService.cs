@@ -328,6 +328,13 @@ namespace EMR.Api.Services
             };
         }
 
+        public async Task<List<IDictionary<string, object?>>> GetInvoiceReceiptsAsync(int invoiceId)
+        {
+            using var conn = db.CreateConnection();
+            var rows = await conn.QueryAsync("dbo.usp_B2B_GetInvoiceReceipts", new { InvoiceId = invoiceId }, commandType: CommandType.StoredProcedure);
+            return rows.Select(r => (IDictionary<string, object?>)(IDictionary<string, object>)r).ToList();
+        }
+
         public async Task<B2BSettlementReceiptDto?> GetSettlementReceiptAsync(string receiptNo)
         {
             using var conn = db.CreateConnection();

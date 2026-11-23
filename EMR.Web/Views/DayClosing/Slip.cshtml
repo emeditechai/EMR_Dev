@@ -1,0 +1,118 @@
+@using EMR.Web.Extensions
+@model (EMR.Web.Services.DayClosingRow Closing, List<EMR.Web.Services.DayClosingLine> Lines)
+@{
+    Layout = null;
+    var c = Model.Closing;
+    string M(decimal v) => v.ToString("N2");
+    var status = c.Status switch { "V" => "Verified", "B" => "Sent back", _ => "Submitted" };
+    var denoms = new List<(int Note, int Qty)>();
+    if (!string.IsNullOrWhiteSpace(c.DenominationJson))
+    {
+        try
+        {
+            foreach (var p in System.Text.Json.JsonDocument.Parse(c.DenominationJson).RootElement.EnumerateObject())
+                if (int.TryParse(p.Name, out var note) && p.Value.TryGetInt32(out var qty) && qty > 0) denoms.Add((note, qty));
+        }
+        catch (System.Text.Json.JsonException) { }
+    }
+    string Kind(string k) => k switch { "RECEIPT" => "Receipts", "REFUND" => "Refunds paid", "PETTYOUT" => "Given to petty cash", "PETTYIN" => "Returned from petty cash", _ => k };
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Cash Hand-over @c.ClosingNo</title>
+    <style>
+        @@page { size: A5 portrait; margin: 8mm; }
+        * { box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; font-size: 12px; color: #111; margin: 0; padding: 12px; }
+        .sheet { max-width: 140mm; margin: 0 auto; border: 1px solid #333; padding: 10px 14px; }
+        h1 { font-size: 16px; margin: 0; text-align: center; }
+        .sub { text-align: center; font-size: 11px; color: #444; }
+        .title { text-align: center; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; border-top: 1px solid #333; border-bottom: 1px solid #333; padding: 4px 0; margin: 8px 0; }
+        .meta { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; line-height: 1.6; }
+        table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        th, td { border: 1px solid #333; padding: 3px 6px; vertical-align: top; }
+        th { background: #eee; text-align: left; font-size: 11px; }
+        .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .tot td { font-weight: bold; background: #f5f5f5; }
+        .muted { color: #555; }
+        .sign { display: flex; justify-content: space-between; margin-top: 36px; text-align: center; }
+        .sign div { width: 30%; border-top: 1px solid #333; padding-top: 3px; font-size: 11px; }
+        .stamp { border: 2px solid #333; display: inline-block; padding: 1px 8px; font-weight: bold; text-transform: uppercase; }
+        .bar { text-align: center; margin: 10px 0; }
+        .bar button { padding: 6px 18px; font-size: 13px; cursor: pointer; }
+        @@media print { .bar { display: none; } body { padding: 0; } }
+    </style>
+</head>
+<body>
+    <div class="bar"><button onclick="window.print()">Print</button> <button onclick="window.close()">Close</button></div>
+    <div class="sheet">
+        <h1>@User.GetCompanyName()</h1>
+        <div class="sub">@c.BranchName</div>
+        <div class="title">@c.Module Cash Hand-over</div>
+        <div class="meta">
+            <div>
+                <strong>Closing No.:</strong> @c.ClosingNo<br />
+                <strong>Cashier:</strong> @c.UserName<br />
+                <strong>Covers:</strong> @(c.WindowFrom.HasValue ? c.WindowFrom.Value.ToString("dd-MMM HH:mm") + " to " : "up to ") @c.CutoffAt.ToString("dd-MMM-yyyy HH:mm")
+            </div>
+            <div style="text-align:right;">
+                <strong>Business date:</strong> @c.BusinessDate.ToString("dd-MMM-yyyy")@(c.SeqNo > 1 ? $" (#{c.SeqNo})" : "")<br />
+                <span class="stamp">@status</span>
+            </div>
+        </div>
+
+        <table>
+            <tr><td>Opening float</td><td class="num">@M(c.OpeningFloat)</td></tr>
+            <tr><td>+ Cash receipts</td><td class="num">@M(c.CashReceipts)</td></tr>
+            <tr><td>&minus; Cash refunds paid</td><td class="num">@M(c.CashRefunds)</td></tr>
+            <tr><td>&minus; Given to petty cash</td><td class="num">@M(c.PettyOut)</td></tr>
+            <tr><td>+ Returned from petty cash</td><td class="num">@M(c.PettyIn)</td></tr>
+            <tr class="tot"><td>Expected cash</td><td class="num">@M(c.ExpectedCash)</td></tr>
+            <tr class="tot"><td>Counted cash</td><td class="num">@M(c.CountedCash)</td></tr>
+            <tr class="tot"><td>Difference (@(c.Difference == 0 ? "tallied" : c.Difference < 0 ? "short" : "excess"))</td><td class="num">@M(c.Difference)</td></tr>
+        </table>
+
+        @if (denoms.Count > 0)
+        {
+            <table>
+                <thead><tr><th>Denomination</th><th class="num">Count</th><th class="num">Amount</th></tr></thead>
+                <tbody>
+                    @foreach (var d in denoms.OrderByDescending(x => x.Note))
+                    {
+                        <tr><td>₹@d.Note</td><td class="num">@d.Qty</td><td class="num">@M(d.Note * d.Qty)</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <table>
+            <tr><td>Handed over @(c.HandoverMode == "BANK" ? "by bank deposit" + (string.IsNullOrEmpty(c.BankReference) ? "" : " (" + c.BankReference + ")") : "to " + (c.HandedToName ?? "-"))</td><td class="num">@M(c.HandedAmount)</td></tr>
+            <tr><td>Float kept for the next closing</td><td class="num">@M(c.RetainedFloat)</td></tr>
+        </table>
+
+        @if (Model.Lines.Count > 0)
+        {
+            <table>
+                <thead><tr><th>Breakdown</th><th>Mode</th><th class="num">Count</th><th class="num">Amount</th></tr></thead>
+                <tbody>
+                    @foreach (var l in Model.Lines)
+                    {
+                        <tr><td>@Kind(l.Kind)@(l.Module == "PETTY" ? "" : " (" + l.Module + ")")</td><td>@l.ModeName@(l.IsCash ? "" : " (not in the till)")</td><td class="num">@l.Cnt</td><td class="num">@M(l.Amount)</td></tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (!string.IsNullOrEmpty(c.Remarks)) { <div style="margin-top:6px;"><strong>Remarks:</strong> @c.Remarks</div> }
+        @if (c.Status != "S") { <div class="muted" style="margin-top:4px;">@status by @c.VerifiedByName on @c.VerifiedOn?.ToString("dd-MMM-yyyy HH:mm")@(string.IsNullOrEmpty(c.VerifyRemarks) ? "" : " - " + c.VerifyRemarks)@(string.IsNullOrEmpty(c.VoucherNo) ? "" : " · " + c.VoucherNo)</div> }
+
+        <div class="sign">
+            <div>Cashier</div>
+            <div>Received by</div>
+            <div>Verified by</div>
+        </div>
+    </div>
+</body>
+</html>

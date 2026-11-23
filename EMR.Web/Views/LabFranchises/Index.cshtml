@@ -20,6 +20,9 @@
             </h4>
         </div>
         <div class="d-flex gap-2">
+            <button type="button" data-list-export="excel" asp-permission="MASTER.LABFRANCHISES:EXPORT" class="btn btn-outline-secondary px-3 shadow-sm" title="Download the list as Excel"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" data-list-export="csv" asp-permission="MASTER.LABFRANCHISES:EXPORT" class="btn btn-outline-secondary px-3 shadow-sm" title="Download the list as CSV"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+            <button type="button" data-list-export="pdf" asp-permission="MASTER.LABFRANCHISES:EXPORT" class="btn btn-outline-secondary px-3 shadow-sm" title="Download the list as PDF"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
             <button asp-permission="MASTER.LABFRANCHISES:IMPORT" type="button" class="btn btn-outline-success px-3 shadow-sm" data-bs-toggle="modal" data-bs-target="#labBulkUploadModal">
                 <i class="bi bi-file-earmark-excel me-1"></i> Bulk Upload
             </button>
@@ -28,22 +31,6 @@
             </a>
         </div>
     </div>
-
-    <!-- Alert Messages -->
-    @if (TempData["SuccessMessage"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="bi bi-check-circle-fill me-2"></i>@TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["ErrorMessage"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>@TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
 
     <!-- Summary Widgets Card -->
     <div class="row g-3 mb-4">
@@ -159,7 +146,7 @@
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table id="tblFranchises" class="table table-hover align-middle mb-0">
                     <thead class="bg-light">
                         <tr>
                             <th class="ps-3" style="width: 110px;">Code</th>
@@ -191,7 +178,7 @@
                                 <tr>
                                     <td class="ps-3 fw-bold text-primary">@item.Franchise_Code</td>
                                     <td>
-                                        <div class="fw-semibold text-dark">@item.Franchise_Name</div>
+                                        <div class="fw-semibold text-dark">@item.Franchise_Name<partial name="_ApprovalBadge" model="@((ViewBag.ApprovalStates as Dictionary<int, string>)?.GetValueOrDefault(item.Franchise_ID) ?? "")" /></div>
                                     </td>
                                     <td>
                                         <div><i class="bi bi-telephone text-muted me-1"></i>@item.Mobile_No</div>
@@ -338,3 +325,9 @@
 </div>
 
 <partial name="_LabBulkUploadModal" model='new EMR.Web.Models.ViewModels.LabBulkUploadModalModel("franchise", "Franchise", "Branch, Franchise Type, Credit Facility Type")' />
+
+@section Scripts {
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
+<script src="~/js/emr-list-export.js" asp-append-version="true"></script>
+<script>EmrListExport.bind({ table: '#tblFranchises', title: 'Franchise Setup Master', file: 'Franchises' });</script>
+}

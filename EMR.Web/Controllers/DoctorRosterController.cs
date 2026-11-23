@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using EMR.Web.ApiClients;
@@ -14,7 +15,9 @@ namespace EMR.Web.Controllers
         IDoctorScheduleApiClient scheduleApiClient,
         IPatientService patientService,
         IDoctorSpecialityService specialityService,
-        IActionPermissionGuard permissionGuard) : Controller
+        IDoctorApiClient doctorApiClient,
+        IActionPermissionGuard permissionGuard,
+        ILogger<DoctorRosterController> logger) : Controller
     {
         public async Task<IActionResult> Index()
         {
@@ -34,8 +37,28 @@ namespace EMR.Web.Controllers
 
             // "Mark leave / edit schedule" in the slots window opens Doctor Master > Configure Scheduler
             ViewBag.CanConfigureScheduler = await permissionGuard.ShowsAsync(HttpContext, "MASTER.DOCTORS", "CONFIGURE_SCHEDULER");
-            
+
+            // Doctor Master > Is Suspended (SQLScripts/2484): a suspended doctor stays on the roster with a "Suspended"
+            // badge - the daily roster notification (SQLScripts/2528) skips them, the badge says why
+            ViewBag.SuspendedDoctors = await SuspendedDoctorsAsync(doctorApiClient, User.GetCompanyId(), null, logger);
+
             return View();
+        }
+
+        /// <summary>Suspended doctors of the company (or one doctor): doctor id -> suspend reason. Empty when the API fails.</summary>
+        internal static async Task<Dictionary<int, string>> SuspendedDoctorsAsync(IDoctorApiClient api, int? companyId, int? doctorId, ILogger logger)
+        {
+            try
+            {
+                var list = await api.GetPagedListAsync(companyId, null, null, "suspended", null, null, null, doctorId, 1, 200);
+                return list.Items.Where(d => d.IsSuspended).GroupBy(d => d.DoctorId)
+                    .ToDictionary(g => g.Key, g => g.First().SuspendReason ?? "");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Doctor Roster: suspended doctors could not be read");
+                return new Dictionary<int, string>();
+            }
         }
 
         [HttpGet(("DoctorRoster/GetDoctorSchedulesTest"))]

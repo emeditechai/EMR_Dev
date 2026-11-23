@@ -12,7 +12,7 @@
         </div>
     </div>
     <div class="d-flex gap-2">
-        <a asp-permission="MASTER.BEDROOMTARIFFS:EDIT" asp-action="Edit" asp-route-id="@Model.BedRateId" class="btn btn-outline-primary btn-sm px-3">
+        <a asp-permission="MASTER.BEDROOMTARIFFS:EDIT" asp-action="Edit" asp-encrypted-route-id="@Model.BedRateId" class="btn btn-outline-primary btn-sm px-3">
             <i class="bi bi-pencil me-1"></i> Edit / Revise Rate
         </a>
         <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
@@ -115,6 +115,10 @@
                                     <td class="text-end font-monospace fw-semibold">₹@Model.NursingCharge.ToString("N2")</td>
                                 </tr>
                                 <tr>
+                                    <td class="text-muted">RMO Charge</td>
+                                    <td class="text-end font-monospace fw-semibold">₹@Model.RmoCharge.ToString("N2")</td>
+                                </tr>
+                                <tr>
                                     <td class="text-muted">Attendant / Utility Charge</td>
                                     <td class="text-end font-monospace fw-semibold">₹@Model.AttendantCharge.ToString("N2")</td>
                                 </tr>
@@ -193,7 +197,7 @@
                                 <td class="text-end font-monospace small">
                                     ₹@log.TotalBaseCharge.ToString("N2")
                                     <div class="text-muted" style="font-size: 0.75rem;">
-                                        R: ₹@log.RoomCharge.ToString("N0") | B: ₹@log.BedCharge.ToString("N0") | N: ₹@log.NursingCharge.ToString("N0")
+                                        R: ₹@log.RoomCharge.ToString("N0") | B: ₹@log.BedCharge.ToString("N0") | N: ₹@log.NursingCharge.ToString("N0") | RMO: ₹@log.RmoCharge.ToString("N0")
                                     </div>
                                 </td>
                                 <td class="text-end font-monospace small">

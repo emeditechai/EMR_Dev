@@ -1,0 +1,22 @@
+/* moved from Views/Reports/PatientRegister.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .pr-filter { background:#fff; border:1px solid #e9eef5; border-radius:.75rem; padding:1rem 1.1rem; }
+    .pr-filter .form-label { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; margin-bottom:.25rem; }
+    .pr-quick .btn { font-size:.75rem; padding:.15rem .55rem; }
+    .pr-kpi { background:#fff; border:1px solid #e9eef5; border-radius:.75rem; padding:.8rem 1rem; height:100%; }
+    .pr-kpi .lbl { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+    .pr-kpi .val { font-size:1.45rem; font-weight:700; color:#0f172a; font-variant-numeric:tabular-nums; line-height:1.2; }
+    .pr-kpi .sub { font-size:.75rem; color:#64748b; }
+    .pr-kpi .ic { width:34px; height:34px; border-radius:.6rem; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+    .pr-card { background:#fff; border:1px solid #e9eef5; border-radius:.75rem; }
+    .pr-card > .hd { padding:.7rem 1rem; border-bottom:1px solid #eef2f7; font-weight:700; font-size:.85rem; display:flex; align-items:center; justify-content:space-between; gap:.5rem; flex-wrap:wrap; }
+    .pr-bar { height:8px; border-radius:4px; background:#e0e7ff; overflow:hidden; }
+    .pr-bar > span { display:block; height:100%; background:#4f46e5; }
+    #prTable { font-size:.8rem; }
+    #prTable thead th { background:#f8fafc; color:#475569; font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; position:sticky; top:0; z-index:1; cursor:pointer; user-select:none; }
+    #prTable thead th.nosort { cursor:default; }
+    #prTable thead th .si { opacity:.35; font-size:.65rem; }
+    #prTable thead th.sorted .si { opacity:1; color:#4f46e5; }
+    #prTable td { vertical-align:middle; }
+    #prTable .num { text-align:right; font-variant-numeric:tabular-nums; }
+    .pr-wrap { max-height:62vh; overflow:auto; }
+    .pr-pill { font-size:.68rem; font-weight:600; padding:.15rem .5rem; border-radius:999px; white-space:nowrap; }

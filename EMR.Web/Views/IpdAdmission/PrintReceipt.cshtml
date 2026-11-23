@@ -1,0 +1,66 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPrintView
+@{
+    Layout = "_IpdPrintLayout";
+    var d = Model.Doc; var h = Model.Header;
+    bool refund = d.S("Kind") == "REFUND";
+    var kind = d.S("Kind");
+    decimal disc = d.M("DiscAmount"), ro = d.M("RoundOff");
+    ViewData["DocTitle"] = Model.Title;
+    ViewData["PageSize"] = "A5 landscape";
+    string Words(decimal amount)
+    {
+        string[] u = { "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen" };
+        string[] t = { "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety" };
+        string Two(long n) => n < 20 ? u[n] : t[n / 10] + (n % 10 > 0 ? " " + u[n % 10] : "");
+        string Three(long n) => (n >= 100 ? u[n / 100] + " Hundred" + (n % 100 > 0 ? " " : "") : "") + (n % 100 > 0 ? Two(n % 100) : "");
+        long r = (long)Math.Floor(amount); int p = (int)Math.Round((amount - r) * 100);
+        if (r == 0 && p == 0) return "Zero";
+        var parts = new List<string>();
+        if (r >= 10000000) { parts.Add(Three(r / 10000000) + " Crore"); r %= 10000000; }
+        if (r >= 100000) { parts.Add(Two(r / 100000) + " Lakh"); r %= 100000; }
+        if (r >= 1000) { parts.Add(Two(r / 1000) + " Thousand"); r %= 1000; }
+        if (r > 0) parts.Add(Three(r));
+        return "Rupees " + string.Join(" ", parts) + (p > 0 ? " and " + Two(p) + " Paise" : "") + " Only";
+    }
+}
+<table class="info">
+    <tr><td class="k">@(refund ? "Voucher No." : "Receipt No.")</td><td class="mono b">@d.S("DocNo")</td><td class="k">Date</td><td>@d.Dt("CreatedDate")</td></tr>
+    <tr><td class="k">Patient</td><td class="b">@h.S("PatientName")</td><td class="k">UHID / IP No.</td><td class="mono">@h.S("PatientCode") / @h.S("IpNo")</td></tr>
+    <tr><td class="k">Ward / bed</td><td>@h.S("WardName") / @h.S("BedNumber")</td><td class="k">Consultant</td><td>@h.S("ConsultantDoctorName")</td></tr>
+</table>
+<table class="grid" style="margin-top:8px"><thead><tr><th>Particulars</th><th>Mode</th><th>Reference</th><th class="r">Amount</th></tr></thead><tbody>
+@if (refund)
+{
+    <tr><td>Refund of advance @(string.IsNullOrWhiteSpace(d.S("Remarks")) ? "" : "- " + d.S("Remarks"))</td><td>@d.S("Mode")</td><td>@d.S("RefNo")</td><td class="r b">@d.M("Amount").Rs()</td></tr>
+}
+else
+{
+    var what = kind switch { "SETTLE" => "Payment against final bill " + d.S("BillNo"), _ => "Advance / deposit" };
+    foreach (var p in Model.Rows) { <tr><td>@what @(string.IsNullOrWhiteSpace(d.S("Remarks")) ? "" : "- " + d.S("Remarks"))</td><td>@p.S("MethodName")</td><td>@p.S("RefNo")</td><td class="r">@p.M("PaidAmount").Rs()</td></tr> }
+    if (disc > 0) { <tr><td>Discount@(d.S("DiscType") == "P" ? " " + d.M("DiscValue").ToString("0.##") + "%" : "") on the balance of bill @d.S("BillNo")@(string.IsNullOrWhiteSpace(d.S("DiscReason")) ? "" : " - " + d.S("DiscReason"))</td><td>Adjustment</td><td></td><td class="r">@disc.Rs()</td></tr> }
+    if (ro > 0) { <tr><td>Round off on the balance of bill @d.S("BillNo")</td><td>Adjustment</td><td></td><td class="r">@ro.Rs()</td></tr> }
+}
+</tbody>
+<tfoot>
+@if (disc + ro > 0 && kind != "ADJUST")
+{
+    <tr><td colspan="3" class="r">Received</td><td class="r b">@d.M("Amount").Rs()</td></tr>
+    <tr><td colspan="3" class="r">Discount / round off</td><td class="r">@((disc + ro).Rs())</td></tr>
+    <tr><td colspan="3" class="r b">Settled on the bill</td><td class="r b">@((d.M("Amount") + disc + ro).Rs())</td></tr>
+}
+else
+{
+    <tr><td colspan="3" class="r b">@(kind == "ADJUST" ? "Adjusted" : "Total")</td><td class="r b">@d.M("Amount").Rs()</td></tr>
+}
+</tfoot></table>
+@if (kind != "ADJUST") { <div class="note"><b>@Words(d.M("Amount"))</b></div> }
+@if (kind is "SETTLE" or "ADJUST")
+{
+    <div class="note">Final bill @d.S("BillNo"): <b>@d.M("BillNet").Rs()</b> · balance after this: <b>@(Math.Max(0, d.M("BalanceAfter")).Rs())</b>.</div>
+}
+else
+{
+    <div class="note">Advance held after this @(refund ? "refund" : "receipt"): <b>@d.M("NetAdvance").Rs()</b> (received @d.M("AdvanceTotal").Rs(), refunded @d.M("RefundTotal").Rs()). An advance is adjusted against the final IPD bill.</div>
+}
+<div class="sign"><div>@(refund ? "Received by (patient / attendant)" : "Paid by")</div><div>Cashier (@d.S("CreatedByName"))</div></div>

@@ -17,7 +17,7 @@
 
 <div class="row justify-content-center">
     <div class="col-lg-8">
-        <form asp-action="Edit" asp-route-id="@Model.ShiftMaster_ID" method="post" class="card border-0 shadow-sm rounded-3">
+        <form asp-action="Edit" asp-encrypted-route-id="@Model.ShiftMaster_ID" method="post" class="card border-0 shadow-sm rounded-3">
             @Html.AntiForgeryToken()
             <input type="hidden" asp-for="ShiftMaster_ID" />
             <input type="hidden" asp-for="CompanyId" />

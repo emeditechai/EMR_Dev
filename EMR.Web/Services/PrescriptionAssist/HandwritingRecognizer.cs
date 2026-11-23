@@ -22,7 +22,8 @@ public interface IHandwritingRecognizer
     /// The handwritten lines of the image, each matched to the most likely of <paramref name="candidates"/> (the bookable test
     /// names and abbreviations). Areas OCR already read as print (<paramref name="printedAreas"/>) are left out.
     /// </summary>
-    IReadOnlyList<HandwrittenLine> Read(string imageFile, IReadOnlyList<string> candidates, IReadOnlyList<SKRectI> printedAreas, CancellationToken ct);
+    /// <param name="region">The image is the area the user marked as the tests: every word group is read (no column guessing), with more time.</param>
+    IReadOnlyList<HandwrittenLine> Read(string imageFile, IReadOnlyList<string> candidates, IReadOnlyList<SKRectI> printedAreas, CancellationToken ct, bool region = false);
 }
 
 /// <summary>
@@ -97,7 +98,7 @@ public sealed class HandwritingRecognizer : IHandwritingRecognizer, IDisposable
         }
     }
 
-    public IReadOnlyList<HandwrittenLine> Read(string imageFile, IReadOnlyList<string> candidates, IReadOnlyList<SKRectI> printedAreas, CancellationToken ct)
+    public IReadOnlyList<HandwrittenLine> Read(string imageFile, IReadOnlyList<string> candidates, IReadOnlyList<SKRectI> printedAreas, CancellationToken ct, bool region = false)
     {
         if (!IsAvailable || candidates.Count == 0) return [];
         using var codec = SKCodec.Create(imageFile);
@@ -107,12 +108,12 @@ public sealed class HandwritingRecognizer : IHandwritingRecognizer, IDisposable
         using var photo = Upright(decoded, codec.EncodedOrigin);
 
         var cands = candidates.Select(c => (Text: c, Ids: Encode(c))).Where(c => c.Ids is { Length: > 0 and <= 24 }).ToList();
-        var groups = FindWordGroups(photo, printedAreas);
-        var picked = groups.Take(MaxGroups).ToList();
+        var groups = FindWordGroups(photo, printedAreas, region);
+        var picked = groups.Take(region ? 48 : MaxGroups).ToList();
         var lines = new HandwrittenLine?[picked.Count];
         // a time budget: a page full of writing (clinical notes) must not keep the user waiting - what is read in time is used
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        budget.CancelAfter(TimeSpan.FromSeconds(8));
+        budget.CancelAfter(TimeSpan.FromSeconds(region ? 30 : 8));
         try
         {
         Parallel.For(0, picked.Count, new ParallelOptions { MaxDegreeOfParallelism = 3, CancellationToken = budget.Token }, gi =>
@@ -164,7 +165,7 @@ public sealed class HandwritingRecognizer : IHandwritingRecognizer, IDisposable
 
     // ── lines / word groups ──────────────────────────────────────────────────
     /// <summary>Word groups (in photo pixels) that start at the left edge of the written column, with the number of characters they hold (estimate).</summary>
-    private static List<(SKRectI Rect, double EstChars)> FindWordGroups(SKBitmap photo, IReadOnlyList<SKRectI> printedAreas)
+    private static List<(SKRectI Rect, double EstChars)> FindWordGroups(SKBitmap photo, IReadOnlyList<SKRectI> printedAreas, bool region = false)
     {
         var scale = WorkWidth / photo.Width;
         int W = (int)WorkWidth, H = Math.Max(1, (int)(photo.Height * scale));
@@ -217,7 +218,7 @@ public sealed class HandwritingRecognizer : IHandwritingRecognizer, IDisposable
             if (!on[i]) { i++; continue; }
             var j = i;
             while (j < H && (on[j] || (j + 2 < H && on[j + 2]))) j++;
-            if (j - i >= 10 && j - i <= H * 0.12) bands.Add((i, j));
+            if (j - i >= 10 && j - i <= H * (region ? 0.6 : 0.12)) bands.Add((i, j));
             i = j;
         }
         if (bands.Count == 0) return [];
@@ -239,12 +240,13 @@ public sealed class HandwritingRecognizer : IHandwritingRecognizer, IDisposable
             }
             groups.Add((t, b, start, prev));
         }
-        groups = groups.Where(gr => gr.R - gr.L >= (gr.B - gr.T) * 0.8 && gr.L > W * 0.03 && gr.R < W * 0.97).ToList();
+        groups = groups.Where(gr => gr.R - gr.L >= (gr.B - gr.T) * (region ? 0.5 : 0.8) && (region || (gr.L > W * 0.03 && gr.R < W * 0.97))).ToList();
         if (groups.Count == 0) return [];
         // the written column: groups starting near the median left edge of the lines
         var firsts = groups.GroupBy(gr => gr.T).Select(x => x.Min(gr => gr.L)).OrderBy(v => v).ToList();
         var margin = firsts[firsts.Count / 2];
-        var kept = groups.Where(gr => Math.Abs(gr.L - margin) <= W * 0.08).ToList();
+        // a marked area holds only the tests: every group is read (on a whole page only the written column)
+        var kept = region ? groups : groups.Where(gr => Math.Abs(gr.L - margin) <= W * 0.08).ToList();
         // each word of a group as well ("CBC, LFT, Creatinine" -> CBC / LFT / Creatinine; "Lipid Prof" -> Lipid)
         var words = new List<(int T, int B, int L, int R)>();
         foreach (var gr in kept)

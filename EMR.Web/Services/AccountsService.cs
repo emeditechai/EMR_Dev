@@ -70,6 +70,16 @@ public interface IAccountsService
     Task<List<AccExpenseSummaryRow>> GetExpenseSummaryAsync(int companyId, DateTime from, DateTime to, int? branchId, int? counterId);
     Task<List<AccDayBookRow>> GetTransactionAsync(long transactionId);
     Task<(List<AccAuditIssueRow> Issues, List<AccAuditSummaryRow> Summary)> GetPostingAuditAsync(int companyId, DateTime from, DateTime to, int? branchId);
+
+    // Phase 1 (SQLScripts/2322): payment mode ledgers, opening balances, bill reconciliation
+    Task<List<AccOption>> GetPaymentMethodsAsync(int companyId);
+    Task<List<AccOption>> GetMoneyLedgersAsync();
+    Task<List<AccModeLedgerRow>> GetModeLedgersAsync(int companyId);
+    Task SaveModeLedgersAsync(int companyId, List<AccModeLedgerRow> rows, int userId);
+    Task<(AccOpeningHeader? Header, List<AccOpeningLine> Lines)> GetOpeningAsync(int companyId, int branchId);
+    Task<(string? VoucherNo, decimal Difference)> SaveOpeningAsync(int companyId, AccOpeningForm f, int userId);
+    Task<(List<AccReconLedgerRow> Ledgers, List<AccReconIssueRow> Issues)> GetReconAsync(int companyId, int? branchId);
+    Task<AccReconRepairResult> RepairPostingsAsync(int companyId, int? branchId, int userId);
 }
 
 public class AccountsService(IDbConnectionFactory db) : IAccountsService
@@ -531,4 +541,88 @@ public class AccountsService(IDbConnectionFactory db) : IAccountsService
     }
 
     private static string? Blank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    // ── Phase 1 (SQLScripts/2322) ─────────────────────────────────────────────
+    public async Task<List<AccOption>> GetPaymentMethodsAsync(int companyId)
+    {
+        using var con = db.CreateConnection();
+        return (await con.QueryAsync<AccOption>(
+            "SELECT PaymentMethodId AS Id, MethodName AS Name, UPPER(MethodCode) AS Extra FROM dbo.PaymentMethodMaster " +
+            "WHERE IsActive = 1 AND ISNULL(CompanyId, 1) = @companyId AND UPPER(MethodCode) <> 'POINTS' ORDER BY DisplayOrder", new { companyId })).ToList();
+    }
+
+    /// <summary>Ledgers money can be received into: Cash In Hand and Bank Accounts groups (and their sub-groups).</summary>
+    public async Task<List<AccOption>> GetMoneyLedgersAsync()
+    {
+        using var con = db.CreateConnection();
+        return (await con.QueryAsync<AccOption>(@"
+            SELECT l.LedgerId AS Id, l.LedgerName AS Name, g.GroupName AS Extra
+            FROM dbo.Acc_LedgerMaster l
+            INNER JOIN dbo.Acc_LedgerGroup g ON g.LedgerGroupId = l.LedgerGroupId
+            LEFT JOIN dbo.Acc_LedgerGroup pg ON pg.LedgerGroupId = g.ParentGroupId
+            WHERE l.IsActive = 1 AND (g.GroupName IN (N'Cash In Hand', N'Bank Accounts') OR pg.GroupName IN (N'Cash In Hand', N'Bank Accounts'))
+            ORDER BY g.GroupName, l.LedgerName")).ToList();
+    }
+
+    public async Task<List<AccModeLedgerRow>> GetModeLedgersAsync(int companyId)
+    {
+        using var con = db.CreateConnection();
+        return (await con.QueryAsync<AccModeLedgerRow>(
+            "SELECT MethodCode, BranchId, LedgerId FROM dbo.Acc_PaymentModeLedger WHERE CompanyId = @companyId", new { companyId })).ToList();
+    }
+
+    /// <summary>Replaces the company's mapping: a row without a ledger is dropped (a branch then follows "all branches").</summary>
+    public async Task SaveModeLedgersAsync(int companyId, List<AccModeLedgerRow> rows, int userId)
+    {
+        var valid = (await GetMoneyLedgersAsync()).Select(l => l.Id).ToHashSet();
+        var keep = rows.Where(r => !string.IsNullOrWhiteSpace(r.MethodCode) && r.LedgerId is > 0 && valid.Contains(r.LedgerId.Value))
+                       .GroupBy(r => (Code: r.MethodCode.Trim().ToUpperInvariant(), r.BranchId)).Select(g => g.Last()).ToList();
+        using var con = db.CreateConnection();
+        con.Open();
+        using var tx = con.BeginTransaction();
+        await con.ExecuteAsync("DELETE FROM dbo.Acc_PaymentModeLedger WHERE CompanyId = @companyId", new { companyId }, tx);
+        foreach (var r in keep)
+            await con.ExecuteAsync(
+                "INSERT dbo.Acc_PaymentModeLedger (CompanyId, BranchId, MethodCode, LedgerId, ModifiedBy) VALUES (@companyId, @BranchId, @Code, @LedgerId, @userId)",
+                new { companyId, r.BranchId, Code = r.MethodCode.Trim().ToUpperInvariant(), r.LedgerId, userId }, tx);
+        tx.Commit();
+    }
+
+    public async Task<(AccOpeningHeader? Header, List<AccOpeningLine> Lines)> GetOpeningAsync(int companyId, int branchId)
+    {
+        using var con = db.CreateConnection();
+        using var multi = await con.QueryMultipleAsync("dbo.usp_Acc_Opening_Get", new { CompanyId = companyId, BranchId = branchId }, commandType: Sp);
+        var header = await multi.ReadSingleOrDefaultAsync<AccOpeningHeader>();
+        return (header, (await multi.ReadAsync<AccOpeningLine>()).ToList());
+    }
+
+    public async Task<(string? VoucherNo, decimal Difference)> SaveOpeningAsync(int companyId, AccOpeningForm f, int userId)
+    {
+        var lines = f.Lines.Where(l => (l.Debit ?? 0) != 0 || (l.Credit ?? 0) != 0)
+                           .Select(l => new { l.LedgerId, Dr = l.Debit ?? 0, Cr = l.Credit ?? 0 }).ToList();
+        var p = new DynamicParameters(new
+        {
+            CompanyId = companyId, f.BranchId, AsOfDate = f.AsOfDate?.Date, LinesJson = System.Text.Json.JsonSerializer.Serialize(lines), UserId = userId
+        });
+        p.Add("@TransactionId", dbType: DbType.Int64, direction: ParameterDirection.Output);
+        p.Add("@VoucherNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
+        p.Add("@Difference", dbType: DbType.Decimal, precision: 18, scale: 2, direction: ParameterDirection.Output);
+        using var con = db.CreateConnection();
+        await con.ExecuteAsync("dbo.usp_Acc_Opening_Save", p, commandType: Sp);
+        return (p.Get<string?>("@VoucherNo"), p.Get<decimal?>("@Difference") ?? 0);
+    }
+
+    public async Task<(List<AccReconLedgerRow> Ledgers, List<AccReconIssueRow> Issues)> GetReconAsync(int companyId, int? branchId)
+    {
+        using var con = db.CreateConnection();
+        using var multi = await con.QueryMultipleAsync("dbo.usp_Acc_Recon_Bills", new { CompanyId = companyId, BranchId = branchId }, commandType: Sp, commandTimeout: 180);
+        return ((await multi.ReadAsync<AccReconLedgerRow>()).ToList(), (await multi.ReadAsync<AccReconIssueRow>()).ToList());
+    }
+
+    public async Task<AccReconRepairResult> RepairPostingsAsync(int companyId, int? branchId, int userId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QuerySingleAsync<AccReconRepairResult>("dbo.usp_Acc_Recon_Repair",
+            new { CompanyId = companyId, BranchId = branchId, UserId = userId }, commandType: Sp, commandTimeout: 300);
+    }
 }

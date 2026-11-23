@@ -2,6 +2,7 @@ using System.Data;
 using System.Security.Claims;
 using Dapper;
 using EMR.Api.Data;
+using EMR.Api.Services;
 using EMR.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +28,7 @@ public sealed class AuthController(
     ILoginSecurity loginSecurity,
     IPermissionService permissions,
     IOptionsMonitor<ApiAuthOptions> options,
+    IServiceScopeFactory scopes,
     ILogger<AuthController> logger) : ControllerBase
 {
     /// <summary>Credential endpoints only (login, context, refresh, password change): 20 a minute per client address.</summary>
@@ -34,11 +36,18 @@ public sealed class AuthController(
     private const string InvalidCredentials = "Invalid username or password.";
     private static readonly Lazy<string> DummyHash = new(() => BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString(), 12));
 
-    public sealed record LoginRequest(string Username, string Password, int? BranchId = null, string? Role = null);
+    public sealed record LoginRequest(string Username, string Password, int? BranchId = null, string? Role = null,
+        int? CompanyId = null, int? ApplicationUserId = null);   // from locate (central register): the login must be that user
+    public sealed record LocateRequest(string Username);
+    private sealed record LocateRow(string? ApiUrl, int ApplicationCompanyID, int? ApplicationUserID, DateTime? ValidTo, string Code);
     public sealed record ContextRequest(string Ticket, int BranchId, string? Role = null);
     public sealed record RefreshRequest(string RefreshToken);
     public sealed record SwitchBranchRequest(string RefreshToken, int BranchId, string? Role = null);
     public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+    public sealed record FirstChangePasswordRequest(string Username, string CurrentPassword, string NewPassword);
+    public sealed record ForgotPasswordRequest(string Username);
+    public sealed record ForgotVerifyRequest(string Username, string Code);
+    public sealed record ForgotResetRequest(string ResetToken, string NewPassword, string ConfirmPassword);
 
     private sealed class UserRow
     {
@@ -51,8 +60,56 @@ public sealed class AuthController(
         public bool IsSuperAdmin { get; set; }
         public int CompanyId { get; set; }
         public bool MustChangePassword { get; set; }
+        /// <summary>False until the first sign-in by one-time code (SQLScripts/2457). Only the sign-in query reads it.</summary>
+        public bool IsVerified { get; set; } = true;
     }
     private sealed record BranchRow(int BranchId, string BranchName, int CompanyId);
+
+    // ── which client's API (mobile apps, before sign-in) ─────────────────────
+    /// <summary>
+    /// The mobile apps are one build for every client: they send the sign-in name here (the central API) first and get
+    /// the client's own API address. Central_Lic_DB (EMR.Api/Data/CentralLicDb): Central_Users.Username -> CompanyID and
+    /// ApplicationUserID -> Central_Company -> ApplicationCompanyID and ApiUrl (central script 2496,
+    /// usp_CentralUser_Locate). The app then signs in on that API with the company and user IDs, and login checks them.
+    /// </summary>
+    [HttpPost("locate")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> Locate([FromBody] LocateRequest request)
+    {
+        var username = request.Username?.Trim() ?? string.Empty;
+        if (username.Length is 0 or > 256) return BadRequest(Fail("USERNAME_REQUIRED", "Enter your e-mail."));
+        if (!CentralLicDb.IsConfigured)
+        {
+            logger.LogError("[API-AUTH] locate: {Problem}", CentralLicDb.Problem);
+            return StatusCode(503, Fail("LOCATE_UNAVAILABLE", "Sign-in is not available right now. Try again later."));
+        }
+
+        LocateRow? row;
+        try
+        {
+            using var central = CentralLicDb.CreateConnection();
+            row = await central.QueryFirstOrDefaultAsync<LocateRow>("dbo.usp_CentralUser_Locate", new { Username = username },
+                commandType: CommandType.StoredProcedure, commandTimeout: 15);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "[API-AUTH] locate: central register not reachable");
+            return StatusCode(503, Fail("LOCATE_UNAVAILABLE", "Sign-in is not available right now. Try again later."));
+        }
+
+        if (row is null || row.Code == "NOT_LINKED" || row.ApplicationUserID is null)
+            return NotFound(Fail("NOT_REGISTERED", "This e-mail is not registered for the app. Check it, or contact the office."));
+        if (row.Code == "EXPIRED")
+            return StatusCode(403, Fail("LICENCE_EXPIRED", "Your organisation's licence has expired. Contact the office."));
+        if (row.Code == "NO_ADDRESS" || string.IsNullOrWhiteSpace(row.ApiUrl)
+            || !Uri.TryCreate(row.ApiUrl, UriKind.Absolute, out var api) || api.Scheme is not ("http" or "https"))
+        {
+            logger.LogWarning("[API-AUTH] locate: company {CompanyId} has no phone-usable address (Central_Company.ApiUrl is empty or localhost)", row.ApplicationCompanyID);
+            return StatusCode(503, Fail("NO_ADDRESS", "The app is not set up for your organisation yet. Contact the office."));
+        }
+        return Ok(new { success = true, apiUrl = row.ApiUrl.TrimEnd('/'), companyId = row.ApplicationCompanyID, applicationUserId = row.ApplicationUserID });
+    }
 
     // ── sign-in ──────────────────────────────────────────────────────────
     [HttpPost("login")]
@@ -66,7 +123,8 @@ public sealed class AuthController(
         using var con = db.CreateConnection();
         var user = await con.QuerySingleOrDefaultAsync<UserRow>(
             @"SELECT Id, Username, FullName, PasswordHash, IsActive, ISNULL(IsLockedOut, 0) AS IsLockedOut,
-                     ISNULL(IsSuperAdmin, 0) AS IsSuperAdmin, ISNULL(CompanyId, 1) AS CompanyId, ISNULL(MustChangePassword, 0) AS MustChangePassword
+                     ISNULL(IsSuperAdmin, 0) AS IsSuperAdmin, ISNULL(CompanyId, 1) AS CompanyId, ISNULL(MustChangePassword, 0) AS MustChangePassword,
+                     Is_Verified AS IsVerified
               FROM dbo.Users WHERE Username = @u", new { u = request.Username.Trim() });
 
         // The same answer and roughly the same work whether or not the user exists.
@@ -75,8 +133,22 @@ public sealed class AuthController(
             BCrypt.Net.BCrypt.Verify(request.Password, DummyHash.Value);
             return Unauthorized(Fail("INVALID_CREDENTIALS", InvalidCredentials));
         }
+        // located through the central register: this server's login must be the same user of the same company
+        if ((request.ApplicationUserId is { } appUser && appUser != user.Id) || (request.CompanyId is { } company && company != user.CompanyId))
+        {
+            logger.LogWarning("[API-AUTH] Central register mismatch for {User}: central user {Central} / company {Company}, here {Id} / {HereCompany}",
+                user.Username, request.ApplicationUserId, request.CompanyId, user.Id, user.CompanyId);
+            return Unauthorized(Fail("ACCOUNT_MISMATCH", "This account does not match the registered one. Contact the office."));
+        }
         if (await loginSecurity.LockedUntilAsync(user.Id) is { } until)
             return StatusCode(423, Fail("LOCKED_OUT", $"Too many wrong passwords. Try again after {until:HH:mm}."));
+
+        // First sign-in (SQLScripts/2457): the login has no password yet. The app asks for a code (password/forgot),
+        // confirms it (password/forgot/verify) and sets the password (password/forgot/reset), which verifies the login.
+        if (!user.IsVerified)
+            return user.IsActive && !user.IsLockedOut
+                ? StatusCode(403, Fail("VERIFICATION_REQUIRED", "This login is not verified yet. Get the code on WhatsApp and set your password."))
+                : StatusCode(403, Fail("ACCOUNT_INACTIVE", "User is inactive or locked out. Contact administrator."));
 
         bool ok;
         try { ok = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash); } catch { ok = false; }
@@ -182,6 +254,50 @@ public sealed class AuthController(
         return Ok(new { success = true });
     }
 
+    /// <summary>
+    /// EMR.Web exchanges a short on-behalf token for an access token for the user's web session (ApiAuth:AccessTokenMinutes).
+    /// The user, branch mapping and role are checked again here, so a deactivated user or a removed mapping gets no new token.
+    /// </summary>
+    [HttpPost("web-token")]
+    [Authorize, PublicEndpoint]
+    public async Task<IActionResult> WebToken()
+    {
+        if (User.FindFirstValue(TokenUse.ClaimType) != TokenUse.OnBehalf
+            || !int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId)
+            || !int.TryParse(User.FindFirstValue("BranchId"), out var branchId))
+            return Forbid();
+
+        using var con = db.CreateConnection();
+        var user = await LoadUserAsync(con, userId);
+        if (user is null || !user.IsActive || user.IsLockedOut)
+            return StatusCode(403, Fail("ACCOUNT_INACTIVE", "User is inactive or locked out. Contact administrator."));
+
+        var branch = await con.QuerySingleOrDefaultAsync<BranchRow>(
+            @"SELECT b.BranchID AS BranchId, b.BranchName, b.CompanyId
+              FROM dbo.UserBranches ub INNER JOIN dbo.Branchmaster b ON b.BranchID = ub.BranchID
+              WHERE ub.UserId = @u AND ub.BranchID = @b AND ub.IsActive = 1 AND b.IsActive = 1", new { u = userId, b = branchId });
+        if (branch is null) return StatusCode(403, Fail("BRANCH_NOT_ALLOWED", "This branch is not mapped to the user."));
+
+        var role = User.FindFirstValue("ActiveRole");
+        if (!user.IsSuperAdmin)
+        {
+            var holds = role is { Length: > 0 } && await con.ExecuteScalarAsync<int>(
+                @"SELECT COUNT(1) FROM dbo.Userroles ur INNER JOIN dbo.roles r ON r.Id = ur.RoleId
+                  WHERE ur.UserId = @u AND ur.IsActive = 1 AND (ur.Branch_ID IS NULL OR ur.Branch_ID = @b) AND r.Name = @role",
+                new { u = userId, b = branchId, role }) > 0;
+            if (!holds) return StatusCode(403, Fail("ROLE_NOT_ALLOWED", "The user does not hold this role in this branch."));
+        }
+
+        var minutes = options.CurrentValue.AccessTokenMinutes;
+        return Ok(new
+        {
+            success = true,
+            tokenType = "Bearer",
+            accessToken = tokens.CreateToken(UserClaims(user, branch, role), TokenUse.WebAccess, TimeSpan.FromMinutes(minutes)),
+            expiresIn = minutes * 60
+        });
+    }
+
     // ── the signed-in user ───────────────────────────────────────────────
     [HttpGet("me")]
     [Authorize, PublicEndpoint]
@@ -251,6 +367,99 @@ public sealed class AuthController(
         return Ok(new { success = true, message = "Password changed. Sign in again on every device." });
     }
 
+    /// <summary>First sign-in from an app: login answers PASSWORD_CHANGE_REQUIRED before any token exists, so this checks the current password itself.</summary>
+    [HttpPost("password/first-change")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> FirstChangePassword([FromBody] FirstChangePasswordRequest request)
+    {
+        var problem = PasswordProblem(request.NewPassword);
+        if (problem is not null) return BadRequest(Fail("WEAK_PASSWORD", problem));
+
+        using var con = db.CreateConnection();
+        var user = await con.QuerySingleOrDefaultAsync<UserRow>(
+            @"SELECT Id, Username, FullName, PasswordHash, IsActive, ISNULL(IsLockedOut, 0) AS IsLockedOut,
+                     ISNULL(IsSuperAdmin, 0) AS IsSuperAdmin, ISNULL(CompanyId, 1) AS CompanyId, ISNULL(MustChangePassword, 0) AS MustChangePassword
+              FROM dbo.Users WHERE Username = @u", new { u = (request.Username ?? "").Trim() });
+        if (user is null)
+        {
+            BCrypt.Net.BCrypt.Verify(request.CurrentPassword ?? "", DummyHash.Value);
+            return Unauthorized(Fail("INVALID_CREDENTIALS", InvalidCredentials));
+        }
+        if (await loginSecurity.LockedUntilAsync(user.Id) is { } until)
+            return StatusCode(423, Fail("LOCKED_OUT", $"Too many wrong passwords. Try again after {until:HH:mm}."));
+
+        bool ok;
+        try { ok = BCrypt.Net.BCrypt.Verify(request.CurrentPassword ?? "", user.PasswordHash); } catch { ok = false; }
+        if (!ok)
+        {
+            await loginSecurity.RecordFailureAsync(user.Id);
+            return Unauthorized(Fail("INVALID_CREDENTIALS", InvalidCredentials));
+        }
+        if (!user.IsActive || user.IsLockedOut)
+            return StatusCode(403, Fail("ACCOUNT_INACTIVE", "User is inactive or locked out. Contact administrator."));
+        if (!user.MustChangePassword) return BadRequest(Fail("NOT_REQUIRED", "This password does not need changing here."));
+
+        await loginSecurity.RecordSuccessAsync(user.Id);
+        await con.ExecuteAsync(
+            @"UPDATE dbo.Users SET PasswordHash = @h, PasswordLastChanged = SYSDATETIME(), MustChangePassword = 0,
+                     Permission_Version = Permission_Version + 1 WHERE Id = @id",
+            new { h = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, 12), id = user.Id });
+        permissions.InvalidateUser(user.Id);
+        return Ok(new { success = true, message = "Password changed. Sign in with the new password." });
+    }
+
+    /// <summary>Forgot password (SQLScripts/2384). The answer is the same for every username, and the send runs behind it, so neither says which logins exist.</summary>
+    [HttpPost("password/forgot")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public IActionResult ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        var username = (request.Username ?? "").Trim();
+        if (username.Length == 0) return BadRequest(Fail("USERNAME_REQUIRED", "Enter your username."));
+
+        var ip = ClientIp();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = scopes.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<IPasswordOtpService>().RequestAsync(username, ip);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[PASSWORD-OTP] Code request failed");
+            }
+        });
+        return Ok(new { success = true, message = "If this login has a mobile number, a code is on its way on WhatsApp. If none arrives, ask your office." });
+    }
+
+    [HttpPost("password/forgot/verify")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotVerify([FromBody] ForgotVerifyRequest request, [FromServices] IPasswordOtpService otp)
+    {
+        var token = await otp.VerifyAsync(request.Username ?? "", request.Code ?? "");
+        return token is null
+            ? BadRequest(Fail("INVALID_CODE", "This code is wrong or has expired."))
+            : Ok(new { success = true, resetToken = token });
+    }
+
+    [HttpPost("password/forgot/reset")]
+    [EnableRateLimiting(RateLimitPolicy)]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotReset([FromBody] ForgotResetRequest request, [FromServices] IPasswordOtpService otp)
+    {
+        var problem = PasswordProblem(request.NewPassword);
+        if (problem is not null) return BadRequest(Fail("WEAK_PASSWORD", problem));
+        if (request.NewPassword != request.ConfirmPassword) return BadRequest(Fail("PASSWORD_MISMATCH", "The two passwords do not match."));
+
+        var userId = await otp.ResetAsync(request.ResetToken ?? "", request.NewPassword);
+        if (userId is null) return BadRequest(Fail("RESET_EXPIRED", "This reset has expired. Ask for a new code."));
+        permissions.InvalidateUser(userId.Value);
+        return Ok(new { success = true, message = "Password changed. Sign in with the new password." });
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
     private sealed class RotateRow
     {
@@ -318,6 +527,19 @@ public sealed class AuthController(
     private object TokenResponse(UserRow user, BranchRow branch, string? role, string refreshToken)
     {
         var o = options.CurrentValue;
+        return new
+        {
+            success = true,
+            tokenType = "Bearer",
+            accessToken = tokens.CreateToken(UserClaims(user, branch, role), TokenUse.Access, TimeSpan.FromMinutes(o.AccessTokenMinutes)),
+            expiresIn = o.AccessTokenMinutes * 60,
+            refreshToken,
+            user = new { id = user.Id, name = user.FullName ?? user.Username, branchId = branch.BranchId, branchName = branch.BranchName, activeRole = role }
+        };
+    }
+
+    private static List<Claim> UserClaims(UserRow user, BranchRow branch, string? role)
+    {
         var claims = new List<Claim>
         {
             new("sub", user.Id.ToString()),
@@ -329,15 +551,7 @@ public sealed class AuthController(
             new("IsSuperAdmin", user.IsSuperAdmin ? "true" : "false")
         };
         if (role is { Length: > 0 }) claims.Add(new Claim("ActiveRole", role));
-        return new
-        {
-            success = true,
-            tokenType = "Bearer",
-            accessToken = tokens.CreateToken(claims, TokenUse.Access, TimeSpan.FromMinutes(o.AccessTokenMinutes)),
-            expiresIn = o.AccessTokenMinutes * 60,
-            refreshToken,
-            user = new { id = user.Id, name = user.FullName ?? user.Username, branchId = branch.BranchId, branchName = branch.BranchName, activeRole = role }
-        };
+        return claims;
     }
 
     private bool IsAccessToken(out int userId)

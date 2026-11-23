@@ -23,10 +23,12 @@ public class BedRoomTariffListItemViewModel
     public decimal RoomCharge { get; set; }
     public decimal BedCharge { get; set; }
     public decimal NursingCharge { get; set; }
+    /// <summary>RMO (Resident Medical Officer) charge per day (SQLScripts/2485).</summary>
+    public decimal RmoCharge { get; set; }
     public decimal AttendantCharge { get; set; }
     public decimal IsolationCharge { get; set; }
     public decimal GstPercentage { get; set; }
-    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + AttendantCharge + IsolationCharge;
+    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + RmoCharge + AttendantCharge + IsolationCharge;
     public decimal TotalGstAmount => Math.Round(TotalBaseCharge * (GstPercentage / 100m), 2);
     public decimal TotalGrossAmount => TotalBaseCharge + TotalGstAmount;
     public bool IsActive { get; set; }
@@ -77,6 +79,11 @@ public class BedRoomTariffFormViewModel : IValidatableObject
     [Range(0, 9999999.99, ErrorMessage = "Nursing charge cannot be negative.")]
     [Display(Name = "Nursing Charge (₹)")]
     public decimal NursingCharge { get; set; } = 0;
+
+    /// <summary>RMO (Resident Medical Officer) charge per day (SQLScripts/2485).</summary>
+    [Range(0, 9999999.99, ErrorMessage = "RMO charge cannot be negative.")]
+    [Display(Name = "RMO Charge (₹)")]
+    public decimal RmoCharge { get; set; } = 0;
 
     [Range(0, 9999999.99, ErrorMessage = "Attendant charge cannot be negative.")]
     [Display(Name = "Attendant Charge (₹)")]
@@ -137,10 +144,12 @@ public class BedRoomTariffDetailsViewModel
     public decimal RoomCharge { get; set; }
     public decimal BedCharge { get; set; }
     public decimal NursingCharge { get; set; }
+    /// <summary>RMO (Resident Medical Officer) charge per day (SQLScripts/2485).</summary>
+    public decimal RmoCharge { get; set; }
     public decimal AttendantCharge { get; set; }
     public decimal IsolationCharge { get; set; }
     public decimal GstPercentage { get; set; }
-    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + AttendantCharge + IsolationCharge;
+    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + RmoCharge + AttendantCharge + IsolationCharge;
     public decimal TotalGstAmount => Math.Round(TotalBaseCharge * (GstPercentage / 100m), 2);
     public decimal TotalGrossAmount => TotalBaseCharge + TotalGstAmount;
     public bool IsActive { get; set; }
@@ -161,10 +170,12 @@ public class BedRoomTariffHistoryItemViewModel
     public decimal RoomCharge { get; set; }
     public decimal BedCharge { get; set; }
     public decimal NursingCharge { get; set; }
+    /// <summary>RMO (Resident Medical Officer) charge per day (SQLScripts/2485).</summary>
+    public decimal RmoCharge { get; set; }
     public decimal AttendantCharge { get; set; }
     public decimal IsolationCharge { get; set; }
     public decimal GstPercentage { get; set; }
-    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + AttendantCharge + IsolationCharge;
+    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + RmoCharge + AttendantCharge + IsolationCharge;
     public decimal TotalGstAmount => Math.Round(TotalBaseCharge * (GstPercentage / 100m), 2);
     public decimal TotalGrossAmount => TotalBaseCharge + TotalGstAmount;
     public bool IsActive { get; set; }

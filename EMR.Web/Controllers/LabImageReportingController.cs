@@ -33,7 +33,8 @@ namespace EMR.Web.Controllers
         ILabReportWhatsAppService labReportWhatsAppService,
         EMR.Web.Data.ApplicationDbContext dbContext,
         ILabReportPdfService pdfService,
-        EMR.Shared.Security.IActionPermissionGuard permissionGuard) : Controller
+        EMR.Shared.Security.IActionPermissionGuard permissionGuard,
+        EMR.Shared.Security.IApiTokenService apiTokens) : Controller
     {
         private int CurrentBranchId()
             => User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
@@ -121,7 +122,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> Index(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -164,7 +165,7 @@ namespace EMR.Web.Controllers
                 BranchId = branchId,
                 FromDate = effectiveFrom,
                 ToDate = effectiveTo,
-                DateFilterType = dateFilterType ?? "BookingDate",
+                DateFilterType = dateFilterType ?? "CollectionDate",
                 StatusFilter = statusFilter ?? "All",
                 Search = search,
                 DepartmentId = departmentId,
@@ -188,7 +189,7 @@ namespace EMR.Web.Controllers
         public async Task<IActionResult> GetHeadersJson(
             DateTime? fromDate,
             DateTime? toDate,
-            string? dateFilterType = "BookingDate",
+            string? dateFilterType = "CollectionDate",
             string? statusFilter = "All",
             string? search = null,
             int? departmentId = null,
@@ -270,6 +271,10 @@ namespace EMR.Web.Controllers
                 RejectionReasons = rejectionReasons
             };
 
+            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
+            var labSerial = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Image, CurrentBranchId());
+            ViewBag.LabSerialRequired = labSerial.Required;
+            ViewBag.LabSerialNo = labSerial.LabSerialNo;
             return View(viewModel);
         }
 
@@ -391,6 +396,12 @@ namespace EMR.Web.Controllers
 
             if (request.ReportStatusId <= 0)
                 return Json(new { success = false, message = "Invalid ReportStatusId." });
+
+            // SQLScripts/2514: the Lab Serial No is required (server side) while the branch setting is Yes, and kept per lab order
+            var serialError = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>()
+                .SaveAsync(request.LabOrderId, LabSerialNoApiClient.Image, CurrentBranchId(), request.LabSerialNo);
+            if (serialError != null)
+                return Json(new { success = false, code = "LAB_SERIAL_NO", message = serialError });
 
             // Validating and approving are actions of their own (Settings > Security > this page).
             if (request.ReportStatusId == 3
@@ -537,6 +548,13 @@ namespace EMR.Web.Controllers
                 TempData["ErrorMessage"] = "Order not found.";
                 return RedirectToAction(nameof(Index));
             }
+            return await PrintViewAsync(detail, labOrderId, sampleCollectionId, embed, CurrentBranchId(),
+                User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System", patientCopy: false);
+        }
+
+        private async Task<IActionResult> PrintViewAsync(LabReportingOrderDetailDto detail, int labOrderId, long? sampleCollectionId, bool embed,
+            int branchId, string printedBy, bool patientCopy)
+        {
 
             // Filter to image investigations
             detail.Items = detail.Items?
@@ -552,14 +570,14 @@ namespace EMR.Web.Controllers
 
             // A report prints once it is validated (provisional, watermarked) or approved (final).
             // Anything earlier - pending, draft, submitted, re-collect - has nothing reviewed to print.
-            if (detail.Items.Count == 0 || detail.Items.Any(i => i.ReportStatusId != 3 && i.ReportStatusId != 5))
+            if (detail.Items.Count == 0 || detail.Items.Any(i => i.ReportStatusId != 3 && i.ReportStatusId != 5)
+                || (patientCopy && detail.Items.Any(i => i.ReportStatusId != 5)))   // the patient's copy: approved only
             {
                 return Content(
                     "This report cannot be printed yet: a report prints once it is validated (provisional) or approved (final).",
                     "text/plain");
             }
 
-            var branchId = CurrentBranchId();
             var settings = await dbContext.HospitalSettings
                 .Where(s => s.BranchId == branchId && s.IsActive)
                 .FirstOrDefaultAsync();
@@ -576,10 +594,10 @@ namespace EMR.Web.Controllers
             ViewBag.RegistrationNumber = settings?.RegistrationNumber;
             // B2C: Hospital Settings > LAB > Required B2C Lab Report Print Header. B2B: a franchise's Report Header Required
             // (Franchise Master); a company's B2B report always prints it.
-            ViewBag.ShowLetterhead = detail.IsB2B
+            ViewBag.ShowLetterhead = patientCopy || (detail.IsB2B
                 ? (await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId) ?? true)
-                : (settings?.LabB2CReportPrintHeaderRequired ?? true);
-            ViewBag.PrintedBy = User.FindFirst("DisplayName")?.Value ?? User.Identity?.Name ?? "System";
+                : (settings?.LabB2CReportPrintHeaderRequired ?? true));
+            ViewBag.PrintedBy = printedBy;
             // embed = shown inside the Pathologist Dashboard's report viewer, which has its own Print / Close.
             ViewBag.Embed = embed;
 
@@ -610,7 +628,51 @@ namespace EMR.Web.Controllers
             }
             catch { }
 
-            return View(detail);
+            // LAB > External Document Upload (SQLScripts/2391): an approved test's external document (PDF / JPG / PNG) is
+            // merged right after that test's report, on pages of its own under the same letterhead and footer
+            try
+            {
+                var approvedTests = detail.Items
+                    .Where(i => i.ReportStatusId == 5 && i.InvestigationID > 0)
+                    .GroupBy(i => i.InvestigationID)
+                    .ToDictionary(g => g.Key, g => g.First().TestName ?? string.Empty);
+                if (approvedTests.Count > 0)
+                {
+                    var companyId = await dbContext.BranchMasters.Where(b => b.BranchId == detail.BranchId)
+                                        .Select(b => (int?)b.CompanyId).FirstOrDefaultAsync() ?? (patientCopy ? 1 : User.GetCompanyId());
+                    ViewBag.ExternalDocs = await pdfService.LoadExternalDocumentsAsync(labOrderId, companyId, approvedTests);
+                }
+            }
+            catch { /* the report prints without them */ }
+
+            // Utility > Print Templates (SQLScripts/2324): the billing branch's Lab Report template - the same header and footer
+            // as the Lab and Microbiology report PDFs (none = the built-in letterhead below)
+            try
+            {
+                var tplCompany = await dbContext.BranchMasters.Where(b => b.BranchId == detail.BranchId)
+                                     .Select(b => (int?)b.CompanyId).FirstOrDefaultAsync() ?? (patientCopy ? 1 : User.GetCompanyId());
+                var (layout, values) = await HttpContext.RequestServices.GetRequiredService<IPrintTemplateRuntime>().ForReportAsync(
+                    patientCopy ? null : User, tplCompany, detail.BranchId > 0 ? detail.BranchId : branchId, new PrintDocInfo
+                    {
+                        DocNo = detail.BillNo,
+                        DocDate = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt"),
+                        CopyLabel = "Original",
+                        PrintedAt = DateTime.Now.ToString("dd-MMM-yyyy hh:mm tt"),
+                        PrintedBy = printedBy
+                    }, null);
+                if (layout is not null)
+                {
+                    ViewData["PrintTemplate"] = layout;
+                    ViewData["PrintValues"] = values;
+                    ViewData["PrintLogoUrl"] = values.GetValueOrDefault("__logo");
+                }
+            }
+            catch { /* the built-in letterhead */ }
+
+            // SQLScripts/2514: the Lab Serial No (Image reporting), printed before Report Status
+            ViewBag.LabSerialNo = (await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>()
+                .GetAsync(labOrderId, LabSerialNoApiClient.Image, CurrentBranchId())).LabSerialNo;
+            return View(nameof(Print), detail);
         }
 
         // ── Audit helpers (Image Reporting) ──────────────────────────────────────

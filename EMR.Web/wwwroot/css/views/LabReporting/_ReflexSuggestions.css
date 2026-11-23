@@ -1,0 +1,15 @@
+/* moved from Views/LabReporting/_ReflexSuggestions.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    #reflexPanel { border:1px solid #c7d2fe; border-radius:.75rem; background:linear-gradient(135deg,#f5f3ff 0%,#eef2ff 60%,#fdf4ff 100%); padding:.55rem .75rem; margin-bottom:.6rem; display:none; }
+    #reflexPanel .rf-head { display:flex; align-items:center; gap:.45rem; font-size:.8rem; margin-bottom:.35rem; flex-wrap:wrap; }
+    #reflexPanel .rf-badge { display:inline-flex; align-items:center; gap:.2rem; font-size:.62rem; font-weight:800; letter-spacing:.06em; color:#fff;
+                             padding:.1rem .4rem; border-radius:999px; background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899); }
+    #reflexPanel .rf-title { font-weight:700; color:#312e81; }
+    #reflexPanel .rf-note { color:#6b7280; font-size:.7rem; margin-left:auto; }
+    #reflexPanel .rf-row { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; background:#fff; border:1px solid #e2e8f0; border-radius:.55rem; padding:.4rem .6rem; margin-top:.35rem; font-size:.82rem; }
+    #reflexPanel .rf-row.adv { border-color:#86efac; background:#f0fdf4; }
+    #reflexPanel .rf-row.dis { opacity:.6; }
+    #reflexPanel .rf-trig { color:#334155; }
+    #reflexPanel .rf-val { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:700; }
+    #reflexPanel .rf-sug { font-weight:700; color:#1e1b4b; }
+    #reflexPanel .rf-why { color:#64748b; font-size:.72rem; flex-basis:100%; }
+    #reflexPanel .rf-actions { margin-left:auto; display:flex; gap:.35rem; }

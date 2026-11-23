@@ -1,0 +1,61 @@
+@using EMR.Web.Services
+@model PhSaleBill
+@{
+    // Pharmacy bill print: 80 mm thermal, A5 or A4 (Hospital Settings > MED > print format; chosen at the counter)
+    Layout = null;
+    var b = Model; var h = (PhBranchHeader)ViewBag.Header; string f = ViewBag.Format;
+    var thermal = f == "80MM";
+    string N(decimal v) => v.ToString("N2");
+}
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Bill @b.SaleNo</title>
+<style>
+    * { box-sizing: border-box; } body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
+    .doc { margin: 0 auto; padding: 8px; @(thermal ? "width:76mm;font-size:11px;" : f == "A5" ? "width:148mm;font-size:11px;" : "width:200mm;font-size:12px;") }
+    h1 { font-size: @(thermal ? "14px" : "18px"); margin: 0; color: #644098; } .c { text-align: center; } .r { text-align: right; } .muted { color: #555; }
+    table { width: 100%; border-collapse: collapse; } th { text-align: left; border-bottom: 1px solid #333; font-size: .9em; } td { vertical-align: top; padding: 1px 2px; }
+    .line { border-top: 1px dashed #333; margin: 4px 0; } .net { font-size: 1.3em; font-weight: bold; } .tot td { padding: 0 2px; }
+    .warn { font-size: .85em; border: 1px solid #b91c1c; color: #b91c1c; padding: 2px 4px; margin-top: 4px; }
+    @@media print { .noprint { display: none; } @@page { margin: @(thermal ? "0" : "8mm"); @(thermal ? "size: 80mm auto;" : "") } }
+</style></head>
+<body onload="setTimeout(() => window.print(), 300)"><div class="doc">
+    <div class="noprint" style="text-align:right;margin-bottom:6px"><button onclick="window.print()">Print</button></div>
+    <div class="@(thermal ? "c" : "")">
+        <h1>@h.Name</h1>
+        <div>@h.Address</div><div>@(h.Phone != null ? "Ph " + h.Phone : "") @(h.Gstin != null ? " GSTIN " + h.Gstin : "")</div>
+        @if (h.Licence20B != null) { <div class="muted">D.L. @h.Licence20B @(h.Licence21B != null ? " / " + h.Licence21B : "")</div> }
+    </div>
+    <div class="line"></div>
+    <div style="display:flex;justify-content:space-between"><b>@(b.Status == "CANCELLED" ? "CANCELLED " : "")TAX INVOICE</b><span>@b.SaleNo</span></div>
+    <div style="display:flex;justify-content:space-between"><span>@(b.CustomerName ?? "Walk-in")@(b.PatientCode != null ? " (UHID " + b.PatientCode + ")" : "")</span><span>@b.SaleDate.ToString("dd-MM-yy HH:mm")</span></div>
+    @if (b.Mobile != null) { <div>Mob: @b.Mobile</div> }
+    @if (b.DoctorName != null) { <div>Dr: @b.DoctorName @(b.RxNo != null ? " · Rx " + b.RxNo : "")</div> }
+    <div class="line"></div>
+    <table>
+        <thead><tr><th>Item</th>@if (!thermal) { <th>Batch</th><th>Exp</th><th class="r">MRP</th><th class="r">Disc%</th><th class="r">GST%</th> }<th class="r">Qty</th><th class="r">Amt</th></tr></thead>
+        <tbody>
+        @foreach (var l in b.Lines)
+        {
+            <tr><td>@l.FormShort @l.ItemName@(l.ScheduleCode is "H" or "H1" or "X" or "NDPS" ? " [" + l.ScheduleCode + "]" : "")
+                    @if (thermal) { <div class="muted">B:@l.BatchNo E:@l.ExpiryDate.ToString("MM/yy") MRP @N(l.UnitMrp * l.Qty)@(l.DiscPercent > 0 ? " D " + l.DiscPercent.ToString("0.#") + "%" : "")</div> }</td>
+                @if (!thermal) { <td>@l.BatchNo</td><td>@l.ExpiryDate.ToString("MM/yy")</td><td class="r">@N(l.UnitMrp * l.Qty)</td><td class="r">@l.DiscPercent.ToString("0.##")</td><td class="r">@l.GstPercent.ToString("0.##")</td> }
+                <td class="r">@l.Qty.ToString("0.##")</td><td class="r">@N(l.Amount)</td></tr>
+        }
+        </tbody>
+    </table>
+    <div class="line"></div>
+    <table class="tot">
+        <tr><td>MRP value</td><td class="r">@N(b.MrpAmount)</td></tr>
+        @if (b.DiscountAmount != 0) { <tr><td>Discount</td><td class="r">-@N(b.DiscountAmount)</td></tr> }
+        <tr><td>Taxable · CGST @N(b.CgstAmount) · SGST @N(b.SgstAmount)</td><td class="r">@N(b.TaxableAmount)</td></tr>
+        @if (b.RoundOff != 0) { <tr><td>Round off</td><td class="r">@N(b.RoundOff)</td></tr> }
+        <tr class="net"><td>NET ₹</td><td class="r">@N(b.NetAmount)</td></tr>
+    </table>
+    <div class="muted">@PharmacyPurchaseService.AmountInWords(b.NetAmount)</div>
+    @if (b.MrpAmount > b.NetAmount) { <div><b>You saved ₹ @N(b.MrpAmount - b.NetAmount)</b></div> }
+    <div>@string.Join(" · ", b.Payments.Select(p => $"{p.MethodName} {N(p.Amount)}"))</div>
+    @if (b.BalanceDue > 0) { <div><b>Due on credit ₹ @N(b.BalanceDue)</b></div> }
+    @if (b.Lines.Any(l => l.ScheduleCode is "H" or "H1" or "X" or "NDPS")) { <div class="warn">Schedule drugs: to be taken only as prescribed by a Registered Medical Practitioner.</div> }
+    <div class="line"></div>
+    <div class="@(thermal ? "c" : "")" style="font-size:.85em">Pharmacist: @h.Pharmacist<br />Thank you. Get well soon!<br /><span class="muted">Returns as per pharmacy policy, with this bill.</span></div>
+</div></body></html>

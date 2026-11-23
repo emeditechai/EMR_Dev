@@ -155,6 +155,11 @@ public class AccSettingsPageViewModel
 {
     public AccSettingsDto Settings { get; set; } = new();
     public List<AccBranchLockDto> Locks { get; set; } = [];
+    // payment mode -> ledger (SQLScripts/2322)
+    public List<AccOption> PaymentMethods { get; set; } = [];   // Extra = MethodCode
+    public List<AccOption> MoneyLedgers { get; set; } = [];     // cash-in-hand and bank ledgers, Extra = group
+    public List<AccOption> Branches { get; set; } = [];
+    public List<AccModeLedgerRow> ModeLedgers { get; set; } = [];
 }
 
 public class AccPayeeDto
@@ -620,4 +625,105 @@ public class AccVoucherPrintViewModel
         if (n < 10000000) return (Num(n / 100000) + " Lakh " + Num(n % 100000)).Trim();
         return (Num(n / 10000000) + " Crore " + Num(n % 10000000)).Trim();
     }
+}
+
+// ── Accounts Phase 1 (SQLScripts/2322) ──────────────────────────────────────────────────────────────────────
+
+/// <summary>Accounts Settings > Payment mode ledgers: a payment method posts to this ledger (BranchId null = every branch).</summary>
+public class AccModeLedgerRow
+{
+    public string MethodCode { get; set; } = "";
+    public int? BranchId { get; set; }
+    public int? LedgerId { get; set; }
+}
+
+public class AccOpeningHeader
+{
+    public long TransactionId { get; set; }
+    public string? VoucherNo { get; set; }
+    public DateTime AsOfDate { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public string? ByUser { get; set; }
+}
+
+public class AccOpeningLine
+{
+    public int LedgerId { get; set; }
+    public string LedgerName { get; set; } = "";
+    public string? LedgerCode { get; set; }
+    public string GroupName { get; set; } = "";
+    public string GroupType { get; set; } = "";
+    public decimal Debit { get; set; }
+    public decimal Credit { get; set; }
+}
+
+/// <summary>Utility > Accounts > Opening Balances: one opening entry per branch (asset and liability ledgers).</summary>
+public class AccOpeningPageViewModel
+{
+    public int BranchId { get; set; }
+    public string? BranchName { get; set; }
+    public bool CanPickBranch { get; set; }
+    public List<AccOption> Branches { get; set; } = [];
+    public AccOpeningHeader? Header { get; set; }
+    public List<AccOpeningLine> Lines { get; set; } = [];
+    public DateTime AsOfDate { get; set; }
+}
+
+public class AccOpeningForm
+{
+    public int BranchId { get; set; }
+    public DateTime? AsOfDate { get; set; }
+    public List<AccOpeningLineForm> Lines { get; set; } = [];
+}
+
+public class AccOpeningLineForm
+{
+    public int LedgerId { get; set; }
+    public decimal? Debit { get; set; }
+    public decimal? Credit { get; set; }
+}
+
+public class AccReconLedgerRow
+{
+    public string Ledger { get; set; } = "";
+    public decimal LedgerBalance { get; set; }
+    /// <summary>What the bills say is owed (patient receivable only).</summary>
+    public decimal? BillsBalance { get; set; }
+    public decimal? PatientCredits { get; set; }
+}
+
+public class AccReconIssueRow
+{
+    public string Module { get; set; } = "";
+    public int RefId { get; set; }
+    public string? BillNo { get; set; }
+    public DateTime? BillDate { get; set; }
+    public string? BranchName { get; set; }
+    public bool? IsActive { get; set; }
+    public bool? IsB2B { get; set; }
+    public decimal LedgerDue { get; set; }
+    public decimal ExpectedDue { get; set; }
+    public decimal Difference { get; set; }
+    public string Reason { get; set; } = "";
+    public bool Fixable { get; set; }
+}
+
+public class AccReconRepairResult
+{
+    public int BillsPosted { get; set; }
+    public int ReceiptsPosted { get; set; }
+    public int RefundsPosted { get; set; }
+    public int CancellationsPosted { get; set; }
+    public int DuplicatesReversed { get; set; }
+    public int Total => BillsPosted + ReceiptsPosted + RefundsPosted + CancellationsPosted + DuplicatesReversed;
+}
+
+/// <summary>Reports > Accounts > Bill Reconciliation: the receivable ledgers against the bills, with each difference explained.</summary>
+public class AccReconViewModel
+{
+    public int? BranchId { get; set; }
+    public bool CanPickBranch { get; set; }
+    public List<AccOption> Branches { get; set; } = [];
+    public List<AccReconLedgerRow> Ledgers { get; set; } = [];
+    public List<AccReconIssueRow> Issues { get; set; } = [];
 }

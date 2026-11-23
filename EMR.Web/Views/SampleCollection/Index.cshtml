@@ -27,7 +27,8 @@
         <div class="d-flex align-items-center gap-2">
             <!-- Segregated Booking Source Tabs -->
             <ul class="nav nav-pills sample-source-tabs bg-light p-1 rounded-pill border shadow-xs" id="bookingSourceTabs" role="tablist">
-                <li class="nav-item" role="presentation">
+                @* a franchise login works only on its own B2B orders: no B2C tab (SQLScripts/2266) *@
+                <li class="nav-item @(User.IsFranchiseUser() ? "d-none" : "")" role="presentation">
                     <button class="nav-link active rounded-pill px-3 py-1 fw-semibold d-flex align-items-center gap-2" id="tabB2C" data-tab="B2C" type="button" role="tab" aria-selected="true">
                         <i class="bi bi-person-circle"></i>
                         <span>B2C Patient</span>
@@ -167,6 +168,12 @@
                 <button type="button" class="btn btn-sm btn-filter-status @(Model.StatusFilter == "Rejected" ? "btn-danger text-white active fw-bold shadow-sm" : "btn-outline-danger")" data-status="Rejected">
                     <i class="bi bi-x-circle me-1"></i>Rejected
                 </button>
+                <span class="fs-8 text-muted fw-semibold ms-md-3 me-1"><i class="bi bi-truck me-1"></i>Collection Type:</span>
+                <select id="selCollectionType" class="form-select form-select-sm w-auto" aria-label="Collection Type">
+                    <option value="">All</option>
+                    <option value="Lab">Lab (Center)</option>
+                    <option value="Home Collection">Home Collection</option>
+                </select>
                 <span class="ms-auto fs-8 text-muted fw-semibold" id="lblOrderCount">Showing @b2cHeaders.Count orders</span>
             </div>
         </div>
@@ -308,6 +315,7 @@
                                             </div>
                                             <div class="fs-9 text-muted mt-1 fw-semibold">
                                                 <span class="badge @overallBadge fs-9">@h.CollectedCount/@h.TotalTests Collected</span>
+                                                @if (h.WithPhlebotomistCount > 0) { <span class="badge bg-info-subtle text-info-emphasis border fs-9 ms-1" title="Collected by the phlebotomist; not handed over to the lab yet"><i class="bi bi-person-walking me-1"></i>@h.WithPhlebotomistCount with phlebotomist</span> }
                                             </div>
                                             <div class="mt-1">
                                                 @{
@@ -406,6 +414,7 @@
                                         </div>
                                         <div class="fs-9 text-muted mt-1">
                                             <span id="lblPatientAgeGender">—</span>
+                                            <span id="lblPatientLmp" class="d-none fw-semibold" style="color:#be185d"></span>
                                             <span class="mx-1">•</span>
                                             <i class="bi bi-telephone me-1"></i><span id="lblPatientPhone">—</span>
                                         </div>
@@ -433,6 +442,10 @@
                                 <div class="col-sm-3 col-6">
                                     <span class="text-muted fs-9 d-block">Collection Type</span>
                                     <span id="lblCollectionTypeBadge" class="badge bg-light text-secondary border fs-9">Lab</span>
+                                    <div id="lblHomeVisitStatus" class="fs-9 mt-1 d-none"></div>
+                                </div>
+                                <div class="col-12 d-none" id="divHomeHold">
+                                    <div class="home-hold rounded-2 px-2 py-1 fs-8 fw-semibold"><i class="bi bi-shield-lock me-1"></i><span id="lblHomeHold"></span></div>
                                 </div>
                                 <div class="col-sm-3 col-6" id="rowPhlebotomist">
                                     <span class="text-muted fs-9 d-block">Phlebotomist</span>
@@ -536,6 +549,11 @@
 </div>
 
 <style>
+    /* 2390: Home Collection badge - Bootstrap has no purple utilities, so the badge was white on white */
+    .bg-purple-subtle { background-color: #f3e8ff !important; }
+    .text-purple { color: #6b21a8 !important; }
+    .border-purple { border-color: #c084fc !important; }
+    .home-hold { background:#fff7ed; border:1px solid #fdba74; color:#9a3412; }
     /* ── Tab Switcher for B2C vs B2B ── */
     .sample-source-tabs {
         background-color: #f1f5f9 !important;
@@ -580,6 +598,10 @@
             min-height: auto;
         }
     }
+
+    /* the scroll bodies scroll inside their card instead of stretching it past the pane (flex children need min-height: 0) */
+    .master-card, .workspace-card { min-height: 0; }
+    .master-table-scroll-wrap, .workspace-scroll-body { min-height: 0; }
 
     .master-card, .workspace-card {
         background-color: #ffffff;
@@ -908,6 +930,9 @@
                 renderFilteredHeaders();
             });
 
+            // a franchise login: straight to its B2B bookings (the B2C tab is not shown)
+            if (@(User.IsFranchiseUser() ? "true" : "false")) setTimeout(function () { $('#tabB2B').trigger('click'); }, 0);   // after the whole script has set up
+
             // ── 1. Row Selection Click ──────────────────────────────────────────
             $(document).on('click', '.order-header-row', function () {
                 const orderId = $(this).data('id');
@@ -949,6 +974,9 @@
 
             // ── 2. Render Workspace Details (Containers Based on Investigation) ─
             function renderWorkspaceDetails(detail, statuses) {
+                // 2396: a Home Collection order of a branch using the Phlebotomist App - nothing can be collected here
+                // until the phlebotomist has handed it over (the server refuses it too)
+                window._scHoldReason = detail.collectionHoldReason || null;
                 $('#workspaceDetails').removeClass('d-none');
                 $('#workspaceActionButtons').removeClass('d-none');
 
@@ -966,6 +994,9 @@
                 $('#lblPatientCode').text(detail.patientCode || '—');
                 const ageGender = (detail.age ? detail.age + ' Yrs' : '') + (detail.gender ? ' / ' + detail.gender : '');
                 $('#lblPatientAgeGender').text(ageGender || '—');
+                // 2453: LMP date of a female patient's bill
+                $('#lblPatientLmp').toggleClass('d-none', !detail.lmpDate)
+                    .text(detail.lmpDate ? ' · LMP ' + new Date(detail.lmpDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '');
                 $('#lblPatientPhone').text(detail.phoneNumber || 'No phone');
 
                 const initials = (detail.patientName || 'PT')
@@ -985,6 +1016,13 @@
                     $('#lblUrgentBadge').hide();
                 }
                 $('#lblBookingDateTime').text(detail.bookingDateTime ? formatDateTime(detail.bookingDateTime) : '—');
+
+                // 2390: Home Collection - the latest home visit, and why it cannot be collected yet
+                const hvs = detail.homeVisitStatus ? String(detail.homeVisitStatus).replace(/_/g, ' ') : null;
+                $('#lblHomeVisitStatus').toggleClass('d-none', !((detail.collectionType || '').toLowerCase().includes('home')))
+                    .html(`<i class="bi bi-geo-alt me-1"></i>Visit: <strong>${escapeHtml(hvs || 'not dispatched')}</strong>`);
+                $('#divHomeHold').toggleClass('d-none', !detail.collectionHoldReason);
+                $('#lblHomeHold').text(detail.collectionHoldReason || '');
 
                 // Collection Type
                 const colTypeLc = (detail.collectionType || '').toLowerCase();
@@ -1070,6 +1108,13 @@
                         .removeClass('btn-success')
                         .addClass('btn-secondary')
                         .attr('title', `Enter and validate the pre-printed barcode for '${pendingMissingBarcode.testName}' first`);
+                } else if (detail.collectionHoldReason) {
+                    // 2390: Home Collection not handed over yet - nothing can be collected at the desk
+                    $('#btnCollectAll')
+                        .prop('disabled', true)
+                        .removeClass('btn-success')
+                        .addClass('btn-secondary')
+                        .attr('title', detail.collectionHoldReason);
                 } else {
                     $('#btnCollectAll')
                         .prop('disabled', false)
@@ -1164,7 +1209,7 @@
                     const msClass = parentPkgGrpId ? 'ms-4' : '';
 
                     const grpReason = profGrp.items.find(x => x.rejectionReason)?.rejectionReason;
-                    const canEditProfile = true;
+                    const canEditProfile = !window._scHoldReason;
 
                     return {
                         grpId: grpId,
@@ -1375,7 +1420,9 @@
                                      <button type="button" class="btn btn-outline-primary btn-validate-manual-barcode" data-sample-id="${test.samplecollectionID}" title="Validate"><i class="bi bi-check2"></i></button>
                                    </div>
                                    <div class="fs-9 manual-barcode-feedback mt-1" data-sample-id="${test.samplecollectionID}"></div>`
-                                : `<span class="badge bg-warning-subtle text-dark border border-warning-subtle fs-9"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`);
+                                : (test.awaitingHandover
+                                    ? `<span class="badge bg-info-subtle text-info-emphasis border fs-9" title="Collected by the phlebotomist; not handed over to the lab yet"><i class="bi bi-person-walking me-1"></i>With phlebotomist</span>`
+                                    : `<span class="badge bg-warning-subtle text-dark border border-warning-subtle fs-9"><i class="bi bi-hourglass-split me-1"></i>Pending</span>`));
 
                         let statusOptionsHtml = '';
                         statuses.forEach(st => {
@@ -1387,7 +1434,7 @@
                         let statusCellHtml = '';
                         let actionCellHtml = '';
 
-                        const canEditTest = true;
+                        const canEditTest = !window._scHoldReason;
 
                         if (isCollected) {
                             statusCellHtml = `
@@ -1428,6 +1475,11 @@
                                     </div>
                                 </div>
                             `;
+                        } else if (test.awaitingHandover) {
+                            // 2418: collected by the phlebotomist (app), not handed over to the lab yet - nothing to do here
+                            statusCellHtml = `<span class="badge bg-info-subtle text-info-emphasis border border-info-subtle px-2 py-1 fs-9 fw-semibold" title="Collected by the phlebotomist; shown as collected once the app marks it handed over">
+                                    <i class="bi bi-person-walking me-1"></i>With phlebotomist</span>`;
+                            actionCellHtml = `<div class="fs-9 text-muted"><i class="bi bi-hourglass-split me-1"></i>Awaiting hand-over</div>`;
                         } else {
                             statusCellHtml = `
                                 <select class="form-select form-select-sm fs-8 sel-collection-status" data-id="${test.samplecollectionID}" ${!canEditTest ? 'disabled' : ''}>
@@ -2116,6 +2168,8 @@
                 reloadHeaderList();
             });
 
+            $(document).on('change', '#selCollectionType', function () { reloadHeaderList(); });   // 2390
+
             function reloadHeaderList() {
                 const fromDate = $('#txtFromDate').val();
                 const toDate = $('#txtToDate').val();
@@ -2130,7 +2184,8 @@
                         toDate: toDate,
                         dateFilterType: dateFilterType,
                         statusFilter: 'All',
-                        search: search
+                        search: search,
+                        collectionType: $('#selCollectionType').val() || ''   // 2390
                     },
                     success: function (res) {
                         if (res.success) {
@@ -2303,6 +2358,7 @@
                                 </div>
                                 <div class="fs-9 text-muted mt-1 fw-semibold">
                                     <span class="badge ${overallBadge} fs-9">${h.collectedCount}/${h.totalTests} Collected</span>
+                                    ${h.withPhlebotomistCount > 0 ? `<span class="badge bg-info-subtle text-info-emphasis border fs-9 ms-1" title="Collected by the phlebotomist; not handed over to the lab yet"><i class="bi bi-person-walking me-1"></i>${h.withPhlebotomistCount} with phlebotomist</span>` : ''}
                                 </div>
                                 <div class="mt-1">
                                     ${typeBadge}
@@ -2414,4 +2470,5 @@
             }
         });
     </script>
+    <script src="~/js/views/SampleCollection/Index.js" asp-append-version="true"></script>
 }

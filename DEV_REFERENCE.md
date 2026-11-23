@@ -502,6 +502,15 @@ All scripts are in `/SQLScripts/` (root level):
    - Register in `EMR.Web/Program.cs` under `// EMR.Api HTTP clients`
    - Create controller, views, nav link
 
+### Data dictionary (every schema change)
+`Docs/DataDictionary/Data_Dictionary_OPD_LAB_Pharmacy_Accounts_Inventory.docx` is regenerated from the database by
+`Tools/datadictionary/update_data_dictionary.py` (see `Tools/datadictionary/README.md`).
+1. In the SQL script, add `MS_Description` to new tables and to columns holding codes (e.g. `P = paid, U = unpaid`).
+2. Name reference columns after the parent key (`PatientId`, `LabOrderId` ...) or declare the foreign key.
+3. Place new tables in their module in `Tools/datadictionary/dd_config.py` (a new module gets its own entry).
+4. Apply the script to the database, then commit — the post-commit hook (`sh Tools/datadictionary/install_hooks.sh`,
+   once per machine) refreshes the document and commits it. Without the hook, run the updater by hand.
+
 ---
 
 ## 19. Run Instructions

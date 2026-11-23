@@ -1,0 +1,223 @@
+@using System.Text.Json
+@using EMR.Web.Services
+@{
+    // Master > Pharmacy Master > (one of PharmacyMasterDefs) - SQLScripts/2343
+    var def = (PhMasterDef)ViewBag.Def;
+    var rows = (List<IDictionary<string, object?>>)ViewBag.Rows;
+    var lookups = (Dictionary<string, List<PhOption>>)ViewBag.Lookups;
+    bool canEdit = ViewBag.CanEdit;
+    ViewData["Title"] = def.Title;
+    var jo = new JsonSerializerOptions { PropertyNamingPolicy = null };
+    string J(object? o) => JsonSerializer.Serialize(o, jo);
+    var listFields = def.Fields.Where(f => f.InList).ToList();
+    var options = def.Fields.Where(f => f.Kind == "select").ToDictionary(f => f.Name, f => f.Options != null ? (IEnumerable<PhOption>)f.Options : lookups.TryGetValue(f.Lookup!, out var l) ? l : new List<PhOption>());
+    var activeCount = rows.Count(r => r["IsActive"] is true);
+    var retry = TempData["PhRetry"] as string;
+}
+<link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader(def.Title, def.Icon, def.Description, rows.Count, def.ReadOnly ? null : activeCount))" />
+
+<div class="card shadow-sm border-0">
+    <div class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width:360px">
+            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+            <input id="phSearch" class="form-control" placeholder="Search @def.Title.ToLower()..." autocomplete="off" />
+            <span class="input-group-text bg-white"><span class="ph-kbd">/</span></span>
+        </div>
+        @if (!def.ReadOnly)
+        {
+            <select id="phStatus" class="form-select form-select-sm" style="width:auto">
+                <option value="">All</option><option value="1" selected>Active</option><option value="0">Inactive</option>
+            </select>
+        }
+        <span class="small text-muted" id="phShown"></span>
+        <div class="ms-auto d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-success" id="phExport"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            @if (canEdit && !def.NoAdd)
+            {
+                <button type="button" class="btn btn-sm btn-primary" id="phAdd" title="Alt + N"><i class="bi bi-plus-circle me-1"></i>Add @def.Singular <span class="ph-kbd ms-1 bg-transparent text-white border-light">Alt+N</span></button>
+            }
+        </div>
+    </div>
+    <div class="ph-wrap">
+        <table class="table table-hover mb-0 ph-table @(canEdit ? "ph-editable" : "")" id="phTable">
+            <thead><tr>
+                <th style="width:48px">#</th>
+                @foreach (var f in listFields) { <th>@f.Label</th> }
+                @if (def.Key == "hsn") { <th>Split</th> }
+                @if (def.Key == "numberseries") { <th>Next number looks like</th> }
+                @if (!def.ReadOnly) { <th>Status</th> }
+                @if (canEdit) { <th></th> }
+            </tr></thead>
+            <tbody></tbody>
+        </table>
+        <div id="phEmpty" class="text-center text-muted py-5 d-none"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Nothing matches.</div>
+    </div>
+</div>
+@if (canEdit) { <div class="small text-muted mt-2"><i class="bi bi-mouse me-1"></i>Double-click a row to edit. <span class="ph-kbd">Enter</span> saves, <span class="ph-kbd">Esc</span> closes.</div> }
+
+@if (canEdit)
+{
+<div class="modal fade" id="phModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+    <form method="post" id="phForm" asp-action="@def.SaveAction" novalidate>
+        @Html.AntiForgeryToken()
+        <div class="modal-header ph-dialog-head"><h5 class="modal-title fw-bold" id="phTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><div class="row g-3" id="phBody"></div></div>
+        <div class="modal-footer justify-content-between">
+            <div class="form-check form-switch"><input type="hidden" name="IsActive" value="false" /><input class="form-check-input" type="checkbox" role="switch" name="IsActive" value="true" id="phActive"><label class="form-check-label fw-semibold" for="phActive">Active</label></div>
+            <div><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button> <button class="btn btn-primary px-4"><i class="bi bi-save me-1"></i>Save</button></div>
+        </div>
+    </form>
+</div></div></div>
+}
+
+@section Scripts {
+<script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
+<script src="~/lib/xlsx/xlsx.full.min.js"></script>
+<script>
+(function () {
+    const def = @Html.Raw(J(new { def.Key, def.IdCol, def.Singular, def.Title, def.NoAdd, Fields = def.Fields }));
+    const rows = @Html.Raw(J(rows));
+    const opts = @Html.Raw(J(options));
+    const branchCode = @Html.Raw(J((string?)ViewBag.BranchCode ?? ""));
+    const canEdit = @(canEdit ? "true" : "false");
+    const retry = @Html.Raw(retry ?? "null");
+    const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const optText = (name, v) => { const o = (opts[name] || []).find(x => String(x.Value) === String(v ?? '')); return o ? o.Text : (v ?? ''); };
+    const fmtDate = v => v ? new Date(v).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+    const isoDate = v => v ? String(v).substring(0, 10) : '';
+    const now = new Date();
+    const finYear = () => { const y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1; return String(y % 100).padStart(2, '0') + String((y + 1) % 100).padStart(2, '0'); };
+
+    function cell(f, r) {
+        const v = r[f.Name];
+        if (f.Kind === 'bool') return v ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash text-muted"></i>';
+        if (f.Kind === 'date') {
+            if (!v) return '<span class="text-muted">—</span>';
+            const expired = def.Key === 'suppliers' && new Date(v) < now;
+            return expired ? `<span class="badge bg-danger-subtle text-danger border border-danger-subtle">${fmtDate(v)} · expired</span>` : fmtDate(v);
+        }
+        if (f.Name === 'ScheduleCode' || (def.Key === 'schedules' && f.Name === 'ScheduleCode')) return `<span class="badge sch sch-${esc(v)}">${esc(v)}</span>`;
+        if (f.Name === 'GstPercent') return `<b>${Number(v)}%</b>`;
+        if (f.Name === 'RatePercent' || f.Name === 'CessPercent') return Number(v) ? Number(v) + '%' : '<span class="text-muted">—</span>';
+        if (f.Name === 'DiscountValue') return r.DiscountType === 'PERCENT' ? Number(v) + '%' : '₹' + Number(v).toFixed(2);
+        if (f.Kind === 'select') { const t = optText(f.Name, v); return t === '' ? '<span class="text-muted">—</span>' : esc(t); }
+        if (v === null || v === undefined || v === '') return '<span class="text-muted">—</span>';
+        if (f.Name === def.Fields[0].Name) return `<span class="fw-semibold">${esc(v)}</span>`;
+        return esc(v);
+    }
+
+    const tbody = document.querySelector('#phTable tbody');
+    const search = document.getElementById('phSearch');
+    const status = document.getElementById('phStatus');
+    const listFields = def.Fields.filter(f => f.InList);
+
+    function rowText(r) { return def.Fields.map(f => f.Kind === 'select' ? optText(f.Name, r[f.Name]) : r[f.Name]).join(' ').toLowerCase(); }
+    function visible() {
+        const q = search.value.trim().toLowerCase();
+        const st = status ? status.value : '';
+        return rows.filter(r => (!q || rowText(r).includes(q)) && (st === '' || (st === '1') === !!r.IsActive));
+    }
+    function render() {
+        const list = visible();
+        tbody.innerHTML = list.map((r, i) => {
+            let extra = '';
+            if (def.Key === 'hsn') { const g = Number(r.GstPercent); extra = `<td class="small text-muted">CGST ${g / 2}% + SGST ${g / 2}% · IGST ${g}%</td>`; }
+            if (def.Key === 'numberseries') extra = `<td class="font-monospace small">${esc(r.Prefix)}/${esc(branchCode)}/${r.ResetYearly ? finYear() : '0000'}/${'1'.padStart(r.Padding, '0')}</td>`;
+            const sub = def.Key === 'categories' && r.ParentCategoryId ? ' ph-sub' : '';
+            return `<tr class="${r.IsActive ? '' : 'inactive'}${sub}" data-i="${rows.indexOf(r)}"><td class="text-muted small">${i + 1}</td>`
+                + listFields.map(f => `<td>${cell(f, r)}</td>`).join('') + extra
+                + (def.Key === 'schedules' ? '' : `<td>${r.IsActive ? '<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>' : '<span class="badge bg-light text-secondary border">Inactive</span>'}</td>`)
+                + (canEdit ? `<td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary" data-edit title="Edit"><i class="bi bi-pencil"></i></button></td>` : '')
+                + '</tr>';
+        }).join('');
+        document.getElementById('phEmpty').classList.toggle('d-none', list.length > 0);
+        document.getElementById('phShown').textContent = `${list.length} of ${rows.length} shown`;
+    }
+    search.addEventListener('input', render);
+    status && status.addEventListener('change', render);
+    document.addEventListener('keydown', e => {
+        if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); search.focus(); }
+        if (e.altKey && (e.key === 'n' || e.key === 'N') && canEdit && !def.NoAdd) { e.preventDefault(); open(null); }
+    });
+
+    document.getElementById('phExport').addEventListener('click', () => {
+        const data = visible().map(r => {
+            const o = {};
+            def.Fields.forEach(f => o[f.Label] = f.Kind === 'select' ? optText(f.Name, r[f.Name]) : f.Kind === 'bool' ? (r[f.Name] ? 'Yes' : 'No') : f.Kind === 'date' ? isoDate(r[f.Name]) : r[f.Name]);
+            if (def.Key !== 'schedules') o.Status = r.IsActive ? 'Active' : 'Inactive';
+            return o;
+        });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), def.Title.substring(0, 30).replace(/[\\/?*\[\]]/g, ' '));
+        XLSX.writeFile(wb, def.Title.replace(/[^A-Za-z0-9]+/g, '_') + '.xlsx');
+    });
+
+    if (!canEdit) { render(); return; }
+
+    // ── add / edit dialog ──
+    const modalEl = document.getElementById('phModal');
+    const modal = new bootstrap.Modal(modalEl);
+    let tsList = [];
+    function input(f, v) {
+        const req = f.Required ? 'required' : '';
+        const lab = `<label class="form-label ${f.Required ? 'req' : ''}" for="f_${f.Name}">${esc(f.Label)}</label>`;
+        const help = f.Help ? `<div class="form-text">${esc(f.Help)}</div>` : '';
+        let ctl;
+        switch (f.Kind) {
+            case 'readonly': ctl = `<input class="form-control-plaintext fw-semibold" value="${esc(v)}" readonly>`; break;
+            case 'bool': return `<div class="col-md-${f.Col} d-flex align-items-end"><div class="form-check form-switch mb-2"><input type="hidden" name="${f.Name}" value="false"><input class="form-check-input" type="checkbox" role="switch" name="${f.Name}" value="true" id="f_${f.Name}" ${v ? 'checked' : ''}><label class="form-check-label fw-semibold small" for="f_${f.Name}">${esc(f.Label)}</label></div></div>`;
+            case 'textarea': ctl = `<textarea class="form-control" id="f_${f.Name}" name="${f.Name}" rows="2" maxlength="${f.Max}" ${req}>${esc(v)}</textarea>`; break;
+            case 'select': ctl = `<select class="form-select" id="f_${f.Name}" name="${f.Name}" ${req} data-ts="${(opts[f.Name] || []).length > 12 ? 1 : 0}"><option value="">${f.Required ? '-- select --' : '— none —'}</option>${(opts[f.Name] || []).map(o => `<option value="${esc(o.Value)}" ${String(o.Value) === String(v ?? '') || (o.Value !== '' && Number(o.Value) === Number(v) && v !== null && v !== '') ? 'selected' : ''}>${esc(o.Text)}</option>`).join('')}</select>`; break;
+            case 'date': ctl = `<input type="date" class="form-control" id="f_${f.Name}" name="${f.Name}" value="${isoDate(v)}" ${req}>`; break;
+            case 'number': ctl = `<input type="number" step="1" class="form-control" id="f_${f.Name}" name="${f.Name}" value="${esc(v)}" ${req}>`; break;
+            case 'decimal': ctl = `<input type="number" step="0.01" min="0" class="form-control" id="f_${f.Name}" name="${f.Name}" value="${esc(v)}" ${req}>`; break;
+            default: ctl = `<input class="form-control ${f.Upper ? 'text-uppercase' : ''}" id="f_${f.Name}" name="${f.Name}" value="${esc(v)}" maxlength="${f.Max}" placeholder="${esc(f.Placeholder || '')}" ${f.Pattern ? `pattern="${esc(f.Pattern)}" title="${esc(f.PatternMessage || '')}"` : ''} ${req} autocomplete="off">`;
+        }
+        return `<div class="col-md-${f.Col}">${lab}${ctl}${help}</div>`;
+    }
+    function open(r, isRetry) {
+        const isNew = !r || !Number(r[def.IdCol]);
+        const blank = { IsActive: true }; def.Fields.forEach(f => blank[f.Name] = f.Default ?? (f.Kind === 'date' && f.Name === 'EffectiveFrom' ? new Date().toISOString().substring(0, 10) : ''));
+        r = Object.assign(blank, r || {});
+        if (isRetry) r.IsActive = r.IsActive === 'true' || r.IsActive === true;
+        document.getElementById('phTitle').innerHTML = `<i class="bi ${isNew ? 'bi-plus-circle' : 'bi-pencil-square'} me-2"></i>${isNew ? 'Add ' + esc(def.Singular) : 'Edit ' + esc(def.Singular)}`;
+        tsList.forEach(t => t.destroy()); tsList = [];
+        document.getElementById('phBody').innerHTML = `<input type="hidden" name="${def.IdCol}" value="${esc(isNew ? 0 : r[def.IdCol])}">` + def.Fields.map(f => input(f, r[f.Name])).join('');
+        document.getElementById('phActive').checked = !!r.IsActive;
+        document.querySelectorAll('#phBody select[data-ts="1"]').forEach(s => tsList.push(new TomSelect(s, { allowEmptyOption: true, maxOptions: 500 })));
+        toggleDependent();
+        modal.show();
+    }
+    function toggleDependent() {
+        if (def.Key === 'discounts') {
+            const a = document.getElementById('f_AppliesTo');
+            const sync = () => { document.getElementById('f_CategoryId').closest('.col-md-4').style.display = a.value === 'CATEGORY' ? '' : 'none'; document.getElementById('f_CustomerType').closest('.col-md-4').style.display = a.value === 'CUSTOMER_TYPE' ? '' : 'none'; };
+            a.addEventListener('change', sync); sync();
+        }
+        if (def.Key === 'customers') {
+            const c = document.getElementById('f_CreditAllowed'), l = document.getElementById('f_CreditLimit');
+            const sync = () => { l.disabled = !c.checked; }; c.addEventListener('change', sync); sync();
+        }
+        if (def.Key === 'pricerules') {
+            const b = document.getElementById('f_PriceBasis'), p = document.getElementById('f_RatePercent');
+            const sync = () => { if (b.value === 'MRP') p.value = 0; p.readOnly = b.value === 'MRP'; }; b.addEventListener('change', sync); sync();
+        }
+    }
+    modalEl.addEventListener('shown.bs.modal', () => { const first = modalEl.querySelector('#phBody input:not([type=hidden]):not([readonly]), #phBody select, #phBody textarea'); first && first.focus(); });
+    document.getElementById('phForm').addEventListener('submit', e => {
+        const f = e.target;
+        if (!f.checkValidity()) { e.preventDefault(); f.classList.add('was-validated'); const bad = f.querySelector(':invalid'); bad && bad.focus(); }
+        else f.querySelectorAll('.text-uppercase').forEach(i => i.value = i.value.toUpperCase());
+    });
+    tbody.addEventListener('dblclick', e => { const tr = e.target.closest('tr[data-i]'); tr && open(rows[tr.dataset.i]); });
+    tbody.addEventListener('click', e => { if (e.target.closest('[data-edit]')) open(rows[e.target.closest('tr').dataset.i]); });
+    const add = document.getElementById('phAdd'); add && add.addEventListener('click', () => open(null));
+
+    render();
+    if (retry) open(retry, true);
+})();
+</script>
+}

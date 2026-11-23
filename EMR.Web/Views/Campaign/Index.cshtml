@@ -1,0 +1,151 @@
+@using EMR.Web.ApiClients
+@using EMR.Web.Services.Campaigns
+@{
+    ViewData["Title"] = "Campaigns";
+    var campaigns = ViewBag.Campaigns as List<CampaignRow> ?? [];
+    var templates = ViewBag.Templates as List<CampaignTemplateRow> ?? [];
+    string AudienceIcon(string t) => t switch { "U" => "bi-person-badge", "D" => "bi-heart-pulse", _ => "bi-people" };
+    string StatusPill(string s) => s switch
+    {
+        "SENDING" => "<span class=\"cp-pill cp-sending\"><span class=\"spinner-grow spinner-grow-sm\"></span> Sending</span>",
+        "SCHEDULED" => "<span class=\"cp-pill cp-scheduled\"><i class=\"bi bi-clock\"></i> Scheduled</span>",
+        "COMPLETED" => "<span class=\"cp-pill cp-done\"><i class=\"bi bi-check2-circle\"></i> Completed</span>",
+        "CANCELLED" => "<span class=\"cp-pill cp-cancel\"><i class=\"bi bi-x-circle\"></i> Cancelled</span>",
+        _ => "<span class=\"cp-pill cp-draft\"><i class=\"bi bi-pencil\"></i> Draft</span>"
+    };
+    var sentTotal = campaigns.Sum(c => c.Sent);
+    // {{FirstName}} shows as [First Name]
+    string Friendly(string text, string type) => System.Text.RegularExpressions.Regex.Replace(text ?? "", @"\{\{\s*([A-Za-z0-9_]+)\s*\}\}",
+        m => "[" + (CampaignAudiences.Fields(type[0]).FirstOrDefault(f => f.Code == m.Groups[1].Value)?.Label ?? m.Groups[1].Value) + "]");
+    var running = campaigns.Count(c => c.Status is "SENDING" or "SCHEDULED");
+}
+
+@section HeadStyles {
+<link rel="stylesheet" href="~/css/views/Campaign/Index.css" asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 py-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-megaphone me-2" style="color:#644098"></i>Campaigns</h1>
+            <div class="text-muted" style="font-size:.8rem">Utility &rsaquo; bulk or individual emails to patients, users and doctors &middot; channel: Email (WhatsApp coming later)</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="TemplateEdit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-file-earmark-plus me-1"></i>New Template</a>
+            <a asp-action="Create" class="btn btn-sm text-white" style="background:#644098"><i class="bi bi-plus-lg me-1"></i>New Campaign</a>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-lg-3"><div class="cp-card cp-kpi" style="--k:#644098"><div class="k-label">Campaigns</div><div class="k-val">@campaigns.Count</div></div></div>
+        <div class="col-6 col-lg-3"><div class="cp-card cp-kpi" style="--k:#16a34a"><div class="k-label">Emails sent</div><div class="k-val">@sentTotal.ToString("N0")</div></div></div>
+        <div class="col-6 col-lg-3"><div class="cp-card cp-kpi" style="--k:#d97706"><div class="k-label">Sending / scheduled</div><div class="k-val">@running</div></div></div>
+        <div class="col-6 col-lg-3"><div class="cp-card cp-kpi" style="--k:#0ea5e9"><div class="k-label">Templates</div><div class="k-val">@templates.Count</div></div></div>
+    </div>
+
+    <div class="cp-card">
+        <ul class="nav cp-tabs border-bottom px-2" role="tablist">
+            <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabCampaigns" type="button"><i class="bi bi-send me-1"></i>Campaigns</button></li>
+            <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabTemplates" id="btnTabTemplates" type="button"><i class="bi bi-collection me-1"></i>Templates</button></li>
+        </ul>
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="tabCampaigns">
+                @if (campaigns.Count == 0)
+                {
+                    <div class="cp-empty"><i class="bi bi-megaphone fs-2 d-block mb-2"></i>No campaigns yet. <a asp-action="Create">Create your first campaign</a>.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover cp-table mb-0">
+                            <thead><tr><th class="ps-3">Campaign</th><th>Audience</th><th>Status</th><th>Delivery</th><th>When</th><th>Sent from</th><th class="text-end pe-3"></th></tr></thead>
+                            <tbody>
+                                @foreach (var c in campaigns)
+                                {
+                                    var pct = c.Total == 0 ? 0 : 100.0 / c.Total;
+                                    <tr>
+                                        <td class="ps-3"><div class="fw-semibold">@c.Name</div><div class="text-muted small text-truncate" style="max-width:340px">@Friendly(c.Subject, c.AudienceType)</div></td>
+                                        <td><span class="cp-aud"><i class="bi @AudienceIcon(c.AudienceType)"></i>@CampaignAudiences.Name(c.AudienceType[0])</span></td>
+                                        <td>@Html.Raw(StatusPill(c.Status))</td>
+                                        <td>
+                                            @if (c.Total > 0)
+                                            {
+                                                <div class="small"><strong>@c.Sent</strong> of @(c.Total - c.Skipped) sent@(c.Failed > 0 ? $" · {c.Failed} failed" : "")</div>
+                                                <div class="cp-bar mt-1"><span style="width:@(c.Sent * pct)%;background:#16a34a"></span><span style="width:@(c.Failed * pct)%;background:#dc2626"></span><span style="width:@(c.Skipped * pct)%;background:#cbd5e1"></span></div>
+                                            }
+                                            else { <span class="text-muted small">-</span> }
+                                        </td>
+                                        <td class="small text-muted">
+                                            @(c.Status switch
+                                            {
+                                                "SCHEDULED" => "Sends " + c.ScheduledAt?.ToString("dd MMM, hh:mm tt"),
+                                                "COMPLETED" or "CANCELLED" => (c.CompletedAt ?? c.CreatedDate).ToString("dd MMM yyyy, hh:mm tt"),
+                                                "SENDING" => "Started " + c.StartedAt?.ToString("hh:mm tt"),
+                                                _ => "Saved " + c.CreatedDate.ToString("dd MMM yyyy")
+                                            })
+                                            <div>by @c.CreatedByName</div>
+                                        </td>
+                                        <td class="small">@c.BranchName</td>
+                                        <td class="text-end pe-3 text-nowrap">
+                                            @if (c.Status == "DRAFT")
+                                            {
+                                                <a asp-action="Create" asp-encrypted-route-id="@c.CampaignId" class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i> Continue</a>
+                                                <form asp-action="Delete" asp-encrypted-route-id="@c.CampaignId" method="post" class="d-inline" onsubmit="return confirm('Delete this draft?');">
+                                                    <button class="btn btn-sm btn-outline-danger" title="Delete draft"><i class="bi bi-trash"></i></button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <a asp-action="Details" asp-encrypted-route-id="@c.CampaignId" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Results</a>
+                                            }
+                                            <a asp-action="Create" asp-encrypted-route-copy="@c.CampaignId" class="btn btn-sm btn-outline-secondary" title="Send again as a new campaign"><i class="bi bi-copy"></i></a>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+            <div class="tab-pane fade" id="tabTemplates">
+                @if (templates.Count == 0)
+                {
+                    <div class="cp-empty"><i class="bi bi-collection fs-2 d-block mb-2"></i>No templates yet. Save a message you send often as a template: <a asp-action="TemplateEdit">New Template</a>.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover cp-table mb-0">
+                            <thead><tr><th class="ps-3">Template</th><th>For</th><th>Subject</th><th>Status</th><th>Used</th><th class="text-end pe-3"></th></tr></thead>
+                            <tbody>
+                                @foreach (var t in templates)
+                                {
+                                    <tr>
+                                        <td class="ps-3 fw-semibold">@t.Name</td>
+                                        <td><span class="cp-aud"><i class="bi @AudienceIcon(t.AudienceType)"></i>@CampaignAudiences.Name(t.AudienceType[0])</span></td>
+                                        <td class="text-muted">@Friendly(t.Subject, t.AudienceType)</td>
+                                        <td>@if (t.IsActive) { <span class="cp-pill cp-done">Active</span> } else { <span class="cp-pill cp-draft">Inactive</span> }</td>
+                                        <td class="small">@t.Used campaign(s)</td>
+                                        <td class="text-end pe-3 text-nowrap">
+                                            <a asp-action="Create" asp-encrypted-route-type="@t.AudienceType" asp-encrypted-route-template="@t.TemplateId" class="btn btn-sm btn-outline-primary"><i class="bi bi-send"></i> Use</a>
+                                            <a asp-action="TemplateEdit" asp-encrypted-route-id="@t.TemplateId" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
+                                            <form asp-action="TemplateDelete" asp-encrypted-route-id="@t.TemplateId" method="post" class="d-inline" onsubmit="return confirm('Delete this template?');">
+                                                <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    if (location.hash === '#templates') bootstrap.Tab.getOrCreateInstance(document.getElementById('btnTabTemplates')).show();
+</script>
+}

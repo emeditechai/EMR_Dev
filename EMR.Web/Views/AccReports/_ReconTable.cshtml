@@ -1,0 +1,38 @@
+@model List<EMR.Web.Models.ViewModels.AccReconIssueRow>
+@{
+    static string Label(string r) => r switch
+    {
+        "BILL_NOT_POSTED" => "Bill not posted", "RECEIPT_NOT_POSTED" => "Receipt not posted", "REFUND_NOT_POSTED" => "Refund not posted",
+        "CANCEL_NOT_POSTED" => "Cancellation not posted", "DUPLICATE_B2B" => "Posted twice (B2B)", "BILL_DELETED" => "Bill deleted",
+        "PAYMENT_RECORD_MISMATCH" => "Payment rows do not agree", "NO_PAYMENT_RECORD" => "No payment record", _ => "Other difference"
+    };
+    static string? BillUrl(EMR.Web.Models.ViewModels.AccReconIssueRow i) => i.Reason == "BILL_DELETED" ? null
+        : i.Module == "OPD" ? $"/OPD/PrintBill/{i.RefId}" : $"/LabOrderBooking/PrintBill?labOrderId={i.RefId}";
+}
+<div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+        <thead><tr><th class="ps-3">Bill</th><th>Date</th><th>Branch</th><th class="num">Ledger says</th><th class="num">Bill says</th><th class="num">Difference</th><th class="pe-3">Reason</th></tr></thead>
+        <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-check-circle text-success me-1"></i>Nothing here.</td></tr>
+            }
+            @foreach (var i in Model)
+            {
+                <tr>
+                    <td class="ps-3 text-nowrap">
+                        <span class="badge bg-light text-dark border me-1">@i.Module@(i.IsB2B == true ? " B2B" : "")</span>
+                        @if (BillUrl(i) is { } url) { <a href="@url" target="_blank" rel="noopener" class="font-monospace small">@i.BillNo</a> } else { <span class="font-monospace small">@i.BillNo</span> }
+                        @if (i.IsActive == false && i.Reason != "BILL_DELETED") { <span class="badge bg-secondary-subtle text-secondary ms-1">cancelled</span> }
+                    </td>
+                    <td class="text-nowrap small">@(i.BillDate?.ToString("dd-MMM-yyyy") ?? "-")</td>
+                    <td class="small">@(i.BranchName ?? "-")</td>
+                    <td class="num">@i.LedgerDue.ToString("N2")</td>
+                    <td class="num">@i.ExpectedDue.ToString("N2")</td>
+                    <td class="num @(i.Difference == 0 ? "text-muted" : "text-danger fw-semibold")">@i.Difference.ToString("N2")</td>
+                    <td class="pe-3 small">@Label(i.Reason)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

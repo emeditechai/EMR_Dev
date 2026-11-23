@@ -20,7 +20,8 @@ public class CorporatesController(
     IAuditLogService auditLogService,
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasherService,
-    IEmailService emailService) : Controller
+    IMasterApprovalService approvals,
+    ILoginCredentialsMailer credentialsMailer) : Controller
 {
     private static readonly List<string> CorporateTypes = ["IPD", "OPD", "LAB", "MED", "GENERAL", "ALL"];
     private static readonly List<string> BillingCycles = ["Monthly", "Daily", "Yearly", "Bi-Monthly", "Half-Yearly"];
@@ -36,6 +37,7 @@ public class CorporatesController(
         try
         {
             var list = (await corporateApiClient.GetListAsync(branchId, type, status, search, companyId)).ToList();
+            ViewBag.ApprovalStates = await approvals.GetOpenStatesAsync(companyId, ApprovalModules.Corporate);
 
             // Fetch rate rules in parallel or batch for rich UI rate count pill
             try
@@ -131,9 +133,29 @@ public class CorporatesController(
 
         try
         {
+            // under approval the corporate is saved inactive (not offered in billing) until approved
+            var matrix = await approvals.FindMatrixAsync(companyId, ApprovalModules.Corporate, branchId);
+            var wantedStatus = model.Status;
+            if (matrix is not null) model.Status = false;
+
             var newId = await corporateApiClient.CreateAsync(model, User.GetUserId());
 
-            await CreateLinkedUserAsync(model, newId, companyId, branchId);
+            await CreateLinkedUserAsync(model, newId, companyId, branchId, activeNow: matrix is null);
+
+            if (matrix is not null)
+            {
+                model.Status = wantedStatus;
+                await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Corporate, Matrix = matrix, CompanyId = companyId, BranchId = branchId,
+                    EntityId = newId, EntityName = model.Corporate_Name, ActionType = "CREATE", RequestedActive = wantedStatus,
+                    NewValues = model, UserId = User.GetUserId()
+                });
+                await auditLogService.LogAsync("MasterData", "Corporate.Create",
+                    $"Created Corporate (awaiting approval): {model.Corporate_Name} [ID: {newId}]", branchId: branchId);
+                TempData["Success"] = $"Corporate '{model.Corporate_Name}' saved and sent for approval. It becomes active, and its login is enabled, once approved.";
+                return RedirectToAction(nameof(Index));
+            }
 
             await auditLogService.LogAsync("MasterData", "Corporate.Create",
                 $"Created Corporate: {model.Corporate_Name} ({model.Corporate_Code}) [{model.Corporate_Type}] - Contact: {model.Contact_No} [ID: {newId}]",
@@ -181,6 +203,10 @@ public class CorporatesController(
                 BillingCycleOptions = GetBillingCycleSelectList(entity.BillingCycle)
             };
 
+            var open = await approvals.GetOpenAsync(ApprovalModules.Corporate, id);
+            if (open is { IsPendingCreate: true, Requested_Active: bool wanted }) model.Status = wanted;
+            ViewBag.ApprovalOpen = open;
+
             return View(model);
         }
         catch (HttpRequestException)
@@ -193,6 +219,13 @@ public class CorporatesController(
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(int id, CorporateFormViewModel model)
     {
+        // a record waiting for approval cannot be changed until the approver acts (a sent-back one can)
+        if (await approvals.GetOpenAsync(ApprovalModules.Corporate, id) is { Status: "P" })
+        {
+            TempData["Error"] = "This corporate is awaiting approval and cannot be edited until the approver approves it or sends it back.";
+            return RedirectToAction(nameof(Index));
+        }
+
         var companyId = User.GetCompanyId();
         var branchId = User.GetCurrentBranchId() ?? model.Branch_ID ?? 1;
         model.Corporate_ID = id;
@@ -218,7 +251,53 @@ public class CorporatesController(
 
         try
         {
+            var open = await approvals.GetOpenAsync(ApprovalModules.Corporate, id);
+            var matrix = await approvals.FindMatrixAsync(companyId, ApprovalModules.Corporate, branchId);
+            var wantedStatus = model.Status;
+
+            if (matrix is not null && open is { IsPendingCreate: true })
+            {
+                // not approved yet: stays inactive and goes back for approval with these values
+                model.Status = false;
+                await corporateApiClient.UpdateAsync(id, model, User.GetUserId());
+                model.Status = wantedStatus;
+                await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Corporate, Matrix = matrix, CompanyId = companyId, BranchId = branchId,
+                    EntityId = id, EntityName = model.Corporate_Name, ActionType = "CREATE", RequestedActive = wantedStatus,
+                    NewValues = model, UserId = User.GetUserId()
+                });
+                TempData["Success"] = $"Corporate '{model.Corporate_Name}' saved and sent for approval again.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            if (matrix is not null)
+            {
+                // an approved corporate keeps its current details until the change is approved
+                var current = await corporateApiClient.GetByIdAsync(id);
+                var old = current is null ? null
+                    : System.Text.Json.JsonSerializer.Deserialize<CorporateFormViewModel>(System.Text.Json.JsonSerializer.Serialize(current));
+                if (old is not null) { old.CompanyId = companyId; old.Branch_ID = current!.Branch_ID; }
+                var requestId = await approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.Corporate, Matrix = matrix, CompanyId = companyId, BranchId = branchId,
+                    EntityId = id, EntityName = model.Corporate_Name, ActionType = "UPDATE",
+                    OldValues = old, NewValues = model, UserId = User.GetUserId()
+                });
+                TempData["Success"] = requestId == 0
+                    ? "Nothing was changed, so nothing was sent for approval."
+                    : $"The change to '{model.Corporate_Name}' was sent for approval. The corporate keeps its current details until it is approved.";
+                return RedirectToAction(nameof(Index));
+            }
+
             await corporateApiClient.UpdateAsync(id, model, User.GetUserId());
+            if (open is { IsPendingCreate: true })
+            {
+                // the approval for this module was switched off while it was waiting: it is live now
+                await approvals.CloseAsync(ApprovalModules.Corporate, id, User.GetUserId(), "Approval no longer configured");
+                var login = await dbContext.Users.FirstOrDefaultAsync(u => u.UserType == UserTypes.Company && u.ReferenceUserId == id);
+                if (login is { IsActive: false }) { login.IsActive = true; await dbContext.SaveChangesAsync(); }
+            }
 
             await auditLogService.LogAsync("MasterData", "Corporate.Edit",
                 $"Updated Corporate: {model.Corporate_Name} ({model.Corporate_Code}) [{model.Corporate_Type}] - Contact: {model.Contact_No} [ID: {id}]",
@@ -271,6 +350,11 @@ public class CorporatesController(
     public async Task<IActionResult> ToggleStatus(int id)
     {
         var branchId = User.GetCurrentBranchId() ?? 1;
+        if (await approvals.GetOpenAsync(ApprovalModules.Corporate, id) is { IsPendingCreate: true })
+        {
+            TempData["Error"] = "This corporate is awaiting approval. It becomes active once approved.";
+            return RedirectToAction(nameof(Index));
+        }
         try
         {
             await corporateApiClient.ToggleStatusAsync(id, User.GetUserId());
@@ -296,6 +380,7 @@ public class CorporatesController(
         try
         {
             await corporateApiClient.DeleteAsync(id, User.GetUserId());
+            await approvals.CloseAsync(ApprovalModules.Corporate, id, User.GetUserId(), "Record deleted");
 
             await auditLogService.LogAsync("MasterData", "Corporate.Delete",
                 $"Deleted Corporate record [ID: {id}]",
@@ -462,14 +547,25 @@ public class CorporatesController(
             Selected = string.Equals(b, selected, StringComparison.OrdinalIgnoreCase)
         }).ToList();
 
-    private async Task CreateLinkedUserAsync(CorporateFormViewModel model, int corporateId, int companyId, int branchId)
+    /// <summary>The corporate's login. A corporate under approval gets a disabled login: it is enabled, and its
+    /// details mailed, on approval.</summary>
+    private async Task CreateLinkedUserAsync(CorporateFormViewModel model, int corporateId, int companyId, int branchId, bool activeNow)
     {
         var email = model.Email.Trim();
 
-        if (await dbContext.Users.AnyAsync(u => u.Username == email))
+        // sign-in is by e-mail (SQLScripts/2307): unique among all sign-ins
+        var lowerEmail = email.ToLower();
+        if (await dbContext.Users.AnyAsync(u => u.Username == email || (u.Email != null && u.Email.Trim().ToLower() == lowerEmail)))
             return;
+        // SQLScripts/2490: sign-in e-mails are unique across all eCare360 installations (central user register)
+        if (await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+                .CheckAsync(companyId, email) is { Taken: true } centralTaken)
+        {
+            TempData["Warning"] = $"Corporate saved, but no login was created: {centralTaken.Message}";
+            return;
+        }
 
-        var defaultPassword = "Welcome@123";
+        var defaultPassword = LoginCredentialsMailer.DefaultPassword;
         var (hash, salt) = passwordHasherService.HashPassword(defaultPassword);
 
         var newUser = new Models.Entities.User
@@ -483,7 +579,7 @@ public class CorporatesController(
             FirstName       = model.Corporate_Name,
             PhoneNumber     = model.Contact_No,
             Phone           = model.Contact_No,
-            IsActive        = true,
+            IsActive        = activeNow,
             UserType        = Models.Entities.UserTypes.Company,
             ReferenceUserId = corporateId,
             MustChangePassword  = true,
@@ -507,28 +603,7 @@ public class CorporatesController(
         });
         await dbContext.SaveChangesAsync();
 
-        var baseUrl = await emailService.GetApplicationBaseUrlAsync(branchId) ?? $"{Request.Scheme}://{Request.Host}";
-        var loginUrl = $"{baseUrl}/Account/Login";
-        Func<string?, string?> enc = System.Net.WebUtility.HtmlEncode;
-        var htmlBody = $@"
-            <h3>Welcome to eClinicPlus+</h3>
-            <p>Dear <strong>{enc(model.Corporate_Name)}</strong>,</p>
-            <p>Your account has been created. Here are your login details:</p>
-            <table style='border-collapse:collapse;'>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>User ID</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>Email</td><td style='padding:4px 12px;'>{enc(email)}</td></tr>
-                <tr><td style='padding:4px 12px;font-weight:bold;'>Password</td><td style='padding:4px 12px;'>{defaultPassword}</td></tr>
-            </table>
-            <p>Please change your password after your first login.</p>
-            <p><a href='{loginUrl}'>Click here to login</a></p>
-            <br/><p>Regards,<br/>eClinicPlus+ Team</p>";
-
-        try
-        {
-            await emailService.SendEmailAsync(branchId, email, "eClinicPlus+ — Your Login Credentials", htmlBody);
-        }
-        catch
-        {
-        }
+        if (activeNow)
+            await credentialsMailer.SendAsync(branchId, null, model.Corporate_Name, email, defaultPassword, $"{Request.Scheme}://{Request.Host}");
     }
 }

@@ -1,0 +1,12 @@
+/* moved from Views/LabReporting/_LabReportingMixedTypeScripts.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .narrative-box { border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; padding: .45rem .5rem .5rem; }
+    .narrative-head { margin-bottom: .35rem; }
+    .narrative-box .ql-toolbar.ql-snow { border-radius: 6px 6px 0 0; padding: 3px 6px; border-color: #dbe3ec; }
+    .narrative-box .ql-container.ql-snow { border-radius: 0 0 6px 6px; border-color: #dbe3ec; font-size: .82rem; }
+    .narrative-box .ql-editor { min-height: 120px; max-height: 340px; overflow-y: auto; }
+    .narrative-box.is-locked .ql-toolbar { display: none; }
+    .narrative-box.is-locked .ql-container.ql-snow { border-top: 1px solid #dbe3ec; border-radius: 6px; background: #f8fafc; }
+    .picklist-select { min-width: 150px; }
+    .picklist-select.is-abnormal { border-color: #dc3545; color: #b02a37; font-weight: 600; background-color: #fff5f5; }
+    .picklist-select.is-normal { border-color: #86c5a4; }
+    .pick-normal-hint { white-space: normal; line-height: 1.25; }

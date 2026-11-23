@@ -102,8 +102,8 @@
                                 <td><span class="badge bg-@badge-subtle text-@badge border border-@badge-subtle">@c.Status</span></td>
                                 <td class="text-end">
                                     <div class="btn-group btn-group-sm">
-                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:DETAILS" asp-action="Details" asp-route-id="@c.CardId" class="btn btn-light text-info" title="Open card"><i class="bi bi-eye"></i></a>
-                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-route-id="@c.CardId" target="_blank" class="btn btn-light text-dark" title="Print card"><i class="bi bi-printer"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:DETAILS" asp-action="Details" asp-encrypted-route-id="@c.CardId" class="btn btn-light text-info" title="Open card"><i class="bi bi-eye"></i></a>
+                                        <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-encrypted-route-id="@c.CardId" target="_blank" class="btn btn-light text-dark" title="Print card"><i class="bi bi-printer"></i></a>
                                     </div>
                                 </td>
                             </tr>
@@ -125,23 +125,5 @@
 </div>
 
 @section Scripts {
-    <script>
-        $(document).ready(function () {
-            if ($('#membershipCardTable tbody tr td').length > 1) {
-                $('#membershipCardTable').DataTable({
-                    "pageLength": 25,
-                    "order": [],
-                    "info": true,
-                    "searching": false, // Handled by the filter row
-                    "lengthChange": true,
-                    "language": {
-                        "paginate": {
-                            "previous": "<i class='bi bi-chevron-left'></i>",
-                            "next": "<i class='bi bi-chevron-right'></i>"
-                        }
-                    }
-                });
-            }
-        });
-    </script>
+    <script src="~/js/views/MembershipCards/Index.js" asp-append-version="true"></script>
 }

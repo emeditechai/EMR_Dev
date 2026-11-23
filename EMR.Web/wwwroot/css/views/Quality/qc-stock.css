@@ -1,0 +1,39 @@
+/* Quality & Compliance > Stock Management (SQLScripts/2498-2500) - shared page styles */
+.qs-sub { color: #6c757d; font-size: .875rem; }
+.qs-badge { font-size: .72rem; font-weight: 600; letter-spacing: .01em; padding: .3em .65em; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.qs-st-DRAFT { background: #f1f3f5; color: #495057; border-color: #dee2e6; }
+.qs-st-SUBMITTED { background: #fff4e5; color: #9a5b00; border-color: #ffd8a8; }
+.qs-st-APPROVED, .qs-st-PARTIAL, .qs-st-INTRANSIT { background: #e7f1ff; color: #0b5ed7; border-color: #b6d4fe; }
+.qs-st-POSTED, .qs-st-RECEIVED, .qs-st-CLOSED, .qs-st-ACCEPTED { background: #e6f4ea; color: #1e7b34; border-color: #b7e1c1; }
+.qs-st-REJECTED, .qs-st-CANCELLED, .qs-st-BLOCKED { background: #fdecec; color: #b02a37; border-color: #f5c2c7; }
+.qs-st-QUARANTINE, .qs-st-PENDING { background: #fff8db; color: #8a6d00; border-color: #ffe08a; }
+.qs-lines th { font-size: .78rem; font-weight: 600; color: #495057; white-space: nowrap; background: #f8f9fa; }
+.qs-lines td { vertical-align: middle; }
+.qs-lines input.form-control, .qs-lines select.form-select { font-size: .85rem; padding: .25rem .4rem; min-width: 70px; }
+.qs-lines input.qs-w-lot { min-width: 110px; }
+.qs-lines input.qs-w-date { min-width: 130px; }
+.qs-lines select.qs-w-lotpick { min-width: 220px; }
+.qs-num { text-align: right; font-variant-numeric: tabular-nums; }
+.qs-totals { min-width: 260px; }
+.qs-totals td { padding: .15rem .5rem; }
+.qs-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .5rem 1.25rem; }
+.qs-facts .k { font-size: .72rem; color: #6c757d; text-transform: none; }
+.qs-facts .v { font-weight: 600; font-size: .9rem; overflow-wrap: anywhere; }
+.qs-tile { border: 0; border-radius: .6rem; box-shadow: 0 1px 2px rgba(0,0,0,.06); height: 100%; }
+.qs-tile .n { font-size: 1.55rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.qs-tile .l { font-size: .8rem; color: #6c757d; }
+.qs-tile a { text-decoration: none; color: inherit; }
+.qs-tile.warn { border-left: 4px solid #f59f00; }
+.qs-tile.bad { border-left: 4px solid #dc3545; }
+.qs-tile.info { border-left: 4px solid #0d6efd; }
+.qs-tile.ok { border-left: 4px solid #198754; }
+.qs-bars { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 6px; }
+.qs-bars .b { flex: 1 1 0; background: #0d6efd; border-radius: 2px 2px 0 0; min-height: 1px; position: relative; }
+.qs-bars .b .q { background: #f59f00; position: absolute; left: 0; right: 0; bottom: 0; border-radius: 2px 2px 0 0; }
+.qs-scroll { max-height: 62vh; overflow: auto; }
+.qs-add { background: #f8f9fa; border: 1px dashed #ced4da; border-radius: .5rem; padding: .6rem; }
+.qs-rowwarn { background: #fff8e1 !important; }
+@media print { .no-print { display: none !important; } }
+/* number boxes in line grids sit at the right edge of their cell, under the right-aligned heading */
+.qs-lines input.qs-in-r { margin-left: auto; }
+.qs-lines td.qs-num, .qs-lines th.text-end { padding-right: .75rem; }

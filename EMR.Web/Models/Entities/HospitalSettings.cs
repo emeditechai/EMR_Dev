@@ -63,7 +63,16 @@ public class HospitalSettings
     // ── OPD Module Settings ──────────────────────────────────────────────────
     public int? OpdRegistrationValidityDays { get; set; }
 
+    /// <summary>Yes: an OPD consultation can be billed without the Registration service even when the patient's registration
+    /// has lapsed (it stays an optional line). No (default): the Registration service is mandatory with the consultation
+    /// whenever Registration Charges Validity is set and the registration has lapsed. SQLScripts/2501.</summary>
+    public bool OpdRegistrationChargesNotRequired { get; set; } = false;
+
     public bool GlobalPatientSearchRequired { get; set; } = false;
+    /// <summary>SQLScripts/2355: optional ABHA fields on OPD registration and LAB booking; per company, default off.</summary>
+    public bool EnableAbha { get; set; } = false;
+    /// <summary>SQLScripts/2355: optional Ayushman Card No. on OPD registration; per company, default off.</summary>
+    public bool EnableAyushmanBharat { get; set; } = false;
 
     public bool EmailNotificationRequired { get; set; } = true;
 
@@ -71,11 +80,132 @@ public class HospitalSettings
     /// (default No = no reminders). SQLScripts/2229.</summary>
     public bool OpdFollowUpNotificationRequired { get; set; } = false;
 
+    /// <summary>OPD > Certificates: send the issued certificate (PDF) to the patient by WhatsApp and e-mail
+    /// (default No). SQLScripts/2342.</summary>
+    public bool OpdCertificateNotificationRequired { get; set; } = false;
+
+    /// <summary>B2B tax invoice shows the branch's UPI payment QR (Settings > Payment QR Configuration) while a balance is due
+    /// (default No). SQLScripts/2452.</summary>
+    public bool ShowQrOnB2BInvoice { get; set; } = false;
+
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2275): Yes = payments are refused while the user has earlier days of that
+    /// module not closed; No (default) = the user is only warned at login.</summary>
+    public bool DayClosingBlockBilling { get; set; } = false;
+
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2275): Yes = a user with the Verify permission may verify their own closing;
+    /// No (default) = a second person checks the cash.</summary>
+    public bool DayClosingAllowSelfVerify { get; set; } = false;
+
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2313): Yes (default) = a pop-up after login when earlier days' cash is not
+    /// closed; No = no pop-up (the bell notification stays).</summary>
+    public bool DayClosingLoginReminder { get; set; } = true;
+
+    // ── Pharmacy (SQLScripts/2343): one pharmacy per branch - licence details (Hospital Information) and parameters (MED tab) ──
+    public bool PharmacyEnabled { get; set; } = false;
+    public string? PharmacyName { get; set; }
+    public string? PharmacyDrugLicence20B { get; set; }
+    public DateTime? PharmacyDrugLicence20BValidTo { get; set; }
+    public string? PharmacyDrugLicence21B { get; set; }
+    public DateTime? PharmacyDrugLicence21BValidTo { get; set; }
+    public string? PharmacyGstin { get; set; }
+    public string? PharmacistName { get; set; }
+    public string? PharmacistRegNo { get; set; }
+    public string? PharmacyNdpsLicenceNo { get; set; }
+    public string? PharmacyContactNo { get; set; }
+    public bool PharmacyAllowNegativeStock { get; set; } = false;
+    public int PharmacyMinShelfLifeSaleDays { get; set; } = 30;
+    public int PharmacyMinShelfLifeIpdDays { get; set; } = 0;
+    public int PharmacyMinShelfLifeGrnDays { get; set; } = 90;
+    public int PharmacyNearExpiryAlertDays { get; set; } = 90;
+    public int PharmacySaleReturnDays { get; set; } = 7;
+    public bool PharmacyLooseReturnAllowed { get; set; } = false;
+    [Microsoft.EntityFrameworkCore.Precision(5, 2)]
+    public decimal PharmacyMaxManualDiscountPercent { get; set; } = 10m;
+    public bool PharmacyIpdGstExempt { get; set; } = true;
+    public bool PharmacyBlockDischargeOnPendingIndent { get; set; } = true;
+    public string PharmacyTtoBillingMode { get; set; } = "IPD";
+
+    // ── IPD (SQLScripts/2422) ──
+    public string IpdNumberPrefix { get; set; } = "IP";
+    public bool IpdNumberResetYearly { get; set; } = true;
+    public string IpdBedChargeMode { get; set; } = "CALENDAR";
+    public int IpdDischargeGraceHour { get; set; } = 12;
+    public int IpdHourlyGraceHours { get; set; } = 2;
+    public int? IpdDefaultTariffCategoryId { get; set; }
+    [Microsoft.EntityFrameworkCore.Precision(18, 2)]
+    public decimal IpdRoomGstThreshold { get; set; } = 5000m;
+    public int IpdMinAdvanceDays { get; set; } = 0;
+    public int IpdDepositAlertPercent { get; set; } = 80;
+    public int IpdEstimateValidityDays { get; set; } = 7;
+    public int IpdDefaultDischargeHour { get; set; } = 11;
+    public bool IpdBlockWardGenderMismatch { get; set; } = true;
+    public bool IpdConsentRequired { get; set; } = false;
+    public string IpdReleaseBedTo { get; set; } = "CLEANING";
+    public int IpdReservationHoldHours { get; set; } = 24;
+    public bool PharmacyRoundOffBill { get; set; } = true;
+    public string PharmacyBillPrintFormat { get; set; } = "A4";
+    public bool PharmacyBillNotificationRequired { get; set; } = false;
+    /// <summary>SQLScripts/2346: Yes = approving a purchase order posts the stock (no separate GRN); No (default) = stock comes in on the GRN.</summary>
+    public bool PharmacyGrnNotRequired { get; set; } = false;
+    // Pharmacy round 2 (SQLScripts/2402)
+    public bool PharmacyAutoReorderEnabled { get; set; } = false;
+    public int PharmacyReorderSalesDays { get; set; } = 30;
+    public int PharmacyReorderSafetyDays { get; set; } = 3;
+    public int PharmacyReorderCoverDays { get; set; } = 15;
+    public bool PharmacySchemeAutoApply { get; set; } = true;
+    public bool PharmacyGs1ScanEnabled { get; set; } = true;
+    public bool PharmacyCountBlind { get; set; } = true;
+    public decimal PharmacyCountRecountPercent { get; set; } = 5m;
+    public int PharmacyCycleCountDays { get; set; } = 30;
+    public decimal PharmacyAbcAPercent { get; set; } = 70m;
+    public decimal PharmacyAbcBPercent { get; set; } = 90m;
+    public int PharmacySlowMovingDays { get; set; } = 60;
+    public int PharmacyDeadStockDays { get; set; } = 180;
+    public bool PharmacySplitPaymentEnabled { get; set; } = true;
+    public bool PharmacySubstituteSuggest { get; set; } = true;
+    public bool PharmacyRxLinkEnabled { get; set; } = true;
+    public bool PharmacyClinicalChecksEnabled { get; set; } = true;
+    public bool PharmacyMajorInteractionBlock { get; set; } = false;
+    public bool PharmacyRefillReminderEnabled { get; set; } = false;
+    public int PharmacyRefillReminderDaysBefore { get; set; } = 2;
+    public bool PharmacyLoyaltyEnabled { get; set; } = false;
+    public decimal PharmacyLoyaltyEarnPer100 { get; set; } = 1m;
+    public decimal PharmacyLoyaltyPointValue { get; set; } = 1m;
+    public int PharmacyLoyaltyMinRedeem { get; set; } = 100;
+    public decimal PharmacyLoyaltyMaxRedeemPercent { get; set; } = 20m;
+    public int PharmacyLoyaltyExpiryDays { get; set; } = 365;
+    public string PharmacyLoyaltyType { get; set; } = "POINTS";          // SQLScripts/2407: POINTS | DISCOUNT
+    public decimal PharmacyLoyaltyDiscountPercent { get; set; } = 5m;
+    // loyalty wallet (SQLScripts/2409)
+    public decimal PharmacyLoyaltyEarnPercent { get; set; } = 1m;
+    public string PharmacyLoyaltyEarnBasis { get; set; } = "NET";
+    public decimal PharmacyLoyaltyMinBillToEarn { get; set; } = 0m;
+    public decimal PharmacyLoyaltyMaxEarnPerBill { get; set; } = 0m;
+    public bool PharmacyLoyaltyEarnOnRedeemBill { get; set; } = true;
+    public int PharmacyLoyaltyLockInDays { get; set; } = 0;
+    public decimal PharmacyLoyaltyMinBillToRedeem { get; set; } = 0m;
+    public bool PharmacyLoyaltyRedeemOtp { get; set; } = false;
+    public bool PharmacyLoyaltyWalkinByMobile { get; set; } = false;
+    public bool PharmacyLoyaltyNotifyWhatsApp { get; set; } = true;
+    public int PharmacyLoyaltyExpiryReminderDays { get; set; } = 7;
+
+    /// <summary>SQLScripts/2320: wrong passwords allowed before the account is locked for 10 minutes; 0 (default) = no lock.</summary>
+    public int LoginRetryCount { get; set; }
+
+    /// <summary>SQLScripts/2383: wrong passwords after which the user gets a WhatsApp security alert; 0 (default) = no alert.</summary>
+    public int LoginAlertCount { get; set; }
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;
+    /// <summary>LAB billing AI features (AI prescription assist, Smart ID Scan) for this branch (SQLScripts/2286). Off = billing as before.</summary>
+    public bool EnableAiBillingFeatures { get; set; } = false;
+    /// <summary>The AI Help Assistant (Ask AI on the Home dashboard and in the Help Center) for this branch (SQLScripts/2302).</summary>
+    public bool EnableAskAiFeatures { get; set; } = false;
     /// <summary>When true a B2C Lab bill gets its Token No even while a payment is still due (default: only when fully paid).</summary>
     public bool TokenGenerateOnDuePayment { get; set; } = false;
+    /// <summary>SQLScripts/2382: Yes (default) = bill changes from the phlebotomist app wait on LAB > Bill Change Approval; No = test changes apply at once, discounts still wait. One setting for all branches of the company.</summary>
+    public bool BillChangeApprovalRequired { get; set; } = true;
     /// <summary>Email the finished LAB report to the patient (default No).</summary>
     public bool LabReportEmailNotificationRequired { get; set; } = false;
     /// <summary>A pathologist must approve LAB reports (default No).</summary>
@@ -88,6 +218,8 @@ public class HospitalSettings
     public int? CriticalValueInformMinutes { get; set; }
     /// <summary>B2C LAB bill prints the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
     public bool LabB2CBillPrintHeaderRequired { get; set; } = true;
+    /// <summary>LAB bill print page (SQLScripts/2292): "A4" (portrait, as before) or "A5L" (A5 landscape - half an A4 sheet).</summary>
+    public string LabBillPrintPageSize { get; set; } = "A4";
     /// <summary>Printed B2C LAB report carries the hospital letterhead (default Yes; No = blank space for pre-printed letterhead). SQLScripts/2206.</summary>
     public bool LabB2CReportPrintHeaderRequired { get; set; } = true;
     /// <summary>How Doctor IP commission is computed: Manual (screen), Automatic (scheduled job) or Both.</summary>
@@ -124,6 +256,12 @@ public class HospitalSettings
     /// <summary>B2C LAB booking creates the patient's Patient Portal login and e-mails the credentials, as OPD does
     /// (default No = LAB never creates portal logins). B2B is never affected. SQLScripts/2219.</summary>
     public bool LabPatientPortalRequired { get; set; }
+    /// <summary>SQLScripts/2395: the branch uses the Phlebotomist App for home collection (default No).</summary>
+    public bool IsPhlebotomistAppRequired { get; set; }
+    /// <summary>SQLScripts/2464: a B2C bill with a balance due may still print its lab report (default No = blocked).</summary>
+    public bool AllowPrintLabReportInDue { get; set; }
+    /// <summary>SQLScripts/2513: Is Lab Serial No Req (default No).</summary>
+    public bool IsLabSerialNoReq { get; set; }
 
     public bool IsActive { get; set; } = true;
 

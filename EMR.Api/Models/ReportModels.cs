@@ -33,6 +33,11 @@ public class DailyCollectionRegisterItem
     public string? PaymentMode { get; set; }
     public string? Reference { get; set; }
     public string? CollectedBy { get; set; }
+
+    /// <summary>Petty cash rows (EntryType PETTYOUT / PETTYIN / PETTYEXP, script 2274): the effect on the till
+    /// (minus given out, plus returned) and an expense paid from the float (information only).</summary>
+    public decimal PettyCash { get; set; }
+    public decimal PettyExpense { get; set; }
 }
 
 public class PatientRegisterItem
@@ -59,6 +64,11 @@ public class B2CCollectionSummary
     public decimal HighestReceipt { get; set; }
     public decimal CancelledBillCollection { get; set; }
     public int CancelledBillReceipts { get; set; }
+    // 2255 Daily Collection Register: B2C and direct B2B receipts
+    public decimal B2CCollection { get; set; }
+    public decimal B2BCollection { get; set; }
+    public int B2CReceipts { get; set; }
+    public int B2BReceipts { get; set; }
 }
 
 public class B2CCollectionModeRow
@@ -102,12 +112,20 @@ public class B2CCollectionReceiptRow
     public string? PatientName { get; set; }
     public string? PhoneNumber { get; set; }
     public decimal BillNetAmount { get; set; }
+    public decimal BillGrossAmount { get; set; }      // 2271
+    public decimal BillDiscountAmount { get; set; }   // 2271
+    public decimal BillCancelledAmount { get; set; }  // 2378: net of the discount taken back
+    public decimal BillRoundOff { get; set; }         // 2378
+    public decimal BillRefundedAmount { get; set; }   // 2378
+    public string? CancelState { get; set; }          // 2378: PARTIAL | FULL | null
     public decimal BillTotalPaid { get; set; }
     public decimal BillBalanceDue { get; set; }
     public string PaymentStatus { get; set; } = "U";
     public bool IsBillActive { get; set; }
     public int? CollectedById { get; set; }
     public string CollectedBy { get; set; } = string.Empty;
+    public string BillingType { get; set; } = "B2C";      // 2255: B2C | B2B
+    public string? PartnerName { get; set; }
 }
 
 public class B2CCollectionPaymentMethod
@@ -124,6 +142,77 @@ public class B2CCollectionRegisterResult
     public List<B2CCollectionCollectorRow> ByCollector { get; set; } = new();
     public List<B2CCollectionReceiptRow> Receipts { get; set; } = new();
     public List<B2CCollectionPaymentMethod> PaymentMethods { get; set; } = new();
+    public List<B2CCollectionCashHandoverRow> CashHandover { get; set; } = new();
+    public List<B2CCollectionPettyMovementRow> PettyMovements { get; set; } = new();
+    public List<B2CCollectionPettyCounterRow> PettyCounters { get; set; } = new();
+    public List<B2CCollectionRefundRow> Refunds { get; set; } = new();
+}
+
+// 2270: cancellations and refunds behind the cash hand-over
+public class B2CCollectionRefundRow
+{
+    public int CancellationId { get; set; }
+    public string? CancellationNo { get; set; }
+    public DateTime CancellationDate { get; set; }
+    public string CancellationType { get; set; } = string.Empty;   // Full | Partial
+    public decimal CancelledAmount { get; set; }
+    public decimal DiscountAdjusted { get; set; }     // 2271: discount taken back with the cancelled items
+    public string? Reason { get; set; }
+    public int? CancelledById { get; set; }
+    public string CancelledBy { get; set; } = string.Empty;
+    public int LabOrderId { get; set; }
+    public string? BillNo { get; set; }
+    public string? TokenNo { get; set; }
+    public string BillingType { get; set; } = "B2C";
+    public string? PatientCode { get; set; }
+    public string? PatientName { get; set; }
+    public string? ItemsCancelled { get; set; }
+    public int? RefundId { get; set; }
+    public decimal? RefundAmount { get; set; }
+    public string? RefundMode { get; set; }
+    public DateTime? RefundDate { get; set; }
+    public int? RefundedById { get; set; }
+    public string? RefundedBy { get; set; }
+    public bool IsCashRefund { get; set; }
+    public bool RefundInPeriod { get; set; }
+    public string RefundStatus { get; set; } = string.Empty;       // Refunded | Refunded earlier | Refund pending
+}
+
+// 2269: cash hand-over with petty cash (Daily Collection Register)
+public class B2CCollectionCashHandoverRow
+{
+    public int? PersonId { get; set; }
+    public string PersonName { get; set; } = string.Empty;
+    public decimal CashCollected { get; set; }
+    public decimal CashRefunds { get; set; }
+    public decimal ToPettyCash { get; set; }
+    public decimal FromPettyCash { get; set; }
+    public decimal NetCash { get; set; }
+}
+
+public class B2CCollectionPettyMovementRow
+{
+    public string Movement { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;      // ISSUE | REPLENISH | RETURN | EXPENSE
+    public DateTime TxnDate { get; set; }
+    public string? CounterName { get; set; }
+    public string? VoucherNo { get; set; }
+    public decimal Amount { get; set; }
+    public decimal CashEffect { get; set; }                // on the till: issue / replenish < 0, return > 0, expense 0
+    public string? PayeeName { get; set; }
+    public string? Detail { get; set; }
+    public int? PersonId { get; set; }
+    public string PersonName { get; set; } = string.Empty;
+}
+
+public class B2CCollectionPettyCounterRow
+{
+    public int CounterId { get; set; }
+    public string CounterName { get; set; } = string.Empty;
+    public decimal FloatAmount { get; set; }
+    public decimal Balance { get; set; }
+    public decimal ToReplenish { get; set; }
+    public bool IsLow { get; set; }
 }
 
 // ── Reports > LAB > Discount Register (usp_Api_LabReport_DiscountRegister) ──

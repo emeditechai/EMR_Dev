@@ -80,6 +80,19 @@ public class DoctorCommissionConfigDto
     public int? CreatedBy { get; set; }
     public DateTime? ModifiedDate { get; set; }
     public int? ModifiedBy { get; set; }
+    /// <summary>SQLScripts/2517: a 'Service' rule's selected services (empty = all services).</summary>
+    public List<int> ServiceIds { get; set; } = [];
+    public List<string> ServiceNames { get; set; } = [];
+}
+
+/// <summary>SQLScripts/2517: a service a 'Service' rule can name (Service Type 'Service', not registration).</summary>
+public class DoctorCommissionServiceOptionDto
+{
+    public int ServiceId { get; set; }
+    public string? ItemCode { get; set; }
+    public string ItemName { get; set; } = "";
+    public decimal ItemCharges { get; set; }
+    public bool IsActive { get; set; }
 }
 
 public class DoctorCommissionConfigSaveRequest
@@ -102,6 +115,8 @@ public class DoctorCommissionConfigSaveRequest
     public DateTime? EffectiveTo { get; set; }
     public bool IsActive { get; set; } = true;
     public int? UserId { get; set; }
+    /// <summary>SQLScripts/2517: a 'Service' rule's selected services (empty = all services; ignored for other types).</summary>
+    public List<int>? ServiceIds { get; set; }
 }
 
 // ── 3. Doctor Disbursal DTOs ────────────────────────────────────────────────

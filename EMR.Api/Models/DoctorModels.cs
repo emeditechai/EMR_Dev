@@ -19,6 +19,11 @@ public class DoctorListItem
     /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
     public bool    HasOPDDept            { get; set; }
     public bool    IsReferralDoctor      { get; set; }
+    public bool    IsSuspended            { get; set; }   // SQLScripts/2484
+    public string? SuspendReason          { get; set; }
+    /// <summary>Marketing executive tagged on the doctor (SQLScripts/2441).</summary>
+    public string? MarketingExecutiveName { get; set; }
+    public string? MarketingExecutiveType { get; set; }
     
     public int     TotalCount            { get; set; }
 }
@@ -71,4 +76,26 @@ public class DoctorCreateRequest
 public class DoctorUpdateRequest : DoctorCreateRequest
 {
     public int DoctorId { get; set; }
+}
+
+/// <summary>Master > Doctor Master list, paged on the server (SQLScripts/2315).</summary>
+public class DoctorPagedList
+{
+    public int TotalDoctors { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int InactiveDoctors { get; set; }
+    public int OpdDoctors { get; set; }
+    public int WithFees { get; set; }
+    public int FilteredCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<DoctorListItem> Items { get; set; } = [];
+    public List<string> Specialities { get; set; } = [];
+    public List<DoctorDeptOption> Departments { get; set; } = [];
+}
+
+public class DoctorDeptOption
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "";
 }

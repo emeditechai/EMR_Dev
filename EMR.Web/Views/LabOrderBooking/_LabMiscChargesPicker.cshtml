@@ -64,7 +64,8 @@
                 <div class="small text-info-emphasis bg-info-subtle border border-info-subtle rounded px-2 py-1 mb-2 d-none" id="miscPickHomeHint">
                     <i class="bi bi-house-heart me-1"></i>Collection Type is <b>Home Collection</b> - add the home collection charge if it applies.
                 </div>
-                <div id="miscPickList" class="list-group small"></div>
+                @* at most three charges in view; more scroll inside the list (sized in fitPickList) *@
+                <div id="miscPickList" class="list-group small" style="overflow-y:auto; overscroll-behavior:contain;"></div>
                 <div id="miscPickEmpty" class="text-center text-muted py-4 d-none">No active misc charges. Add them in Master &rsaquo; Lab Master &rsaquo; Misc Charges Master.</div>
             </div>
             <div class="modal-footer py-2">
@@ -149,6 +150,7 @@
         const t = $id('miscPickType').value;
         const rows = master.filter(m => (!t || m.ChargeType === t) && (!q || (m.ChargeName || '').toLowerCase().includes(q)));
         $id('miscPickEmpty').classList.toggle('d-none', master.length > 0);
+        const keepScroll = list.scrollTop;   // an Add re-draws the list: stay where the user was
         list.innerHTML = rows.map(m => {
             const inBill = lines.find(l => l.miscChargeId === m.MiscChargeId);
             const gst = m.IsGstRequired ? ` · GST ${Number(m.GstPercentage)}% extra` : '';
@@ -162,7 +164,20 @@
                 </button>
             </div>`;
         }).join('');
+        fitPickList();
+        list.scrollTop = keepScroll;
     }
+
+    // the list shows three charges at most; the rest scroll inside it (measured, so longer descriptions still fit)
+    function fitPickList() {
+        const list = $id('miscPickList');
+        if (!list) return;
+        const items = list.querySelectorAll(':scope > .list-group-item');
+        if (items.length <= 3) { list.style.maxHeight = ''; return; }
+        const h = items[0].offsetHeight + items[1].offsetHeight + items[2].offsetHeight;
+        if (h > 0) list.style.maxHeight = (h + 2) + 'px';   // 0 while the dialog is still hidden: sized again when shown
+    }
+    document.addEventListener('shown.bs.modal', e => { if (e.target && e.target.id === 'miscChargesModal') fitPickList(); });
 
     async function open(collectionType) {
         const modalEl = $id('miscChargesModal');

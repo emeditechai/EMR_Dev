@@ -7,34 +7,7 @@
 @section HeadStyles {
     <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
-    <style>
-        .barcode-wrapper .summary-card { transition: box-shadow .15s ease, transform .15s ease; }
-        .barcode-wrapper .summary-card:hover { box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important; transform: translateY(-1px); }
-        .barcode-wrapper .summary-icon {
-            width: 44px; height: 44px; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0;
-        }
-        .barcode-wrapper .cat-badge { font-size: .72rem; font-weight: 600; padding: .3rem .55rem; border-radius: 6px; white-space: nowrap; }
-        .barcode-wrapper .cat-badge.cat-fasting { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
-        .barcode-wrapper .cat-badge.cat-pp { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
-        .barcode-wrapper .cat-badge.cat-urine { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
-        .barcode-wrapper .cat-badge.cat-general { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
-        .barcode-wrapper .range-code { font-size: .78rem; line-height: 1.5; }
-        .barcode-wrapper .range-code .range-sep { color: #94a3b8; font-size: .68rem; letter-spacing: .05em; margin: 0 .15rem; }
-        .barcode-wrapper .stack-progress { height: 7px; border-radius: 4px; overflow: hidden; background: #f1f5f9; display: flex; }
-        .barcode-wrapper .stack-progress .seg-used { background: #0dcaf0; }
-        .barcode-wrapper .stack-progress .seg-voided { background: #adb5bd; }
-        .barcode-wrapper .empty-state { padding: 3.5rem 1.5rem; text-align: center; }
-        .barcode-wrapper .empty-state .empty-icon {
-            width: 68px; height: 68px; border-radius: 50%; background: #f1f5f9; color: #94a3b8;
-            display: flex; align-items: center; justify-content: center; font-size: 1.75rem; margin: 0 auto 1rem;
-        }
-        .barcode-wrapper .action-btn-group .btn { border-radius: 6px !important; margin-left: 2px; }
-        .barcode-wrapper .action-btn-group .btn:first-child { margin-left: 0; }
-        .barcode-wrapper .modal-header { background: #f8fafc; }
-        .barcode-wrapper .qty-preset.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
-        .barcode-wrapper .franchise-select-wrap { max-width: 560px; }
-    </style>
+    <link rel="stylesheet" href="~/css/views/LabFranchiseBarcodes/Index.css" asp-append-version="true" />
 }
 
 <div class="container-fluid px-4 py-3 barcode-wrapper">

@@ -15,7 +15,8 @@
             ("Ledger Statement", "Any ledger: opening, each entry, closing. Click an entry to open its voucher.", "bi-list-columns-reverse", "LedgerStatement", new()),
             ("Trial Balance", "Opening, period debit and credit, closing for every ledger. Debits equal credits.", "bi-columns-gap", "TrialBalance", new()),
             ("Income and Expense", "Income against expense for a period, with surplus or deficit.", "bi-graph-up-arrow", "IncomeExpense", new()),
-            ("Ledger Posting Audit", "Bills, receipts, refunds, petty cash and vouchers checked against their ledger entries. Lists what is missing or wrong.", "bi-shield-check", "PostingAudit", new())]),
+            ("Ledger Posting Audit", "Bills, receipts, refunds, petty cash and vouchers checked against their ledger entries. Lists what is missing or wrong.", "bi-shield-check", "PostingAudit", new()),
+            ("Bill Reconciliation", "Receivable ledgers against the bills, each difference explained; repairs missing and duplicate entries.", "bi-arrow-left-right", "Reconciliation", new())]),
         ("Petty Expense", [
             ("Petty Expense Summary", "Approved petty expenses by head and month.", "bi-pie-chart", "ExpenseSummary", new())])
     };
@@ -32,7 +33,7 @@
             @foreach (var r in g.Items)
             {
                 <div class="col-xl-3 col-md-4 col-sm-6">
-                    <a asp-action="@r.Action" asp-all-route-data="r.Route" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
+                    <a asp-action="@r.Action" asp-encrypted-all-route-data="r.Route" class="card border-0 shadow-sm h-100 text-decoration-none text-dark">
                         <div class="card-body">
                             <div class="d-flex align-items-center mb-2"><i class="bi @r.Icon fs-4 text-primary me-2"></i><span class="fw-bold">@r.Title</span></div>
                             <div class="small text-muted">@r.Text</div>

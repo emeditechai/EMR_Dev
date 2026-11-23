@@ -214,6 +214,7 @@
                                 <label asp-for="Credit_Facility_Type" class="form-label fw-semibold">Credit Facility Type <span class="text-danger">*</span></label>
                                 <select asp-for="Credit_Facility_Type" class="form-select" asp-items="Model.CreditFacilityTypeOptions" required>
                                 </select>
+                                <div id="prepaidCreditNote" class="form-text text-warning-emphasis d-none"><i class="bi bi-info-circle me-1"></i>Prepaid (Wallet): credit limit, credit days, grace days, deposit, interest and temporary limit do not apply.</div>
                                 <span asp-validation-for="Credit_Facility_Type" class="text-danger small"></span>
                             </div>
                             <div class="col-md-4">
@@ -291,13 +292,8 @@
 </div>
 
 @section Scripts {
+    @* SQLScripts/2490 / 2515: the login e-mail is checked while typing; Save waits for it *@
+    <script src="~/js/views/LabFranchises/login-email.js" asp-append-version="true" data-check-url="@Url.Action("CheckLoginEmail", "LabFranchises")" data-franchise-id="0"></script>
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        function goToStep(stepNumber) {
-            var tabTrigger = document.querySelector('#tab-step' + stepNumber);
-            var tab = new bootstrap.Tab(tabTrigger);
-            tab.show();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    </script>
+    <script src="~/js/views/LabFranchises/Create.js" asp-append-version="true"></script>
 }

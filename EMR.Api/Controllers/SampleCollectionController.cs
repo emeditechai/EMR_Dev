@@ -1,4 +1,5 @@
 using System;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using EMR.Api.Models;
@@ -10,6 +11,9 @@ namespace EMR.Api.Controllers
     [Route("api/[controller]")]
     public class SampleCollectionController(ISampleCollectionService sampleCollectionService) : ControllerBase
     {
+        // "sub" arrives as NameIdentifier (Program.cs, MapInboundClaims) on web and api/auth tokens alike.
+        private int? CurrentUserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) && id > 0 ? id : null;
+
         [HttpGet("headers")]
         public async Task<IActionResult> GetHeaderList(
             [FromQuery] int branchId,
@@ -17,7 +21,9 @@ namespace EMR.Api.Controllers
             [FromQuery] DateTime? toDate,
             [FromQuery] string? dateFilterType = "BookingDate",
             [FromQuery] string? statusFilter = "All",
-            [FromQuery] string? search = null)
+            [FromQuery] string? search = null,
+            [FromQuery] int? createdBy = null,
+            [FromQuery] string? collectionType = null)   // 2390
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
@@ -27,7 +33,7 @@ namespace EMR.Api.Controllers
             }
 
             var result = await sampleCollectionService.GetHeaderListAsync(
-                branchId, fromDate, toDate, dateFilterType, statusFilter, search);
+                branchId, fromDate, toDate, dateFilterType, statusFilter, search, createdBy, collectionType);
             return Ok(result);
         }
 
@@ -48,8 +54,7 @@ namespace EMR.Api.Controllers
             if (request.SampleCollectionId <= 0 || request.CollectionstatusID <= 0)
                 return BadRequest("Valid SampleCollectionId and CollectionstatusID are required.");
 
-            var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+            if (CurrentUserId is not int userId) return Unauthorized(new { isSuccess = false, message = "A signed-in user is required." });
 
             try
             {
@@ -68,8 +73,7 @@ namespace EMR.Api.Controllers
             if (request.LabOrderId <= 0 || request.CollectionstatusID <= 0 || (request.ProfileId == null && string.IsNullOrEmpty(request.ProfileName)))
                 return BadRequest("Valid LabOrderId, Profile identifier, and CollectionstatusID are required.");
 
-            var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+            if (CurrentUserId is not int userId) return Unauthorized(new { isSuccess = false, message = "A signed-in user is required." });
 
             try
             {
@@ -88,8 +92,7 @@ namespace EMR.Api.Controllers
             if (request.LabOrderId <= 0)
                 return BadRequest("Valid LabOrderId is required.");
 
-            var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+            if (CurrentUserId is not int userId) return Unauthorized(new { isSuccess = false, message = "A signed-in user is required." });
 
             try
             {
@@ -108,8 +111,7 @@ namespace EMR.Api.Controllers
             if (request.LabOrderId <= 0)
                 return BadRequest("Valid LabOrderId is required.");
 
-            var userIdClaim = User.FindFirst("UserId")?.Value;
-            int userId = int.TryParse(userIdClaim, out var uid) ? uid : 1;
+            if (CurrentUserId is not int userId) return Unauthorized(new { isSuccess = false, message = "A signed-in user is required." });
 
             try
             {

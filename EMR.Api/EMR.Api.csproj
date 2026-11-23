@@ -8,16 +8,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ClosedXML"                       Version="0.105.1" />
-    <PackageReference Include="BCrypt.Net-Next"                 Version="4.1.0" />
-    <PackageReference Include="Dapper"                          Version="2.1.35" />
-    <PackageReference Include="Microsoft.Data.SqlClient"        Version="5.2.2" />
-    <PackageReference Include="Swashbuckle.AspNetCore"          Version="6.9.0" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi"    Version="9.0.2" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+    <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="FluentFTP" Version="55.1.0" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Microsoft.ML" Version="4.0.2" />
+    <PackageReference Include="PdfPig" Version="0.1.16" />
+    <PackageReference Include="PDFtoImage" Version="5.4.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EMR.Shared.Security\EMR.Shared.Security.csproj" />
+    <ProjectReference Include="..\EMR.Common\EMR.Common.csproj" />
   </ItemGroup>
 
 </Project>

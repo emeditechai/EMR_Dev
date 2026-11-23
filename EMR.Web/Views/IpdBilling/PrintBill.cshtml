@@ -1,0 +1,87 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPrintView
+@{
+    Layout = "_IpdPrintLayout";
+    var b = Model.Doc; var h = Model.Header;
+    ViewData["DocTitle"] = Model.Title;
+    if (b.S("Status") == "CANCELLED") ViewData["Watermark"] = "CANCELLED";
+    string Payer(string p) => p switch { "CASH" => "Cash / Self", "CORPORATE" => "Corporate", "INSURANCE" => "Insurance / TPA", "SCHEME" => "Government scheme", _ => p };
+    var pays = Model.Totals.Items();
+    var detail = Model.Format == "detail";
+    var groups = Model.Rows.GroupBy(r => r.S("HeadName")).ToList();
+    var discount = b.M("ItemDiscount") + b.M("BillDiscount");
+    string Words(decimal amount)
+    {
+        string[] u = { "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen" };
+        string[] t = { "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety" };
+        string Two(long n) => n < 20 ? u[n] : t[n / 10] + (n % 10 > 0 ? " " + u[n % 10] : "");
+        string Three(long n) => (n >= 100 ? u[n / 100] + " Hundred" + (n % 100 > 0 ? " " : "") : "") + (n % 100 > 0 ? Two(n % 100) : "");
+        long r = (long)Math.Floor(Math.Abs(amount));
+        if (r == 0) return "Rupees Zero Only";
+        var parts = new List<string>();
+        if (r >= 10000000) { parts.Add(Three(r / 10000000) + " Crore"); r %= 10000000; }
+        if (r >= 100000) { parts.Add(Two(r / 100000) + " Lakh"); r %= 100000; }
+        if (r >= 1000) { parts.Add(Two(r / 1000) + " Thousand"); r %= 1000; }
+        if (r > 0) parts.Add(Three(r));
+        return "Rupees " + string.Join(" ", parts) + " Only";
+    }
+}
+<table class="info">
+    <tr><td class="k">Bill No.</td><td class="mono b">@b.S("BillNo")</td><td class="k">Bill date</td><td>@b.Dt("BillAt")</td><td class="k">Billed up to</td><td>@b.Dt("BillUpToAt")</td></tr>
+    <tr><td class="k">Patient</td><td class="b">@h.S("PatientName")</td><td class="k">UHID / IP No.</td><td class="mono">@h.S("PatientCode") / @h.S("IpNo")</td><td class="k">Age / Sex</td><td>@h.S("AgeText") / @h.S("Gender")</td></tr>
+    <tr><td class="k">Admitted</td><td>@h.Dt("AdmissionAt")</td><td class="k">Ward / bed</td><td>@h.S("WardName") / @h.S("BedNumber")</td><td class="k">Mobile</td><td>@h.S("PhoneNumber")</td></tr>
+    <tr><td class="k">Consultant</td><td>@h.S("ConsultantDoctorName")</td><td class="k">Payer</td><td>@Payer(h.S("PayerType")) @h.S("PayerName")</td><td class="k">Tariff</td><td>@h.S("TariffCategoryName")</td></tr>
+    @if (!string.IsNullOrWhiteSpace(h.S("PackageName"))) { <tr><td class="k">Package</td><td colspan="5">@h.S("PackageName")</td></tr> }
+</table>
+
+@if (detail)
+{
+    <table class="grid" style="margin-top:8px"><thead><tr><th>Date</th><th>Particulars</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th><th class="r">Discount</th><th class="r">GST</th><th class="r">Net</th></tr></thead><tbody>
+    @foreach (var g in groups)
+    {
+        <tr><td colspan="8" class="b" style="background:#f1f5f9">@g.Key</td></tr>
+        foreach (var r in g)
+        {
+            <tr><td>@r.Dt("ChargeAt", "dd-MMM-yy")</td><td>@r.S("ItemName")@if (!string.IsNullOrWhiteSpace(r.S("Detail"))) {<span style="color:#64748b"> · @r.S("Detail")</span>}@if (!string.IsNullOrWhiteSpace(r.S("DoctorName"))) {<span style="color:#64748b"> · Dr @r.S("DoctorName")</span>}@if (r.B("IsPackageItem")) {<span style="color:#64748b"> (in package)</span>}</td>
+                <td class="r">@r.M("Qty").ToString("0.##")</td><td class="r">@r.M("Rate").ToString("N2")</td><td class="r">@r.M("Gross").ToString("N2")</td>
+                <td class="r">@((r.M("ItemDiscount") + r.M("BillDiscount")).ToString("N2"))</td><td class="r">@r.M("GstAmount").ToString("N2")</td><td class="r b">@r.M("Net").ToString("N2")</td></tr>
+        }
+        <tr><td colspan="7" class="r">@g.Key total</td><td class="r b">@g.Sum(x => x.M("Net")).ToString("N2")</td></tr>
+    }
+    </tbody></table>
+}
+else
+{
+    <div class="sec-h">Bill summary</div>
+    <table class="grid"><thead><tr><th>Head</th><th class="r">Items</th><th class="r">Gross</th><th class="r">Discount</th><th class="r">GST</th><th class="r">Net</th></tr></thead><tbody>
+    @foreach (var r in Model.Rows2) { <tr><td>@r.S("HeadName")</td><td class="r">@r.I("Lines")</td><td class="r">@r.M("Gross").ToString("N2")</td><td class="r">@r.M("Discount").ToString("N2")</td><td class="r">@r.M("Gst").ToString("N2")</td><td class="r b">@r.M("Net").ToString("N2")</td></tr> }
+    </tbody></table>
+}
+
+<table class="grid" style="margin-top:8px;width:55%;margin-left:auto"><tbody>
+    <tr><td>Gross amount</td><td class="r">@b.M("Gross").Rs()</td></tr>
+    @if (discount > 0) { <tr><td>Less: discount @(b.M("BillDiscount") > 0 && !string.IsNullOrWhiteSpace(b.S("DiscountReason")) ? "(" + b.S("DiscountReason") + ")" : "")</td><td class="r">- @discount.Rs()</td></tr> }
+    @if (b.M("Gst") > 0) { <tr><td>Add: GST</td><td class="r">@b.M("Gst").Rs()</td></tr> }
+    @if (b.M("RoundOff") != 0) { <tr><td>Round off</td><td class="r">@b.M("RoundOff").ToString("N2")</td></tr> }
+    <tr><td class="b">Bill amount</td><td class="r b">@b.M("Net").Rs()</td></tr>
+    <tr><td>Less: advance adjusted</td><td class="r">- @b.M("AdvanceAdjusted").Rs()</td></tr>
+    @if (b.M("SettleTotal") > 0) { <tr><td>Less: paid against the bill</td><td class="r">- @b.M("SettleTotal").Rs()</td></tr> }
+    @if (b.M("RefundDue") > 0) { <tr><td class="b">Refundable to patient</td><td class="r b">@b.M("RefundDue").Rs()</td></tr> }
+    else { <tr><td class="b">Balance due</td><td class="r b">@b.M("BalanceDue").Rs()</td></tr> }
+</tbody></table>
+<div class="note"><b>Bill amount: @Words(b.M("Net"))</b></div>
+
+@if (pays.Count > 0)
+{
+    <div class="sec-h">Payments</div>
+    <table class="grid"><thead><tr><th>Date</th><th>Receipt / voucher</th><th>Type</th><th>Mode</th><th class="r">Amount</th></tr></thead><tbody>
+    @foreach (var p in pays)
+    {
+        var k = p.S("Kind");
+        <tr><td>@p.Dt("CreatedDate")</td><td class="mono">@p.S("DocNo")</td><td>@(k == "ADVANCE" ? "Advance" : k == "SETTLE" ? "Bill payment" : "Refund")</td><td>@(k == "REFUND" ? p.S("Mode") : p.S("Modes"))</td>
+            <td class="r">@(k == "REFUND" ? "- " : "")@p.M("Amount").ToString("N2")</td></tr>
+    }
+    </tbody></table>
+}
+@if (b.S("Status") == "CANCELLED") { <div class="note"><b>This bill was cancelled on @b.Dt("CancelledAt") by @b.S("CancelledByName"): @b.S("CancelReason")</b></div> }
+<div class="sign"><div>Patient / attendant</div><div>Billing (@b.S("CreatedByName"))</div><div>Authorised signatory</div></div>

@@ -67,6 +67,24 @@ public class PatientsController(IPatientService patientService) : ControllerBase
             ApiResponse<object>.Ok(new { PatientId = newId }, "Patient registered successfully."));
     }
 
+    // ── POST /api/patients/13/portal-login ───────────────────────────────────
+
+    /// <summary>Patient Portal: create or reset the patient's login (a new password hash; must be changed at first sign-in).</summary>
+    [HttpPost("{id:int}/portal-login")]
+    [ProducesResponseType(typeof(ApiResponse<PatientPortalLoginTarget>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 404)]
+    public async Task<IActionResult> SetPortalLogin(int id, [FromBody] PatientPortalLoginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PasswordHash) || string.IsNullOrWhiteSpace(request.Salt))
+            return BadRequest(ApiResponse<object>.Fail("Password hash required."));
+
+        var target = await patientService.SetPortalLoginAsync(id, request);
+        if (target is null)
+            return NotFound(ApiResponse<object>.Fail($"Active patient {id} not found."));
+
+        return Ok(ApiResponse<PatientPortalLoginTarget>.Ok(target, "Portal login saved."));
+    }
+
     // ── PUT /api/patients/13 ─────────────────────────────────────────────────
 
     /// <summary>Update an existing patient.</summary>

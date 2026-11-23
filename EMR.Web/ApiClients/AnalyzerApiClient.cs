@@ -3,16 +3,22 @@ using EMR.Web.ApiClients.Models;
 
 namespace EMR.Web.ApiClients;
 
-public class AnalyzerApiClient(HttpClient http, ILogger<AnalyzerApiClient> logger) : IAnalyzerApiClient
+public class AnalyzerApiClient(IHttpClientFactory factory, ILogger<AnalyzerApiClient> logger) : IAnalyzerApiClient
 {
+    // the "EmrApi" client: EMR.Api base address and the signed token (a plain HttpClient had neither, so every call failed
+    // and the Analyzer master listed nothing)
+    private HttpClient http => factory.CreateClient("EmrApi");
+
     public async Task<List<AnalyzerListItem>> GetListAsync(int? departmentId = null,
         string? interfaceProtocol = null,
         bool? status = null,
-        string? search = null)
+        string? search = null,
+        int? companyId = null)
     {
         try
         {
             var query = new List<string>();
+            if (companyId.HasValue) query.Add($"companyId={companyId.Value}");   // analyzers are company-wise
             if (departmentId.HasValue) query.Add($"departmentId={departmentId.Value}");
             if (!string.IsNullOrWhiteSpace(interfaceProtocol)) query.Add($"interfaceProtocol={Uri.EscapeDataString(interfaceProtocol)}");
             if (status.HasValue) query.Add($"status={status.Value}");

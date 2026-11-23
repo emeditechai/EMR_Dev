@@ -9,7 +9,7 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
     // ─── Paged list ───────────────────────────────────────────────────────────
     public async Task<ServiceBookingPagedResult> GetPagedAsync(
         int? branchId, DateTime? fromDate, DateTime? toDate,
-        int page, int pageSize, string? search)
+        int page, int pageSize, string? search, string? paymentFilter = null)
     {
         using var con = db.CreateConnection();
 
@@ -22,7 +22,8 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
                 ToDate     = toDate.HasValue   ? (DateTime?)toDate.Value.Date   : null,
                 PageNumber = page,
                 PageSize   = pageSize,
-                Search     = search
+                Search     = search,
+                PaymentFilter = paymentFilter   // SQLScripts/2308
             },
             commandType: System.Data.CommandType.StoredProcedure)).ToList();
 
@@ -54,6 +55,16 @@ public class ServiceBookingService(IDbConnectionFactory db) : IServiceBookingSer
 
         header.Items = (await multi.ReadAsync<ServiceBookingDetailItem>()).ToList();
         return header;
+    }
+
+    // ─── Doctor prescription pad (SQLScripts/2527) ─────────────────────────────
+    public async Task<PrescriptionPadInfo?> GetPrescriptionPadAsync(int opdServiceId, int? branchId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QuerySingleOrDefaultAsync<PrescriptionPadInfo>(
+            "usp_Api_ServiceBooking_PrescriptionPad",
+            new { OPDServiceId = opdServiceId, BranchId = branchId },
+            commandType: System.Data.CommandType.StoredProcedure);
     }
 
     // ─── Update Status ────────────────────────────────────────────────────────

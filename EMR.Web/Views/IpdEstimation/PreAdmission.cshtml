@@ -1,0 +1,20 @@
+@{ ViewData["Title"] = "Pre-admission Estimates"; }
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+@Html.AntiForgeryToken()
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div><h1 class="h3 mb-0 fw-bold"><i class="bi bi-file-earmark-medical me-2 text-primary"></i>Pre-admission Estimates</h1><small class="text-muted">Cost estimates given before admission (Clinical Establishments Act, NABH PRE)</small></div>
+    <div class="d-flex gap-2"><a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-calculator me-1"></i>Current Billing</a><a asp-action="PreAdmissionForm" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>New Estimate</a></div>
+</div>
+<div class="reg-section"><div class="reg-section-body py-3"><div class="row g-2 align-items-end">
+    <div class="col-12 col-md-4"><label class="form-label" for="fSearch">Search</label><input id="fSearch" class="form-control" placeholder="Estimate no., name, mobile" /></div>
+    <div class="col-6 col-md-2"><label class="form-label" for="fStatus">Status</label><select id="fStatus" class="form-select"><option value="ACTIVE">Active</option><option value="">All</option><option value="CONVERTED">Admitted</option><option value="CANCELLED">Cancelled</option></select></div>
+    <div class="col-6 col-md-3"><label class="form-label" for="fFrom">From</label><input type="date" id="fFrom" class="form-control" /></div>
+    <div class="col-6 col-md-3"><label class="form-label" for="fTo">To</label><input type="date" id="fTo" class="form-control" /></div>
+</div></div></div>
+<div class="reg-section"><div class="reg-section-body p-0"><div class="table-responsive"><table class="table table-hover ipd-table mb-0">
+    <thead><tr><th>Estimate No.</th><th>Date</th><th>Patient</th><th>Payer / tariff</th><th class="text-end">Amount</th><th>Valid to</th><th>Status</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></div></div>
+@section Scripts {
+<script src="~/js/ipd.js" asp-append-version="true"></script>
+<script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdEstimation/"), admBase = Url.Content("~/IpdAdmission/") }));</script>
+<script src="~/js/ipd/pre-estimates.js" asp-append-version="true"></script>
+}

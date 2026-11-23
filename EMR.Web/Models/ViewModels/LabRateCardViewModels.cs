@@ -26,6 +26,11 @@ public class LabRateCardFormViewModel
     public DateTime Effective_To { get; set; } = new DateTime(2099, 12, 31);
     public bool Status { get; set; } = true;
 
+    /// <summary>Government scheme rate list (e.g. WBHS): a scheme code against each test.</summary>
+    public bool Is_Govt_Scheme { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(100)]
+    public string? Scheme_Name { get; set; }
+
     // Dropdowns for Copy functionality
     public SelectList? SourceBranchList { get; set; }
     public SelectList? SourceCorporateList { get; set; }

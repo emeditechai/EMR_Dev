@@ -26,6 +26,29 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
         };
     }
 
+    public async Task<DoctorPagedList> GetPagedListAsync(int? companyId, int? branchId, string? search, string? status, string? referral,
+        string? speciality, string? department, int? doctorId, int pageNumber, int pageSize, string? deptType = null)
+    {
+        var page = Math.Max(1, pageNumber);
+        var size = pageSize is < 1 or > 200 ? 25 : pageSize;
+        using var con = db.CreateConnection();
+        using var multi = await con.QueryMultipleAsync("usp_Api_Doctor_GetPagedList", new
+        {
+            CompanyId = companyId, BranchId = branchId, Search = search, Status = status, Referral = referral,
+            Speciality = speciality, Department = department, DoctorId = doctorId, PageNumber = page, PageSize = size,
+            DeptType = deptType is "OPD" or "LAB" or "IPD" or "MED" ? deptType : null   // 2469
+        }, commandType: CommandType.StoredProcedure);
+
+        var result = await multi.ReadSingleAsync<DoctorPagedList>();
+        result.FilteredCount = await multi.ReadSingleAsync<int>();
+        result.Items = (await multi.ReadAsync<DoctorListItem>()).ToList();
+        result.Specialities = (await multi.ReadAsync<string>()).ToList();
+        result.Departments = (await multi.ReadAsync<DoctorDeptOption>()).ToList();
+        result.Page = page;
+        result.PageSize = size;
+        return result;
+    }
+
     // ─── GET BY ID ────────────────────────────────────────────────────────────
 
     public async Task<DoctorDetail?> GetByIdAsync(int doctorId, int? branchId = null, int? companyId = null)
@@ -79,7 +102,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             // Insert branch/department maps
             foreach (var bid in req.BranchIds.Distinct())
                 await con.ExecuteAsync(
-                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,1,@UserId,GETDATE())",
+                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,CompanyId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @BranchId), 1),1,@UserId,GETDATE())",
                     new { DoctorId = doctorId, BranchId = bid, UserId = req.RequestedByUserId }, tx);
 
             foreach (var did in req.DepartmentIds.Distinct())
@@ -130,7 +153,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
 
             foreach (var bid in req.BranchIds.Distinct())
                 await con.ExecuteAsync(
-                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,1,@UserId,GETDATE())",
+                    "INSERT INTO DoctorBranchMap (DoctorId,BranchId,CompanyId,IsActive,CreatedBy,CreatedDate) VALUES (@DoctorId,@BranchId,ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @BranchId), 1),1,@UserId,GETDATE())",
                     new { req.DoctorId, BranchId = bid, UserId = req.RequestedByUserId }, tx);
 
             foreach (var did in req.DepartmentIds.Distinct())

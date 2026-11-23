@@ -55,13 +55,13 @@ public class AnaesthesiasController(
         if (await anaesthesiaService.IsTypeCodeExistsAsync(model.TypeCode, branchId))
         {
             TempData["Error"] = $"Anaesthesia Type code '{model.TypeCode}' already exists.";
-            return RedirectToAction(nameof(Index), new { tab = "types" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
         }
 
         if (!ModelState.IsValid)
         {
             TempData["Error"] = "Please provide all required fields for Anaesthesia Type.";
-            return RedirectToAction(nameof(Index), new { tab = "types" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
         }
 
         var newId = await anaesthesiaService.CreateTypeAsync(model, User.GetUserId());
@@ -71,7 +71,7 @@ public class AnaesthesiasController(
             branchId: branchId);
 
         TempData["Success"] = $"Anaesthesia Type '{model.TypeName}' created successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "types" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -84,20 +84,20 @@ public class AnaesthesiasController(
         if (await anaesthesiaService.IsTypeCodeExistsAsync(model.TypeCode, branchId, model.AnaesthesiaTypeId))
         {
             TempData["Error"] = $"Anaesthesia Type code '{model.TypeCode}' already exists.";
-            return RedirectToAction(nameof(Index), new { tab = "types" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
         }
 
         if (!ModelState.IsValid)
         {
             TempData["Error"] = "Please verify all fields for Anaesthesia Type.";
-            return RedirectToAction(nameof(Index), new { tab = "types" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
         }
 
         var updated = await anaesthesiaService.UpdateTypeAsync(model, User.GetUserId());
         if (!updated)
         {
             TempData["Error"] = "Anaesthesia Type not found.";
-            return RedirectToAction(nameof(Index), new { tab = "types" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
         }
 
         await auditLogService.LogAsync("MasterData", "AnaesthesiaType.Edit",
@@ -105,7 +105,7 @@ public class AnaesthesiasController(
             branchId: branchId);
 
         TempData["Success"] = $"Anaesthesia Type '{model.TypeName}' updated successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "types" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -121,7 +121,7 @@ public class AnaesthesiasController(
             branchId: entity.BranchId);
 
         TempData["Success"] = $"Status updated for '{entity.TypeName}'.";
-        return RedirectToAction(nameof(Index), new { tab = "types" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -137,7 +137,7 @@ public class AnaesthesiasController(
             branchId: entity.BranchId);
 
         TempData["Success"] = $"Anaesthesia Type '{entity.TypeName}' removed.";
-        return RedirectToAction(nameof(Index), new { tab = "types" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "types" });
     }
 
     [HttpGet]
@@ -160,19 +160,19 @@ public class AnaesthesiasController(
         if (model.EffectiveTo.HasValue && model.EffectiveTo.Value < model.EffectiveFrom)
         {
             TempData["Error"] = "Effective To date cannot be earlier than Effective From date.";
-            return RedirectToAction(nameof(Index), new { tab = "rates", procedureId = model.ProcedureId, anaesthesiaTypeId = model.AnaesthesiaTypeId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates", procedureId = model.ProcedureId, anaesthesiaTypeId = model.AnaesthesiaTypeId });
         }
 
         if (model.IsActive && await anaesthesiaService.HasActiveRateAsync(branchId, model.ProcedureId, model.AnaesthesiaTypeId))
         {
             TempData["Error"] = "An active anaesthesia rate already exists for this Procedure and Anaesthesia Type. Only one rate can be active at a time.";
-            return RedirectToAction(nameof(Index), new { tab = "rates", procedureId = model.ProcedureId, anaesthesiaTypeId = model.AnaesthesiaTypeId });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates", procedureId = model.ProcedureId, anaesthesiaTypeId = model.AnaesthesiaTypeId });
         }
 
         if (!ModelState.IsValid)
         {
             TempData["Error"] = "Please fill in all required rate fields.";
-            return RedirectToAction(nameof(Index), new { tab = "rates" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
         }
 
         var newId = await anaesthesiaService.CreateRateAsync(model, User.GetUserId());
@@ -182,7 +182,7 @@ public class AnaesthesiasController(
             branchId: branchId);
 
         TempData["Success"] = "Anaesthesia rate package configured successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "rates", procedureId = model.ProcedureId, anaesthesiaTypeId = model.AnaesthesiaTypeId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates", procedureId = model.ProcedureId, anaesthesiaTypeId = model.AnaesthesiaTypeId });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -195,26 +195,26 @@ public class AnaesthesiasController(
         if (model.EffectiveTo.HasValue && model.EffectiveTo.Value < model.EffectiveFrom)
         {
             TempData["Error"] = "Effective To date cannot be earlier than Effective From date.";
-            return RedirectToAction(nameof(Index), new { tab = "rates" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
         }
 
         if (model.IsActive && await anaesthesiaService.HasActiveRateAsync(branchId, model.ProcedureId, model.AnaesthesiaTypeId, model.AnaesthesiaRateId))
         {
             TempData["Error"] = "Another active anaesthesia rate already exists for this Procedure and Anaesthesia Type. Only one rate can be active at a time.";
-            return RedirectToAction(nameof(Index), new { tab = "rates" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
         }
 
         if (!ModelState.IsValid)
         {
             TempData["Error"] = "Please verify all rate fields.";
-            return RedirectToAction(nameof(Index), new { tab = "rates" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
         }
 
         var updated = await anaesthesiaService.UpdateRateAsync(model, User.GetUserId());
         if (!updated)
         {
             TempData["Error"] = "Anaesthesia rate record not found.";
-            return RedirectToAction(nameof(Index), new { tab = "rates" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
         }
 
         await auditLogService.LogAsync("MasterData", "AnaesthesiaRate.Edit",
@@ -222,7 +222,7 @@ public class AnaesthesiasController(
             branchId: branchId);
 
         TempData["Success"] = "Anaesthesia rate updated successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "rates" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -237,7 +237,7 @@ public class AnaesthesiasController(
             if (hasActive)
             {
                 TempData["Error"] = "Cannot activate: An active rate already exists for this Procedure and Anaesthesia Type.";
-                return RedirectToAction(nameof(Index), new { tab = "rates" });
+                return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
             }
         }
 
@@ -248,7 +248,7 @@ public class AnaesthesiasController(
             branchId: entity.BranchId);
 
         TempData["Success"] = "Status updated successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "rates" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -264,7 +264,7 @@ public class AnaesthesiasController(
             branchId: entity.BranchId);
 
         TempData["Success"] = "Anaesthesia rate configuration deleted successfully.";
-        return RedirectToAction(nameof(Index), new { tab = "rates" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "rates" });
     }
 
     [HttpGet]

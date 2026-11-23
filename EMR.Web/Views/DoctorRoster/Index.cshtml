@@ -8,6 +8,12 @@
     var canConfigureScheduler = ViewBag.CanConfigureScheduler is bool cfg && cfg;
     var doctorMeta = (doctors ?? Enumerable.Empty<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>())
         .Select(d => new { id = d.DoctorId, name = d.FullName, spec = d.PrimarySpecialityId });
+    // Doctor Master > Is Suspended (SQLScripts/2484): doctor id -> reason; shown as a red "Suspended" badge
+    var suspendedDoctors = (ViewBag.SuspendedDoctors as Dictionary<int, string>) ?? new Dictionary<int, string>();
+    // Configure Scheduler (Doctor Master) per doctor, with the doctor id encrypted into ?q=
+    var configureUrls = (doctors ?? Enumerable.Empty<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)>())
+        .Select(d => d.DoctorId).Distinct()
+        .ToDictionary(id => id.ToString(), id => Url.ActionEncrypted("Configure", "DoctorSchedules", new { doctorId = id }));
     var specialityNames = (specialities ?? Enumerable.Empty<EMR.Web.Models.Entities.DoctorSpecialityMaster>())
         .ToDictionary(s => s.SpecialityId.ToString(), s => s.SpecialityName);
 }
@@ -83,6 +89,14 @@
         table.rg td.doc-col { padding: 8px 10px; border-left: 4px solid var(--doc-color, #94a3b8); }
         .doc-name { font-weight: 700; color: #1e293b; font-size: .82rem; line-height: 1.2; }
         .doc-meta { font-size: .7rem; color: #64748b; margin-top: 2px; }
+        .susp-badge { display: inline-flex; align-items: center; gap: 3px; background: #dc2626; color: #fff; font-size: .62rem; font-weight: 700;
+                      letter-spacing: .02em; text-transform: uppercase; border-radius: 999px; padding: 2px 7px; margin-top: 3px; vertical-align: middle; cursor: help; }
+        #lblSuspended .susp-badge { font-size: .68rem; margin: 0 0 0 6px; }
+        /* calendar: a pill in week / list, an icon only in the one-line month chips */
+        .ev2 .susp-badge { font-size: .56rem; padding: 1px 5px; margin: 1px 0 1px; }
+        .fc-list-event .susp-badge { margin: 0 0 0 6px; }
+        .susp-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 13px; height: 13px; border-radius: 50%;
+                     background: #dc2626; color: #fff; font-size: .55rem; cursor: help; }
         table.rg td.day { padding: 5px; }
         table.rg td.day.today { background: #f7f8ff; }
         table.rg td.day.past .rchip { opacity: .6; }
@@ -340,7 +354,7 @@
             <div class="modal-body p-4">
                 <div class="d-flex justify-content-between align-items-start mb-3 pb-3 border-bottom gap-2 flex-wrap">
                     <div>
-                        <h5 class="fw-bold mb-1" id="lblDoctorName" style="color:#667eea">Dr. Name</h5>
+                        <h5 class="fw-bold mb-1" style="color:#667eea"><span id="lblDoctorName">Dr. Name</span><span id="lblSuspended"></span></h5>
                         <div class="d-flex align-items-center gap-3 text-muted small mt-1 flex-wrap">
                             <span id="lblSpeciality"></span>
                             <span id="lblRoomWrap"><i class="bi bi-geo-alt-fill text-danger me-1"></i><span id="lblRoomName">Room</span></span>
@@ -407,19 +421,43 @@
             bookings:  '@Url.Action("MyRosterDateBookings", "OPD")',
             slots:     '@Url.Action("MyRosterSlots", "OPD")',
             register:  '@Url.Action("PatientRegistration", "OPD")',
-            configure: '@Url.Action("Configure", "DoctorSchedules")'
+            suspension: '@Url.Action("SuspensionStatus", "Doctors")',
+            configure: '@Url.Action("Index", "Doctors")'
         } : {
             schedules: '@Url.Action("GetDoctorSchedules", "DoctorRoster")',
             counts:    '@Url.Action("GetBookingCounts", "DoctorRoster")',
             bookings:  '@Url.Action("GetDateBookings", "DoctorRoster")',
             slots:     '@Url.Action("GetAvailableSlots", "OPD")',
             register:  '@Url.Action("PatientRegistration", "OPD")',
-            configure: '@Url.Action("Configure", "DoctorSchedules")'
+            suspension: '@Url.Action("SuspensionStatus", "Doctors")',
+            configure: '@Url.Action("Index", "Doctors")'
+        };
+        const CONFIGURE_URLS = @Json.Serialize(configureUrls);     // { doctorId: encrypted Configure Scheduler URL }
+        // a doctor's Configure Scheduler page; Doctor Master when the doctor is not in this page's list
+        const configureUrl = id => CONFIGURE_URLS[String(id)] || URLS.configure;
+
+        // Doctor Master > Is Suspended (SQLScripts/2484): a slot of a suspended doctor cannot be booked - the reason is
+        // shown and the registration page is not opened (the server refuses it too)
+        window.rosterBookSlot = async function (url, doctorId, btn) {
+            if (btn) btn.disabled = true;
+            let r = null;
+            try {
+                const res = await fetch(`${URLS.suspension}?id=${doctorId}&role=consulting`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                r = res.ok ? await res.json() : null;
+            } catch { r = null; }        // no answer: the registration page checks again
+            if (r && r.suspended) {
+                if (btn) btn.disabled = false;
+                if (window.Swal) await Swal.fire({ icon: 'warning', title: 'Doctor suspended', text: r.message, confirmButtonText: 'OK' });
+                else alert(r.message);
+                return;
+            }
+            window.location.href = url;
         };
         const DOCTORS = @Json.Serialize(doctorMeta);            // [{ id, name, spec }]
         const SPECS = @Json.Serialize(specialityNames);         // { specialityId: name }
         const BRANCH = @Json.Serialize(User.FindFirst("BranchName")?.Value ?? "");
         const CAN_CONFIGURE = @(canConfigureScheduler ? "true" : "false");
+        const SUSPENDED = @Json.Serialize(suspendedDoctors.ToDictionary(k => k.Key.ToString(), k => k.Value));   // { doctorId: reason }
         const doctorById = new Map(DOCTORS.map(d => [d.id, d]));
 
         // ── Small helpers ──────────────────────────────────────────────────
@@ -439,6 +477,20 @@
         const palette = ['#4f46e5', '#059669', '#e11d48', '#d97706', '#0284c7', '#c026d3', '#0891b2', '#16a34a', '#701a75', '#475569', '#9a3412', '#ec4899'];
         const doctorColor = id => palette[Math.abs(parseInt(id, 10) || 0) % palette.length];
         const doctorName = (id, fallback) => doctorById.get(id)?.name || fallback || 'Doctor';
+        // red "Suspended" badge: no slot can be booked and the daily roster notification is not sent
+        const isSuspended = id => Object.prototype.hasOwnProperty.call(SUSPENDED, String(id));
+        const suspendedTip = id => {
+            const reason = SUSPENDED[String(id)];
+            return 'Suspended in Doctor Master' + (reason ? ': ' + reason : '') + '. Slots cannot be booked and the daily roster notification is not sent.';
+        };
+        // iconOnly: the one-line month chips of the calendar
+        const suspendedBadge = (id, iconOnly) => {
+            if (!isSuspended(id)) return '';
+            const tip = esc(suspendedTip(id));
+            return iconOnly
+                ? `<span class="susp-icon" title="${tip}" aria-label="Suspended"><i class="bi bi-slash-lg"></i></span>`
+                : `<span class="susp-badge" title="${tip}"><i class="bi bi-slash-circle"></i>Suspended</span>`;
+        };
         const specialityOf = id => { const s = doctorById.get(id)?.spec; return s != null ? (SPECS[String(s)] || '') : ''; };
 
         // ── Preferences (per browser): view, filters ───────────────────────
@@ -619,7 +671,7 @@
                 const color = doctorColor(doc.id);
                 const docWork = doc.shifts.filter(s => s.status !== 'leave');
                 const spec = specialityOf(doc.id);
-                html += `<tr><td class="doc-col" style="--doc-color:${color}"><div class="doc-name">${esc(doc.name)}</div>` +
+                html += `<tr><td class="doc-col" style="--doc-color:${color}"><div class="doc-name">${esc(doc.name)}</div>${suspendedBadge(doc.id)}` +
                         `<div class="doc-meta">${spec ? esc(spec) + ' · ' : ''}${docWork.length} shift${docWork.length === 1 ? '' : 's'} · ${docWork.reduce((n, s) => n + s.count, 0)} booked</div></td>`;
                 days.forEach(d => {
                     const ds = fmtDate(d);
@@ -692,15 +744,16 @@
                 if (vt.startsWith('timeGrid')) {
                     const meta = s.leave ? `On leave · ${esc(s.leave)}` : `${s.start}–${s.end} · ${s.count}/${s.capacity}`;
                     const room = !s.leave && s.room ? `<div class="ev2-meta"><i class="bi bi-geo-alt"></i> ${esc(s.room)}</div>` : '';
-                    return { html: `<div class="ev2"><div class="ev2-name">${name}</div><div class="ev2-meta">${meta}</div>${room}</div>` };
+                    return { html: `<div class="ev2"><div class="ev2-name">${name}</div>${suspendedBadge(s.doctorId)}<div class="ev2-meta">${meta}</div>${room}</div>` };
                 }
                 if (vt.startsWith('list')) {
-                    return { html: `<b>${name}</b> <span class="text-muted ms-1">${s.leave ? 'On leave · ' + esc(s.leave) : `${s.count}/${s.capacity} booked`}${!s.leave && s.room ? ' · ' + esc(s.room) : ''}</span>` };
+                    return { html: `<b>${name}</b>${suspendedBadge(s.doctorId)} <span class="text-muted ms-1">${s.leave ? 'On leave · ' + esc(s.leave) : `${s.count}/${s.capacity} booked`}${!s.leave && s.room ? ' · ' + esc(s.room) : ''}</span>` };
                 }
-                return { html: `<div class="ev1"><span class="tm">${s.start}</span><span class="nm">${name}</span><span class="ct">${s.leave ? 'Leave' : s.count + '/' + s.capacity}</span></div>` };
+                return { html: `<div class="ev1"><span class="tm">${s.start}</span><span class="nm">${name}</span>${suspendedBadge(s.doctorId, true)}<span class="ct">${s.leave ? 'Leave' : s.count + '/' + s.capacity}</span></div>` };
             },
             eventDidMount: function (info) {
                 const s = info.event.extendedProps;
+                if (isSuspended(s.doctorId)) info.el.title = `${s.doctorName} - ${suspendedTip(s.doctorId)}`;
                 if (info.view.type.startsWith('list')) {
                     const dot = info.el.querySelector('.fc-list-event-dot');
                     if (dot) dot.style.borderColor = doctorColor(s.doctorId);
@@ -903,11 +956,12 @@
                     html: `${esc(longDate(s.date))}, ${s.start}–${s.end}<br><b>${esc(s.leave)}</b>`,
                     showConfirmButton: CAN_CONFIGURE, confirmButtonText: '<i class="bi bi-calendar-x me-1"></i>Edit leave / schedule',
                     confirmButtonColor: '#667eea', showCancelButton: true, cancelButtonText: 'Close'
-                }).then(r => { if (r.isConfirmed) location.href = `${URLS.configure}?doctorId=${s.doctorId}`; });
+                }).then(r => { if (r.isConfirmed) location.href = configureUrl(s.doctorId); });
                 return;
             }
 
             document.getElementById('lblDoctorName').textContent = s.doctorName;
+            document.getElementById('lblSuspended').innerHTML = suspendedBadge(s.doctorId);
             const spec = specialityOf(s.doctorId);
             document.getElementById('lblSpeciality').innerHTML = spec ? `<i class="bi bi-grid-1x2 me-1"></i>${esc(spec)}` : '';
             document.getElementById('lblRoomWrap').hidden = !s.room;
@@ -916,7 +970,7 @@
             document.getElementById('lblScheduleTime').textContent = `${s.start} - ${s.end}`;
             document.getElementById('lblCapacity').textContent = `${s.count} of ${s.capacity} booked`;
             const lnk = document.getElementById('lnkConfigure');
-            if (lnk) lnk.href = `${URLS.configure}?doctorId=${s.doctorId}`;
+            if (lnk) lnk.href = configureUrl(s.doctorId);
 
             $('#slotsContainer').empty();
             $('#slotsError, #slotsException, #slotsLoading, #slotsPast').addClass('d-none');
@@ -963,19 +1017,23 @@
                 result.slots.filter(slot => slot.scheduleId === s.scheduleId).forEach(slot => {
                     const col = document.createElement('div');
                     col.className = 'col-6 col-md-4 col-lg-3';
+                    // a slot whose time has passed is still shown, but disabled (SQLScripts/2303); otherwise unavailable = full
+                    const isPast = !!slot.isPast;
                     const isFull = !slot.isAvailable;
                     const pct = Math.round((slot.bookedCount / slot.maxPerSlot) * 100);
                     const barColor = isFull ? '#f5576c' : pct > 50 ? '#f59e0b' : '#11998e';
                     const bookUrl = `${URLS.register}?doctorId=${s.doctorId}&date=${s.date}&scheduleId=${slot.scheduleId}&time=${slot.slotTime}`;
                     col.innerHTML = `
                         <button type="button" data-permission="OPD.DOCTORROSTER:BOOK_SLOT" data-permission-mode="disable"
-                            class="btn w-100 slot-btn p-3 text-start h-100 d-flex flex-column justify-content-center shadow-sm border ${isFull ? '' : 'slot-available'}"
-                            ${isFull ? 'disabled' : `onclick="window.location.href='${bookUrl}'"`}>
+                            class="btn w-100 slot-btn p-3 text-start h-100 d-flex flex-column justify-content-center shadow-sm border ${isFull ? '' : 'slot-available'} ${isPast ? 'slot-past' : ''}"
+                            ${isFull ? `disabled title="${isPast ? 'This time has passed - book a current or later slot' : 'This slot is full'}"` : `onclick="rosterBookSlot('${bookUrl}', ${s.doctorId}, this)"`}>
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="fw-bold fs-6 ${isFull ? 'text-muted' : ''}" style="${isFull ? '' : 'color:#667eea'}">
                                     <i class="bi bi-clock me-1 small"></i>${slot.slotTime}
                                 </span>
-                                ${isFull
+                                ${isPast
+                                    ? `<span class="badge" style="background:#94a3b8;color:#fff;border-radius:8px;font-size:.7rem"><i class="bi bi-clock-history me-1"></i>PASSED</span>`
+                                    : isFull
                                     ? `<span class="badge" style="background:#f5576c;color:#fff;border-radius:8px;font-size:.7rem">FULL</span>`
                                     : `<i class="bi bi-arrow-right-circle" style="color:#667eea;opacity:.6"></i>`}
                             </div>

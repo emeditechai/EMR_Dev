@@ -22,10 +22,19 @@
     string pmSuccess = ViewData["PaymentSuccessModalId"] as string ?? "bookingSuccessModal";
 
     // Giving a discount is its own control on the billing screen (Settings > Security > DISCOUNT).
-    var pmScreen = EMR.Web.Services.DiscountPermission.ScreenFor(
-        ViewContext.RouteData.Values["controller"]?.ToString(), ViewContext.RouteData.Values["action"]?.ToString());
+    var pmController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var pmAction = ViewContext.RouteData.Values["action"]?.ToString();
+    var pmScreen = EMR.Web.Services.DiscountPermission.ScreenFor(pmController, pmAction);
     bool pmCanDiscount = pmScreen is null
         || await PermissionGuard.ShowsAsync(Context, pmScreen, EMR.Shared.Security.PermissionControls.Discount);
+    // a collection-only page (Report Dispatch): DISCOUNT on any billing screen of the module
+    var pmCollectionScreens = pmScreen is null ? EMR.Web.Services.DiscountPermission.CollectionScreensFor(pmController, pmAction) : null;
+    if (pmCollectionScreens is not null)
+    {
+        pmCanDiscount = false;
+        foreach (var s in pmCollectionScreens)
+            if (await PermissionGuard.ShowsAsync(Context, s, EMR.Shared.Security.PermissionControls.Discount)) { pmCanDiscount = true; break; }
+    }
 }
 
 <style>
@@ -373,13 +382,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ─── Discount approval: every discount records its reason and who approved it ─────────
     var _discApproval = null;   // { amount, reason, approvedBy, approvedByName } captured in this dialog
-    var _approvers = null;      // active users (User Master), loaded once
+    var _approvers = null;      // users who may approve a discount, loaded once per module
+    var _approversFor = null;
     const DISCOUNT_REASONS = ['Senior citizen', 'Staff / staff family', 'Referred by doctor', 'Health camp',
                               'Regular patient', 'Financial hardship', 'Management approval'];
 
     async function loadApprovers() {
-        if (_approvers) return _approvers;
-        try { const r = await fetch('/OPD/GetDiscountApprovers'); _approvers = r.ok ? await r.json() : []; }
+        // per module: a LAB bill lists only Administrator / Manager users
+        if (_approvers && _approversFor === _moduleCode) return _approvers;
+        _approversFor = _moduleCode;
+        try { const r = await fetch('/OPD/GetDiscountApprovers?moduleCode=' + encodeURIComponent(_moduleCode || '')); _approvers = r.ok ? await r.json() : []; }
         catch (e) { _approvers = []; }
         return _approvers;
     }
@@ -404,8 +416,10 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!ta.value) ta.value = prevReason || '';
         const approvers = await loadApprovers();
         const sel = document.getElementById('pmDiscApprover');
+        // two users with the same name: the username tells them apart (the notification goes to the one chosen)
+        const twin = n => approvers.filter(x => (x.name || '').toLowerCase() === (n || '').toLowerCase()).length > 1;
         sel.innerHTML = '<option value="">-- Select the approving person --</option>' + approvers.map(u =>
-            `<option value="${u.id}" ${String(u.id) === String(prevBy) ? 'selected' : ''}>${esc(u.name)}${u.role ? ' (' + esc(u.role) + ')' : ''}</option>`).join('');
+            `<option value="${u.id}" ${String(u.id) === String(prevBy) ? 'selected' : ''}>${esc(u.name)}${twin(u.name) && u.username ? ' · ' + esc(u.username) : ''}${u.role ? ' (' + esc(u.role) + ')' : ''}</option>`).join('');
     }
 
     function renderDiscApprovalInfo(discAmt) {
@@ -439,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function () {
         sel.classList.toggle('is-invalid', !sel.value);
         if (reason.length < 3) { showError('Enter the reason for the discount.'); ta.focus(); return null; }
         if (!sel.value) { showError('Select who approved the discount.'); sel.focus(); return null; }
-        _discApproval = { amount: discAmt, reason, approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '') };
+        _discApproval = { amount: discAmt, reason, approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '').replace(/ · .*$/, '') };
         return _discApproval;
     }
 
@@ -925,6 +939,9 @@ document.addEventListener('DOMContentLoaded', function () {
     async function loadMemberBenefits() {
         _memBen = null;
         (_summary?.items || []).forEach(it => { it.membershipDiscount = 0; it.membershipRule = null; });
+        // a saved B2C bill with nothing paid yet (due collection): the first payment applies the plan's benefit to the saved
+        // bill, so the screen shows the same (LabOrderBooking/MembershipBenefitPreview with labOrderId)
+        if (!_isPreSave && _moduleCode === 'LAB' && !_summary?.hasExistingPayment) { await loadSavedBillBenefits(); return; }
         if (!_isPreSave || _moduleCode !== 'LAB' || !_isB2CHint || !((_summary?.patientId || 0) > 0)) return;
         const items = (_summary.items || []).map((it, i) => ({
             key: 'L' + i,
@@ -949,6 +966,34 @@ document.addEventListener('DOMContentLoaded', function () {
                     it.membershipRule = l ? l.rule : null;
                 });
             }
+        } catch (e) { _memBen = null; }
+        if (memBlocksManual()) { document.getElementById('pmDiscValue').value = ''; _deptDisc = null; }
+        applyDiscountLock();
+        refreshDeptUi();
+        recalcDiscount();
+    }
+
+    async function loadSavedBillBenefits() {
+        const id = _summary?.moduleRefId ?? _moduleRefId;
+        if (!(id > 0)) return;
+        try {
+            const r = await fetch('/LabOrderBooking/MembershipBenefitPreview', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ labOrderId: id })
+            });
+            const d = r.ok ? await r.json() : null;
+            const b = d && d.data;
+            if (b && b.total > 0) {
+                _memBen = { cardNo: b.cardNo, planName: b.planName, testDiscount: b.testDiscount, miscDiscount: b.miscDiscount, total: b.total };
+                const isMisc = it => it.serviceType === 'Misc' || (parseInt(it.lineRefId) || 0) < 0;
+                (_summary.items || []).forEach(it => {
+                    const ref = parseInt(it.lineRefId) || 0;
+                    const l = (b.lines || []).find(x => isMisc(it)
+                        ? x.kind === 'M' && (x.refId === -ref || x.refId === ref || x.altId === ref)
+                        : x.kind === 'T' && (x.refId === ref || x.altId === ref));
+                    it.membershipDiscount = l ? Math.min(parseFloat(l.discount) || 0, parseFloat(it.originalAmount) || 0) : 0;
+                    it.membershipRule = l ? l.rule : null;
+                });
+            } else if (b) _memBen = { cardNo: b.cardNo, planName: b.planName, testDiscount: 0, miscDiscount: 0, total: 0 };
         } catch (e) { _memBen = null; }
         if (memBlocksManual()) { document.getElementById('pmDiscValue').value = ''; _deptDisc = null; }
         applyDiscountLock();

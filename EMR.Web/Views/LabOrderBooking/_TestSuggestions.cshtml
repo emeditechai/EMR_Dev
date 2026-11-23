@@ -1,0 +1,127 @@
+@* AI test suggestions at B2C billing (SQLScripts/2287). Rendered only when Hospital Settings > Enable AI Features at
+   Billing is Yes; shown only with the AI_SUGGEST control. Watches the selected investigations and suggests (a) tests
+   usually billed with them, learned from past bills, and (b) a profile / package that covers several selected tests
+   for less. Nothing is added without a click; adding goes through addInvestigationOption() - the page's own checks
+   (duplicates, profile / package replacement prompts) apply unchanged. *@
+<span id="aiSuggestAllowed" class="d-none" asp-permission="LAB.LABORDERBOOKING.B2CBOOKING:AI_SUGGEST" asp-permission-mode="hide"></span>
+<link rel="stylesheet" href="~/css/views/LabOrderBooking/_TestSuggestions.css" asp-append-version="true" />
+<script>
+    // started after the page's own ready handler, which sets up getOrderItemKeys / addInvestigationOption
+    $(function () { setTimeout(initAiTestSuggestions, 0); });
+    function initAiTestSuggestions() {
+        var $table = $('#tblLineItems');
+        if (!$table.length || !document.getElementById('aiSuggestAllowed') || typeof window.getOrderItemKeys !== 'function') return;
+
+        var $box = $('<div id="aiSuggest" aria-live="polite"></div>').insertAfter($table.closest('.table-responsive'));
+        var lastSig = null, timer = null, seq = 0, dismissed = {};
+
+        function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+        function money(v) { return '₹' + (Math.round(v * 100) / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+        // a suggestion is shown only when it can be booked for this patient right now (it is in the search box's list)
+        function opt(key) { var $o = $('#ddlInvestigations option[value="' + key + '"]'); return $o.length ? $o : null; }
+        function nameOf(key) { var o = opt(key); return o ? (o.attr('data-name') || o.text()) : null; }
+        function priceOf(key) { var o = opt(key); return o ? (parseFloat(o.attr('data-price')) || 0) : 0; }
+
+        function schedule() { clearTimeout(timer); timer = setTimeout(refresh, 450); }
+
+        function refresh() {
+            var keys = (window.getOrderItemKeys() || []).slice().sort();
+            var gender = $('#ddlGender').val() || '', doctor = $('#ddlReferralDoctor').val() || '';
+            var sig = keys.join(',') + '|' + gender + '|' + doctor;
+            if (sig === lastSig) return;
+            lastSig = sig;
+            if (!keys.length) { $box.hide().empty(); return; }
+            var my = ++seq;
+            fetch('@Url.Action("TestSuggestions", "LabOrderBooking")?keys=' + encodeURIComponent(keys.join(',')) +
+                  '&gender=' + encodeURIComponent(gender) + '&referralDoctorId=' + encodeURIComponent(doctor), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (res) { if (my === seq) render(res, keys); })
+                .catch(function () { if (my === seq) $box.hide(); });   // billing goes on without suggestions
+        }
+
+        function render(res, keys) {
+            if (!res || !res.success) { $box.hide().empty(); return; }
+            var html = '';
+
+            // profile / package that covers several selected tests for less
+            (res.bundles || []).forEach(function (b) {
+                if (dismissed[b.key] || !opt(b.key)) return;
+                var covered = (b.coversKeys || []).filter(function (k) { return keys.indexOf(k) >= 0 && opt(k); });
+                if (covered.length < 2) return;
+                var now = covered.reduce(function (s, k) { return s + priceOf(k); }, 0), pkg = priceOf(b.key);
+                if (!(pkg > 0 && pkg < now)) return;
+                html += '<div class="ais-deal"><i class="bi bi-piggy-bank text-success"></i>' +
+                    '<span><span class="save">Save ' + money(now - pkg) + ':</span> <b>' + esc(nameOf(b.key)) + '</b> ' + money(pkg) +
+                    ' covers ' + covered.map(function (k) { return esc(nameOf(k)); }).join(', ') + ' (now ' + money(now) + ')</span>' +
+                    '<button type="button" class="ais-switch" data-key="' + b.key + '" data-covers="' + covered.join(',') + '"><i class="bi bi-arrow-left-right me-1"></i>Switch</button>' +
+                    '<button type="button" class="ais-x" data-key="' + b.key + '" data-kind="B" title="Not for this bill">&times;</button></div>';
+            });
+
+            // usually billed together
+            var chips = (res.together || []).filter(function (s) { return !dismissed[s.key] && opt(s.key); }).map(function (s) {
+                var because = nameOf(s.becauseKey) || 'the selected test';
+                var doctorName = ($('#ddlReferralDoctor option:selected').text() || 'the referring doctor').replace(/\s*\(.*\)\s*$/, '');
+                var why = s.basis === 'doctor'
+                    ? doctorName + ' ordered it in ' + s.bills + ' of ' + s.of + ' bills'
+                    : s.bills + ' of ' + s.of + ' bills with ' + because + (s.basis === 'gender' ? ' (' + ($('#ddlGender').val() || '').toLowerCase() + ' patients)' : '');
+                var lvl = s.score >= 0.4 ? '<span class="ais-lvl s">Strong</span>' : s.score >= 0.25 ? '<span class="ais-lvl g">Good</span>' : '<span class="ais-lvl p">Possible</span>';
+                return '<span class="ais-chip" title="' + esc(why + ' (' + s.bills + ' bills)') + '">' +
+                    '<span><span class="n">' + esc(nameOf(s.key)) + '</span> <span class="p">' + money(priceOf(s.key)) + '</span>' + lvl +
+                    '<br><span class="why">' + esc(why) + '</span></span>' +
+                    '<button type="button" class="ais-add" data-key="' + s.key + '" data-ctx="' + (s.becauseKey || '') + '"><i class="bi bi-plus-lg"></i> Add</button>' +
+                    '<button type="button" class="ais-x" data-key="' + s.key + '" data-ctx="' + (s.becauseKey || '') + '" data-kind="T" title="Not for this bill">&times;</button></span>';
+            });
+
+            if (!html && !chips.length) { $box.hide().empty(); return; }
+            $box.html('<div class="ais-head"><span class="ais-badge"><i class="bi bi-stars"></i>AI</span>' +
+                '<span class="ais-title">Suggested for this bill</span>' +
+                '<span class="ais-note">Learned from ' + (res.learnedFromBills || 0) + ' past bills' + (res.companyWide ? ' (all branches)' : '') + '</span></div>' +
+                html + (chips.length ? '<div class="ais-list">' + chips.join('') + '</div>' : '')).show();
+        }
+
+        // the engine learns from what staff take and what they dismiss (fire and forget)
+        function feedback(key, ctx, kind, action) {
+            var fd = new FormData();
+            fd.append('key', key); if (ctx) fd.append('contextKey', ctx); fd.append('kind', kind); fd.append('action', action);
+            fd.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').first().val() || '');
+            fetch('@Url.Action("TestSuggestionFeedback", "LabOrderBooking")', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(function () { });
+        }
+
+        $box.on('click', '.ais-add', async function () {
+            var $b = $(this).prop('disabled', true);
+            try { if (await window.addInvestigationOption($b.data('key'), { keepClosed: true })) feedback(String($b.data('key')), String($b.data('ctx') || ''), 'T', 'A'); }
+            finally { $b.prop('disabled', false); lastSig = null; schedule(); }
+        });
+
+        // switch to the package: the tests / profiles it contains leave the bill, the package comes in - one step, no
+        // replace prompts; when the package cannot be added for this patient, the removed items are put back
+        $box.on('click', '.ais-switch', async function () {
+            var $b = $(this).prop('disabled', true), pkg = String($b.data('key'));
+            var covers = String($b.data('covers') || '').split(',').filter(Boolean);
+            try {
+                covers.forEach(function (k) { $('#tblLineItems .btn-remove[data-key="' + k + '"]').first().trigger('click'); });
+                var added = await window.addInvestigationOption(pkg, { keepClosed: true });
+                if (added) feedback(pkg, null, 'B', 'A');
+                if (!added) {
+                    for (var i = 0; i < covers.length; i++) await window.addInvestigationOption(covers[i], { keepClosed: true });
+                } else if (window.Swal) {
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', timer: 2600, showConfirmButton: false,
+                        title: 'Switched to ' + (nameOf(pkg) || 'the package') + ' - ' + covers.length + ' item(s) replaced' });
+                }
+            } finally { $b.prop('disabled', false); lastSig = null; schedule(); }
+        });
+        $box.on('click', '.ais-x', function () {
+            var $x = $(this);
+            dismissed[$x.data('key')] = true;
+            feedback(String($x.data('key')), String($x.data('ctx') || ''), String($x.data('kind') || 'T'), 'D');
+            lastSig = null; schedule();
+        });
+        // a different patient gender or referring doctor changes what is likely
+        $(document).on('change', '#ddlGender, #ddlReferralDoctor', schedule);
+
+        // the selected investigations change -> new suggestions
+        var tbody = $table.find('tbody')[0];
+        if (tbody && window.MutationObserver) new MutationObserver(schedule).observe(tbody, { childList: true, subtree: true });
+        schedule();
+    }
+</script>

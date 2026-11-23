@@ -46,6 +46,7 @@ public class AuditLogService(ApplicationDbContext dbContext, IHttpContextAccesso
         {
             UserId = resolvedUserId,
             BranchId = resolvedBranchId,
+            CompanyId = ParseInt(principal?.FindFirstValue("CompanyId")) is int co && co > 0 ? co : 1,
             EventType = eventType,
             ActionName = actionName,
             ControllerName = httpContext?.GetRouteValue("controller")?.ToString(),

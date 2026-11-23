@@ -86,6 +86,77 @@
         </div>
     </form>
 
+    @* Payment mode -> ledger (SQLScripts/2322) *@
+    <form asp-action="SaveModeLedgers" method="post" class="card border-0 shadow-sm mt-4">
+        @Html.AntiForgeryToken()
+        <div class="card-header bg-white py-3">
+            <h6 class="fw-bold mb-0"><i class="bi bi-bank me-2 text-primary"></i>Payment Mode Ledgers</h6>
+            <div class="small text-muted">The cash or bank ledger each payment method posts to - billing receipts and refunds, B2B settlements, wallet top-ups and membership cards.
+                A branch can use a different ledger (e.g. its own bank account); blank follows "All branches". Applies to new entries only.
+                Create bank ledgers under the <strong>Bank Accounts</strong> group in Ledgers and Groups.</div>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="bg-light">
+                    <tr><th class="ps-4">Payment method</th><th style="min-width:220px;">All branches</th>
+                        @foreach (var b in Model.Branches) { <th style="min-width:200px;">@b.Name</th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var mi = 0; }
+                    @foreach (var m in Model.PaymentMethods)
+                    {
+                        var all = Model.ModeLedgers.FirstOrDefault(x => x.BranchId is null && string.Equals(x.MethodCode, m.Extra, StringComparison.OrdinalIgnoreCase))?.LedgerId;
+                        <tr>
+                            <td class="ps-4 fw-semibold">@m.Name <span class="text-muted small font-monospace">@m.Extra</span></td>
+                            <td>
+                                <input type="hidden" name="modes[@mi].MethodCode" value="@m.Extra" />
+                                <select name="modes[@mi].LedgerId" class="form-select form-select-sm" required>
+                                    <option value="">-- choose --</option>
+                                    @foreach (var g in Model.MoneyLedgers.GroupBy(l => l.Extra))
+                                    {
+                                        <optgroup label="@g.Key">
+                                            @foreach (var l in g) { <option value="@l.Id" selected="@(l.Id == all)">@l.Name</option> }
+                                        </optgroup>
+                                    }
+                                </select>
+                                @{ mi++; }
+                            </td>
+                            @foreach (var b in Model.Branches)
+                            {
+                                var own = Model.ModeLedgers.FirstOrDefault(x => x.BranchId == b.Id && string.Equals(x.MethodCode, m.Extra, StringComparison.OrdinalIgnoreCase))?.LedgerId;
+                                <td>
+                                    <input type="hidden" name="modes[@mi].MethodCode" value="@m.Extra" />
+                                    <input type="hidden" name="modes[@mi].BranchId" value="@b.Id" />
+                                    <select name="modes[@mi].LedgerId" class="form-select form-select-sm">
+                                        <option value="">Same as all branches</option>
+                                        @foreach (var g in Model.MoneyLedgers.GroupBy(l => l.Extra))
+                                        {
+                                            <optgroup label="@g.Key">
+                                                @foreach (var l in g) { <option value="@l.Id" selected="@(l.Id == own)">@l.Name</option> }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                    @{ mi++; }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (Model.Branches.Count > 0)
+        {
+            <div class="card-footer bg-white d-flex justify-content-end">
+                <button asp-permission="@(Page + ":EDIT")" type="submit" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-save me-1"></i>Save Payment Mode Ledgers</button>
+            </div>
+        }
+        else
+        {
+            <div class="card-footer bg-white small text-muted">Changed by the head office.</div>
+        }
+    </form>
+
     <div class="card border-0 shadow-sm mt-4">
         <div class="card-header bg-white py-3">
             <h6 class="fw-bold mb-0"><i class="bi bi-lock me-2 text-primary"></i>Books Lock - Branch-wise</h6>

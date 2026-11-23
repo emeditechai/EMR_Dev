@@ -1,0 +1,62 @@
+@{
+    ViewData["Title"] = "Price vs Cost (Margin)";
+    ViewData["ReportSubtitle"] = "Material and kit cost of every test, profile test and package against its B2C rate";
+    ViewData["ReportIcon"] = "bi-graph-up-arrow";
+    ViewData["ReportAccent"] = "#15803d";
+    ViewData["ScopeNote"] = "Company BOM master · B2C rates of this branch · as on today";
+}
+@* SQLScripts/2248 #6: same figures as Quality & Compliance > BOM Cost Preview, grouped by margin band, department and type *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const bandTone = b => b.startsWith('Loss') ? 'bad' : b === 'Below 20%' ? 'warn' : b === 'BOM missing' || b === 'No B2C rate' ? 'muted' : 'good';
+    LabReport.init({
+        report: 'price-vs-cost', title: 'Price vs Cost', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test, profile or package name / code...',
+        filters: [
+            { id: 'kind', label: 'Type', allLabel: 'All types', options: [['Test', 'Tests'], ['Profile', 'Profile tests'], ['Package', 'Packages']] },
+            { id: 'marginBand', label: 'Margin', allLabel: 'Any margin', options: [['LOSS', 'Loss'], ['LT20', 'Below 20%'], ['20TO40', '20% to 40%'], ['40TO60', '40% to 60%'], ['GE60', '60% and above'], ['NOBOM', 'BOM missing'], ['NORATE', 'No B2C rate']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Items', color: '#15803d', value: (s, h) => h.num(s.Items), sub: (s, h) => `${h.num(s.Costed)} fully costed · ${h.num(s.NoRate)} without a rate` },
+            { label: 'Average margin', color: '#0f766e', value: s => QcRep.marginPct(s.AvgMarginPct), sub: (s, h) => `average cost ${QcRep.money(s.AvgCost, h)}` },
+            { label: 'Loss-making', color: '#b91c1c', value: (s, h) => h.num(s.LossItems), sub: () => 'cost above the B2C rate' },
+            { label: 'Below 20% margin', color: '#b45309', value: (s, h) => h.num(s.LowItems), sub: () => 'thin margin' }
+        ],
+        groups: [
+            { key: 'byBand', label: 'Margin band', rowField: 'MarginBand' },
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentName' },
+            { key: 'byKind', label: 'Type', rowField: 'Kind' }
+        ],
+        groupCols: [
+            { field: 'Items', label: 'Items', num: true },
+            { field: 'AvgCost', label: 'Avg cost', money: true, total: 'none' },
+            { field: 'AvgRate', label: 'Avg rate', money: true, total: 'none' },
+            { field: 'AvgMarginPct', label: 'Avg margin', num: true, total: 'none', fmt: v => QcRep.marginPct(v) }
+        ],
+        shareOf: 'Items',
+        rowClass: r => r.BandOrder === 1 ? 'row-muted' : '',
+        cols: [
+            { label: 'Type', html: (r, h) => QcRep.kind(r.Kind, h), text: r => r.Kind },
+            { label: 'Name', html: (r, h) => QcRep.name(r.Name, r.Code, h, r.MissingBom > 0 ? `<span class="badge bg-warning-subtle text-warning-emphasis border">${r.Kind === 'Package' ? `${r.MissingBom} of ${r.Tests} tests without BOM` : 'No BOM'}</span>` : ''),
+              text: r => `${r.Name} (${r.Code || ''})` },
+            { label: 'Department', html: (r, h) => `<span class="fs-9">${h.esc(r.DepartmentName || '—')}</span>`, text: r => r.DepartmentName || '' },
+            { label: 'Material', cls: 'text-end amt', html: (r, h) => QcRep.money(r.MaterialCost, h), text: r => r.MaterialCost ?? '' },
+            { label: 'Kit', cls: 'text-end amt', html: (r, h) => QcRep.money(r.KitCost, h), text: r => r.KitCost ?? '' },
+            { label: 'Total cost', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.TotalCost), text: r => r.TotalCost },
+            { label: 'B2C rate', cls: 'text-end amt', html: (r, h) => r.Rate == null ? '<span class="text-muted fs-9">No rate</span>' : h.money(r.Rate), text: r => r.Rate ?? '' },
+            { label: 'Margin', cls: 'text-end amt', html: (r, h) => QcRep.margin(r.Margin, r.MarginPct, h), text: r => r.Margin ?? '' },
+            { label: 'Margin %', cls: 'text-end', html: r => QcRep.marginPct(r.MarginPct), text: r => r.MarginPct ?? '' },
+            { label: 'Band', html: (r, h) => QcRep.pill(r.MarginBand, bandTone(r.MarginBand), h), text: r => r.MarginBand }
+        ]
+    });
+})();
+</script>
+}

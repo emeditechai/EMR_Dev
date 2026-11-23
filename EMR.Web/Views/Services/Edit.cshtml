@@ -10,7 +10,7 @@
         <small class="text-muted">Update service details for current branch</small>
     </div>
     <div class="d-flex gap-2">
-        <a asp-permission="MASTER.SERVICES:DETAILS" asp-action="Details" asp-route-id="@Model.ServiceId" class="btn btn-outline-secondary">
+        <a asp-permission="MASTER.SERVICES:DETAILS" asp-action="Details" asp-encrypted-route-id="@Model.ServiceId" class="btn btn-outline-secondary">
             <i class="bi bi-eye me-1"></i>Details
         </a>
         <a asp-action="Index" class="btn btn-outline-secondary">
@@ -153,45 +153,5 @@
 
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
-    <script>
-        (function () {
-            const sel = document.getElementById('ServiceType');
-            
-            const regRow = document.getElementById('isRegistrationRow');
-            const chk = document.getElementById('IsRegistration');
-            
-            const consRow = document.getElementById('consultingTypeRow');
-            const consSel = document.getElementById('ConsultingType');
-
-            const gstToggle = document.getElementById('IsGstRequired');
-            const gstCol = document.getElementById('gstPercentageCol');
-            const gstInput = document.getElementById('GstPercentage');
-
-            function toggle() {
-                const isService = sel.value === 'Service';
-                regRow.style.display = isService ? '' : 'none';
-                if (!isService) chk.checked = false;
-
-                const isConsulting = sel.value === 'Consulting';
-                consRow.style.display = isConsulting ? '' : 'none';
-                // Only clear value if we are switching away from Consulting
-                if (!isConsulting) consSel.value = '';
-            }
-
-            function toggleGst() {
-                if (gstToggle.checked) {
-                    gstCol.style.display = '';
-                } else {
-                    gstCol.style.display = 'none';
-                    gstInput.value = '';
-                }
-            }
-
-            sel.addEventListener('change', toggle);
-            gstToggle.addEventListener('change', toggleGst);
-
-            toggle(); // run on page load (preserves server-side value)
-            toggleGst();
-        })();
-    </script>
+    <script src="~/js/views/Services/Edit.js" asp-append-version="true"></script>
 }

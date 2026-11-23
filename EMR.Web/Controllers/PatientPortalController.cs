@@ -15,10 +15,16 @@ public class PatientPortalController(
     ApplicationDbContext dbContext,
     IPasswordHasherService passwordHasher,
     IPatientPortalApiClient portalApiClient,
-    IHttpClientFactory httpClientFactory) : Controller
+    IHttpClientFactory httpClientFactory,
+    IPatientProfileService profileService,
+    IPatientDocumentService documents,
+    IPharmacySaleService pharmacySales,
+    IPharmacyPurchaseService pharmacyPurchase,
+    IPharmacyBillNotifier pharmacyBills,
+    ILogger<PatientPortalController> logger) : Controller
 {
     private static readonly HashSet<string> PortalParts = new(StringComparer.OrdinalIgnoreCase)
-        { "dashboard", "dependents", "vitals", "bookings", "prescriptions" };
+        { "dashboard", "dependents", "vitals", "bookings", "prescriptions", "pharmacy" };
 
     // EMR.Api serves portal data only for the patient named in the call's token: tell the token handler who that is.
     public override void OnActionExecuting(ActionExecutingContext context)
@@ -69,12 +75,28 @@ public class PatientPortalController(
         if (!ModelState.IsValid)
             return View(model);
 
+        // the Patient ID only (SQLScripts/2326): unique, so family members sharing an e-mail never open each other's records
+        var patientCode = model.Username.Trim();
         var patient = await dbContext.PatientMasters
-            .FirstOrDefaultAsync(p => p.PatientCode == model.Username || p.EmailId == model.Username);
+            .FirstOrDefaultAsync(p => p.PatientCode == patientCode && p.IsActive);
 
-        if (patient == null || !patient.IsLoginGenerated)
+        if (patient == null)
         {
-            ModelState.AddModelError(string.Empty, "Invalid login credentials or account not yet setup.");
+            ModelState.AddModelError(string.Empty, "Patient ID or password is not correct.");
+            return View(model);
+        }
+        if (!patient.IsLoginGenerated)
+        {
+            ModelState.AddModelError(string.Empty, "No portal login has been created for this Patient ID yet. Please ask the hospital reception.");
+            return View(model);
+        }
+
+        var con = dbContext.Database.GetDbConnection();
+        var lockedUntil = await con.ExecuteScalarAsync<DateTime?>(
+            "SELECT PortalLockoutUntil FROM PatientMaster WHERE PatientId = @Id AND PortalLockoutUntil > GETDATE()", new { Id = patient.PatientId });
+        if (lockedUntil is not null)
+        {
+            ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {lockedUntil:hh:mm tt}, or ask the hospital reception to reset your password.");
             return View(model);
         }
 
@@ -87,9 +109,19 @@ public class PatientPortalController(
 
         if (!isPasswordCorrect)
         {
-            ModelState.AddModelError(string.Empty, "Invalid login credentials.");
+            // 5 wrong passwords in a row lock the portal account for 10 minutes; a staff reset unlocks it
+            var failure = await con.QuerySingleAsync<(DateTime? LockedUntil, int AttemptsLeft)>(
+                "dbo.usp_PatientPortal_LoginFailure", new { PatientId = patient.PatientId }, commandType: System.Data.CommandType.StoredProcedure);
+            ModelState.AddModelError(string.Empty, failure.LockedUntil is { } until
+                ? $"Too many wrong passwords. Try again after {until:hh:mm tt}, or ask the hospital reception to reset your password."
+                : failure.AttemptsLeft <= 2
+                    ? $"Patient ID or password is not correct. {failure.AttemptsLeft} attempt(s) left before the account is locked for 10 minutes."
+                    : "Patient ID or password is not correct.");
             return View(model);
         }
+
+        await con.ExecuteAsync("dbo.usp_PatientPortal_LoginSuccess", new { PatientId = patient.PatientId },
+            commandType: System.Data.CommandType.StoredProcedure);
 
         // Password is correct.
         // Check if it's the first login (IsPasswordchanged == false)
@@ -107,12 +139,6 @@ public class PatientPortalController(
             HttpContext.Session.SetInt32("ChangePasswordPatientId", patient.PatientId);
             return RedirectToAction(nameof(ChangePassword));
         }
-
-        // Normal Login: Update Lastlogin
-        await dbContext.Database.GetDbConnection().ExecuteAsync(
-            "UPDATE PatientMaster SET Lastlogin = @Now WHERE PatientId = @Id",
-            new { Now = DateTime.Now, Id = patient.PatientId }
-        );
 
         // Authenticate the user (using session for this simple mockup)
         HttpContext.Session.SetInt32("PatientId", patient.PatientId);
@@ -153,6 +179,13 @@ public class PatientPortalController(
         if (patient == null)
             return RedirectToAction(nameof(Login));
 
+        // the password that was sent must be replaced, not kept
+        if (!string.IsNullOrEmpty(patient.PasswordHash) && passwordHasher.VerifyPassword(model.NewPassword, patient.PasswordHash))
+        {
+            ModelState.AddModelError(nameof(model.NewPassword), "Choose a password different from the one you were sent.");
+            return View(model);
+        }
+
         // Hash the new password
         var (Hash, Salt) = passwordHasher.HashPassword(model.NewPassword);
 
@@ -185,11 +218,128 @@ public class PatientPortalController(
         if (patientId == null)
             return RedirectToAction(nameof(Login));
 
-        var patientProfile = await portalApiClient.GetFullProfileAsync(patientId.Value);
-        if (patientProfile == null || patientProfile.PatientId == 0)
+        // the same profile staff see on Master > Patient Master > View (Services/PatientProfileService)
+        var model = await profileService.BuildAsync(patientId.Value);
+        if (model == null || !model.Patient.IsActive)
             return RedirectToAction(nameof(Login));
 
-        return View(patientProfile);
+        ViewData["HospitalName"] = await dbContext.HospitalSettings
+            .Where(h => h.BranchId == model.Patient.BranchId && h.IsActive).Select(h => h.HospitalName).FirstOrDefaultAsync();
+        return View(model);
+    }
+
+    // ── The signed-in patient's own documents: every link checks the bill belongs to the patient in the session ──
+
+    // GET: /PatientPortal/Chart/vitals | visits - the dashboard graphs
+    [HttpGet("PatientPortal/Chart/{kind}")]
+    public async Task<IActionResult> Chart(string kind)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId");
+        if (patientId is not > 0) return Unauthorized();
+        return kind.ToLowerInvariant() switch
+        {
+            "vitals" => Json(await profileService.VitalsChartAsync(patientId.Value)),
+            "visits" => Json(await profileService.VisitsChartAsync(patientId.Value)),
+            _ => NotFound()
+        };
+    }
+
+    // GET: /PatientPortal/PharmacyBill/5 - a pharmacy bill of the patient as PDF (SQLScripts/2368). The bill must be in the patient's own
+    // list, which EMR.Api gives only for the signed-in patient; its branch tells which bill and letterhead to use.
+    [HttpGet]
+    public async Task<IActionResult> PharmacyBill(int id)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId");
+        if (patientId is not > 0) return RedirectToAction(nameof(Login));
+        try
+        {
+            using var res = await httpClientFactory.CreateClient("EmrApi").GetAsync($"api/patientportal/{patientId}/pharmacy");
+            if (!res.IsSuccessStatusCode) return NotFound();
+            using var doc = System.Text.Json.JsonDocument.Parse(await res.Content.ReadAsStringAsync());
+            var bill = doc.RootElement.GetProperty("data").EnumerateArray().FirstOrDefault(b => b.GetProperty("SaleId").GetInt32() == id);
+            if (bill.ValueKind != System.Text.Json.JsonValueKind.Object) return NotFound();
+            int companyId = bill.GetProperty("CompanyId").GetInt32(), branchId = bill.GetProperty("BranchId").GetInt32();
+            var b = await pharmacySales.GetAsync(companyId, branchId, id);
+            if (b == null || b.Status == "HOLD") return NotFound();
+            var pdf = pharmacyBills.Pdf(b, await pharmacyPurchase.BranchHeaderAsync(branchId));
+            Response.Headers["Content-Disposition"] = $"inline; filename=\"Pharmacy_Bill_{b.SaleNo?.Replace('/', '-')}.pdf\"";
+            return File(pdf, "application/pdf");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Portal pharmacy bill {Id} for patient {Patient} failed", id, patientId);
+            return NotFound();
+        }
+    }
+
+    // GET: /PatientPortal/OpdBill/5 - an OPD bill of the patient
+    [HttpGet]
+    public async Task<IActionResult> OpdBill(int id)
+    {
+        if (!await OwnsAsync("SELECT COUNT(1) FROM PatientOPDService WHERE OPDServiceId = @Id AND PatientId = @P AND IsActive = 1", id))
+            return NotFound();
+        var secret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"bill-{id}-emr"));
+        return Redirect($"/OPD/PrintBillAnonymous?id={id}&secret={Uri.EscapeDataString(secret)}");
+    }
+
+    // GET: /PatientPortal/LabBill/5 - a LAB bill of the patient
+    [HttpGet]
+    public async Task<IActionResult> LabBill(int id)
+    {
+        if (!await OwnsAsync("SELECT COUNT(1) FROM LabOrder WHERE LabOrderId = @Id AND PatientId = @P AND IsActive = 1", id))
+            return NotFound();
+        // the LAB bill print takes its own secret (LabOrderBookingController.PrintBillAnonymous)
+        return Redirect($"/LabOrderBooking/PrintBillAnonymous?labOrderId={id}&secret={Uri.EscapeDataString($"lab_print_{id}")}");
+    }
+
+    // GET: /PatientPortal/Prescription?opdServiceId=5&doctorId=2 - a prescription of the patient's visit
+    [HttpGet]
+    public async Task<IActionResult> Prescription(int opdServiceId, int doctorId)
+    {
+        if (!await OwnsAsync("SELECT COUNT(1) FROM PatientOPDService WHERE OPDServiceId = @Id AND PatientId = @P AND IsActive = 1", opdServiceId))
+            return NotFound();
+        var secret = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"prescription-{opdServiceId}-{doctorId}-emr"));
+        return Redirect($"/OPD/PrintPrescriptionAnonymous?opdServiceId={opdServiceId}&doctorId={doctorId}&secret={Uri.EscapeDataString(secret)}");
+    }
+
+    // GET: /PatientPortal/Report/5 - the approved LAB report of the patient's bill (as the e-mailed copy: paid bills only)
+    [HttpGet]
+    public async Task<IActionResult> Report(int id, string? type = null)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId");
+        if (patientId is not > 0) return RedirectToAction(nameof(Login));
+        if (!await OwnsAsync("SELECT COUNT(1) FROM LabOrder WHERE LabOrderId = @Id AND PatientId = @P AND IsActive = 1", id))
+            return NotFound();
+
+        try
+        {
+            var file = await documents.LabReportAsync(id, patientId.Value, type);
+            return file.Pdf is { } pdf ? File(pdf, "application/pdf", file.FileName) : Content(file.Message ?? "The report is not available yet.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "[PORTAL] Report of LAB order {LabOrderId} for patient {PatientId} failed", id, patientId);
+            return Content("The report could not be prepared right now. Please try again.");
+        }
+    }
+
+    // GET: /PatientPortal/LabWorkflow?ids=5,6 - the live stage of the patient's LAB bills: the same workflow staff see in
+    // the Audit History (LabReportingController.BuildOrderWorkflowAsync), without staff names; polled by the dashboard
+    [HttpGet]
+    public async Task<IActionResult> LabWorkflow(string? ids)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId");
+        if (patientId is not > 0) return Unauthorized();
+        var wanted = (ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => int.TryParse(x, out var v) ? v : 0);
+        return Json(await documents.LabWorkflowAsync(patientId.Value, wanted));
+    }
+
+    private async Task<bool> OwnsAsync(string sql, int id)
+    {
+        var patientId = HttpContext.Session.GetInt32("PatientId");
+        if (patientId is not > 0) return false;
+        return await dbContext.Database.GetDbConnection().ExecuteScalarAsync<int>(sql, new { Id = id, P = patientId.Value }) > 0;
     }
 
     // POST: /PatientPortal/Logout

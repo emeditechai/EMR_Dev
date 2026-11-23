@@ -1,3 +1,4 @@
+using EMR.Web.Extensions;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using EMR.Web.Services.Licensing;
@@ -31,7 +32,7 @@ public class LicenseController(
         if (!licensing.Enabled) return RedirectToAction("Login", "Account");
         var gate = await licensing.EvaluateAccessAsync(HttpContext);
         if (gate.IsAllowed) return RedirectToAction("Login", "Account");
-        if (gate.Status != LicenseGateStatus.Unregistered) return RedirectToAction(nameof(Blocked), new { status = gate.Status });
+        if (gate.Status != LicenseGateStatus.Unregistered) return this.RedirectToActionEncrypted(nameof(Blocked), new { status = gate.Status });
         var fp = licensing.Machine;
         return View(new LicenseRegisterViewModel
         {
@@ -107,7 +108,7 @@ public class LicenseController(
                 : $"Licence validated with the licence server at {DateTime.Now:hh:mm tt}.";
             return RedirectToAction("Login", "Account");
         }
-        return gate.Status == LicenseGateStatus.Unregistered ? RedirectToAction(nameof(Register)) : RedirectToAction(nameof(Blocked), new { status = gate.Status });
+        return gate.Status == LicenseGateStatus.Unregistered ? RedirectToAction(nameof(Register)) : this.RedirectToActionEncrypted(nameof(Blocked), new { status = gate.Status });
     }
 
     [AllowAnonymous]
@@ -163,7 +164,7 @@ public class LicenseController(
             TempData["ErrorMessage"] = "The licence server could not be reached. The licence was validated earlier today, so the application keeps working until tomorrow's check; restore the connection before then.";
             return RedirectToAction(nameof(Index));
         }
-        return RedirectToAction(nameof(Blocked), new { status = gate.Status });
+        return this.RedirectToActionEncrypted(nameof(Blocked), new { status = gate.Status });
     }
 
     private LicenseBlockedViewModel Describe(LicenseGateStatus status, string? reason)

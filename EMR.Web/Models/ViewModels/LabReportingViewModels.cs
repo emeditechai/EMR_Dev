@@ -12,7 +12,7 @@ namespace EMR.Web.Models.ViewModels
         public int BranchId { get; set; }
         public DateTime FromDate { get; set; }
         public DateTime ToDate { get; set; }
-        public string DateFilterType { get; set; } = "BookingDate";
+        public string DateFilterType { get; set; } = "CollectionDate";
         public string StatusFilter { get; set; } = "All";
         public string? Search { get; set; }
         public int? DepartmentId { get; set; }

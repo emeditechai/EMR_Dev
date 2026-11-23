@@ -134,6 +134,13 @@ namespace EMR.Web.ApiClients
             return await response.Content.ReadFromJsonAsync<B2BSettleBillsResultDto>();
         }
 
+        public async Task<List<System.Text.Json.JsonElement>> GetInvoiceReceiptsAsync(int invoiceId)
+        {
+            var response = await httpClient.GetAsync($"api/B2BBilling/invoice/{invoiceId}/receipts");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<List<System.Text.Json.JsonElement>>() ?? [];
+        }
+
         public async Task<B2BSettlementReceiptDto?> GetSettlementReceiptAsync(string receiptNo)
         {
             var response = await httpClient.GetAsync($"api/B2BBilling/settlement-receipt/{Uri.EscapeDataString(receiptNo)}");

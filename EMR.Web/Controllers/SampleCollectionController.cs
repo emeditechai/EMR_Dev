@@ -11,6 +11,8 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
+using EMR.Web.Data;
+using Dapper;
 
 namespace EMR.Web.Controllers
 {
@@ -18,8 +20,28 @@ namespace EMR.Web.Controllers
     public class SampleCollectionController(
         ISampleCollectionApiClient sampleCollectionApiClient,
         ILabFranchiseBarcodeApiClient barcodeApiClient,
-        IAuditLogService auditLogService) : Controller
+        IAuditLogService auditLogService,
+        IDbConnectionFactory db) : Controller
     {
+        /// <summary>A franchise login works only on the orders it created or that are for its own franchise
+        /// (SQLScripts/2266); every other login: all orders of the branch (null).</summary>
+        private int? OwnOrdersOnly => User.IsFranchiseUser() ? User.GetUserId() : null;
+
+        private const string NotYoursMessage = "This order is not available to you.";
+
+        /// <summary>False when a franchise login names an order (or a sample of one) that is not its own.</summary>
+        private async Task<bool> MayUseAsync(int? labOrderId, long? sampleCollectionId = null)
+        {
+            if (OwnOrdersOnly is not int userId) return true;
+            using var con = db.CreateConnection();
+            return await con.ExecuteScalarAsync<int>(@"
+                SELECT COUNT(1) FROM dbo.LabOrder lo
+                WHERE (lo.LabOrderId = @labOrderId
+                       OR lo.LabOrderId = (SELECT sc.Laborderid FROM dbo.SampleCollection sc WHERE sc.samplecollectionID = @sampleCollectionId))
+                  AND (lo.CreatedBy = @userId OR (lo.AgentType = 'F' AND lo.B2BAgentID = @franchiseId))",
+                new { labOrderId, sampleCollectionId, userId, franchiseId = User.GetFranchiseId() }) > 0;
+        }
+
         /// <summary>
         /// Franchise (Preprinted Barcode) rows must have their own barcode validated and written
         /// (see ValidateFranchiseBarcodeJson) before they can be collected - the collection SPs
@@ -50,6 +72,8 @@ namespace EMR.Web.Controllers
             if (request == null || string.IsNullOrWhiteSpace(request.BarcodeNo) || request.Franchise_ID <= 0
                 || request.LabOrderId <= 0 || request.SamplecollectionID <= 0)
                 return Json(new { success = false, message = "Invalid request parameters." });
+            if (!await MayUseAsync(request.LabOrderId, request.SamplecollectionID))
+                return Json(new { success = false, message = NotYoursMessage });
 
             request.UserId = User.GetUserId();
             var result = await barcodeApiClient.ValidateAndConsumeAsync(request);
@@ -71,7 +95,8 @@ namespace EMR.Web.Controllers
             DateTime? toDate,
             string? dateFilterType = "BookingDate",
             string? statusFilter = "All",
-            string? search = null)
+            string? search = null,
+            string? collectionType = null)   // 2390: Lab / Home Collection; empty = all
         {
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
 
@@ -82,7 +107,7 @@ namespace EMR.Web.Controllers
                 : today.AddDays(1).AddSeconds(-1);
 
             var headerResult = await sampleCollectionApiClient.GetHeaderListAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, OwnOrdersOnly, collectionType);
 
             var statuses = await sampleCollectionApiClient.GetStatusesAsync();
 
@@ -94,6 +119,7 @@ namespace EMR.Web.Controllers
                 DateFilterType = dateFilterType ?? "BookingDate",
                 StatusFilter = statusFilter ?? "All",
                 Search = search,
+                CollectionType = collectionType,
                 Stats = headerResult.Stats,
                 Headers = headerResult.Headers,
                 Statuses = statuses
@@ -108,7 +134,8 @@ namespace EMR.Web.Controllers
             DateTime? toDate,
             string? dateFilterType = "BookingDate",
             string? statusFilter = "All",
-            string? search = null)
+            string? search = null,
+            string? collectionType = null)   // 2390: Lab / Home Collection; empty = all
         {
             int branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
 
@@ -119,7 +146,7 @@ namespace EMR.Web.Controllers
                 : today.AddDays(1).AddSeconds(-1);
 
             var headerResult = await sampleCollectionApiClient.GetHeaderListAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search);
+                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, OwnOrdersOnly, collectionType);
 
             return Json(new
             {
@@ -134,6 +161,8 @@ namespace EMR.Web.Controllers
         {
             if (labOrderId <= 0)
                 return Json(new { success = false, message = "Invalid LabOrderId." });
+            if (!await MayUseAsync(labOrderId))
+                return Json(new { success = false, message = NotYoursMessage });
 
             var detail = await sampleCollectionApiClient.GetDetailAsync(labOrderId);
             if (detail == null)
@@ -154,12 +183,17 @@ namespace EMR.Web.Controllers
         {
             if (request == null || request.SampleCollectionId <= 0 || request.CollectionstatusID <= 0)
                 return Json(new { success = false, message = "Invalid request parameters." });
+            if (!await MayUseAsync(request.LabOrderId, request.SampleCollectionId))
+                return Json(new { success = false, message = NotYoursMessage });
 
             if (request.CollectionstatusID == 2 && request.LabOrderId.HasValue && request.LabOrderId.Value > 0)
             {
                 var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId.Value);
                 if (detail != null)
                 {
+                    // 2390: Home Collection - only after the phlebotomist has handed the samples over
+                    if (!string.IsNullOrWhiteSpace(detail.CollectionHoldReason))
+                        return Json(new { success = false, message = detail.CollectionHoldReason });
                     var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
                     if (tooEarly != null)
                         return Json(new { success = false, message = tooEarly });
@@ -225,6 +259,8 @@ namespace EMR.Web.Controllers
         {
             if (request == null || request.LabOrderId <= 0 || request.CollectionstatusID <= 0 || (request.ProfileId == null && string.IsNullOrEmpty(request.ProfileName)))
                 return Json(new { success = false, message = "Invalid profile request parameters." });
+            if (!await MayUseAsync(request.LabOrderId))
+                return Json(new { success = false, message = NotYoursMessage });
 
             SampleCollectionOrderDetailDto? detail = null;
             if (request.CollectionstatusID == 2)
@@ -232,6 +268,9 @@ namespace EMR.Web.Controllers
                 detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
                 if (detail != null)
                 {
+                    // 2390: Home Collection - only after the phlebotomist has handed the samples over
+                    if (!string.IsNullOrWhiteSpace(detail.CollectionHoldReason))
+                        return Json(new { success = false, message = detail.CollectionHoldReason });
                     var tooEarly = CollectionBeforeBooking(detail, request.SampleCollectionDate, request.SampleCollectionTime);
                     if (tooEarly != null)
                         return Json(new { success = false, message = tooEarly });
@@ -293,6 +332,8 @@ namespace EMR.Web.Controllers
         {
             if (request == null || request.LabOrderId <= 0)
                 return Json(new { success = false, message = "Invalid LabOrderId." });
+            if (!await MayUseAsync(request.LabOrderId))
+                return Json(new { success = false, message = NotYoursMessage });
 
             var detail = await sampleCollectionApiClient.GetDetailAsync(request.LabOrderId);
             if (detail != null)
@@ -302,6 +343,10 @@ namespace EMR.Web.Controllers
                 {
                     return Json(new { success = false, message = "All samples for this order are already collected." });
                 }
+
+                // 2390: Home Collection - only after the phlebotomist has handed the samples over
+                if (!string.IsNullOrWhiteSpace(detail.CollectionHoldReason))
+                    return Json(new { success = false, message = detail.CollectionHoldReason });
 
                 var tooEarly = CollectionBeforeBooking(detail, null, null);
                 if (tooEarly != null)
@@ -354,6 +399,8 @@ namespace EMR.Web.Controllers
         {
             if (labOrderId <= 0)
                 return BadRequest("Invalid LabOrderId.");
+            if (!await MayUseAsync(labOrderId))
+                return Forbid();
 
             var detail = await sampleCollectionApiClient.GetDetailAsync(labOrderId);
             if (detail == null)

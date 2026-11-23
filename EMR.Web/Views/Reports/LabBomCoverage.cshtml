@@ -1,0 +1,59 @@
+@{
+    ViewData["Title"] = "BOM Coverage";
+    ViewData["ReportSubtitle"] = "Bookable tests and profile tests with and without a bill of material";
+    ViewData["ReportIcon"] = "bi-ui-checks-grid";
+    ViewData["ReportAccent"] = "#0e7490";
+    ViewData["ScopeNote"] = "Company BOM master · B2C rates of this branch · as on today";
+}
+@* SQLScripts/2248 #2: tests without a BOM first; outsourced tests need no BOM and are left out of the coverage % *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const tone = { COSTED: 'good', ANALYZER: 'info', OUTSOURCED: 'muted', NOBOM: 'bad' };
+    LabReport.init({
+        report: 'bom-coverage', title: 'BOM Coverage', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name or code...',
+        filters: [
+            { id: 'coverage', label: 'Coverage', allLabel: 'All tests', options: [['NOBOM', 'No BOM'], ['ANALYZER', 'Analyzer BOM only'], ['OUTSOURCED', 'Outsourced'], ['COSTED', 'Costed']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' }
+        ],
+        kpis: [
+            { label: 'Coverage', color: '#15803d', value: s => QcRep.pct(s.CoveragePct), sub: (s, h) => `${h.num(s.Costed + s.AnalyzerOnly)} of ${h.num(s.Tests - s.Outsourced)} in-house tests costed` },
+            { label: 'Without BOM', color: '#b91c1c', value: (s, h) => h.num(s.NoBom), sub: (s, h) => `B2C rates worth ${h.money(s.UncostedRateValue)} with no cost` },
+            { label: 'Analyzer BOM only', color: '#0e7490', value: (s, h) => h.num(s.AnalyzerOnly), sub: () => 'no default BOM for other analyzers' },
+            { label: 'Outsourced', color: '#64748b', value: (s, h) => h.num(s.Outsourced), sub: () => 'cost = the outside lab\'s charge' }
+        ],
+        groups: [
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byCoverage', label: 'Coverage', rowField: 'CoverageLabel' },
+            { key: 'byKind', label: 'Type', rowField: 'Kind' }
+        ],
+        groupCols: [
+            { field: 'Tests', label: 'Tests', num: true },
+            { field: 'Costed', label: 'Costed', num: true },
+            { field: 'NoBom', label: 'No BOM', num: true },
+            { field: 'Outsourced', label: 'Outsourced', num: true },
+            { field: 'CoveragePct', label: 'Coverage', num: true, total: 'none', fmt: v => QcRep.pct(v) }
+        ],
+        shareOf: 'Tests',
+        rowClass: r => r.Coverage === 'NOBOM' ? 'row-muted' : '',
+        cols: [
+            { label: 'Test', html: (r, h) => QcRep.name(r.TestName, r.TestCode, h), text: r => `${r.TestName} (${r.TestCode || ''})` },
+            { label: 'Type', html: (r, h) => QcRep.kind(r.Kind, h), text: r => r.Kind },
+            { label: 'Department', html: (r, h) => h.esc(r.DepartmentName), text: r => r.DepartmentName },
+            { label: 'Sample', html: (r, h) => `<span class="fs-9">${h.esc(r.SampleType || '—')}</span>`, text: r => r.SampleType || '' },
+            { label: 'Coverage', html: (r, h) => QcRep.pill(r.CoverageLabel, tone[r.Coverage], h), text: r => r.CoverageLabel },
+            { label: 'BOM', cls: 'text-nowrap', html: r => r.BomId ? `v${r.VersionNo} · ${r.LineCount} lines` : (r.AnalyzerBoms ? `${r.AnalyzerBoms} analyzer BOM(s)` : '—'), text: r => r.BomId ? `v${r.VersionNo}` : '' },
+            { label: 'B2C rate', cls: 'text-end amt', html: (r, h) => QcRep.money(r.Rate, h), text: r => r.Rate },
+            { label: 'Last changed', cls: 'text-nowrap', html: (r, h) => r.LastChanged ? h.fmtD(r.LastChanged) : '—', text: r => r.LastChanged || '' }
+        ]
+    });
+})();
+</script>
+}

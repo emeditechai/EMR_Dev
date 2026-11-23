@@ -30,6 +30,32 @@ public class UserListItemViewModel
     public string? ProfilePicturePath { get; set; }
     /// <summary>True when a pathologist signature image has been uploaded.</summary>
     public bool HasSignature { get; set; }
+    public int FailedLoginAttempts { get; set; }
+    /// <summary>Set while the account is locked after wrong passwords (SQLScripts/2320).</summary>
+    public DateTime? LockedUntil { get; set; }
+}
+
+/// <summary>Settings > User Master list, one page of users from the server (SQLScripts/2314).</summary>
+public class UserListPageViewModel
+{
+    public List<UserListItemViewModel> Items { get; set; } = new();
+    public int TotalUsers { get; set; }
+    public int ActiveUsers { get; set; }
+    public int InactiveUsers { get; set; }
+    public int Pathologists { get; set; }
+    public int PathologistsSigned { get; set; }
+    public int LabTechnicians { get; set; }
+    public int LockedUsers { get; set; }
+    /// <summary>Users matching the filter (all pages).</summary>
+    public int FilteredCount { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 25;
+    public string? Search { get; set; }
+    public string? UserType { get; set; }
+    public string? Status { get; set; }
+    public string? Role { get; set; }
+    public int TotalPages => PageSize > 0 ? Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)PageSize)) : 1;
+    public bool HasFilter => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(UserType) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Role);
 }
 
 public class UserFormViewModel
@@ -48,13 +74,18 @@ public class UserFormViewModel
     [Display(Name = "Employee Code")]
     public string? EmployeeCode { get; set; }
 
-    [Required]
+    /// <summary>Shown read-only: the e-mail for users created since sign-in by e-mail (SQLScripts/2307).</summary>
     [MaxLength(100)]
     public string Username { get; set; } = string.Empty;
 
-    [EmailAddress]
-    [MaxLength(200)]
+    /// <summary>The sign-in (SQLScripts/2307): required and unique in the whole application.</summary>
+    [EmailAddress(ErrorMessage = "Enter a valid e-mail address.")]
+    [MaxLength(100, ErrorMessage = "E-mail can be up to 100 characters.")]
     public string? Email { get; set; }
+
+    /// <summary>The e-mail can be changed here: every login except a franchise / company one (a doctor's e-mail is kept in
+    /// step with Doctor Master, SQLScripts/2307).</summary>
+    public bool EmailEditable => !IsLinkedLogin || UserType == "D";
 
     [Display(Name = "Password")]
     [DataType(DataType.Password)]
@@ -157,6 +188,10 @@ public class UserFormViewModel
     [Display(Name = "Assigned Zone")]
     public int? AssignedZoneId { get; set; }
 
+    /// <summary>Every area the phlebotomist covers (SQLScripts/2389); AssignedZoneId is the main one of these.</summary>
+    [Display(Name = "Assigned Zones")]
+    public List<int> AssignedZoneIds { get; set; } = new();
+
     [Display(Name = "Daily Collection Target")]
     [Range(0, 999999999.99, ErrorMessage = "Daily collection target must be a positive value.")]
     public decimal? DailyCollectionTarget { get; set; }
@@ -190,6 +225,11 @@ public class UserFormViewModel
     public List<TestCategoryOptionItem> TestCategoryOptions { get; set; } = new();
 
     public List<SelectListItem> BranchOptions { get; set; } = new();
+
+    /// <summary>Reports To: the user this user reports to (SQLScripts/2305).</summary>
+    [Display(Name = "Reports To")]
+    public int? ReportsToUserId { get; set; }
+    public List<SelectListItem> ReportsToOptions { get; set; } = new();
     public List<SelectListItem> DepartmentOptions { get; set; } = new();
     public List<BranchRoleGroup> BranchRoleGroups { get; set; } = new();
 }
@@ -219,6 +259,9 @@ public class RoleItem
 public class UserDetailsViewModel
 {
     public int Id { get; set; }
+
+    /// <summary>Reports To (SQLScripts/2305): the name of the user this user reports to.</summary>
+    public string? ReportsToName { get; set; }
 
     /// <summary>Users.User_Type ('U' general, 'D' doctor, 'F' franchise, 'C' company) and the record a login belongs to.</summary>
     public string UserType { get; set; } = "U";

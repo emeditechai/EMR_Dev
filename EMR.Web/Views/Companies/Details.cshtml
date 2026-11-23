@@ -32,12 +32,29 @@
         </div>
     </div>
     <div class="d-flex gap-2">
-        <a asp-permission="SETTINGS.COMPANIES:EDIT" asp-action="Edit" asp-route-id="@Model.CompanyId" class="btn btn-outline-primary btn-sm px-3">
+        <a asp-permission="SETTINGS.COMPANIES:EDIT" asp-action="Edit" asp-encrypted-route-id="@Model.CompanyId" class="btn btn-outline-primary btn-sm px-3">
             <i class="bi bi-pencil-fill me-1"></i> Edit Profile
         </a>
-        <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-primary btn-sm px-3 shadow-sm">
+        <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-encrypted-route-companyId="@Model.CompanyId" class="btn btn-primary btn-sm px-3 shadow-sm">
             <i class="bi bi-plus-circle-fill me-1"></i> Add Branch
         </a>
+        @if (EMR.Web.Extensions.ClaimsPrincipalExtensions.IsSuperAdmin(User))
+        {
+            @* super admin only: this company pulls masters from another company (SQLScripts/2328, 2336) *@
+            <a asp-action="CopyMasters" asp-encrypted-route-id="@Model.CompanyId" class="btn btn-outline-dark btn-sm px-3">
+                <i class="bi bi-copy me-1"></i> Copy Master Data
+            </a>
+            @if (Model.CompanyId != 1)
+            {
+                @* super admin only: remove this company's data / delete it (SQLScripts/2337); company 1 holds the shared data *@
+                <a asp-action="RemoveData" asp-encrypted-route-id="@Model.CompanyId" class="btn btn-outline-danger btn-sm px-3">
+                    <i class="bi bi-eraser me-1"></i> Remove Data
+                </a>
+                <a asp-action="RemoveData" asp-encrypted-route-id="@Model.CompanyId" asp-encrypted-route-level="DELETE" class="btn btn-danger btn-sm px-3">
+                    <i class="bi bi-trash3 me-1"></i> Delete Company
+                </a>
+            }
+        }
         <a asp-action="Index" class="btn btn-outline-secondary btn-sm px-3">
             <i class="bi bi-arrow-left me-1"></i> Back to List
         </a>
@@ -47,6 +64,75 @@
 <div class="row g-4 mb-4">
     <!-- Left Column: Company Details -->
     <div class="col-lg-4">
+        @if (EMR.Web.Extensions.ClaimsPrincipalExtensions.IsSuperAdmin(User))
+        {
+            @* SQLScripts/2467: the company in the central company register (Central_Lic_DB) - status loaded after the page *@
+            @Html.AntiForgeryToken()
+            <div class="card border-0 shadow-sm rounded-3 mb-3" id="centralCard" data-status-url="@Url.ActionEncrypted("CentralStatus", new { id = Model.CompanyId })"
+                 data-push-url="@Url.ActionEncrypted("PushToCentral", new { id = Model.CompanyId })">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-cloud-arrow-up me-2"></i>Central Company Register</h6>
+                    <span id="centralBadge" class="badge bg-secondary-subtle text-secondary border">Checking…</span>
+                </div>
+                <div class="card-body p-3 small">
+                    <div id="centralMessage" class="text-muted">Checking the central register…</div>
+                    <div id="centralDates" class="text-muted mt-1"></div>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <button type="button" id="btnPushCentral" class="btn btn-primary btn-sm d-none">
+                            <i class="bi bi-cloud-upload me-1"></i>Push to Central
+                        </button>
+                        @* SQLScripts/2470: register this company's users in the central user register *@
+                        <button type="button" id="btnSyncUsers" class="btn btn-outline-primary btn-sm" data-sync-url="@Url.ActionEncrypted("SyncUsers", new { id = Model.CompanyId })"
+                                title="Register this company's users in the central user register (Central_Users)">
+                            <i class="bi bi-people me-1"></i><i class="bi bi-arrow-repeat me-1"></i>Sync Users
+                        </button>
+                    </div>
+                    <div id="syncUsersResult" class="mt-2 d-none"></div>
+                </div>
+            </div>
+        }
+        @* SQLScripts/2472: the dates the company's users may sign in to the web application *@
+        @{
+            var vToday = DateTime.Today;
+            var vNotYet = vToday < Model.ValidFrom.Date;
+            var vEnded = vToday > Model.ValidTo.Date;
+            var vDaysLeft = (Model.ValidTo.Date - vToday).Days;
+        }
+        <div class="card border-0 shadow-sm rounded-3 mb-3">
+            <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-calendar2-check me-2"></i>Validity</h6>
+                @if (vEnded)
+                {
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Expired - sign-in blocked</span>
+                }
+                else if (vNotYet)
+                {
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Not started - sign-in blocked</span>
+                }
+                else if (vDaysLeft <= 30)
+                {
+                    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Ends in @vDaysLeft day(s)</span>
+                }
+                else
+                {
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>
+                }
+            </div>
+            <div class="card-body p-3">
+                <ul class="list-group list-group-flush small">
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Valid From:</span>
+                        <span class="fw-semibold text-dark">@Model.ValidFrom.ToString("dd MMM yyyy")</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between px-0">
+                        <span class="text-muted">Valid To:</span>
+                        <span class="fw-semibold text-dark">@Model.ValidTo.ToString("dd MMM yyyy")</span>
+                    </li>
+                </ul>
+                <div class="text-muted small mt-2">The company's users can sign in to the web application only within these dates.</div>
+            </div>
+        </div>
+
         <!-- Tax & Legal Card -->
         <div class="card border-0 shadow-sm rounded-3 mb-3">
             <div class="card-header bg-white border-bottom py-3">
@@ -122,7 +208,7 @@
                     <i class="bi bi-diagram-3-fill me-2"></i>Operating Branches 
                     <span class="badge bg-primary bg-opacity-10 text-primary ms-1">@Model.Branches.Count</span>
                 </h6>
-                <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-outline-primary">
+                <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-encrypted-route-companyId="@Model.CompanyId" class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-plus-lg me-1"></i> Add Branch
                 </a>
             </div>
@@ -145,7 +231,7 @@
                                     <td colspan="5" class="text-center py-4 text-muted">
                                         <i class="bi bi-diagram-3 fs-3 text-secondary opacity-50 d-block mb-2"></i>
                                         <div>No branches created under this company yet.</div>
-                                        <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-route-companyId="@Model.CompanyId" class="btn btn-sm btn-primary mt-2">Create First Branch</a>
+                                        <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Create" asp-encrypted-route-companyId="@Model.CompanyId" class="btn btn-sm btn-primary mt-2">Create First Branch</a>
                                     </td>
                                 </tr>
                             }
@@ -181,12 +267,19 @@
                                             }
                                         </td>
                                         <td class="text-end pe-3">
-                                            <a asp-controller="Branches" asp-action="Details" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-secondary" title="View Branch">
+                                            <a asp-controller="Branches" asp-action="Details" asp-encrypted-route-id="@b.BranchId" class="btn btn-sm btn-outline-secondary" title="View Branch">
                                                 <i class="bi bi-eye"></i>
                                             </a>
-                                            <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Edit" asp-route-id="@b.BranchId" class="btn btn-sm btn-outline-primary" title="Edit Branch">
+                                            <a asp-permission="SETTINGS.COMPANIES:BRANCHES" asp-controller="Branches" asp-action="Edit" asp-encrypted-route-id="@b.BranchId" class="btn btn-sm btn-outline-primary" title="Edit Branch">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
+                                            @if (EMR.Web.Extensions.ClaimsPrincipalExtensions.IsSuperAdmin(User) && !b.IsHOBranch)
+                                            {
+                                                @* super admin only: remove this branch and all its data (SQLScripts/2338); never the Head Office *@
+                                                <a asp-action="RemoveBranch" asp-encrypted-route-id="@b.BranchId" class="btn btn-sm btn-outline-danger" title="Remove Branch">
+                                                    <i class="bi bi-trash3"></i>
+                                                </a>
+                                            }
                                         </td>
                                     </tr>
                                 }
@@ -251,7 +344,7 @@
                                             }
                                         </td>
                                         <td class="text-end pe-3">
-                                            <a asp-controller="Users" asp-action="Details" asp-route-id="@u.UserId" class="btn btn-sm btn-outline-secondary" title="View User">
+                                            <a asp-controller="Users" asp-action="Details" asp-encrypted-route-id="@u.UserId" class="btn btn-sm btn-outline-secondary" title="View User">
                                                 <i class="bi bi-eye"></i>
                                             </a>
                                         </td>
@@ -265,3 +358,80 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        // SQLScripts/2467: central company register - status, and "Push to Central" for a company not there yet
+        (function () {
+            const card = document.getElementById('centralCard');
+            if (!card) return;
+            const badge = document.getElementById('centralBadge'), msg = document.getElementById('centralMessage'),
+                  dates = document.getElementById('centralDates'), btn = document.getElementById('btnPushCentral');
+            const LOOK = {
+                SYNCED: ['bg-success-subtle text-success border-success-subtle', 'Synced'],
+                CODE_CHANGED: ['bg-warning-subtle text-warning-emphasis border-warning-subtle', 'Code changed'],
+                OUTDATED: ['bg-warning-subtle text-warning-emphasis border-warning-subtle', 'Out of date'],
+                NOT_PUSHED: ['bg-warning-subtle text-warning-emphasis border-warning-subtle', 'Not pushed'],
+                CONFLICT: ['bg-danger-subtle text-danger border-danger-subtle', 'Code conflict'],
+                UNAVAILABLE: ['bg-secondary-subtle text-secondary', 'Unavailable']
+            };
+            const fmt = d => d ? new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+            const notify = (icon, title, text) => window.Swal ? Swal.fire({ icon, title, text }) : alert(title + '\n' + text);
+
+            function show(r) {
+                const look = LOOK[r.state] || LOOK.UNAVAILABLE;
+                badge.className = 'badge border ' + look[0];
+                badge.textContent = look[1];
+                msg.textContent = r.message || '';
+                dates.textContent = (r.createdDate ? 'Registered ' + fmt(r.createdDate) + (r.modifiedDate ? ' · updated ' + fmt(r.modifiedDate) : '') : '')
+                    + (r.validFrom && r.validTo ? ' · Valid ' + r.validFrom + ' - ' + r.validTo : '')
+                    + (r.webUrl ? ' · Web ' + r.webUrl : '') + (r.apiUrl ? ' · API ' + r.apiUrl : '');
+                btn.classList.toggle('d-none', !r.canPush);
+                btn.innerHTML = '<i class="bi bi-cloud-upload me-1"></i>' + (r.state === 'CODE_CHANGED' || r.state === 'OUTDATED' ? 'Update in Central' : 'Push to Central');
+            }
+            function load() {
+                fetch(card.dataset.statusUrl, { credentials: 'same-origin' })
+                    .then(r => r.ok ? r.json() : Promise.reject())
+                    .then(show)
+                    .catch(() => show({ state: 'UNAVAILABLE', message: 'The central register status could not be loaded.' }));
+            }
+            btn.addEventListener('click', function () {
+                btn.disabled = true;
+                const token = document.querySelector('#centralCard ~ input[name="__RequestVerificationToken"], input[name="__RequestVerificationToken"]');
+                fetch(card.dataset.pushUrl, { method: 'POST', credentials: 'same-origin',
+                        headers: { 'RequestVerificationToken': token ? token.value : '' } })
+                    .then(r => r.json())
+                    .then(r => { notify(r.success ? 'success' : (r.status === 'CONFLICT' ? 'error' : 'warning'), r.success ? 'Pushed' : 'Not pushed', r.message); load(); })
+                    .catch(() => notify('error', 'Not pushed', 'Server error while pushing the company.'))
+                    .finally(() => { btn.disabled = false; });
+            });
+            // SQLScripts/2470: Sync Users - every user of this company into the central user register
+            const syncBtn = document.getElementById('btnSyncUsers'), syncOut = document.getElementById('syncUsersResult');
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            syncBtn.addEventListener('click', function () {
+                syncBtn.disabled = true;
+                syncOut.className = 'mt-2 small text-muted';
+                syncOut.textContent = 'Syncing users…';
+                const token = document.querySelector('input[name="__RequestVerificationToken"]');
+                fetch(syncBtn.dataset.syncUrl, { method: 'POST', credentials: 'same-origin', headers: { 'RequestVerificationToken': token ? token.value : '' } })
+                    .then(r => r.json())
+                    .then(r => {
+                        syncOut.className = 'mt-2 small ' + (!r.success ? 'text-danger' : r.skipped ? 'text-warning-emphasis' : 'text-success');
+                        syncOut.innerHTML = '<i class="bi ' + (r.success ? 'bi-check-circle' : 'bi-exclamation-triangle') + ' me-1"></i>' + esc(r.message)
+                            + (r.users && r.users.length
+                                ? '<ul class="mb-0 mt-1 ps-3 text-body">' + r.users.map(u => '<li>'
+                                    + (u.status === 'DUPLICATE' ? '<span class="badge bg-warning-subtle text-warning-emphasis border me-1">Skipped</span>' : '')
+                                    + '<b>' + esc(u.username) + '</b>: ' + esc(u.message)
+                                    + (u.status === 'CONFLICT' || u.status === 'DUPLICATE' ? ' <a href="' + esc(u.editUrl) + '" target="_blank" class="ms-1"><i class="bi bi-pencil-square me-1"></i>Edit e-mail</a>' : '') + '</li>').join('')
+                                  + '</ul>' + (r.users.some(u => u.status === 'CONFLICT' || u.status === 'DUPLICATE') ? '<div class="text-muted mt-1">Sign-in e-mails are unique across all eCare360 installations. Change the e-mail and save - the user is registered centrally on save; then Sync Users again.</div>' : '')
+                                : (r.problems && r.problems.length ? '<ul class="mb-0 mt-1 ps-3 text-body">' + r.problems.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : ''));
+                        load();
+                    })
+                    .catch(() => { syncOut.className = 'mt-2 small text-danger'; syncOut.textContent = 'Server error while syncing users.'; })
+                    .finally(() => { syncBtn.disabled = false; });
+            });
+
+            load();
+        })();
+    </script>
+}

@@ -232,6 +232,43 @@
             .my-4 { margin-top: 12px !important; margin-bottom: 12px !important; }
             .report-html-content p { margin: 0 0 6px; }
         }
+        /* SQLScripts/2391: an external document page - the image fitted between the letterhead and the footer */
+        .ext-doc-caption { font-size: 10px; color: #64748b; margin-bottom: 6px; }
+        .ext-doc-caption b { color: #111111; }
+        .ext-doc-image { text-align: center; margin-bottom: 12px; }
+        .ext-doc-image img { max-width: 100%; max-height: 190mm; object-fit: contain; }
+        .ext-doc-note { margin-top: 8px; padding: 4px 8px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 11px; font-style: italic; }
+        @@media print {
+            .ext-doc-page { break-inside: avoid; page-break-inside: avoid; }
+            .ext-doc-page .page-footer { margin-top: 8px; }
+        }
+        /* One A4 portrait sheet per test, on screen and on paper alike (so the fit measured on screen is the printed one):
+           letterhead and patient boxes at the top, the report under them, and the signatures + footer always at the bottom
+           of the same sheet. A report too long for the sheet is scaled down to fit (script below); only when it would have
+           to shrink below ~62% does it run onto a second sheet (.flow), signatures still at its end. */
+        .report-page.sheet {
+            box-sizing: border-box; width: 210mm; max-width: none; height: 296mm;
+            padding: 12mm 12mm 12mm 12mm; display: flex; flex-direction: column;
+        }
+        .report-page.sheet > * { flex-shrink: 0; }
+        .report-page.sheet > .report-body { flex: 0 1 auto; min-height: 0; overflow: hidden; margin-bottom: 0 !important; }
+        .report-page.sheet > .end-of-report { margin: 10px 0 0 !important; }
+        .report-page.sheet > .sign-off-block { margin-top: auto; padding-top: 12px; }
+        .report-page.sheet .signature-block { margin-top: 0; margin-bottom: 10px; }
+        .report-page.sheet .page-footer { margin-top: 8px; }
+        .report-page.sheet.flow { height: auto; min-height: 296mm; }
+        .report-page.sheet.flow > .report-body { overflow: visible; }
+        /* external document sheet: the image fills the room between the patient boxes and the footer */
+        .report-page.sheet.ext-doc-page > .ext-doc-image { flex: 1 1 0; min-height: 0; margin-bottom: 8px;
+            display: flex; align-items: center; justify-content: center; }
+        .report-page.sheet.ext-doc-page > .ext-doc-image img { max-width: 100%; max-height: 100%; }
+        .report-page.sheet.ext-doc-page > .sign-off-block { margin-top: auto; padding-top: 8px; }
+        @@media print {
+            .report-page.sheet { width: 210mm; height: 296mm; margin: 0; padding: 12mm 12mm 12mm 12mm; }
+            .report-page.sheet.flow { height: auto; min-height: 296mm; }
+            .report-page.sheet > .sign-off-block { margin-top: auto; }
+        }
+
         /* The watermark is clipped to its own page so a rotated word can never push out a blank sheet */
         .report-page { position: relative; overflow: hidden; }
         .watermark-container {
@@ -286,115 +323,106 @@
     @{
         var printItems = d.Items ?? new List<EMR.Web.Models.DTOs.LabReportingItemDto>();
         int pageNo = 0;
-    }
-    @if (printItems.Count == 0)
-    {
-        <div class="report-page"><div class="alert alert-warning mb-0">No investigations found for this report.</div></div>
-    }
-    @foreach (var item in printItems)
-    {
-        pageNo++;
-        bool itemFinal = item.ReportStatusId == 5;   // approved = final; validated = provisional
-    <div class="report-page watermark-container @(pageNo > 1 ? "page-break" : "")">
-        @if (!itemFinal)
+        // SQLScripts/2391: an approved test's external document (PDF pages / JPG / PNG), merged after its report
+        var externalDocs = ViewBag.ExternalDocs as Dictionary<int, EMR.Common.LabReportExternalDoc>
+                           ?? new Dictionary<int, EMR.Common.LabReportExternalDoc>();
+        EMR.Common.LabReportExternalDoc? DocOf(EMR.Web.Models.DTOs.LabReportingItemDto it)
+            => it.ReportStatusId == 5 && externalDocs.TryGetValue(it.InvestigationID, out var x) ? x : null;
+        int totalPages = printItems.Count + printItems.Sum(it => DocOf(it)?.Pages.Count ?? 0);
+        // Utility > Print Templates (SQLScripts/2324): the Lab Report template's header / footer, as on the Lab and
+        // Microbiology report PDFs; rendered here once (the footer per sheet, for its page number)
+        var printTemplate = ViewData["PrintTemplate"] as EMR.Common.PrintLayout;
+        var printValues = ViewData["PrintValues"] as Dictionary<string, string?>;
+        var printLogoUrl = ViewData["PrintLogoUrl"] as string;
+        Microsoft.AspNetCore.Html.IHtmlContent? tplHeader = null;
+        var tplFooters = new Dictionary<int, Microsoft.AspNetCore.Html.IHtmlContent>();
+        if (printTemplate is not null && printValues is not null)
         {
-            <div class="watermark">
-                <div>PROVISIONAL</div>
-                <div class="sub">NOT FOR MEDICO-LEGAL PURPOSES</div>
-            </div>
+            tplHeader = await Html.PartialAsync("_PrintBand", new EMR.Common.PrintBandView { Band = printTemplate.Header, Values = printValues, LogoUrl = printLogoUrl });
+            for (var pg = 1; pg <= Math.Max(totalPages, 1); pg++)
+                tplFooters[pg] = await Html.PartialAsync("_PrintBand", new EMR.Common.PrintBandView
+                    { Band = printTemplate.Footer, IsFooter = true, Values = printValues, LogoUrl = printLogoUrl, PageNo = pg, PageCount = Math.Max(totalPages, 1) });
         }
+        string ImageSrc(byte[] b) => (b.Length > 3 && b[0] == 0x89 && b[1] == 0x50 ? "data:image/png;base64," : "data:image/jpeg;base64,") + Convert.ToBase64String(b);
 
-        <!-- Letterhead -->
-        @if (ViewBag.ShowLetterhead is false)
+        void Letterhead()
         {
-            @* Hospital Settings > LAB > Required B2C Lab Report Print Header = No: blank space for pre-printed letterhead *@
-            <div style="height: 30mm;"></div>
-        }
-        else
-        {
-        <div class="header-brand">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                @if (!string.IsNullOrWhiteSpace(ViewBag.LogoPath as string))
-                {
-                    <img src="@ViewBag.LogoPath" alt="Logo" style="height: 50px; object-fit: contain;" />
-                }
-                <div>
-                    <div class="hospital-name">@(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
-                    @if (!string.IsNullOrWhiteSpace(ViewBag.HospitalType as string))
+            if (ViewBag.ShowLetterhead is false)
+            {
+                @* Hospital Settings > LAB > Required B2C Lab Report Print Header = No: blank space for pre-printed letterhead *@
+                <div style="height: 30mm;"></div>
+            }
+            else if (tplHeader is not null)
+            {
+                <div class="tpl-band tpl-header">@tplHeader</div>
+            }
+            else
+            {
+            <div class="header-brand">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.LogoPath as string))
                     {
-                        <div class="department-name">@(((string)ViewBag.HospitalType).ToUpperInvariant())</div>
+                        <img src="@ViewBag.LogoPath" alt="Logo" style="height: 50px; object-fit: contain;" />
                     }
-                    @if (!string.IsNullOrWhiteSpace(ViewBag.NabhStatus as string))
-                    {
-                        <div style="font-size: 9px; font-weight: 600; color: #0f3d6b; margin-top: 1px;">
-                            NABH: @ViewBag.NabhStatus @(!string.IsNullOrWhiteSpace(ViewBag.NabhCertificateNo as string) ? $"(Cert. No. {ViewBag.NabhCertificateNo})" : "")
-                        </div>
-                    }
+                    <div>
+                        <div class="hospital-name">@(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
+                        @if (!string.IsNullOrWhiteSpace(ViewBag.HospitalType as string))
+                        {
+                            <div class="department-name">@(((string)ViewBag.HospitalType).ToUpperInvariant())</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(ViewBag.NabhStatus as string))
+                        {
+                            <div style="font-size: 9px; font-weight: 600; color: #0f3d6b; margin-top: 1px;">
+                                NABH: @ViewBag.NabhStatus @(!string.IsNullOrWhiteSpace(ViewBag.NabhCertificateNo as string) ? $"(Cert. No. {ViewBag.NabhCertificateNo})" : "")
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="hospital-contact">
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.Address as string)) { <div>@ViewBag.Address</div> }
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.ContactNumber as string)) { <div>Tel: @ViewBag.ContactNumber</div> }
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.Email as string)) { <div>@ViewBag.Email</div> }
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.Website as string)) { <div>@ViewBag.Website</div> }
+                    @if (!string.IsNullOrWhiteSpace(ViewBag.RegistrationNumber as string)) { <div>Reg. No.: @ViewBag.RegistrationNumber</div> }
                 </div>
             </div>
-            <div class="hospital-contact">
-                @if (!string.IsNullOrWhiteSpace(ViewBag.Address as string)) { <div>@ViewBag.Address</div> }
-                @if (!string.IsNullOrWhiteSpace(ViewBag.ContactNumber as string)) { <div>Tel: @ViewBag.ContactNumber</div> }
-                @if (!string.IsNullOrWhiteSpace(ViewBag.Email as string)) { <div>@ViewBag.Email</div> }
-                @if (!string.IsNullOrWhiteSpace(ViewBag.Website as string)) { <div>@ViewBag.Website</div> }
-                @if (!string.IsNullOrWhiteSpace(ViewBag.RegistrationNumber as string)) { <div>Reg. No.: @ViewBag.RegistrationNumber</div> }
-            </div>
-        </div>
+            }
         }
 
-        <!-- 3 Info Boxes -->
-        <div class="info-boxes-container">
-            <div class="info-box">
-                <div class="info-box-title">Patient Information</div>
-                <div class="info-row"><div class="info-label">Name</div><div class="info-val">: @d.PatientName</div></div>
-                <div class="info-row"><div class="info-label">Age/Gender</div><div class="info-val">: @(d.Age.HasValue ? $"{d.Age} Y" : "—") / @(d.Gender ?? "—")</div></div>
-                <div class="info-row"><div class="info-label">Mobile No</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.PhoneNumber) ? "—" : d.PhoneNumber)</div></div>
-                <div class="info-row"><div class="info-label">Patient ID</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.PatientCode) ? "—" : d.PatientCode)</div></div>
-                <div class="info-row"><div class="info-label">Address</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.Address) ? "—" : d.Address)</div></div>
+        void InfoBoxes(bool itemFinal)
+        {
+            <div class="info-boxes-container">
+                <div class="info-box">
+                    <div class="info-box-title">Patient Information</div>
+                    <div class="info-row"><div class="info-label">Name</div><div class="info-val">: @d.PatientName</div></div>
+                    <div class="info-row"><div class="info-label">Age/Gender</div><div class="info-val">: @(d.Age.HasValue ? $"{d.Age} Y" : "—") / @(d.Gender ?? "—")</div></div>
+                    <div class="info-row"><div class="info-label">Mobile No</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.PhoneNumber) ? "—" : d.PhoneNumber)</div></div>
+                    <div class="info-row"><div class="info-label">Patient ID</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.PatientCode) ? "—" : d.PatientCode)</div></div>
+                    <div class="info-row"><div class="info-label">Address</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.Address) ? "—" : d.Address)</div></div>
+                </div>
+                <div class="info-box">
+                    <div class="info-box-title">Specimen Information</div>
+                    <div class="info-row"><div class="info-label">Bill No</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.BillNo) ? "—" : d.BillNo)</div></div>
+                    <div class="info-row"><div class="info-label">Collected</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? d.OrderDate.ToString("dd/MMM/yyyy HH:mm"))</div></div>
+                    <div class="info-row"><div class="info-label">Received</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? "—")</div></div>
+                    <div class="info-row"><div class="info-label">Reported</div><div class="info-val">: @DateTime.Now.ToString("dd/MMM/yyyy HH:mm")</div></div>
+                    @if (ViewBag.LabSerialNo is string labSerialNo && !string.IsNullOrWhiteSpace(labSerialNo))
+                    {
+                        <div class="info-row"><div class="info-label">Lab Serial No</div><div class="info-val">: @labSerialNo</div></div>
+                    }
+                    <div class="info-row"><div class="info-label">Report Status</div><div class="info-val @(itemFinal ? "status-val final" : "status-val")">: @(itemFinal ? "Final Report" : "Provisional Report")</div></div>
+                </div>
+                <div class="info-box">
+                    <div class="info-box-title">Branch / Doctor Information</div>
+                    <div class="info-row"><div class="info-label">Branch Code</div><div class="info-val">: @(d.BranchId)</div></div>
+                    <div class="info-row"><div class="info-label">Branch Name</div><div class="info-val">: @(d.BranchName ?? "Main Branch")</div></div>
+                    <div class="info-row"><div class="info-label">Ref Doctor</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.ReferralDoctorName) ? "Self" : d.ReferralDoctorName)</div></div>
+                </div>
             </div>
-            <div class="info-box">
-                <div class="info-box-title">Specimen Information</div>
-                <div class="info-row"><div class="info-label">Bill No</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.BillNo) ? "—" : d.BillNo)</div></div>
-                <div class="info-row"><div class="info-label">Collected</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? d.OrderDate.ToString("dd/MMM/yyyy HH:mm"))</div></div>
-                <div class="info-row"><div class="info-label">Received</div><div class="info-val">: @(d.BookingDateTime?.ToString("dd/MMM/yyyy HH:mm") ?? "—")</div></div>
-                <div class="info-row"><div class="info-label">Reported</div><div class="info-val">: @DateTime.Now.ToString("dd/MMM/yyyy HH:mm")</div></div>
-                @{
-                    string statusClass = itemFinal ? "status-val final" : "status-val";
-                }
-                <div class="info-row"><div class="info-label">Report Status</div><div class="info-val @statusClass">: @(itemFinal ? "Final Report" : "Provisional Report")</div></div>
-            </div>
-            <div class="info-box">
-                <div class="info-box-title">Branch / Doctor Information</div>
-                <div class="info-row"><div class="info-label">Branch Code</div><div class="info-val">: @(d.BranchId)</div></div>
-                <div class="info-row"><div class="info-label">Branch Name</div><div class="info-val">: @(d.BranchName ?? "Main Branch")</div></div>
-                <div class="info-row"><div class="info-label">Ref Doctor</div><div class="info-val">: @(string.IsNullOrWhiteSpace(d.ReferralDoctorName) ? "Self" : d.ReferralDoctorName)</div></div>
-            </div>
-        </div>
+        }
 
-        <!-- Investigation Report -->
-        <div class="mb-4">
-            <div class="report-title-bar">
-                @item.TestName @(!string.IsNullOrWhiteSpace(item.TestCode) ? $"({item.TestCode})" : "")
-            </div>
-            <div class="report-html-content">
-                @if (!string.IsNullOrWhiteSpace(item.TemplateHtml))
-                {
-                    @Html.Raw(item.TemplateHtml)
-                }
-                else
-                {
-                    <p class="text-muted fst-italic">Report entry pending or empty.</p>
-                }
-            </div>
-        </div>
-
-        <div class="text-center fw-bold fs-6 my-4">
-            *** End Of Report ***
-        </div>
-
-        <!-- Signature + page footer travel together as one unit - see .sign-off-block in @@media print -->
-        <div class="sign-off-block">
-        <!-- Signatory Footer -->
+        void Signatures()
+        {
         <div class="signature-block" style="display: flex; justify-content: space-between;">
             @{
                 var signoffLevels = ViewBag.SignoffLevels as List<EMR.Web.Models.DTOs.LabReportSignoffLevelDto>;
@@ -436,24 +464,136 @@
             }
         </div>
 
-        <!-- Page Footer (Required B2C Lab Report Print Header = No: blank strip for the pre-printed letterhead's footer) -->
-        @if (ViewBag.ShowLetterhead is false)
-        {
-        <div style="height: 15mm;"></div>
         }
-        else
+
+        void PageFooter(int pageNumber)
         {
-        <div class="page-footer">
-            <div class="footer-note">This test has been performed at @(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
-            <div class="footer-meta">
-                <div>Printed on @DateTime.Now.ToString("dd/MMM/yyyy HH:mm") by @(ViewBag.PrintedBy ?? "System") | Bill @(d.BillNo ?? "—")</div>
-                <div>Page @pageNo of @printItems.Count</div>
+            @* Required B2C Lab Report Print Header = No: blank strip for the pre-printed letterhead's footer *@
+            if (ViewBag.ShowLetterhead is false)
+            {
+            <div style="height: 15mm;"></div>
+            }
+            else if (tplFooters.TryGetValue(pageNumber, out var tplFooter))
+            {
+                <div class="page-footer tpl-band tpl-footer">@tplFooter</div>
+            }
+            else
+            {
+            <div class="page-footer">
+                <div class="footer-note">This test has been performed at @(ViewBag.HospitalName ?? "eMeditech Hospital")</div>
+                <div class="footer-meta">
+                    <div>Printed on @DateTime.Now.ToString("dd/MMM/yyyy HH:mm") by @(ViewBag.PrintedBy ?? "System") | Bill @(d.BillNo ?? "—")</div>
+                    <div>Page @pageNumber of @totalPages</div>
+                </div>
             </div>
-        </div>
+            }
         }
+    }
+    @if (printItems.Count == 0)
+    {
+        <div class="report-page"><div class="alert alert-warning mb-0">No investigations found for this report.</div></div>
+    }
+    @foreach (var item in printItems)
+    {
+        pageNo++;
+        bool itemFinal = item.ReportStatusId == 5;   // approved = final; validated = provisional
+    <div class="report-page sheet watermark-container @(pageNo > 1 ? "page-break" : "")">
+        @if (!itemFinal)
+        {
+            <div class="watermark">
+                <div>PROVISIONAL</div>
+                <div class="sub">NOT FOR MEDICO-LEGAL PURPOSES</div>
+            </div>
+        }
+
+        <!-- Letterhead -->
+        @{ Letterhead(); }
+
+        <!-- 3 Info Boxes -->
+        @{ InfoBoxes(itemFinal); }
+
+        <!-- Investigation Report -->
+        <div class="mb-4 report-body">
+            <div class="report-title-bar">
+                @item.TestName @(!string.IsNullOrWhiteSpace(item.TestCode) ? $"({item.TestCode})" : "")
+            </div>
+            <div class="report-html-content">
+                @if (!string.IsNullOrWhiteSpace(item.TemplateHtml))
+                {
+                    @Html.Raw(item.TemplateHtml)
+                }
+                else
+                {
+                    <p class="text-muted fst-italic">Report entry pending or empty.</p>
+                }
+            </div>
+            @{ var docNote = DocOf(item); }
+            @if (docNote is { Pages.Count: 0 } && !string.IsNullOrWhiteSpace(docNote.Note))
+            {
+                <div class="ext-doc-note">@docNote.Note</div>
+            }
+        </div>
+
+        <div class="text-center fw-bold fs-6 my-4 end-of-report">
+            *** End Of Report ***
+        </div>
+
+        <!-- Signature + page footer travel together as one unit - see .sign-off-block in @@media print -->
+        <div class="sign-off-block">
+        <!-- Signatory Footer (same signatories on every sheet of the test) -->
+        @{ Signatures(); }
+
+        <!-- Page Footer -->
+        @{ PageFooter(pageNo); }
         </div>
     </div>
+
+        @* SQLScripts/2391: the external document of this approved test - each page on a sheet of its own, same letterhead and footer *@
+        var extDoc = DocOf(item);
+        if (extDoc is { Pages.Count: > 0 })
+        {
+            for (var i = 0; i < extDoc.Pages.Count; i++)
+            {
+                pageNo++;
+    <div class="report-page sheet page-break ext-doc-page">
+        @{ Letterhead(); }
+        @{ InfoBoxes(true); }
+        <div class="ext-doc-caption">
+            External report · <b>@extDoc.TestName</b>@(extDoc.Pages.Count > 1 ? $" · page {i + 1} of {extDoc.Pages.Count}" : "")
+        </div>
+        <div class="ext-doc-image"><img src="@ImageSrc(extDoc.Pages[i])" alt="External report - @extDoc.TestName" /></div>
+        <!-- the approved test's signatories + footer, at the bottom of the sheet as on the report page -->
+        <div class="sign-off-block">
+            @{ Signatures(); }
+            @{ PageFooter(pageNo); }
+        </div>
+    </div>
+            }
+        }
     }
 
+    <script>
+        // Every test on ONE A4 sheet with its signatures at the bottom: a report taller than the room left is scaled
+        // down step by step (to ~62% at most); beyond that the sheet runs on to a second page (.flow) as before.
+        (function () {
+            function fitSheets() {
+                document.querySelectorAll('.report-page.sheet:not(.ext-doc-page)').forEach(function (page) {
+                    var body = page.querySelector('.report-body'), html = page.querySelector('.report-html-content');
+                    if (!body || !html) return;
+                    page.classList.remove('flow');
+                    html.style.zoom = '';
+                    var z = 1;
+                    while (body.scrollHeight > body.clientHeight + 1 && z > 0.62) {
+                        z = Math.round((z - 0.04) * 100) / 100;
+                        html.style.zoom = z;
+                    }
+                    if (body.scrollHeight > body.clientHeight + 1) { html.style.zoom = ''; page.classList.add('flow'); }
+                });
+            }
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fitSheets); else fitSheets();
+            window.addEventListener('load', fitSheets);          // logo / signature images change the room left
+            window.addEventListener('beforeprint', fitSheets);
+        })();
+    </script>
 </body>
 </html>

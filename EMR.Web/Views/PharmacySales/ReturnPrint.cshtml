@@ -1,0 +1,20 @@
+@using EMR.Web.Services
+@model PhSaleReturnRow
+@{
+    Layout = null;
+    var h = (PhBranchHeader)ViewBag.Header; var bill = (PhSaleBill?)ViewBag.Bill; var lines = (List<PhSaleLine>)ViewBag.Lines;
+}
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Credit note @Model.ReturnNo</title>
+<style>body{font-family:Arial,sans-serif;font-size:12px;margin:0}.doc{width:148mm;margin:0 auto;padding:10px}h1{font-size:17px;margin:0;color:#644098}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:3px;text-align:left}.r{text-align:right}@@media print{.noprint{display:none}}</style></head>
+<body><div class="doc">
+    <div class="noprint" style="text-align:right"><button onclick="window.print()">Print</button></div>
+    <h1>@h.Name</h1><div>@h.Address @(h.Gstin != null ? " · GSTIN " + h.Gstin : "")</div>
+    <hr /><div style="display:flex;justify-content:space-between"><b>CREDIT NOTE (SALE RETURN)</b><span>@Model.ReturnNo · @Model.ReturnDate.ToString("dd-MMM-yyyy HH:mm")</span></div>
+    <div>Against bill <b>@Model.SaleNo</b> · @Model.CustomerName @(bill?.Mobile) · Reason: @Model.ReasonName</div><br />
+    <table><thead><tr><th>Item</th><th>Batch</th><th class="r">Qty</th><th class="r">GST%</th><th class="r">Taxable</th><th class="r">Amount</th></tr></thead>
+        <tbody>@foreach (var l in lines) { <tr><td>@l.FormShort @l.ItemName</td><td>@l.BatchNo</td><td class="r">@l.Qty.ToString("0.##") @l.SaleUom</td><td class="r">@l.GstPercent.ToString("0.##")</td><td class="r">@l.TaxableAmount.ToString("N2")</td><td class="r">@l.Amount.ToString("N2")</td></tr> }</tbody></table>
+    <p class="r"><b>Credit value ₹ @Model.NetAmount.ToString("N2")</b><br />@(Model.AdjustedAmount > 0 ? $"Set off against the bill's due: ₹ {Model.AdjustedAmount:N2}" : "")<br />@(Model.RefundAmount > 0 ? $"Refunded by {Model.RefundMode}: ₹ {Model.RefundAmount:N2}" : "")</p>
+    <div>@PharmacyPurchaseService.AmountInWords(Model.NetAmount)</div>
+    <br /><div style="display:flex;justify-content:space-between"><span>Received by (customer)</span><span>Pharmacist: @Model.CreatedByName</span></div>
+</div></body></html>

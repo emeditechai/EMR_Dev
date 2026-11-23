@@ -42,7 +42,7 @@ public class PatientListItemViewModel
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public DateTime CreatedDate { get; set; }
     public bool IsActive { get; set; }
     public string? ConsultingDoctorName { get; set; }
@@ -158,6 +158,10 @@ public class PatientRegistrationViewModel
     [Display(Name = "Address")]
     public string? Address { get; set; }
 
+    [RegularExpression(@"^\d{6}$", ErrorMessage = "Pincode must be 6 digits.")]
+    [Display(Name = "Pincode")]
+    public string? Pincode { get; set; }
+
     [MaxLength(500)]
     [Display(Name = "Home Collection Address")]
     public string? HomeCollectionAddress { get; set; }
@@ -171,6 +175,22 @@ public class PatientRegistrationViewModel
     [MaxLength(100)]
     [Display(Name = "Identification Number")]
     public string? IdentificationNumber { get; set; }
+
+    // Optional (SQLScripts/2355). Empty stays "" so a cleared field differs from a field the form did not show.
+    [DisplayFormat(ConvertEmptyStringToNull = false)]
+    [RegularExpression(@"^\s*\d{2}-?\d{4}-?\d{4}-?\d{4}\s*$", ErrorMessage = "ABHA Number must have 14 digits.")]
+    [Display(Name = "ABHA Number")]
+    public string? AbhaNumber { get; set; }
+
+    [DisplayFormat(ConvertEmptyStringToNull = false)]
+    [MaxLength(100)]
+    [Display(Name = "ABHA Address")]
+    public string? AbhaAddress { get; set; }
+
+    [DisplayFormat(ConvertEmptyStringToNull = false)]
+    [MaxLength(30)]
+    [Display(Name = "Ayushman Card No.")]
+    public string? AyushmanCardNo { get; set; }
 
     // Holds the stored file path (on server); uploaded via IFormFile
     public string? IdentificationFilePath { get; set; }
@@ -281,7 +301,7 @@ public class PatientQuickSearchResult
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
 }
 
 // ─── OPD Service Line Item DTO (used for JSON serialization) ─────────────────
@@ -306,7 +326,7 @@ public class ServiceBookingListItem
     public string? Gender { get; set; }
     public DateTime? DateOfBirth { get; set; }
     public int? Age { get; set; }
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public string? ConsultingDoctorName { get; set; }
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
@@ -332,6 +352,8 @@ public class ServiceBookingPagedListViewModel
     public string? Search { get; set; }
     public string? FromDate { get; set; }
     public string? ToDate { get; set; }
+    /// <summary>Payment Status filter (SQLScripts/2308): "" all, DUE, PARTIAL, PAID, PCAN, FCAN.</summary>
+    public string PaymentStatus { get; set; } = string.Empty;
     public int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 1;
     public bool HasPrev => Page > 1;
     public bool HasNext => Page < TotalPages;}
@@ -360,7 +382,7 @@ public class ServiceBookingDetailViewModel
     public int? Age => DateOfBirth.HasValue
         ? (int)((DateTime.Today - DateOfBirth.Value.Date).TotalDays / 365.25)
         : null;
-    public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+    public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
     public string? ConsultingDoctorName { get; set; }
     public DateTime VisitDate { get; set; }
     public TimeSpan? AppointmentTime { get; set; }
@@ -369,20 +391,6 @@ public class ServiceBookingDetailViewModel
     public decimal TotalAmount { get; set; }
     public string Status { get; set; } = string.Empty;
     public List<ServiceBookingDetailItem> Items { get; set; } = [];
-}
-
-// ─── Patient Visit History Item ──────────────────────────────────────────────
-public class PatientVisitHistoryItem
-{
-    public int OPDServiceId { get; set; }
-    public DateTime VisitDate { get; set; }
-    public string? OPDBillNo { get; set; }
-    public string? TokenNo { get; set; }
-    public decimal TotalAmount { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public string PaymentStatus { get; set; } = string.Empty;
-    public string? ConsultingDoctorName { get; set; }
-    public string ServiceTypesSummary { get; set; } = string.Empty;
 }
 
 // ─── Comprehensive Patient Details View Model ──────────────────────────────────
@@ -406,18 +414,22 @@ public class PatientDetailsViewModel
     public List<PatientVisitHistoryItem> VisitHistory { get; set; } = [];
     public List<EMR.Web.ApiClients.Models.VitalRow> VitalHistory { get; set; } = [];
     public List<PatientLabOrderHistoryItem> LabOrderHistory { get; set; } = [];
+
+    // Everything else linked to the patient
+    public string? RelationName { get; set; }
+    public string? RegisteredBranchName { get; set; }
+    public string? RegisteredByName { get; set; }
+    public string? ReferralDoctorName { get; set; }
+    public List<PatientFamilyItem> Family { get; set; } = [];
+    public List<PatientMembershipCardItem> MembershipCards { get; set; } = [];
+    public List<PatientCardMemberItem> CardMembers { get; set; } = [];
+    public List<PatientPointsItem> PointsLedger { get; set; } = [];
+    public List<PatientBillingSummaryItem> BillingSummary { get; set; } = [];
+
+    /// <summary>The card shown first: an active one, else the newest.</summary>
+    public PatientMembershipCardItem? CurrentCard =>
+        MembershipCards.FirstOrDefault(c => c.EffectiveStatus == "Active") ?? MembershipCards.FirstOrDefault();
 }
 
-public class PatientLabOrderHistoryItem
-{
-    public int LabOrderId { get; set; }
-    public DateTime OrderDate { get; set; }
-    public string BillNo { get; set; } = null!;
-    public decimal TotalAmount { get; set; }
-    public decimal DiscountAmount { get; set; }
-    public decimal PaidAmount { get; set; }
-    public string PaymentStatus { get; set; } = null!;
-    /// <summary>Tests already approved; &gt;0 means the approved lab report can be printed.</summary>
-    public int ApprovedTestCount { get; set; }
-}
-
+/// <summary>The UPI payment QR printed on a B2B tax invoice (SQLScripts/2452). Amount null = the payer enters it.</summary>
+public sealed record InvoicePayQr(string ImageDataUri, string UpiId, string PayeeName, decimal? Amount, string? Caption, string? Reference);

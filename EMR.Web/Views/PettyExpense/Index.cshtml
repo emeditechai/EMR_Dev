@@ -19,7 +19,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div><partial name="_AccHeader" /></div>
         <div class="d-flex gap-2">
-            <a asp-permission="@(Page + ":EXPORT")" asp-action="Export" asp-all-route-data="query" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+            <a asp-permission="@(Page + ":EXPORT")" asp-action="Export" asp-encrypted-all-route-data="query" class="btn btn-outline-success"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
             <a asp-permission="@(Page + ":CREATE")" asp-action="Create" class="btn btn-primary shadow-sm"><i class="bi bi-plus-lg me-1"></i>New Petty Expense</a>
         </div>
     </div>
@@ -104,7 +104,7 @@
             <span class="text-success">Approved <strong>₹@approved.Sum(e => e.TotalAmount).ToString("N2")</strong></span>
             @if (waiting.Count > 0)
             {
-                <a asp-action="Index" asp-route-fromDate="@Model.FromDate.ToString("yyyy-MM-dd")" asp-route-toDate="@Model.ToDate.ToString("yyyy-MM-dd")" asp-route-status="@AccStatus.Submitted" class="text-warning-emphasis text-decoration-none">
+                <a asp-action="Index" asp-encrypted-route-fromDate="@Model.FromDate.ToString("yyyy-MM-dd")" asp-encrypted-route-toDate="@Model.ToDate.ToString("yyyy-MM-dd")" asp-encrypted-route-status="@AccStatus.Submitted" class="text-warning-emphasis text-decoration-none">
                     <i class="bi bi-hourglass-split"></i> @waiting.Count waiting approval <strong>₹@waiting.Sum(e => e.TotalAmount).ToString("N2")</strong>
                 </a>
             }

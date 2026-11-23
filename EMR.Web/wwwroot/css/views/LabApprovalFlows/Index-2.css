@@ -1,0 +1,11 @@
+/* moved from Views/LabApprovalFlows/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+        .flow-filter-select + .select2-container { width: 100% !important; }
+        .flow-filter-select + .select2-container .select2-selection--single { height: calc(2.375rem + 2px); border: 1px solid #ced4da; border-radius: .375rem; display: flex; align-items: center; }
+        .flow-filter-select + .select2-container .select2-selection__rendered { padding-left: .75rem; padding-right: 2rem; color: #212529; line-height: 1.5; }
+        .flow-filter-select + .select2-container .select2-selection__rendered { order: 1; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+        .flow-filter-select + .select2-container .select2-selection__clear { order: 2; margin: 0 1.9rem 0 .25rem; float: none; color: #94a3b8; font-size: 1.15rem; line-height: 1; }
+        .flow-filter-select + .select2-container .select2-selection__clear:hover { color: #dc3545; }
+        .flow-filter-select + .select2-container .select2-selection__arrow { height: 100%; right: .5rem; }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] { background: #0d6efd; }
+        .select2-search--dropdown .select2-search__field { border: 1px solid #ced4da; border-radius: .375rem; padding: .35rem .6rem; }
+    

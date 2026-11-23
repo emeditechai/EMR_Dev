@@ -128,6 +128,8 @@ public class LabInvestigationsController(
                 Is_Consent_Required = model.Is_Consent_Required,
                 OVD_Document = model.OVD_Document,
                 Prescription_Required = model.Prescription_Required,
+                Has_External_Document = model.Has_External_Document,
+                Is_LMP_Date_Required = model.Is_LMP_Date_Required,
                 MRP = model.MRP,
                 Status = model.Status,
                 CompanyId = User.GetCompanyId(),
@@ -203,6 +205,8 @@ public class LabInvestigationsController(
                 Is_Consent_Required = item.Is_Consent_Required,
                 OVD_Document = item.OVD_Document,
                 Prescription_Required = item.Prescription_Required,
+                Has_External_Document = item.Has_External_Document,
+                Is_LMP_Date_Required = item.Is_LMP_Date_Required,
                 MRP = item.MRP,
                 Status = item.Status,
             };
@@ -271,6 +275,8 @@ public class LabInvestigationsController(
                 Is_Consent_Required = model.Is_Consent_Required,
                 OVD_Document = model.OVD_Document,
                 Prescription_Required = model.Prescription_Required,
+                Has_External_Document = model.Has_External_Document,
+                Is_LMP_Date_Required = model.Is_LMP_Date_Required,
                 MRP = model.MRP,
                 Status = model.Status,
                 UserId = User.GetUserId()

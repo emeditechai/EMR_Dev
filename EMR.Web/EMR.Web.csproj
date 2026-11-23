@@ -11,6 +11,7 @@
     <PackageReference Include="BCrypt.Net-Next" Version="4.1.0" />
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="FluentFTP" Version="55.1.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.2">
@@ -22,15 +23,38 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="PDFtoImage" Version="5.4.0" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
     <PackageReference Include="QuestPDF" Version="2026.9.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EMR.Shared.Security\EMR.Shared.Security.csproj" />
+    <ProjectReference Include="..\EMR.Common\EMR.Common.csproj" />
+    <!-- IPD views compile into their own assembly (EMR.Web.dll is at the CS8103 string-literal limit) -->
   </ItemGroup>
 
   <ItemGroup>
     <!-- offline handwriting model for LAB billing AI assist (git-ignored; fetched with Tools/AiModels/download-trocr.*) -->
     <None Include="AiModels\**\*" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <!-- Publish: wwwroot/uploads holds each server's own uploaded files (logos, photos, documents). It is not part of the
+       build's static assets and never copied out by a publish (served from disk by UseStaticFiles), and a Web Deploy publish never deletes or replaces it on the server
+       (e.g. C:\inetpub\clickplusEMR\web\wwwroot\uploads). -->
+  <ItemGroup>
+    <Content Remove="wwwroot\uploads\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <MsDeploySkipRules Include="SkipUploadsFolder">
+      <ObjectName>dirPath</ObjectName>
+      <AbsolutePath>wwwroot\\uploads$</AbsolutePath>
+    </MsDeploySkipRules>
+    <MsDeploySkipRules Include="SkipUploadsFiles">
+      <ObjectName>filePath</ObjectName>
+      <AbsolutePath>wwwroot\\uploads\\.*</AbsolutePath>
+    </MsDeploySkipRules>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- SQLScripts/2411: standard pharmacy starter item list for Item Master > Import -->
+    <None Update="App_Data\pharmacy-standard-items.csv" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

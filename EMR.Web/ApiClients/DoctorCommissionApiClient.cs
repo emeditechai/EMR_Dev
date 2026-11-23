@@ -114,7 +114,8 @@ public class DoctorCommissionApiClient(IHttpClientFactory factory) : IDoctorComm
             model.EffectiveFrom,
             model.EffectiveTo,
             model.IsActive,
-            UserId = userId
+            UserId = userId,
+            ServiceIds = model.RevenueType == "Service" ? model.ServiceIds : null   // SQLScripts/2517
         };
 
         var res = await _http.PostAsJsonAsync("api/doctor-commission-configs", payload);
@@ -122,6 +123,59 @@ public class DoctorCommissionApiClient(IHttpClientFactory factory) : IDoctorComm
         var result = await res.Content.ReadFromJsonAsync<ApiResponse<int>>();
         return result?.Data ?? 0;
     }
+
+    /// <summary>SQLScripts/2517: the services a 'Service' rule can name (ServiceId, ItemCode, ItemName, IsActive).</summary>
+    public async Task<List<(int ServiceId, string Text, bool IsActive)>> GetCommissionServiceOptionsAsync(int companyId, int? branchId)
+    {
+        var url = $"api/doctor-commission-configs/service-options?companyId={companyId}" + (branchId is > 0 ? $"&branchId={branchId}" : "");
+        var res = await _http.GetFromJsonAsync<ApiResponse<List<ServiceOptionRow>>>(url);
+        return (res?.Data ?? []).Select(r => (r.ServiceId, string.IsNullOrWhiteSpace(r.ItemCode) ? r.ItemName : $"{r.ItemName} ({r.ItemCode})", r.IsActive)).ToList();
+    }
+
+    private sealed class ServiceOptionRow
+    {
+        public int ServiceId { get; set; }
+        public string? ItemCode { get; set; }
+        public string ItemName { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+
+    // ── SQLScripts/2518: commission profiles (scope + share lines) ─────────────────────────────────────────────────
+    public async Task<List<DoctorCommissionProfileListItemViewModel>> GetCommissionProfilesAsync(int? branchId, int? doctorId, int? specialityId, bool? isActive, string? search)
+    {
+        var q = new List<string>();
+        if (branchId is > 0) q.Add($"branchId={branchId}");
+        if (doctorId is > 0) q.Add($"doctorId={doctorId}");
+        if (specialityId is > 0) q.Add($"specialityId={specialityId}");
+        if (isActive.HasValue) q.Add($"isActive={isActive.Value.ToString().ToLowerInvariant()}");
+        if (!string.IsNullOrWhiteSpace(search)) q.Add($"search={Uri.EscapeDataString(search)}");
+        var res = await _http.GetFromJsonAsync<ApiResponse<List<DoctorCommissionProfileListItemViewModel>>>("api/doctor-commission-profiles" + (q.Count > 0 ? "?" + string.Join("&", q) : ""));
+        return res?.Data ?? [];
+    }
+
+    public async Task<DoctorCommissionConfigFormViewModel?> GetCommissionProfileAsync(int profileId)
+    {
+        var res = await _http.GetAsync($"api/doctor-commission-profiles/{profileId}");
+        if (!res.IsSuccessStatusCode) return null;
+        return (await res.Content.ReadFromJsonAsync<ApiResponse<DoctorCommissionConfigFormViewModel>>())?.Data;
+    }
+
+    /// <summary>Saves the whole profile; returns its id, or the reason it was refused.</summary>
+    public async Task<(int ProfileId, string? Error)> SaveCommissionProfileAsync(DoctorCommissionConfigFormViewModel m)
+    {
+        var res = await _http.PostAsJsonAsync("api/doctor-commission-profiles", new
+        {
+            ProfileId = m.ProfileId > 0 ? m.ProfileId : (int?)null, m.BranchId, m.DoctorId, m.SpecialityId, m.ProcedureId, m.ServiceId,
+            m.CorporateId, m.InsuranceTPAId, m.EffectiveFrom, m.EffectiveTo, m.ApprovalRequired, m.IsActive, m.Lines
+        });
+        ApiResponse<int>? body = null;
+        try { body = await res.Content.ReadFromJsonAsync<ApiResponse<int>>(); } catch (System.Text.Json.JsonException) { }
+        return res.IsSuccessStatusCode && body is { Success: true } ? (body.Data, null)
+            : (0, body?.Message is { Length: > 0 } msg ? msg : $"The commission profile was not saved ({(int)res.StatusCode}).");
+    }
+
+    public async Task<bool> DeleteCommissionProfileAsync(int profileId) =>
+        (await _http.DeleteAsync($"api/doctor-commission-profiles/{profileId}")).IsSuccessStatusCode;
 
     public async Task<bool> DeleteCommissionConfigAsync(int id)
     {

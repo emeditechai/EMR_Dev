@@ -1,0 +1,8 @@
+/* OPD > Doctor Commission Configuration (SQLScripts/2518): the share lines table */
+.dc-lines td { vertical-align: middle; }
+.dc-lines .dc-svc-cell { min-width: 260px; }
+/* the services box grows with the picked services instead of squeezing them */
+.dc-lines .ts-wrapper.multi .ts-control { min-height: 31px; flex-wrap: wrap; row-gap: 2px; padding-top: 3px; padding-bottom: 3px; }
+.dc-lines .ts-wrapper.multi .ts-control > .item { font-size: .8rem; }
+/* the list is drawn on the page (dropdownParent: body): above cards, sticky headers and the footer bar */
+body > .ts-dropdown { z-index: 1065; box-shadow: 0 .5rem 1rem rgba(15, 23, 42, .15); }

@@ -26,9 +26,9 @@ namespace EMR.Api.Controllers
                 var response = await labOrderService.CreateOrderAsync(request, userId);
                 return Ok(new { isSuccess = true, data = response });
             }
-            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50000 && ex.Class == 16)
+            catch (Microsoft.Data.SqlClient.SqlException ex) when ((ex.Number == 50000 && ex.Class == 16) || ex.Number is >= 56402 and <= 56404)
             {
-                // a rule of usp_CreateLabOrder (e.g. an item not on the branch's rate list - script 2199): tell the user why
+                // a rule of usp_CreateLabOrder, or of the LMP date (usp_LabOrder_SetLmp, 2453) (e.g. an item not on the branch's rate list - script 2199): tell the user why
                 return BadRequest(new { message = ex.Message });
             }
         }
@@ -83,11 +83,12 @@ namespace EMR.Api.Controllers
             [FromQuery] string? dateType = null,
             [FromQuery] string? paymentFilter = null,
             [FromQuery] string? agentType = null,
-            [FromQuery] int? agentId = null)
+            [FromQuery] int? agentId = null,
+            [FromQuery] int? createdBy = null)
         {
             if (branchId <= 0) return BadRequest("BranchId is required.");
 
-            var data = await labOrderService.GetPagedOrdersAsync(branchId, fromDate, toDate, search, pageNumber, pageSize, isB2B, dateType, paymentFilter, agentType, agentId);
+            var data = await labOrderService.GetPagedOrdersAsync(branchId, fromDate, toDate, search, pageNumber, pageSize, isB2B, dateType, paymentFilter, agentType, agentId, createdBy);
             return Ok(data);
         }
 

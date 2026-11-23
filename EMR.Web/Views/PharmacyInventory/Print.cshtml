@@ -1,0 +1,24 @@
+@using EMR.Web.Services
+@model PhInvDoc
+@{
+    Layout = null; var h = (PhBranchHeader)ViewBag.Header; var d = Model;
+    var title = d.Kind switch { "TRANSFER" => "STOCK TRANSFER NOTE (DELIVERY CHALLAN)", "WRITEOFF" => "EXPIRY / DAMAGE WRITE-OFF & DESTRUCTION RECORD", _ => "STOCK ADJUSTMENT" };
+}
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>@title @(d.TransferNo ?? d.DocNo)</title>
+<style>body{font-family:Arial,sans-serif;font-size:11.5px;margin:0}.doc{max-width:200mm;margin:0 auto;padding:10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:4px}th{background:#f1ecff}.r{text-align:right}@@media print{.noprint{display:none}}</style></head>
+<body><div class="doc">
+    <div class="noprint" style="text-align:right"><button onclick="window.print()">Print</button></div>
+    <h1 style="font-size:16px;color:#644098;margin:0">@h.Name</h1><div>@h.Address @(h.Gstin != null ? " · GSTIN " + h.Gstin : "") @(h.Licence20B != null ? " · D.L. " + h.Licence20B : "")</div><hr />
+    <div style="display:flex;justify-content:space-between"><b>@title</b><span>@(d.TransferNo ?? d.DocNo) · @((d.DispatchDate ?? d.DocDate).ToString("dd-MMM-yyyy"))</span></div>
+    @if (d.Kind == "TRANSFER") { <div>From <b>@d.FromBranch</b> to <b>@d.ToBranch</b> · indent @d.DocNo@(d.IsOtherGstin ? " · different GSTINs" : "") · @d.DispatchRemarks</div> }
+    else { <div>Reason: <b>@d.ReasonName</b> · @d.Remarks</div> }
+    <br />
+    <table><thead><tr><th>#</th><th>Item</th><th>Batch</th><th>Expiry</th><th class="r">Qty</th><th class="r">Cost / unit</th><th class="r">Value</th>@if (d.Kind == "TRANSFER") { <th class="r">Received</th> }</tr></thead>
+    <tbody>@{ var n = 0; decimal tot = 0; }
+    @foreach (var l in d.Lines.Where(l => d.Kind != "TRANSFER" || l.DispatchQty > 0)) { var q = d.Kind == "TRANSFER" ? l.DispatchQty : l.Qty; tot += q * l.UnitCost;
+        <tr><td>@(++n)</td><td>@l.FormShort @l.ItemName</td><td>@l.BatchNo</td><td>@l.ExpiryDate?.ToString("MM/yy")</td><td class="r">@q.ToString("0.##") @l.SaleUom</td><td class="r">@l.UnitCost.ToString("0.00")</td><td class="r">@((q * l.UnitCost).ToString("N2"))</td>@if (d.Kind == "TRANSFER") { <td class="r">@l.ReceivedQty?.ToString("0.##")</td> }</tr> }
+    <tr><td colspan="6" class="r"><b>Total at cost</b></td><td class="r"><b>@tot.ToString("N2")</b></td>@if (d.Kind == "TRANSFER") { <td></td> }</tr></tbody></table>
+    @if (d.Kind == "WRITEOFF") { <p><b>Destruction:</b> @d.DisposalMethod @(d.DisposalAgency != null ? "by " + d.DisposalAgency : "") on @d.DisposalDate?.ToString("dd-MMM-yyyy") · certificate @d.CertificateNo<br />Witnesses: @d.Witness1 @(d.Witness2 != null ? ", " + d.Witness2 : "")</p> }
+    <br /><div style="display:flex;justify-content:space-between"><span>Prepared by: @d.CreatedByName</span><span>@(d.ApprovedByName != null ? "Approved by: " + d.ApprovedByName : "")</span><span>@(d.Kind == "TRANSFER" ? "Received by: ____________" : "Pharmacist: " + h.Pharmacist)</span></div>
+</div></body></html>

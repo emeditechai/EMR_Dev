@@ -40,7 +40,7 @@ public class DoctorFormViewModel
     public string EmailId { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Phone Number is required.")]
-    [RegularExpression(@"^[0-9+\-() ]{8,20}$", ErrorMessage = "Enter a valid phone number.")]
+    [RegularExpression(@"^(?:\+?91[\- ]?|0)?[6-9]\d{9}$", ErrorMessage = "Enter a valid 10-digit mobile number (starts with 6-9; +91 optional).")]
     [Display(Name = "Phone Number")]
     public string PhoneNumber { get; set; } = string.Empty;
 
@@ -59,11 +59,29 @@ public class DoctorFormViewModel
     [Display(Name = "Joining Date")]
     public DateTime? JoiningDate { get; set; }
 
+    /// <summary>Master > General > Marketing Executive (SQLScripts/2440 / 2441): optional, an active executive.</summary>
+    [Display(Name = "Marketing Executive")]
+    public int? MarketingExecutiveId { get; set; }
+
+    /// <summary>Active executives grouped by type (OPD / LAB / IPD / MED); an inactive one already on the doctor is added, marked.</summary>
+    public List<SelectListItem> MarketingExecutiveOptions { get; set; } = new();
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 
     [Display(Name = "Is Referral Doctor")]
     public bool IsReferralDoctor { get; set; }
+
+    /// <summary>SQLScripts/2484: a suspended doctor needs a reason (asked in a popup, checked by the server).</summary>
+    [Display(Name = "Is Suspended")]
+    public bool IsSuspended { get; set; }
+
+    [Display(Name = "Reason for suspension"), StringLength(500)]
+    public string? SuspendReason { get; set; }
+
+    /// <summary>Shown on the Edit page: when and by whom the doctor was suspended.</summary>
+    public DateTime? SuspendedAt { get; set; }
+    public string? SuspendedByName { get; set; }
 
     // ── Login Account Section ─────────────────────────────────────────────────
     /// <summary>Flag: if true, create/update a linked User login account for this doctor.</summary>
@@ -106,6 +124,34 @@ public class DoctorFormViewModel
     public List<SelectListItem> DepartmentOptions { get; set; } = [];
 }
 
+/// <summary>Master > Doctor Master list, one page of doctors from the server (SQLScripts/2315).</summary>
+public class DoctorListPageViewModel
+{
+    public List<DoctorListItemViewModel> Items { get; set; } = new();
+    public int TotalDoctors { get; set; }
+    public int ActiveDoctors { get; set; }
+    public int InactiveDoctors { get; set; }
+    public int OpdDoctors { get; set; }
+    public int WithFees { get; set; }
+    public int FilteredCount { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; } = 25;
+    public string? Search { get; set; }
+    public string? Status { get; set; }
+    public string? Referral { get; set; }
+    public string? Speciality { get; set; }
+    public string? Department { get; set; }
+    /// <summary>2469: OPD / LAB / IPD / MED - doctors having a department of that type.</summary>
+    public string? DeptType { get; set; }
+    public int? DoctorId { get; set; }
+    public List<string> Specialities { get; set; } = new();
+    /// <summary>Department name and its type (OPD / IPD / LAB) for the filter labels.</summary>
+    public List<(string Name, string Type)> Departments { get; set; } = new();
+    public int TotalPages => PageSize > 0 ? Math.Max(1, (int)Math.Ceiling(FilteredCount / (double)PageSize)) : 1;
+    public bool HasFilter => !string.IsNullOrWhiteSpace(Search) || !string.IsNullOrWhiteSpace(Status) || !string.IsNullOrWhiteSpace(Referral)
+                             || !string.IsNullOrWhiteSpace(Speciality) || !string.IsNullOrWhiteSpace(Department) || !string.IsNullOrWhiteSpace(DeptType) || DoctorId is > 0;
+}
+
 public class DoctorListItemViewModel
 {
     public int DoctorId { get; set; }
@@ -120,6 +166,12 @@ public class DoctorListItemViewModel
     /// <summary>True when doctor has at least one OPD-type department mapped.</summary>
     public bool HasOPDDept { get; set; }
     public bool IsReferralDoctor { get; set; }
+    /// <summary>SQLScripts/2484.</summary>
+    public bool IsSuspended { get; set; }
+    public string? SuspendReason { get; set; }
+    /// <summary>Marketing executive tagged on the doctor (SQLScripts/2441), shown as a tag.</summary>
+    public string? MarketingExecutiveName { get; set; }
+    public string? MarketingExecutiveType { get; set; }
 }
 
 public class ConsultingFeeItemDto
@@ -162,6 +214,19 @@ public class DoctorDetailsViewModel
     public DateTime? JoiningDate { get; set; }
     public bool IsActive { get; set; }
     public bool IsReferralDoctor { get; set; }
+
+    // Suspension (SQLScripts/2484)
+    public bool IsSuspended { get; set; }
+    public string? SuspendReason { get; set; }
+    public DateTime? SuspendedAt { get; set; }
+    public string? SuspendedByName { get; set; }
+
+    // Marketing executive (SQLScripts/2441)
+    public string? MarketingExecutiveName { get; set; }
+    public string? MarketingExecutiveCode { get; set; }
+    public string? MarketingExecutiveType { get; set; }
+    public string? MarketingExecutivePhone { get; set; }
+    public bool MarketingExecutiveActive { get; set; }
 
     public List<string> BranchNames { get; set; } = [];
     public List<string> DepartmentNames { get; set; } = [];

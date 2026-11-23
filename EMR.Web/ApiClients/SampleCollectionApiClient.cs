@@ -22,7 +22,9 @@ namespace EMR.Web.ApiClients
             DateTime? toDate,
             string? dateFilterType = "BookingDate",
             string? statusFilter = "All",
-            string? search = null)
+            string? search = null,
+            int? createdBy = null,   // 2266: a franchise login's own orders only
+            string? collectionType = null)   // 2390: Lab / Home Collection; null = all
         {
             string query = $"?branchId={branchId}";
             if (fromDate.HasValue) query += $"&fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}";
@@ -30,6 +32,8 @@ namespace EMR.Web.ApiClients
             if (!string.IsNullOrEmpty(dateFilterType)) query += $"&dateFilterType={Uri.EscapeDataString(dateFilterType)}";
             if (!string.IsNullOrEmpty(statusFilter)) query += $"&statusFilter={Uri.EscapeDataString(statusFilter)}";
             if (!string.IsNullOrEmpty(search)) query += $"&search={Uri.EscapeDataString(search)}";
+            if (createdBy is > 0) query += $"&createdBy={createdBy.Value}";
+            if (!string.IsNullOrEmpty(collectionType)) query += $"&collectionType={Uri.EscapeDataString(collectionType)}";
 
             var response = await httpClient.GetAsync($"api/SampleCollection/headers{query}");
             response.EnsureSuccessStatusCode();

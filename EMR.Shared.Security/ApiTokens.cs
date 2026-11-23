@@ -44,10 +44,30 @@ public static class TokenUse
     public const string Service = "service";
     /// <summary>Issued by api/auth to an outside client; each call must pass the endpoint permission map.</summary>
     public const string Access = "access";
+    /// <summary>Issued by api/auth/web-token to EMR.Web for one signed-in user's session (AccessTokenMinutes). Trusted like obo.</summary>
+    public const string WebAccess = "web";
     /// <summary>Short ticket between api/auth/login and api/auth/context when the user must pick a branch / role.</summary>
     public const string Login = "login";
+    /// <summary>Issued by api/auth/patient-login / patient-refresh to the patient app (AccessTokenMinutes); opens only [PatientOwnData] endpoints for its patient_id.</summary>
+    public const string Patient = "patient";
+    /// <summary>Short ticket from api/auth/patient-login to api/auth/patient-password/first-change.</summary>
+    public const string PatientPasswordChange = "patient_pwd";
+    /// <summary>Short ticket in a patient-app download link (EMR.Web api/patient-app/files): opens one document of one patient.</summary>
+    public const string PatientDocument = "patient_doc";
+    public const string DocumentClaim = "doc";
 
     public const string PatientIdClaim = "patient_id";
+    /// <summary>On a head of family's patient token: the dependents' patient ids (comma-separated), whose records the token also opens.</summary>
+    public const string PatientFamilyClaim = "patient_family";
+
+    /// <summary>The patient ids a patient token opens: its own, then the dependents'.</summary>
+    public static IReadOnlyList<string> PatientIds(System.Security.Claims.ClaimsPrincipal user)
+    {
+        var own = user.FindFirst(PatientIdClaim)?.Value;
+        if (string.IsNullOrEmpty(own)) return Array.Empty<string>();
+        var family = user.FindFirst(PatientFamilyClaim)?.Value;
+        return string.IsNullOrEmpty(family) ? new[] { own } : new[] { own }.Concat(family.Split(',', StringSplitOptions.RemoveEmptyEntries)).ToArray();
+    }
 }
 
 public interface IApiTokenService

@@ -1,0 +1,195 @@
+@model List<string>
+@{
+    Layout = null;
+    string franchiseName = ViewBag.FranchiseName ?? "Franchise";
+    string franchiseCode = ViewBag.FranchiseCode ?? "";
+    string seriesCode = ViewBag.SeriesCode ?? "";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Barcode Labels - @seriesCode</title>
+    <style>
+        /* Standard thermal barcode label: 50mm x 25mm (2" x 1"), one label per printed page. */
+        @@page {
+            size: 50mm 25mm;
+            margin: 0;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f1f5f9;
+            color: #000;
+            margin: 0;
+            padding: 16px;
+        }
+
+        .no-print-bar {
+            background: #1e293b;
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .no-print-bar .meta { font-size: 13px; line-height: 1.4; }
+        .no-print-bar .meta .sub { color: #94a3b8; font-size: 11.5px; }
+
+        .btn-print {
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            padding: 7px 18px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* On-screen preview: stacked vertically, one label per row, as printed on a thermal roll. */
+        .labels-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .label {
+            width: 50mm;
+            height: 25mm;
+            background: #fff;
+            border: 1px dashed #cbd5e1;
+            padding: 1mm 2mm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .label .franchise-code {
+            font-size: 7pt;
+            font-weight: bold;
+            letter-spacing: 0.2pt;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 46mm;
+            margin-bottom: 0.5mm;
+        }
+
+        .label .barcode-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .label .barcode-wrap svg {
+            width: 46mm;
+            height: 15mm;
+        }
+
+        @@media print {
+            body {
+                background: #fff;
+                padding: 0;
+                margin: 0;
+            }
+
+            .no-print-bar {
+                display: none !important;
+            }
+
+            .labels-stack {
+                gap: 0;
+            }
+
+            .label {
+                border: none;
+                width: 50mm;
+                height: 25mm;
+                margin: 0;
+            }
+
+            /* Break BEFORE every label except the first - "after, except last" can leave a queued
+               break with nothing behind it when the final label lands exactly on a page boundary,
+               which prints a trailing blank sheet. "before, except first" cannot do that. */
+            .label:not(:first-child) {
+                page-break-before: always;
+                break-before: page;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print-bar">
+        <div class="meta">
+            <strong>Thermal Barcode Labels</strong> (@Model.Count label@(Model.Count != 1 ? "s" : ""), 50mm x 25mm)
+            <div class="sub">@franchiseName (@franchiseCode) &middot; Series @seriesCode</div>
+        </div>
+        @if (Model.Count > 0)
+        {
+            <button class="btn-print" onclick="window.print()">Print Now</button>
+        }
+    </div>
+
+    @if (Model.Count == 0)
+    {
+        <div style="background: #fff; padding: 40px 20px; text-align: center; border-radius: 8px; border: 1px dashed #cbd5e1;">
+            <h3 style="color: #64748b; font-size: 16px; margin-bottom: 8px;">No Barcode Labels Available</h3>
+            <p style="color: #94a3b8; font-size: 13px;">This series has no barcodes.</p>
+        </div>
+    }
+    else
+    {
+        <div class="labels-stack">
+            @for (int i = 0; i < Model.Count; i++)
+            {
+                <div class="label">
+                    <div class="franchise-code">@franchiseCode</div>
+                    <div class="barcode-wrap">
+                        <svg id="labelSvg_@i" data-barcode="@Model[i]"></svg>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <script src="~/lib/jsbarcode/dist/JsBarcode.all.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const count = @Model.Count;
+            for (let i = 0; i < count; i++) {
+                const svg = document.getElementById('labelSvg_' + i);
+                if (svg) {
+                    const code = svg.getAttribute('data-barcode');
+                    if (code) {
+                        try {
+                            JsBarcode(svg, code, {
+                                format: "CODE128",
+                                width: 1,
+                                height: 30,
+                                displayValue: true,
+                                fontSize: 9,
+                                textMargin: 1,
+                                margin: 0
+                            });
+                        } catch (e) {
+                            console.warn(e);
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

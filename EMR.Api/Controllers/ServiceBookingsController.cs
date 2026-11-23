@@ -16,7 +16,8 @@ public class ServiceBookingsController(IServiceBookingService svc) : ControllerB
         [FromQuery] string? toDate     = null,
         [FromQuery] int     page       = 1,
         [FromQuery] int     pageSize   = 10,
-        [FromQuery] string? search     = null)
+        [FromQuery] string? search     = null,
+        [FromQuery] string? paymentStatus = null)
     {
         if (page < 1) page = 1;
         if (pageSize is < 1 or > 200) pageSize = 10;
@@ -24,7 +25,7 @@ public class ServiceBookingsController(IServiceBookingService svc) : ControllerB
         DateTime? from = DateTime.TryParse(fromDate, out var fd) ? fd : null;
         DateTime? to   = DateTime.TryParse(toDate,   out var td) ? td : null;
 
-        var result = await svc.GetPagedAsync(branchId, from, to, page, pageSize, search?.Trim());
+        var result = await svc.GetPagedAsync(branchId, from, to, page, pageSize, search?.Trim(), paymentStatus?.Trim().ToUpperInvariant() is "DUE" or "PARTIAL" or "PAID" or "PCAN" or "FCAN" ? paymentStatus.Trim().ToUpperInvariant() : null);
         return Ok(ApiResponse<ServiceBookingPagedResult>.Ok(result));
     }
 
@@ -37,6 +38,16 @@ public class ServiceBookingsController(IServiceBookingService svc) : ControllerB
             return NotFound(ApiResponse<ServiceBookingDetail>.Fail($"Service booking {id} not found."));
 
         return Ok(ApiResponse<ServiceBookingDetail>.Ok(detail));
+    }
+
+    // GET /api/servicebookings/{id}/prescription-pad?branchId=1 - the doctor prescription pad of a visit (SQLScripts/2527)
+    [HttpGet("{id:int}/prescription-pad")]
+    public async Task<IActionResult> GetPrescriptionPad(int id, [FromQuery] int? branchId = null)
+    {
+        var pad = await svc.GetPrescriptionPadAsync(id, branchId);
+        if (pad is null)
+            return NotFound(ApiResponse<PrescriptionPadInfo>.Fail($"Service booking {id} not found."));
+        return Ok(ApiResponse<PrescriptionPadInfo>.Ok(pad));
     }
 
     // PUT /api/servicebookings/{id}/status?status=Completed&userId=1

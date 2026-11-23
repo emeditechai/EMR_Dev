@@ -169,6 +169,11 @@ public class PathologistDashboardController(
         if (model == null || model.LabOrderId <= 0 || model.SamplecollectionIds == null || model.SamplecollectionIds.Count == 0)
             return Json(new { success = false, message = "Select at least one test to approve." });
 
+        // LF-05 (SQLScripts/2254): a parameter with a rejected internal QC run (no corrective action yet) cannot be approved
+        var iqcBlock = await EMR.Web.Controllers.Quality.IqcGate.BlockAsync(HttpContext, model.LabOrderId, model.SamplecollectionIds);
+        if (iqcBlock != null)
+            return Json(new { success = false, code = "IQC_REJECTED", message = iqcBlock });
+
         var branchId = CurrentBranchId();
         var userId = User.GetUserId();
 

@@ -91,6 +91,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                 d.JoiningDate,
                 d.IsActive,
                 d.IsReferralDoctor,
+                d.IsSuspended, d.SuspendReason, d.SuspendedAt, su.FullName AS SuspendedByName,
                 d.CreatedDate,
                 d.ModifiedDate,
                 d.LinkedUserId,
@@ -100,6 +101,7 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             INNER JOIN DoctorSpecialityMaster ps ON ps.SpecialityId = d.PrimarySpecialityId
             LEFT JOIN DoctorSpecialityMaster ss ON ss.SpecialityId = d.SecondarySpecialityId
             LEFT JOIN Users u ON u.Id = d.LinkedUserId
+            LEFT JOIN Users su ON su.Id = d.SuspendedBy
             WHERE d.DoctorId = @id
               AND (
                   @branchId IS NULL
@@ -186,19 +188,21 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             var doctorId = await con.ExecuteScalarAsync<int>(@"
                 INSERT INTO DoctorMaster
                 (
-                    NamePrefix, FullName, Gender, DateOfBirth, EmailId, PhoneNumber, MedicalLicenseNo,
+                    CompanyId, NamePrefix, FullName, Gender, DateOfBirth, EmailId, PhoneNumber, MedicalLicenseNo,
                     PrimarySpecialityId, SecondarySpecialityId, JoiningDate, IsActive, IsReferralDoctor,
                     CreatedBranchId, LinkedUserId, CreatedBy, CreatedDate
                 )
                 VALUES
                 (
-                    @NamePrefix, @FullName, @Gender, @DateOfBirth, @EmailId, @PhoneNumber, @MedicalLicenseNo,
+                    @CompanyId, @NamePrefix, @FullName, @Gender, @DateOfBirth, @EmailId, @PhoneNumber, @MedicalLicenseNo,
                     @PrimarySpecialityId, @SecondarySpecialityId, @JoiningDate, @IsActive, @IsReferralDoctor,
                     @CreatedBranchId, @LinkedUserId, @userId, GETDATE()
                 );
                 SELECT CAST(SCOPE_IDENTITY() AS INT);",
                 new
                 {
+                    // the doctor belongs to the company it is created in (Doctor Master is company-wise)
+                    CompanyId = doctor.CompanyId > 0 ? doctor.CompanyId : 1,
                     doctor.NamePrefix,
                     doctor.FullName,
                     doctor.Gender,
@@ -219,8 +223,8 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             foreach (var branchId in branchIds.Distinct())
             {
                 await con.ExecuteAsync(@"
-                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, IsActive, CreatedBy, CreatedDate)
-                    VALUES (@doctorId, @branchId, 1, @userId, GETDATE())",
+                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, CompanyId, IsActive, CreatedBy, CreatedDate)
+                    VALUES (@doctorId, @branchId, ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @branchId), 1), 1, @userId, GETDATE())",
                     new { doctorId, branchId, userId }, tx);
             }
 
@@ -270,6 +274,10 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     JoiningDate           = @JoiningDate,
                     IsActive              = @IsActive,
                     IsReferralDoctor      = @IsReferralDoctor,
+                    IsSuspended           = @IsSuspended,     -- SQLScripts/2484: reason / who / when set by the controller
+                    SuspendReason         = @SuspendReason,
+                    SuspendedBy           = @SuspendedBy,
+                    SuspendedAt           = @SuspendedAt,
                     LinkedUserId          = @LinkedUserId,
                     ModifiedBy            = @userId,
                     ModifiedDate          = GETDATE()
@@ -289,6 +297,10 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
                     doctor.JoiningDate,
                     doctor.IsActive,
                     doctor.IsReferralDoctor,
+                    doctor.IsSuspended,
+                    doctor.SuspendReason,
+                    doctor.SuspendedBy,
+                    doctor.SuspendedAt,
                     doctor.LinkedUserId,
                     userId
                 }, tx);
@@ -299,8 +311,8 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             foreach (var branchId in branchIds.Distinct())
             {
                 await con.ExecuteAsync(@"
-                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, IsActive, CreatedBy, CreatedDate)
-                    VALUES (@doctorId, @branchId, 1, @userId, GETDATE())",
+                    INSERT INTO DoctorBranchMap (DoctorId, BranchId, CompanyId, IsActive, CreatedBy, CreatedDate)
+                    VALUES (@doctorId, @branchId, ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @branchId), 1), 1, @userId, GETDATE())",
                     new { doctorId = doctor.DoctorId, branchId, userId }, tx);
             }
 
@@ -319,5 +331,27 @@ public class DoctorService(IDbConnectionFactory db) : IDoctorService
             tx.Rollback();
             throw;
         }
+    }
+
+    // ── Suspension (SQLScripts/2484) ─────────────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// The refusal for a suspended doctor in a booking - as referral doctor (LAB B2C / B2B) or consulting doctor (OPD) -
+    /// with the doctor's name and the reason; null when the doctor may be used. keepOpdServiceId: an OPD visit being
+    /// edited - a doctor already on that visit is kept (only changing TO a suspended doctor is refused).
+    /// </summary>
+    public async Task<string?> SuspensionBlockAsync(int? doctorId, string role, int? keepOpdServiceId = null)
+    {
+        if (doctorId is not > 0) return null;
+        using var con = db.CreateConnection();
+        var d = await con.QueryFirstOrDefaultAsync<(string? Name, bool IsSuspended, string? Reason)>(
+            "SELECT LTRIM(RTRIM(ISNULL(NamePrefix + ' ', '') + FullName)), IsSuspended, SuspendReason FROM DoctorMaster WHERE DoctorId = @doctorId",
+            new { doctorId });
+        if (!d.IsSuspended) return null;
+        if (keepOpdServiceId is > 0)
+        {
+            var current = await con.ExecuteScalarAsync<int?>("SELECT ConsultingDoctorId FROM PatientOPDService WHERE OPDServiceId = @id", new { id = keepOpdServiceId });
+            if (current == doctorId) return null;   // the visit already has this doctor: not a new booking with them
+        }
+        return $"{d.Name} is suspended and cannot be chosen as {role}. Reason: {d.Reason}";
     }
 }

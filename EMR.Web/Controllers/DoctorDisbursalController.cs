@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
 using EMR.Web.Extensions;
@@ -58,6 +59,14 @@ public class DoctorDisbursalController(
             ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
         }));
 
+    /// <summary>SQLScripts/2519: one bill's share item by item (consultation / service / registration lines, rule, share).</summary>
+    [HttpGet]
+    public Task<IActionResult> VisitItemsData(int visitId) =>
+        PassThrough(payoutApi.GetAsync("visit-items", new Dictionary<string, string?>
+        {
+            ["branchId"] = BranchId.ToString(), ["visitId"] = visitId.ToString()
+        }));
+
     [HttpGet]
     public Task<IActionResult> SettlementsData(string? fromDate, string? toDate, string? status, int? doctorId)
     {
@@ -78,12 +87,23 @@ public class DoctorDisbursalController(
 
     /// <summary>Who may approve settlements at this branch (Super Admins and users allowed Approve / reject settlement).</summary>
     [HttpGet]
-    public Task<IActionResult> ApproversData() =>
-        PassThrough(payoutApi.GetAsync("approvers", new Dictionary<string, string?>
+    public async Task<IActionResult> ApproversData()
+    {
+        // working out every user's effective permission is slow (seconds); the list changes rarely, so it is kept 5 minutes
+        // per company / branch. It is only the "who may approve" hint - Approve itself is checked by the procedures.
+        var cache = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>();
+        var key = $"DoctorPayout.Approvers:{User.GetCompanyId()}:{BranchId}";
+        if (cache.TryGetValue(key, out string? cached) && cached is not null)
+            return new ContentResult { Content = cached, ContentType = "application/json" };
+        var result = await PassThrough(payoutApi.GetAsync("approvers", new Dictionary<string, string?>
         {
             ["companyId"] = User.GetCompanyId().ToString(), ["branchId"] = BranchId.ToString(),
             ["userId"] = User.GetUserId().ToString(), ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
         }));
+        if (result is ContentResult cr && cr.Content is { } body && body.Contains("\"success\":true"))
+            cache.Set(key, body, TimeSpan.FromMinutes(5));
+        return result;
+    }
 
     [HttpGet]
     public Task<IActionResult> ProfilesData() =>
@@ -153,6 +173,17 @@ public class DoctorDisbursalController(
         public DateTime? PaymentDate { get; set; }
         public string? PaymentMode { get; set; }
         public string? PaymentReference { get; set; }
+        /// <summary>SQLScripts/2525: the fund the payment is made from.</summary>
+        public int? FundId { get; set; }
+        public string? FundName { get; set; }
+    }
+
+    /// <summary>SQLScripts/2525: the active funds to pay from (Utility > Accounts > Fund Master), with balance.</summary>
+    [HttpGet]
+    public async Task<IActionResult> PayFunds()
+    {
+        if (!await permissionGuard.AllowsAsync(HttpContext, Page, "PAYOUT")) return Json(new { success = false, message = EMR.Shared.Security.PermissionFilter.DeniedMessage });
+        return await PassThrough(payoutApi.GetAsync("pay-funds", new Dictionary<string, string?> { ["companyId"] = User.GetCompanyId().ToString() }));
     }
 
     [HttpPost]
@@ -186,10 +217,17 @@ public class DoctorDisbursalController(
         });
         if (!result.IsSuccess) return Json(new { success = false, message = result.ErrorMessage });
         var id = ReadId(result.Data);
+        var underMatrix = await RaiseApprovalRequestsAsync();   // SQLScripts/2520
         await AuditAsync("DoctorPayout.Prepared", $"Settlement prepared for {input.DoctorName}, shares up to {upTo:dd MMM yyyy}" +
             (input.OtherAdjustment != 0 ? $", deduction / incentive ₹{input.OtherAdjustment} ({input.OtherAdjustmentReason})" : "") + ".",
             null, id, new { input.DoctorId, UpTo = upTo, input.OtherAdjustment, input.OtherAdjustmentReason, input.Remarks });
-        return Json(new { success = true, id, message = "Settlement prepared. It now needs approval by another user." });
+        return Json(new
+        {
+            success = true, id,
+            message = underMatrix
+                ? "Settlement prepared. It is under the Approval Matrix: an approver approves it on Utility > Approval Dashboard."
+                : "Settlement prepared. It now needs approval by another user."
+        });
     }
 
     [HttpPost]
@@ -202,6 +240,7 @@ public class DoctorDisbursalController(
             CompanyId = User.GetCompanyId(), BranchId, UpTo = upTo, UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
         });
         if (!result.IsSuccess) return Json(new { success = false, message = result.ErrorMessage });
+        await RaiseApprovalRequestsAsync();   // SQLScripts/2520
         await AuditAsync("DoctorPayout.PreparedDay", $"Day-end settlements prepared for shares up to {upTo:dd MMM yyyy}.", null, null, new { UpTo = upTo });
         return new ContentResult { Content = "{\"success\":true,\"data\":" + result.Data + "}", ContentType = "application/json" };
     }
@@ -226,17 +265,97 @@ public class DoctorDisbursalController(
     public Task<IActionResult> PaySettlement([FromBody] ActionInput input) =>
         SettlementActionAsync("PAY", input, "DoctorPayout.Paid", "paid", "Payment recorded.");
 
+    // ── SQLScripts/2520: OPD Doctor Share Settlement under the Approval Matrix ─────────────────────────────────────
+    private IMasterApprovalService Approvals => HttpContext.RequestServices.GetRequiredService<IMasterApprovalService>();
+
+    private sealed class PendingSettlementRow
+    {
+        public int SettlementId { get; set; }
+        public string? SettlementNo { get; set; }
+        public string? DoctorName { get; set; }
+        public DateTime? PeriodFrom { get; set; }
+        public DateTime? PeriodTo { get; set; }
+        public int LineCount { get; set; }
+        public decimal GrossShare { get; set; }
+        public decimal Recoveries { get; set; }
+        public decimal OtherAdjustment { get; set; }
+        public string? OtherAdjustmentReason { get; set; }
+        public decimal TdsAmount { get; set; }
+        public decimal NetPayable { get; set; }
+        public int? PreparedBy { get; set; }
+        public string? PrepareRemarks { get; set; }
+    }
+
+    /// <summary>
+    /// When the Approval Matrix has a set-up for OPD Doctor Share Settlement (this branch, else company-wise), every
+    /// settlement of the branch waiting for approval gets its request on the Approval Dashboard (one per settlement; the
+    /// approvers are notified). True when the matrix applies. Never fails the action that called it.
+    /// </summary>
+    private async Task<bool> RaiseApprovalRequestsAsync()
+    {
+        try
+        {
+            var matrix = await Approvals.FindMatrixAsync(User.GetCompanyId(), ApprovalModules.DoctorSettlement, BranchId);
+            if (matrix is null) return false;
+            var con = dbContext.Database.GetDbConnection();
+            var pending = await Dapper.SqlMapper.QueryAsync<PendingSettlementRow>(con,
+                @"SELECT s.SettlementId, s.SettlementNo, d.FullName AS DoctorName, s.PeriodFrom, s.PeriodTo, s.LineCount, s.GrossShare, s.Recoveries,
+                         s.OtherAdjustment, s.OtherAdjustmentReason, s.TdsAmount, s.NetPayable, s.PreparedBy, s.PrepareRemarks
+                    FROM dbo.DoctorSettlement s LEFT JOIN dbo.DoctorMaster d ON d.DoctorId = s.DoctorId
+                   WHERE s.BranchId = @BranchId AND s.Status = 'PREPARED'
+                     AND NOT EXISTS (SELECT 1 FROM dbo.ApprovalRequest r WHERE r.Module_Code = @Module AND r.Entity_ID = s.SettlementId AND r.Status = 'P')",
+                new { BranchId, Module = ApprovalModules.DoctorSettlement });
+            foreach (var s in pending)
+                await Approvals.SubmitAsync(new ApprovalSubmission
+                {
+                    ModuleCode = ApprovalModules.DoctorSettlement, Matrix = matrix, CompanyId = User.GetCompanyId(), BranchId = BranchId,
+                    EntityId = s.SettlementId, EntityName = $"{s.SettlementNo} · Dr. {s.DoctorName} · ₹{s.NetPayable:N2}",
+                    ActionType = "SETTLE", UserId = s.PreparedBy ?? User.GetUserId(),
+                    NewValues = new
+                    {
+                        Settlement_No = s.SettlementNo, Doctor = s.DoctorName,
+                        Period = $"{s.PeriodFrom:dd MMM yyyy} - {s.PeriodTo:dd MMM yyyy}", Share_Lines = s.LineCount,
+                        Gross_Share = s.GrossShare, Recoveries = s.Recoveries,
+                        Deduction_Incentive = s.OtherAdjustment == 0 ? "—" : $"{s.OtherAdjustment:N2} ({s.OtherAdjustmentReason})",
+                        TDS = s.TdsAmount, Net_Payable = s.NetPayable, Remarks = s.PrepareRemarks
+                    }
+                });
+            return true;
+        }
+        catch (Exception ex)
+        {
+            HttpContext.RequestServices.GetRequiredService<ILogger<DoctorDisbursalController>>()
+                .LogWarning(ex, "Doctor settlement approval requests were not raised");
+            return false;
+        }
+    }
+
     private async Task<IActionResult> SettlementActionAsync(string action, ActionInput input, string auditAction, string verb, string okMessage)
     {
         if (input == null || input.SettlementId <= 0) return Json(new { success = false, message = "Choose the settlement." });
+        // SQLScripts/2520: under the Approval Matrix a settlement is approved / rejected only on the Approval Dashboard
+        if (action is "APPROVE" or "REJECT"
+            && await Approvals.FindMatrixAsync(User.GetCompanyId(), ApprovalModules.DoctorSettlement, BranchId) is not null)
+        {
+            await RaiseApprovalRequestsAsync();
+            return Json(new
+            {
+                success = false, code = "APPROVAL_MATRIX",
+                message = "OPD Doctor Share Settlement is under the Approval Matrix - an approver set there approves or sends it back on Utility > Approval Dashboard."
+            });
+        }
         var result = await payoutApi.PostAsync("action", new
         {
-            BranchId, input.SettlementId, Action = action, input.Remarks, input.PaymentDate, input.PaymentMode, input.PaymentReference,
+            BranchId, input.SettlementId, Action = action, input.Remarks, input.PaymentDate, input.PaymentMode, input.PaymentReference, input.FundId,
             UserId = User.GetUserId(), IsSuperAdmin = User.IsSuperAdmin()
         });
         if (!result.IsSuccess) return Json(new { success = false, message = result.ErrorMessage });
+        // a cancelled settlement leaves the Approval Dashboard (SQLScripts/2520)
+        if (action == "CANCEL")
+            try { await Approvals.CloseAsync(ApprovalModules.DoctorSettlement, input.SettlementId, User.GetUserId(), "Settlement cancelled"); } catch (Exception) { }
         await AuditAsync(auditAction, $"Doctor settlement {input.SettlementNo} {verb}" +
-            (action == "PAY" ? $" by {input.PaymentMode}{(string.IsNullOrWhiteSpace(input.PaymentReference) ? "" : " (" + input.PaymentReference + ")")}" : "") +
+            (action == "PAY" ? $" by {input.PaymentMode}{(string.IsNullOrWhiteSpace(input.PaymentReference) ? "" : " (" + input.PaymentReference + ")")}"
+                + (string.IsNullOrWhiteSpace(input.FundName) ? "" : $" from fund {input.FundName}") : "") +
             (string.IsNullOrWhiteSpace(input.Remarks) ? "." : $": {input.Remarks}"),
             input.SettlementNo, input.SettlementId, new { input.SettlementId, input.Remarks, input.PaymentDate, input.PaymentMode, input.PaymentReference });
         return Json(new { success = true, message = okMessage });

@@ -9,7 +9,10 @@ namespace EMR.Web.Models.DTOs
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public System.DateTime? BookingDate { get; set; }
+        public bool IsBookingRequired { get; set; }   // 2384
         public System.DateTime? DueDate { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453
+        public string? PatientGender { get; set; }      // 2453
         public bool IsB2B { get; set; }
         public int? B2BAgentId { get; set; }
         public string? AgentType { get; set; } // 'F' or 'C'
@@ -69,6 +72,7 @@ namespace EMR.Web.Models.DTOs
         public int LabOrderId { get; set; }
         public string BillNo { get; set; } = string.Empty;
         public string TokenNo { get; set; } = string.Empty;
+        public string? BookingNo { get; set; }          // 2384
     }
 
     public class AvailableInvestigationDto
@@ -125,6 +129,8 @@ namespace EMR.Web.Models.DTOs
         public System.DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }
@@ -148,7 +154,7 @@ namespace EMR.Web.Models.DTOs
         public string? Gender { get; set; }
         public DateTime? DateOfBirth { get; set; }
         public int? Age { get; set; }
-        public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+        public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
         public int? PaymentHeaderId { get; set; }
         public string PaymentStatus { get; set; } = "U";
         public decimal TotalPaid { get; set; }
@@ -180,6 +186,8 @@ namespace EMR.Web.Models.DTOs
         public System.DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }
@@ -193,6 +201,9 @@ namespace EMR.Web.Models.DTOs
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string? ReferralDoctorName { get; set; }
+        /// <summary>Marketing executive tagged on the referral doctor (Doctor Master, SQLScripts/2442).</summary>
+        public string? MarketingExecutiveName { get; set; }
+        public string? MarketingExecutiveType { get; set; }
         public System.DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public System.DateTime CreatedDate { get; set; }
@@ -203,9 +214,10 @@ namespace EMR.Web.Models.DTOs
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? Gender { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public System.DateTime? DateOfBirth { get; set; }
         public int? Age { get; set; }
-        public string FormattedAge => EMR.Web.Utils.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
+        public string FormattedAge => EMR.Common.AgeCalculator.FormatAgePattern(DateOfBirth, Age);
         public string? Address { get; set; }
         public int? PaymentHeaderId { get; set; }
         public string PaymentStatus { get; set; } = "U";

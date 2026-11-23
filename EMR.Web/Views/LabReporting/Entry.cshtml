@@ -1,10 +1,13 @@
 @model EMR.Web.Models.ViewModels.LabReportingEntryPageViewModel
 @inject EMR.Shared.Security.IActionPermissionGuard PermissionGuard
+@inject EMR.Web.Services.IAiBillingFeatures AiBillingFeatures
 @{
     // The reporting screen using this page: Lab Report Entry (defaults) or Microbiology Report Entry.
     var screen = Model.Screen ?? EMR.Web.Models.ViewModels.LabReportingScreen.Numeric;
     ViewData["Title"] = (screen.MixedTypes ? "Microbiology " : "") + $"Report Entry - {Model.Detail.PatientName} ({Model.Detail.TokenNo})";
     ViewData["MixedReporting"] = screen.MixedTypes;
+    // delta check trend popup (last 5 results): Lab Report Entry only
+    ViewData["DeltaTrend"] = screen.Controller == "LabReporting" && !screen.MixedTypes;
     ViewData["PicklistOptions"] = Model.PicklistOptions;
     ViewData["DescriptiveDefaults"] = Model.DescriptiveDefaults;
     ViewData["ReportPrintController"] = screen.Controller;
@@ -713,7 +716,7 @@
     {
         <div class="alert alert-info border-info-subtle shadow-sm d-flex flex-wrap align-items-center justify-content-between p-2.5 mb-3 rounded-3 gap-2 fs-8" role="note">
             <span><i class="bi bi-info-circle-fill me-1"></i>@related.Item3 - they are reported on <strong>@related.Item2</strong>.</span>
-            <a asp-controller="@related.Item1" asp-action="Entry" asp-route-labOrderId="@d.LabOrderId" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary fs-8">
+            <a asp-controller="@related.Item1" asp-action="Entry" asp-encrypted-route-labOrderId="@d.LabOrderId" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary fs-8">
                 Open @related.Item2 <i class="bi bi-box-arrow-up-right ms-1"></i>
             </a>
         </div>
@@ -770,6 +773,7 @@
                     </div>
                     <div class="text-muted fs-9 mt-0.5 d-flex align-items-center gap-2 flex-wrap">
                         <span><i class="bi bi-gender-ambiguous me-0.5"></i>@(d.Age.HasValue ? $"{d.Age}Y / " : "")@(d.Gender ?? "—")</span>
+                        @if (d.LmpDate.HasValue) { <span class="fw-semibold" style="color:#be185d" title="Last menstrual period"><i class="bi bi-calendar-heart me-0.5"></i>LMP @d.LmpDate.Value.ToString("dd-MMM-yyyy")</span> }   @* 2453 *@
                         <span><i class="bi bi-telephone me-0.5"></i>@(d.PhoneNumber ?? "—")</span>
                     </div>
                 </div>
@@ -891,6 +895,7 @@
         </div>
     </div>
 
+    <link rel="stylesheet" href="~/css/views/Shared/report-progress.css" asp-append-version="true" />
     <!-- Report progress & colour code (live: driven by the row status badges) -->
     <div class="workflow-strip mb-3" id="workflowStrip">
         <div class="workflow-head">
@@ -939,6 +944,39 @@
                 </button>
             </div>
         </div>
+        @* SQLScripts/2514: Lab Serial No - typed by the user (not generated), one per lab order on this page, required while
+           Hospital Settings > LAB > "Is Lab Serial No Req" is Yes *@
+        @if (ViewBag.LabSerialRequired is true)
+        {
+            <div class="d-flex align-items-center gap-2 ms-auto me-2">
+                <label for="txtLabSerialNo" class="fw-semibold text-dark fs-8 mb-0 text-nowrap">Lab Serial No <span class="text-danger">*</span></label>
+                @{ var serialSaved = !string.IsNullOrWhiteSpace(ViewBag.LabSerialNo as string); }
+                @* saved: locked with an Edit button; fully approved: locked for good (no Edit) *@
+                <div class="input-group input-group-sm" style="width:210px">
+                    <input type="text" id="txtLabSerialNo" class="form-control form-control-sm fs-8" maxlength="50"
+                           autocomplete="off" placeholder="Enter serial no" value="@(ViewBag.LabSerialNo as string)"
+                           @(serialSaved || isAllApproved ? "readonly" : "") data-approved="@(isAllApproved ? "1" : "0")" />
+                    <button type="button" class="btn btn-outline-primary @(serialSaved && !isAllApproved ? "" : "d-none")" id="btnEditLabSerialNo" title="Change the Lab Serial No">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                </div>
+            </div>
+            <script>
+                // SQLScripts/2514: after a save the Lab Serial No locks (Edit unlocks it); after approval it stays locked
+                window.labSerialLock = function (approved) {
+                    var box = document.getElementById('txtLabSerialNo'), btn = document.getElementById('btnEditLabSerialNo');
+                    if (!box || !box.value.trim()) return;
+                    box.readOnly = true;
+                    if (approved) box.dataset.approved = '1';
+                    if (btn) btn.classList.toggle('d-none', box.dataset.approved === '1');
+                };
+                document.addEventListener('click', function (e) {
+                    var btn = e.target.closest('#btnEditLabSerialNo'), box = document.getElementById('txtLabSerialNo');
+                    if (!btn || !box || box.dataset.approved === '1') return;
+                    box.readOnly = false; box.focus(); box.select(); btn.classList.add('d-none');
+                });
+            </script>
+        }
         <div class="d-flex align-items-center gap-2" id="headerActionButtons">
             <button type="button" class="btn btn-primary px-3.5 py-1.5 fs-8 fw-semibold shadow-xs btn-action-save" id="btnHeaderSave" style="@(showSubmit ? "" : "display:none;")">
                 <i class="bi bi-send-check me-1"></i>Submit
@@ -1499,8 +1537,7 @@
 <div class="sticky-action-bar">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div class="d-flex align-items-center gap-3 fs-8 text-muted">
-            <span><i class="bi bi-info-circle text-primary me-1"></i>All entries are stored in <code>dbo.labentrydetails</code>.</span>
-            <span>&bull;</span>
+            <i class="bi bi-ui-checks text-primary"></i>
             <span id="counterEntered" class="fw-semibold text-dark">0 / @(d.Items?.Count ?? 0) Values Filled</span>
         </div>
         <div class="d-flex align-items-center gap-2" id="footerActionButtons">
@@ -2416,11 +2453,21 @@
                     return;
                 }
 
+                // SQLScripts/2514: the Lab Serial No (typed by the user) is required while the branch setting is Yes
+                const serialBox = document.getElementById('txtLabSerialNo');
+                if (serialBox && !serialBox.value.trim()) {
+                    serialBox.classList.add('is-invalid'); serialBox.focus();
+                    if (window.Swal) Swal.fire({ icon: 'warning', title: 'Lab Serial No required', text: 'Enter the Lab Serial No before saving.' });
+                    return;
+                }
+                if (serialBox) serialBox.classList.remove('is-invalid');
+
                 const payload = {
                     labOrderId: labOrderId,
                     reportStatusId: statusId,
                     entries: entries,
-                    groupRemarks: groupRemarks
+                    groupRemarks: groupRemarks,
+                    labSerialNo: serialBox ? serialBox.value.trim() : null
                 };
 
                 const $btns = $('.btn-action-save, .btn-action-validate, .btn-action-approve');
@@ -2436,6 +2483,7 @@
                     $btns.prop('disabled', false);
                     if (res.success) {
                         toastr.success(res.message || `Test entries saved as ${statusLabel}!`);
+                        if (window.labSerialLock) window.labSerialLock(statusId === 5);
 
                         const now = new Date();
                         const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -2857,4 +2905,16 @@
     <partial name="_LabAuditHistoryScripts" />
 
     <partial name="_LabReportPrintScripts" />
+
+    @if (ViewData["DeltaTrend"] as bool? == true)
+    {
+        <partial name="~/Views/LabReporting/_DeltaTrendPopup.cshtml" />
+    }
+
+    @* reflex test suggestions: numeric reporting only, AI features switched on (SQLScripts/2289) *@
+    @if (screen.Controller == "LabReporting" && await AiBillingFeatures.IsEnabledAsync(Context))
+    {
+        @Html.AntiForgeryToken()
+        <partial name="~/Views/LabReporting/_ReflexSuggestions.cshtml" model="@d.LabOrderId" />
+    }
 }

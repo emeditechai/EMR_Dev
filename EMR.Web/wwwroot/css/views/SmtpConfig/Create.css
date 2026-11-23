@@ -1,0 +1,32 @@
+/* moved from Views/SmtpConfig/Create.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    /* ── Provider Preset Cards ── */
+    .provider-presets { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.5rem; }
+    .provider-preset { cursor:pointer; border:2px solid #e9ecef; border-radius:12px; padding:.8rem 1.2rem; display:flex; align-items:center; gap:.6rem; transition:all .2s; background:#fff; min-width:140px; }
+    .provider-preset:hover { border-color:#adb5bd; transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.06); }
+    .provider-preset.active { border-color:var(--emr-primary); background:linear-gradient(135deg,#eef2ff,#e8f0fe); box-shadow:0 4px 16px rgba(99,102,241,.12); }
+    .provider-preset .p-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0; }
+    .provider-preset .p-icon.gmail   { background:linear-gradient(135deg,#ea4335,#fbbc05); color:#fff; }
+    .provider-preset .p-icon.outlook { background:linear-gradient(135deg,#0078d4,#00bcf2); color:#fff; }
+    .provider-preset .p-icon.yahoo   { background:linear-gradient(135deg,#6001d2,#a88fcc); color:#fff; }
+    .provider-preset .p-icon.custom  { background:linear-gradient(135deg,#6c757d,#adb5bd); color:#fff; }
+    .provider-preset .p-label { font-weight:700; font-size:.85rem; color:#343a40; }
+    .provider-preset .p-desc  { font-size:.7rem; color:#6c757d; }
+
+    /* ── Form sections ── */
+    .smtp-form-section { background:#fff; border:1px solid #e9ecef; border-radius:14px; padding:1.5rem; margin-bottom:1.25rem; box-shadow:0 2px 8px rgba(0,0,0,.03); }
+    .smtp-form-section .section-title { font-weight:700; font-size:.85rem; text-transform:uppercase; letter-spacing:.05em; color:var(--emr-primary); margin-bottom:1rem; display:flex; align-items:center; gap:.5rem; }
+    .smtp-form-section .section-title i { font-size:1rem; }
+
+    /* ── Toggle switch ── */
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; padding:.6rem 0; border-bottom:1px solid #f3f4f6; }
+    .toggle-row:last-child { border-bottom:0; }
+    .toggle-row .toggle-label { font-weight:600; font-size:.85rem; color:#343a40; }
+    .toggle-row .toggle-desc  { font-size:.72rem; color:#9ca3af; }
+
+    /* ── Help tooltip ── */
+    .help-link { font-size:.72rem; color:#6c757d; text-decoration:underline; cursor:pointer; }
+    .help-link:hover { color:var(--emr-primary); }
+
+    /* ── Password toggle ── */
+    .pwd-toggle { cursor:pointer; position:absolute; right:10px; top:50%; transform:translateY(-50%); color:#6c757d; font-size:.9rem; z-index:5; }
+    .pwd-toggle:hover { color:#343a40; }

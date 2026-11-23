@@ -81,10 +81,19 @@ public class DoctorCommissionService(IDbConnectionFactory db) : IDoctorCommissio
     public async Task<DoctorCommissionConfigDto?> GetCommissionConfigByIdAsync(int id)
     {
         using var con = db.CreateConnection();
-        return await con.QueryFirstOrDefaultAsync<DoctorCommissionConfigDto>(
+        var dto = await con.QueryFirstOrDefaultAsync<DoctorCommissionConfigDto>(
             "dbo.usp_Api_DoctorCommissionConfig_GetById",
             new { CommissionConfigId = id },
             commandType: CommandType.StoredProcedure);
+        if (dto is not null)
+        {
+            // SQLScripts/2517: a 'Service' rule's selected services
+            var svc = (await con.QueryAsync<(int ServiceId, string? ItemCode, string ItemName)>("dbo.usp_Api_DoctorCommissionConfig_GetServices",
+                new { CommissionConfigId = id }, commandType: CommandType.StoredProcedure)).ToList();
+            dto.ServiceIds = svc.Select(x => x.ServiceId).ToList();
+            dto.ServiceNames = svc.Select(x => x.ItemName).ToList();
+        }
+        return dto;
     }
 
     public async Task<int> SaveCommissionConfigAsync(DoctorCommissionConfigSaveRequest request)
@@ -114,6 +123,21 @@ public class DoctorCommissionService(IDbConnectionFactory db) : IDoctorCommissio
                 request.UserId
             },
             commandType: CommandType.StoredProcedure);
+    }
+
+    /// <summary>SQLScripts/2517: a 'Service' rule's selected services (the procedure keeps them only for a 'Service' rule).</summary>
+    public async Task SetCommissionConfigServicesAsync(int id, IEnumerable<int>? serviceIds)
+    {
+        using var con = db.CreateConnection();
+        await con.ExecuteAsync("dbo.usp_Api_DoctorCommissionConfig_SetServices",
+            new { CommissionConfigId = id, ServiceIds = "[" + string.Join(",", serviceIds ?? []) + "]" }, commandType: CommandType.StoredProcedure);
+    }
+
+    public async Task<IEnumerable<DoctorCommissionServiceOptionDto>> GetCommissionServiceOptionsAsync(int companyId, int? branchId)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryAsync<DoctorCommissionServiceOptionDto>("dbo.usp_Api_DoctorCommissionConfig_ServiceOptions",
+            new { CompanyId = companyId, BranchId = branchId }, commandType: CommandType.StoredProcedure);
     }
 
     public async Task<bool> DeleteCommissionConfigAsync(int id)

@@ -1,0 +1,23 @@
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@{
+    var panes = new (string Key, string Kind, string Title, string Sub, string Icon, string Color)[]
+    {
+        ("lab", "LAB", "LAB Investigations", "Tests, profiles and packages at the branch's IPD LAB rates; sample collection and reports in the LAB as usual; charged to the IP bill", "bi-droplet-half", "red"),
+        ("radiology", "RAD", "Radiology / Imaging", "X-ray, USG, CT, MRI and other imaging at the IPD rates; charged to the IP bill", "bi-radioactive", "violet")
+    };
+}
+@foreach (var p in panes)
+{
+    <div class="tab-pane fade @(Model.Tab == p.Key ? "show active" : "")" id="tab-@p.Key" role="tabpanel">
+        <div class="reg-section">
+            <div class="reg-section-header"><div class="sec-icon @p.Color"><i class="bi @p.Icon"></i></div>
+                <div class="flex-grow-1"><h6 class="fw-bold mb-0">@p.Title</h6><small class="text-muted">@p.Sub</small></div></div>
+            <div class="ipd-lab-form" data-kind="@p.Kind"></div>
+        </div>
+        <div class="ipdx-card"><div class="table-responsive"><table class="table ipdx-table mb-0">
+            <thead><tr><th>Ordered</th><th>Test</th><th>LAB bill / token</th><th>Ordered by</th><th class="text-end">Rate</th><th>Status</th><th></th></tr></thead>
+            <tbody class="ipd-lab-rows" data-kind="@p.Kind"><tr><td colspan="7" class="text-muted small">Loading…</td></tr></tbody>
+        </table></div>
+        <div class="px-3 py-2 small text-muted border-top"><label class="form-check-label"><input type="checkbox" class="form-check-input me-1 ipd-lab-cancelled" />Show cancelled tests</label></div></div>
+    </div>
+}

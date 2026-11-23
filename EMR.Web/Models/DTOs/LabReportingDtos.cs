@@ -113,6 +113,7 @@ namespace EMR.Web.Models.DTOs
         public string PatientName { get; set; } = string.Empty;
         public int? Age { get; set; }
         public string? Gender { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? Address { get; set; }
@@ -401,6 +402,8 @@ namespace EMR.Web.Models.DTOs
         public int ReportStatusId { get; set; }
         public List<LabReportingItemValueDto> Entries { get; set; } = new();
         public List<LabReportGroupRemarkDto> GroupRemarks { get; set; } = new();
+        /// <summary>SQLScripts/2514: the Lab Serial No (required while Hospital Settings > "Is Lab Serial No Req" is Yes).</summary>
+        public string? LabSerialNo { get; set; }
     }
 
     public class LabReportGroupRemarkDto

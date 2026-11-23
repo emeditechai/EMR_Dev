@@ -64,9 +64,46 @@ public class AccSettingsController(IAccountsService accounts, IAuditLogService a
         }
     }
 
+    /// <summary>
+    /// Payment mode -> ledger (SQLScripts/2322): the cash / bank ledger each payment method posts to, for every branch
+    /// (row without a branch) and optionally different for one branch. Receipts, refunds, B2B settlements, wallet top-ups and
+    /// membership card payments follow it from the next entry; entries already posted stay as they are.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    [RequiresPermission(PageCode, PermissionControls.Edit)]
+    public async Task<IActionResult> SaveModeLedgers(List<AccModeLedgerRow> modes)
+    {
+        if (!SeesAllBranches) return BackToList("Only the head office can change the payment mode ledgers.", error: true);
+        modes ??= [];
+        var methods = await accounts.GetPaymentMethodsAsync(CompanyId);
+        var missing = methods.Where(m => !modes.Any(x => x.BranchId is null && x.LedgerId is > 0 && string.Equals(x.MethodCode, m.Extra, StringComparison.OrdinalIgnoreCase)))
+                             .Select(m => m.Name).ToList();
+        if (missing.Count > 0) return BackToList($"Choose the ledger for every payment method (all branches): {string.Join(", ", missing)}.", error: true);
+        try
+        {
+            await accounts.SaveModeLedgersAsync(CompanyId, modes, UserId);
+            var ledgers = (await accounts.GetMoneyLedgersAsync()).ToDictionary(l => l.Id, l => l.Name);
+            await audit.LogAsync("Update Payment Mode Ledgers", "Accounts.ModeLedgers",
+                string.Join("; ", modes.Where(m => m.LedgerId is > 0).Select(m =>
+                    $"{m.MethodCode}{(m.BranchId is > 0 ? $" (branch #{m.BranchId})" : "")} -> {ledgers.GetValueOrDefault(m.LedgerId!.Value, "#" + m.LedgerId)}")),
+                UserId, OwnBranchId);
+            return BackToList("Payment mode ledgers saved. New receipts and refunds post to them.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Payment mode ledgers could not be saved");
+            return BackToList(Msg(ex), error: true);
+        }
+    }
+
     private async Task<AccSettingsPageViewModel> PageAsync(AccSettingsDto settings) => new()
     {
         Settings = settings,
-        Locks = await accounts.GetBranchLocksAsync(CompanyId, ScopeBranch())
+        Locks = await accounts.GetBranchLocksAsync(CompanyId, ScopeBranch()),
+        PaymentMethods = await accounts.GetPaymentMethodsAsync(CompanyId),
+        MoneyLedgers = await accounts.GetMoneyLedgersAsync(),
+        Branches = SeesAllBranches ? await accounts.GetBranchesAsync(CompanyId) : [],
+        ModeLedgers = await accounts.GetModeLedgersAsync(CompanyId)
     };
 }

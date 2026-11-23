@@ -36,7 +36,7 @@ public class BillCancellationController(
         if (!await permissionGuard.AllowsAsync(HttpContext, page, control))
         {
             context.Result = action == nameof(Index)
-                ? RedirectToAction("AccessDenied", "Account", new { returnUrl = Request.Path + Request.QueryString, page, control })
+                ? this.RedirectToActionEncrypted("AccessDenied", "Account", new { returnUrl = Request.Path + Request.QueryString, page, control })
                 : new ObjectResult(new { success = false, code = "FORBIDDEN", error = PermissionFilter.DeniedMessage, message = PermissionFilter.DeniedMessage, page, control })
                   { StatusCode = StatusCodes.Status403Forbidden };
             return;

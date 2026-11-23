@@ -6,6 +6,7 @@ public class AuditLog
 {
     public long Id { get; set; }
     public int? UserId { get; set; }
+    public int CompanyId { get; set; } = 1;   // the user's company (column default was always 1)
     public int? BranchId { get; set; }
 
     [Required]

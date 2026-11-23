@@ -1,0 +1,9 @@
+/* moved from Views/Companies/RemoveData.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .rd-step { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700; font-size: .8rem; background: #fde8e8; color: #b42318; flex-shrink: 0; }
+    .rd-level { border: 1px solid #e5e7eb; border-radius: 12px; padding: .8rem .9rem; display: flex; gap: .75rem; cursor: pointer; transition: border-color .15s, background .15s; }
+    .rd-level:hover { border-color: #f1a7a1; }
+    .rd-level.on { border-color: #d92d20; background: #fff6f5; }
+    .rd-level .nm { font-weight: 600; }
+    .rd-level .why { font-size: .78rem; color: #6b7280; }
+    .rd-res td, .rd-res th { font-variant-numeric: tabular-nums; }
+    .rd-res td.tbl { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; }

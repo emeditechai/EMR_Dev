@@ -5,15 +5,8 @@
 }
 
 @section HeadStyles {
-    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
-    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
-    <style>
-        .ip-grid { max-height: 520px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; }
-        .ip-grid thead th { position: sticky; top: 0; z-index: 3; background: #212529; color: #fff; white-space: nowrap; }
-        .ip-grid .inp-rate { max-width: 95px; margin-left: auto; }
-        .validation-summary-valid { display: none; }
-        .step-badge { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; }
-    </style>
+    <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="~/css/views/DoctorIp/Form.css" asp-append-version="true" />
 }
 
 <div class="container-fluid px-4 py-3">
@@ -75,7 +68,7 @@
                     </div>
                     <div class="col-md-2">
                         <label asp-for="Frequency_Of_Disbursal" class="form-label fw-semibold">Frequency of Disbursal <span class="text-danger">*</span></label>
-                        <select asp-for="Frequency_Of_Disbursal" class="form-select">
+                        <select asp-for="Frequency_Of_Disbursal" class="form-select s2">
                             <option value="Daily">Daily</option>
                             <option value="Weekly">Weekly</option>
                             <option value="Monthly">Monthly</option>
@@ -116,7 +109,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small fw-semibold">How</label>
-                        <select id="copyMode" class="form-select">
+                        <select id="copyMode" class="form-select s2">
                             <option value="replace">Replace all tests below</option>
                             <option value="merge">Add missing tests only</option>
                         </select>
@@ -136,7 +129,7 @@
                 <div class="row g-2 align-items-end">
                     <div class="col-md-2">
                         <label class="form-label small fw-semibold">Type</label>
-                        <select id="fType" class="form-select">
+                        <select id="fType" class="form-select s2">
                             <option value="">All types</option>
                             <option value="Test">Test</option>
                             <option value="Profile">Profile</option>
@@ -169,7 +162,7 @@
                             <span>Select Test / Profile / Package <span class="text-muted fw-normal">(picking one adds it to the grid)</span></span>
                             <span class="badge bg-light text-muted border">Available: <strong id="lblAvail" class="text-primary font-monospace">0</strong></span>
                         </label>
-                        <select id="oneTest" class="form-select" data-placeholder="-- Search by Code or Name --"><option value=""></option></select>
+                        <select id="oneTest" class="form-select s2" data-placeholder="-- Search by Code or Name --"><option value=""></option></select>
                     </div>
                 </div>
                 <div class="d-flex flex-wrap gap-2 mt-3">
@@ -310,8 +303,11 @@
     }
 
     $(function () {
-        $('.s2').each(function () { $(this).select2({ theme: 'bootstrap-5', width: '100%', placeholder: $(this).data('placeholder'), allowClear: true }); });
-        $('#oneTest').select2({ theme: 'bootstrap-5', width: '100%', placeholder: $('#oneTest').data('placeholder'), allowClear: true });
+        // type-to-search dropdowns, as on the rate list pages (plain Select2)
+        $('.s2').each(function () {
+            var $s = $(this), ph = $s.data('placeholder'), blank = $s.find('option').first();
+            $s.select2(ph ? { width: '100%', placeholder: { id: blank.val(), text: ph }, allowClear: true } : { width: '100%' });
+        });
 
         try { rows = JSON.parse($('#DetailsJson').val() || '[]').map(function (r) { r.Saved = @(isEdit ? "true" : "false") && (r.Doctor_IP_Dtl_ID || 0) > 0; r.Commission_Rate = Number(r.Commission_Rate); return r; }); }
         catch (e) { rows = []; }
@@ -391,7 +387,7 @@
         });
         $('#chkEnableCopy').on('change', function () {
             if (this.checked) { $('#divCopy').slideDown(150); }
-            else { $('#divCopy').slideUp(150); $('#copySource').val('').trigger('change'); $('#copyMode').val('replace'); }
+            else { $('#divCopy').slideUp(150); $('#copySource').val('').trigger('change'); $('#copyMode').val('replace').trigger('change.select2'); }
         });
         $('#btnClear').on('click', function () {
             if (!rows.length || !confirm('Remove all ' + rows.length + ' tests from the grid?')) return;

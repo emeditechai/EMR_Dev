@@ -1,0 +1,50 @@
+@{
+    ViewData["Title"] = "Pre-admission Estimate";
+    var json = ViewBag.EstimateJson as string;
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+@Html.AntiForgeryToken()
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div><h1 class="h3 mb-0 fw-bold"><i class="bi bi-file-earmark-medical me-2 text-primary"></i>Pre-admission Estimate <span id="estNo" class="font-monospace fs-6 text-muted"></span></h1>
+        <small class="text-muted">Rates from the tariff masters for the payer's category; every line can be changed</small></div>
+    <a asp-action="PreAdmission" class="btn btn-outline-secondary"><i class="bi bi-list me-1"></i>All Estimates</a>
+</div>
+
+<div class="reg-section search-card"><div class="reg-section-header"><div class="sec-icon blue"><i class="bi bi-person-search"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Patient</h6><small class="text-muted">Existing patient by mobile / UHID / name, or type the details of a new one</small></div></div>
+    <div class="reg-section-body"><div class="row g-3">
+        <div class="col-12 col-lg-4 position-relative"><label class="form-label" for="pSearch">Find patient</label><input id="pSearch" class="form-control" placeholder="Mobile, UHID or name" autocomplete="off" /><div id="pSug" class="sug-list list-group"></div></div>
+        <input type="hidden" id="PatientId" />
+        <div class="col-12 col-sm-6 col-lg-3"><label class="form-label req" for="PatientName">Patient Name</label><input id="PatientName" class="form-control" maxlength="200" /></div>
+        <div class="col-6 col-lg-2"><label class="form-label" for="Phone">Mobile</label><input id="Phone" class="form-control" maxlength="20" /></div>
+        <div class="col-3 col-lg-1"><label class="form-label" for="AgeText">Age</label><input id="AgeText" class="form-control" maxlength="30" /></div>
+        <div class="col-3 col-lg-2"><label class="form-label" for="Gender">Gender</label><select id="Gender" class="form-select"><option value="">--</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+    </div></div></div>
+
+<div class="reg-section"><div class="reg-section-header"><div class="sec-icon green"><i class="bi bi-hospital"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Planned stay</h6></div>
+    <button type="button" class="btn btn-sm btn-primary" id="btnCalc"><i class="bi bi-magic me-1"></i>Fill lines from tariff</button></div>
+    <div class="reg-section-body"><div class="row g-3">
+        <div class="col-6 col-lg-3"><label class="form-label req" for="PayerType">Payer</label><select id="PayerType" class="form-select"><option value="CASH">Cash / Self</option><option value="CORPORATE">Corporate</option><option value="INSURANCE">Insurance / TPA</option><option value="SCHEME">Government Scheme</option></select></div>
+        <div class="col-6 col-lg-3"><label class="form-label req" for="TariffCategoryId">Tariff Category</label><select id="TariffCategoryId" class="form-select"></select></div>
+        <div class="col-6 col-lg-3"><label class="form-label" for="DoctorId">Doctor</label><select id="DoctorId" class="form-select"></select></div>
+        <div class="col-6 col-lg-3"><label class="form-label" for="PackageId">Package</label><select id="PackageId" class="form-select"></select></div>
+        <div class="col-6 col-lg-3"><label class="form-label" for="BedCategoryId">Ward bed category</label><select id="BedCategoryId" class="form-select"></select></div>
+        <div class="col-6 col-lg-2"><label class="form-label" for="WardDays">Ward days</label><input type="number" min="0" max="365" id="WardDays" class="form-control" value="3" /></div>
+        <div class="col-6 col-lg-3"><label class="form-label" for="IcuBedCategoryId">ICU bed category</label><select id="IcuBedCategoryId" class="form-select"></select></div>
+        <div class="col-6 col-lg-2"><label class="form-label" for="IcuDays">ICU days</label><input type="number" min="0" max="365" id="IcuDays" class="form-control" value="0" /></div>
+        <div class="col-12"><label class="form-label" for="ProcedureNote">Procedure / treatment planned</label><input id="ProcedureNote" class="form-control" maxlength="300" /></div>
+    </div><div id="calcWarn" class="mt-2"></div></div></div>
+
+<div class="reg-section"><div class="reg-section-header"><div class="sec-icon amber"><i class="bi bi-list-ol"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Estimate lines</h6><small class="text-muted">Add doctor visits, OT, investigations, medicines and other expected charges</small></div>
+    <button type="button" class="btn btn-sm btn-outline-primary" id="btnAdd"><i class="bi bi-plus-lg me-1"></i>Add line</button></div>
+    <div class="reg-section-body p-0"><div class="table-responsive"><table class="table ipd-table mb-0">
+        <thead><tr><th style="width:170px">Head</th><th>Item</th><th style="width:100px" class="text-end">Qty / days</th><th style="width:130px" class="text-end">Rate (₹)</th><th style="width:130px" class="text-end">Amount</th><th>Remarks</th><th></th></tr></thead>
+        <tbody id="lines"></tbody><tfoot><tr class="fw-bold"><td colspan="4" class="text-end">Estimated total</td><td class="text-end num" id="total">₹0.00</td><td colspan="2"></td></tr></tfoot></table></div></div></div>
+
+<div class="reg-section"><div class="reg-section-body"><label class="form-label" for="Remarks">Remarks (printed)</label><input id="Remarks" class="form-control" maxlength="1000" /></div></div>
+<div class="action-bar"><button type="button" class="btn btn-primary px-4" id="btnSave"><i class="bi bi-save me-1"></i>Save &amp; Print</button></div>
+
+@section Scripts {
+<script src="~/js/ipd.js" asp-append-version="true"></script>
+<script>window.IpdPage = { "base": @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Content("~/IpdEstimation/"))), "adm": @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Url.Content("~/IpdAdmission/"))), "existing": @Html.Raw(string.IsNullOrEmpty(json) ? "null" : json) };</script>
+<script src="~/js/ipd/pre-estimate-form.js" asp-append-version="true"></script>
+}

@@ -63,6 +63,8 @@ namespace EMR.Api.Models
         public int BookedCount { get; set; }
         public int MaxPerSlot { get; set; }
         public bool IsAvailable { get; set; }
+        /// <summary>The slot time has already passed (SQLScripts/2303): listed, but not bookable.</summary>
+        public bool IsPast { get; set; }
     }
 
     public class AvailableSlotsResult

@@ -13,27 +13,7 @@
     var canEdit     = canOpenRegistration && await PermissionGuard.ShowsAsync(Context, "MASTER.OPD", "EDIT");
 }
 
-<style>
-    /* Same look as Doctor Master (Master > General) */
-    .pm-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: .85rem; box-shadow: 0 1px 3px rgba(15,23,42,.18); }
-    .pm-name { font-weight: 600; color: #0f172a; line-height: 1.2; }
-    .pm-code { font-family: SFMono-Regular, Menlo, Consolas, monospace; font-size: .74rem; color: #2563eb; background: #eff6ff; border: 1px solid #dbeafe; border-radius: .35rem; padding: 0 .4rem; }
-    .pm-sub { font-size: .76rem; color: #64748b; }
-    .pm-chip { display: inline-flex; align-items: center; gap: .25rem; font-size: .74rem; border-radius: 1rem; padding: .1rem .55rem; white-space: nowrap; border: 1px solid transparent; }
-    .pm-chip.male { background: #eff6ff; color: #1d4ed8; border-color: #dbeafe; }
-    .pm-chip.female { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
-    .pm-chip.other { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
-    .pm-chip.blood { background: #fef2f2; color: #b91c1c; border-color: #fecaca; font-weight: 700; }
-    .pm-table thead th { background: #f8fafc; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-    .pm-table tbody tr { transition: background .12s; }
-    .pm-table tbody tr.pm-inactive td { opacity: .62; }
-    .pm-table tbody tr.pm-inactive td:last-child { opacity: 1; }
-    .pm-addr { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pm-kpi { border: 0; border-left: 4px solid var(--k); border-radius: .75rem; }
-    .pm-kpi .pm-kpi-icon { width: 46px; height: 46px; border-radius: .75rem; background: var(--kb); color: var(--k); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; }
-    .pm-kpi .pm-kpi-num { font-size: 1.75rem; font-weight: 800; line-height: 1; color: var(--k); }
-    #patientSearchDropdown .patient-sug:hover { background: #f8fafc; }
-</style>
+<link rel="stylesheet" href="~/css/views/OPD/Index.css" asp-append-version="true" />
 
 <div class="container-fluid px-4 py-3">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -132,7 +112,7 @@
                 <input type="hidden" name="page" value="1" />
                 <div class="col-xl-3 col-md-3 col-6 d-flex gap-2">
                     <button type="submit" class="btn btn-primary flex-fill"><i class="bi bi-search me-1"></i>Search</button>
-                    <a asp-action="Index" asp-route-pageSize="@Model.PageSize" class="btn btn-outline-secondary flex-fill @(string.IsNullOrEmpty(Model.Search) ? "disabled" : "")"
+                    <a asp-action="Index" asp-encrypted-route-pageSize="@Model.PageSize" class="btn btn-outline-secondary flex-fill @(string.IsNullOrEmpty(Model.Search) ? "disabled" : "")"
                        aria-disabled="@(string.IsNullOrEmpty(Model.Search) ? "true" : "false")"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</a>
                 </div>
             </form>
@@ -169,7 +149,7 @@
                     {
                         <div class="fw-semibold">No patients matched "@Model.Search"</div>
                         <div class="small">Try a different name, phone number or patient ID.</div>
-                        <a asp-action="Index" asp-route-pageSize="@Model.PageSize" class="btn btn-sm btn-outline-secondary mt-3"><i class="bi bi-arrow-counterclockwise me-1"></i>Clear search</a>
+                        <a asp-action="Index" asp-encrypted-route-pageSize="@Model.PageSize" class="btn btn-sm btn-outline-secondary mt-3"><i class="bi bi-arrow-counterclockwise me-1"></i>Clear search</a>
                     }
                     else
                     {
@@ -195,7 +175,7 @@
                                 <th class="text-center">Blood Group</th>
                                 <th>Registered</th>
                                 <th class="text-center">Status</th>
-                                <th class="text-end pe-4" style="width:140px;">Actions</th>
+                                <th class="text-end pe-4" style="width:170px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -263,13 +243,17 @@
                                     </td>
                                     <td class="text-end pe-4">
                                         <div class="btn-group btn-group-sm shadow-sm" role="group">
-                                            <a asp-permission="MASTER.OPD:DETAILS" asp-action="Details" asp-route-id="@p.PatientId" target="_blank"
+                                            <a asp-permission="MASTER.OPD:DETAILS" asp-action="Details" asp-encrypted-route-id="@p.PatientId" target="_blank"
                                                class="btn btn-outline-info" title="View details"><i class="bi bi-eye"></i></a>
                                             @if (canEdit)
                                             {
-                                                <a asp-action="PatientRegistration" asp-route-id="@p.PatientId"
+                                                <a asp-action="PatientRegistration" asp-encrypted-route-id="@p.PatientId"
                                                    class="btn btn-outline-primary" title="Edit patient"><i class="bi bi-pencil"></i></a>
                                             }
+                                            <button asp-permission="MASTER.OPD:PORTAL_LOGIN" type="button" class="btn btn-outline-success js-portal-login"
+                                                    data-id="@p.PatientId" data-name="@p.FullName" data-code="@p.PatientCode" title="Send patient portal login">
+                                                <i class="bi bi-key"></i>
+                                            </button>
                                             <button asp-permission="MASTER.OPD:DELETE" type="button" class="btn btn-outline-danger"
                                                     data-bs-toggle="modal" data-bs-target="#deleteModal"
                                                     data-id="@p.PatientId" data-name="@p.FullName" data-code="@p.PatientCode" title="Delete patient">
@@ -297,13 +281,13 @@
                 <nav aria-label="Patient pages">
                     <ul class="pagination pagination-sm mb-0">
                         <li class="page-item @(!Model.HasPrev ? "disabled" : "")">
-                            <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search" aria-label="Previous">
+                            <a class="page-link" asp-action="Index" asp-encrypted-route-page="@(Model.Page - 1)" asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-search="@Model.Search" aria-label="Previous">
                                 <i class="bi bi-chevron-left"></i>
                             </a>
                         </li>
                         @if (startPage > 1)
                         {
-                            <li class="page-item"><a class="page-link" asp-action="Index" asp-route-page="1" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search">1</a></li>
+                            <li class="page-item"><a class="page-link" asp-action="Index" asp-encrypted-route-page="1" asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-search="@Model.Search">1</a></li>
                             @if (startPage > 2)
                             {
                                 <li class="page-item disabled"><span class="page-link">…</span></li>
@@ -312,7 +296,7 @@
                         @for (int pg = startPage; pg <= endPage; pg++)
                         {
                             <li class="page-item @(pg == Model.Page ? "active" : "")">
-                                <a class="page-link" asp-action="Index" asp-route-page="@pg" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search">@pg</a>
+                                <a class="page-link" asp-action="Index" asp-encrypted-route-page="@pg" asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-search="@Model.Search">@pg</a>
                             </li>
                         }
                         @if (endPage < Model.TotalPages)
@@ -321,10 +305,10 @@
                             {
                                 <li class="page-item disabled"><span class="page-link">…</span></li>
                             }
-                            <li class="page-item"><a class="page-link" asp-action="Index" asp-route-page="@Model.TotalPages" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search">@Model.TotalPages</a></li>
+                            <li class="page-item"><a class="page-link" asp-action="Index" asp-encrypted-route-page="@Model.TotalPages" asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-search="@Model.Search">@Model.TotalPages</a></li>
                         }
                         <li class="page-item @(!Model.HasNext ? "disabled" : "")">
-                            <a class="page-link" asp-action="Index" asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize" asp-route-search="@Model.Search" aria-label="Next">
+                            <a class="page-link" asp-action="Index" asp-encrypted-route-page="@(Model.Page + 1)" asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-search="@Model.Search" aria-label="Next">
                                 <i class="bi bi-chevron-right"></i>
                             </a>
                         </li>
@@ -361,8 +345,46 @@
     </div>
 </div>
 
+<div asp-permission="MASTER.OPD:PORTAL_LOGIN" asp-permission-mode="hide" id="portalLoginForm" class="d-none">@Html.AntiForgeryToken()</div>
+
 @section Scripts {
 <script>
+    // ── Patient Portal login: create / reset and send (SQLScripts/2326) ─────────
+    document.addEventListener('click', async function (e) {
+        const btn = e.target.closest('.js-portal-login');
+        if (!btn) return;
+        const esc = v => (v || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+        const ask = await Swal.fire({
+            icon: 'question', title: 'Send portal login?',
+            html: `A new portal password will be created for <b>${esc(btn.dataset.name)}</b> (${esc(btn.dataset.code)}) and sent to the patient's e-mail / WhatsApp.<br><small class="text-muted">Any earlier portal password stops working. The patient signs in with the Patient ID and must choose a new password.</small>`,
+            showCancelButton: true, confirmButtonText: 'Create & send', confirmButtonColor: '#198754'
+        });
+        if (!ask.isConfirmed) return;
+
+        btn.disabled = true;
+        try {
+            const body = new URLSearchParams({ id: btn.dataset.id });
+            const token = document.querySelector('#portalLoginForm input[name="__RequestVerificationToken"]');
+            if (token) body.append('__RequestVerificationToken', token.value);
+            const res = await fetch('@Url.Action("PortalLogin", "OPD")', { method: 'POST', body });
+            const r = await res.json().catch(() => ({ success: false, message: 'You are not allowed to do this.' }));
+            if (!r.success) {
+                await Swal.fire({ icon: 'error', title: 'Not sent', text: r.message || 'Please try again.' });
+            } else if (r.delivered) {
+                await Swal.fire({ icon: 'success', title: 'Portal login sent', text: r.message });
+            } else {
+                await Swal.fire({
+                    icon: 'warning', title: 'Hand over the password',
+                    html: `${esc(r.message)}<div class="fs-3 fw-bold font-monospace my-3 user-select-all">${esc(r.password)}</div><small class="text-muted">Patient ID: <b>${esc(r.patientCode)}</b>. Shown only now - the patient must change it at the first sign-in.</small>`
+                });
+            }
+        } catch {
+            await Swal.fire({ icon: 'error', title: 'Not sent', text: 'The server could not be reached. Please try again.' });
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
     // ── Delete modal ─────────────────────────────────────────────────────────
     document.getElementById('deleteModal')?.addEventListener('show.bs.modal', function (e) {
         const btn = e.relatedTarget;

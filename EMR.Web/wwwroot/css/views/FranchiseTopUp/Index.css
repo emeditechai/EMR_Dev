@@ -1,0 +1,49 @@
+/* moved from Views/FranchiseTopUp/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .ft-wrap { --ft-line:#e2e8f0; --ft-muted:#64748b; --ft-ink:#0f172a; --ft-acc:#0f766e; --ft-acc-soft:#f0fdfa; }
+    .ft-wrap .fs-8 { font-size:.78rem !important; } .ft-wrap .fs-9 { font-size:.7rem !important; }
+    .ft-card { background:#fff;border:1px solid var(--ft-line);border-radius:.75rem; }
+    .ft-kpi { padding:.85rem 1rem;border-left:4px solid var(--k);height:100%; }
+    .ft-kpi .k-label { font-size:.66rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--ft-muted); }
+    .ft-kpi .k-val { font-size:1.35rem;font-weight:800;color:var(--ft-ink);line-height:1.2;font-variant-numeric:tabular-nums; }
+    .ft-kpi .k-sub { font-size:.7rem;color:var(--ft-muted); }
+    .btn-quick.active { background:var(--ft-acc);border-color:var(--ft-acc);color:#fff; }
+    .ft-sec-title { font-size:.72rem;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--ft-muted); }
+    .amt { font-variant-numeric:tabular-nums;white-space:nowrap; }
+    /* franchise wallets */
+    .ft-wallets { max-height:430px;overflow:auto; }
+    .ft-wallet { display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.35rem .75rem;padding:.7rem .9rem;border-bottom:1px solid #eef2f6; }
+    .ft-wallet:last-child { border-bottom:0; }
+    .ft-wallet.is-off { background:#fafafa; }
+    .ft-wallet .w-name { font-weight:700;font-size:.85rem;color:var(--ft-ink); }
+    .ft-wallet .w-meta { font-size:.7rem;color:var(--ft-muted); }
+    .ft-wallet .w-bal { font-size:1.05rem;font-weight:800;text-align:right;font-variant-numeric:tabular-nums; }
+    .ft-wallet .w-actions { grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;justify-content:space-between; }
+    .chip { font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:999px;border:1px solid;white-space:nowrap; }
+    .chip-pre { background:#ecfdf5;color:#047857;border-color:#a7f3d0; }
+    .chip-post { background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe; }
+    .chip-hyb { background:#f5f3ff;color:#6d28d9;border-color:#ddd6fe; }
+    .chip-warn { background:#fff7ed;color:#c2410c;border-color:#fed7aa; }
+    .chip-bad { background:#fef2f2;color:#b91c1c;border-color:#fecaca; }
+    .chip-mute { background:#f8fafc;color:#64748b;border-color:#e2e8f0; }
+    .cover { height:5px;border-radius:3px;background:#f1f5f9;overflow:hidden;width:120px; }
+    .cover > span { display:block;height:100%; }
+    /* list */
+    .ft-table thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--ft-muted);font-size:.66rem;font-weight:700;
+                         letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--ft-line); }
+    .ft-table tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6; }
+    .ft-table tfoot td { font-size:.8rem;font-weight:800;background:#f8fafc; }
+    .tbl-scroll { max-height:55vh;overflow:auto; }
+    .mode-row { display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.15rem .5rem;font-size:.76rem;padding:.35rem 0;border-bottom:1px dashed #e2e8f0; }
+    .mode-row:last-child { border-bottom:0; }
+    .mode-bar { grid-column:1 / -1;height:4px;border-radius:2px;background:#f1f5f9;overflow:hidden; }
+    .mode-bar > span { display:block;height:100%;background:var(--ft-acc); }
+    .not-recorded { color:#94a3b8;font-style:italic; }
+    /* top-up modal */
+    .amt-input { font-size:1.4rem;font-weight:800;font-variant-numeric:tabular-nums; }
+    .quick-amt .btn { font-size:.72rem; }
+    .ft-preview { background:var(--ft-acc-soft);border:1px solid #99f6e4;border-radius:.6rem;padding:.6rem .8rem; }
+    .ft-preview .row-l { display:flex;justify-content:space-between;font-size:.8rem; }
+    .ft-preview .row-l.total { font-weight:800;font-size:.95rem;border-top:1px solid #99f6e4;padding-top:.3rem;margin-top:.3rem;color:var(--ft-acc); }
+    /* statement */
+    .st-row td { font-size:.76rem; }
+    .st-in { color:#047857; } .st-out { color:#b91c1c; }

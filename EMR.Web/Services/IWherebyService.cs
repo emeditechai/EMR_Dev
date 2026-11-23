@@ -23,5 +23,5 @@ public interface IWherebyService
     /// </summary>
     Task<WherebyMeetingResult?> CreateMeetingAsync(
         int patientId, DateTime appointmentDate, TimeSpan slotStartTime,
-        TimeSpan slotEndTime, int graceTimeMinutes);
+        TimeSpan slotEndTime, int graceTimeMinutes, int? companyId = null);   // the company whose video settings are used
 }

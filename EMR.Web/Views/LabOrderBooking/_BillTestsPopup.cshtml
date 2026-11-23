@@ -1,0 +1,19 @@
+@* "Tests of this bill" popup - shared by the B2C Order List and the B2B Order List. A button with
+   class "btn-bill-tests" and data-order-id / data-bill-no opens it; the lines come from LabOrderBooking/GetOrderDetail
+   (tests, profiles and packages of the bill, cancelled ones marked, plus its misc charges). *@
+<div class="modal fade" id="billTestsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold"><i class="bi bi-list-check text-primary me-2"></i>Tests on Bill <span class="font-monospace" id="billTestsBillNo"></span></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="billTestsBody"></div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="~/js/views/LabOrderBooking/_BillTestsPopup.js" asp-append-version="true"></script>

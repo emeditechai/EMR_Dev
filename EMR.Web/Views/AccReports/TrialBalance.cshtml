@@ -44,7 +44,7 @@
                         foreach (var x in g)
                         {
                             <tr>
-                                <td class="ps-4"><a asp-action="LedgerStatement" asp-route-ledgerId="@x.LedgerId" asp-route-fromDate="@Model.FromDate.ToString("yyyy-MM-dd")" asp-route-toDate="@Model.ToDate.ToString("yyyy-MM-dd")" asp-route-branchId="@Model.BranchId">@x.LedgerName</a></td>
+                                <td class="ps-4"><a asp-action="LedgerStatement" asp-encrypted-route-ledgerId="@x.LedgerId" asp-encrypted-route-fromDate="@Model.FromDate.ToString("yyyy-MM-dd")" asp-encrypted-route-toDate="@Model.ToDate.ToString("yyyy-MM-dd")" asp-encrypted-route-branchId="@Model.BranchId">@x.LedgerName</a></td>
                                 <td class="num">@N(Dr(x.OpeningBalance))</td><td class="num">@N(Cr(x.OpeningBalance))</td>
                                 <td class="num">@N(x.PeriodDebit)</td><td class="num">@N(x.PeriodCredit)</td>
                                 <td class="num">@N(Dr(x.ClosingBalance))</td><td class="num pe-3">@N(Cr(x.ClosingBalance))</td>

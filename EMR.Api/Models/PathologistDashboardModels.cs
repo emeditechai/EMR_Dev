@@ -114,6 +114,8 @@ public class PathologistTestDto
     public string? PreviousTestValue { get; set; }
     public DateTime? PreviousOrderDate { get; set; }
     public string? PreviousUnitSymbol { get; set; }
+    /// <summary>Reference range matched for the patient (SQLScripts/2309), e.g. "70 – 100", "&lt; 200"; null when none.</summary>
+    public string? ReferenceRange { get; set; }
 }
 
 public class PathologistApprovalHistoryDto

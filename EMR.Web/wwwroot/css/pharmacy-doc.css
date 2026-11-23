@@ -1,0 +1,63 @@
+/* Pharmacy > Purchase documents (indent / order / GRN / return): compact form, same look as the POS. */
+.phd { --phd-accent: var(--emr-primary, #644098); --phd-soft: #f3eefc; --phd-line: #e5e7eb; --phd-muted: #64748b; font-size: .85rem; }
+.phd .num { font-variant-numeric: tabular-nums; }
+.phd-panel { background: #fff; border: 1px solid var(--phd-line); border-radius: 10px; }
+.phd-panel > .hd { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; padding: .4rem .75rem; border-bottom: 1px solid var(--phd-line);
+    font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #475569; }
+.phd-panel > .hd i { color: var(--phd-accent); }
+.phd-panel > .hd .tl { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.phd-panel > .bd { padding: .5rem .75rem .6rem; }
+.phd .form-label { font-size: .68rem; font-weight: 600; color: var(--phd-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 1px; }
+.phd .form-label.req::after { content: " *"; color: #dc2626; }
+.phd .form-control, .phd .form-select { height: 31px; font-size: .83rem; padding-top: .2rem; padding-bottom: .2rem; border-color: #d4d8e1; border-radius: 6px; }
+.phd .form-control:focus, .phd .form-select:focus { border-color: var(--phd-accent); box-shadow: 0 0 0 .15rem rgba(100, 64, 152, .15); }
+.phd .form-text { font-size: .72rem; margin-top: 1px; }
+.phd .ts-wrapper.form-select { height: auto; min-height: 31px; padding: 0; }
+.phd .ts-control { min-height: 29px; padding: .15rem .5rem; font-size: .83rem; border: 0; }
+.phd .alert { font-size: .78rem; }
+
+/* line grid */
+.phd-grid-wrap { overflow: auto; max-height: calc(100vh - 360px); min-height: 160px; }
+.phd-grid { width: 100%; border-collapse: separate; border-spacing: 0; }
+.phd-grid thead th { position: sticky; top: 0; z-index: 2; background: #f8fafc; border-bottom: 1px solid var(--phd-line); font-size: .64rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em; color: var(--phd-muted); padding: .4rem .45rem; white-space: nowrap; }
+.phd-grid tbody td { padding: .3rem .45rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: .82rem; }
+.phd-grid tbody tr:focus-within td { background: var(--phd-soft); }
+.phd-grid tbody tr.warn td { background: #fffbeb; }
+.phd-grid .form-control, .phd-grid .form-select { height: 28px; font-size: .8rem; padding: .1rem .4rem; }
+.phd-grid .it-nm { font-weight: 600; line-height: 1.2; }
+.phd-grid .it-sub { font-size: .7rem; color: var(--phd-muted); }
+.phd-grid .exp.bad { border-color: #dc2626; background: #fef2f2; }
+.phd-grid .del { border: 0; background: none; color: #cbd5e1; padding: 0 .2rem; }
+.phd-grid .del:hover { color: #dc2626; }
+.phd-grid tr.newrow td { background: #fafbff; }
+.phd-grid .sch { min-width: 0; padding: .15em .45em; font-size: .6rem; }
+.phd-pick { position: relative; max-width: 620px; }
+.phd-pick .bi-plus-lg, .phd-pick .bi-upc-scan { position: absolute; left: .6rem; top: 50%; transform: translateY(-50%); color: var(--phd-accent); }
+.phd-pick input { padding-left: 1.9rem; height: 32px !important; border: 1.5px solid var(--phd-accent) !important; }
+.phd-pick .list-group { z-index: 30; max-height: 340px; overflow: auto; font-size: .8rem; }
+.phd-pick .list-group-item.active { background: var(--phd-accent); border-color: var(--phd-accent); }
+
+/* totals strip under the grid */
+.phd-tot { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1.1rem; padding: .45rem .75rem; border-top: 1px solid var(--phd-line); background: #f8fafc;
+    border-radius: 0 0 10px 10px; font-size: .78rem; color: var(--phd-muted); }
+.phd-tot b { color: #1e293b; font-variant-numeric: tabular-nums; }
+.phd-tot .net { margin-left: auto; font-size: 1.15rem; font-weight: 800; color: var(--phd-accent); font-variant-numeric: tabular-nums; }
+.phd-tot .net small { font-size: .7rem; font-weight: 600; color: var(--phd-muted); text-transform: uppercase; margin-right: .35rem; }
+
+/* actions */
+.phd-actions { position: sticky; bottom: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: .4rem; justify-content: flex-end; align-items: center; margin-top: .6rem;
+    padding: .45rem .75rem; background: rgba(255,255,255,.97); border: 1px solid var(--phd-line); border-radius: 10px; backdrop-filter: blur(4px); }
+.phd-actions .btn { height: 34px; font-size: .82rem; font-weight: 600; }
+.phd-actions form { margin: 0; }
+.phd-grid .btn-link { font-size: .7rem; text-decoration: none; vertical-align: baseline; }
+
+/* "Read bill" (SQLScripts/2367): values read from the supplier's bill that need a look */
+.ai-low, .ai-low.form-control, .ai-low.form-select, .ts-wrapper.ai-low .ts-control { background: #fff7d6 !important; border-color: #f59e0b !important; box-shadow: 0 0 0 .15rem rgba(245,158,11,.18) !important; }
+.ai-low-sample { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #fff7d6; border: 1px solid #f59e0b; vertical-align: -2px; }
+.ai-panel { border: 1px solid #e9d5ff; background: linear-gradient(90deg, #faf5ff, #fff); border-radius: 10px; padding: .6rem .8rem; margin: .5rem .75rem; }
+.ai-chip { font-size: .72rem; font-weight: 600; border-radius: 999px; padding: .1rem .55rem; background: #f1f5f9; color: #475569; }
+.ai-chip.ok { background: #dcfce7; color: #166534; } .ai-chip.bad { background: #fee2e2; color: #991b1b; }
+.ai-miss { display: flex; gap: .5rem; align-items: center; margin-top: .45rem; padding: .4rem .5rem; border: 1px dashed #fca5a5; border-radius: 8px; background: #fff; }
+.ai-tag { display: inline-block; margin-left: .25rem; font-size: .7rem; color: #7c3aed; white-space: nowrap; }
+.ai-tag.weak { color: #b45309; font-weight: 700; }

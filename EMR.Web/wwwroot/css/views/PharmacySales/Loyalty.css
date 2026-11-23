@@ -1,0 +1,8 @@
+/* moved from Views/PharmacySales/Loyalty.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .lw-kpi { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:.6rem .9rem; height:100%; }
+    .lw-kpi .l { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
+    .lw-kpi .v { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
+    #lwTable td, #lwTable th, #stTable td, #stTable th { font-size:.8rem; vertical-align:middle; }
+    .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    #lwTable tbody tr { cursor:pointer; }
+    .lw-kind { font-size:.68rem; font-weight:700; border-radius:2rem; padding:.1rem .5rem; }

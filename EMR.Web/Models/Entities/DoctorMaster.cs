@@ -38,6 +38,12 @@ public class DoctorMaster
 
     /// <summary>Doctor Master "Is Referral Doctor" (default No).</summary>
     public bool IsReferralDoctor { get; set; }
+
+    /// <summary>Doctor Master "Is Suspended" (SQLScripts/2484): a reason is required; who / when are recorded.</summary>
+    public bool IsSuspended { get; set; }
+    public string? SuspendReason { get; set; }
+    public int? SuspendedBy { get; set; }
+    public DateTime? SuspendedAt { get; set; }
     public int CreatedBranchId { get; set; }
 
     /// <summary>Optional FK to Users.Id — set when the doctor is given a login account.</summary>

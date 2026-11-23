@@ -4,8 +4,8 @@ namespace EMR.Web.Models.ViewModels;
 
 public class PatientLoginViewModel
 {
-    [Required(ErrorMessage = "Username is required.")]
-    [Display(Name = "Username (Patient Code)")]
+    [Required(ErrorMessage = "Patient ID is required.")]
+    [Display(Name = "Patient ID")]
     public string Username { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Password is required.")]
@@ -20,6 +20,8 @@ public class PatientChangePasswordViewModel
     [Required(ErrorMessage = "New Password is required.")]
     [DataType(DataType.Password)]
     [Display(Name = "New Password")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "Use at least 8 characters.")]
+    [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$", ErrorMessage = "Use at least one letter and one digit.")]
     public string NewPassword { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Confirm Password is required.")]

@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using EMR.Web.ApiClients;
 using EMR.Web.Data;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace EMR.Web.Controllers;
@@ -24,9 +26,39 @@ public class UsersController(
     IStateService stateService,
     ICityService cityService,
     IAreaService areaService,
-    ILabTestCategoryApiClient labTestCategoryApiClient) : Controller
+    ILabTestCategoryApiClient labTestCategoryApiClient,
+    IUserListApiClient userListApiClient,
+    EMR.Web.Services.Licensing.ICentralUserRegistry centralUsers) : Controller
 {
-    public async Task<IActionResult> Index()
+    /// <summary>
+    /// Which users this login may see and manage. Signed in to the head office (Branchmaster.IsHOBranch): every user of
+    /// the company, all branches (null = no branch limit). Any other branch: the users of the branches assigned to the
+    /// signed-in user.
+    /// </summary>
+    private async Task<List<int>?> VisibleBranchIdsAsync()
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (branchId.HasValue && await dbContext.BranchMasters.AnyAsync(b => b.BranchId == branchId.Value && b.IsHOBranch))
+            return null;
+        var me = User.GetUserId();
+        var ids = await dbContext.UserBranches.Where(ub => ub.UserId == me && ub.IsActive).Select(ub => ub.BranchId).ToListAsync();
+        if (branchId.HasValue && !ids.Contains(branchId.Value)) ids.Add(branchId.Value);
+        return ids;
+    }
+
+    /// <summary>False when the user belongs only to branches this login may not see (see <see cref="VisibleBranchIdsAsync"/>).</summary>
+    private async Task<bool> MaySeeUserAsync(int userId)
+    {
+        // a user of another company is never managed from here (a super admin may manage any company's users)
+        if (!User.IsSuperAdmin() && !await dbContext.Users.AnyAsync(u => u.Id == userId && u.CompanyId == User.GetCompanyId()))
+            return false;
+        if (await VisibleBranchIdsAsync() is not { } ids) return true;
+        return await dbContext.UserBranches.AnyAsync(ub => ub.UserId == userId && ub.IsActive && ids.Contains(ub.BranchId));
+    }
+
+    /// <summary>User Master list, paged and filtered on the server (SQLScripts/2314). Scope as before: the login's company
+    /// (every company for Super Admin) and, away from the head office, only users of the visible branches.</summary>
+    public async Task<IActionResult> Index(string? search, string? userType, string? status, string? role, int page = 1, int pageSize = 25)
     {
         if (!CanManage())
         {
@@ -34,67 +66,36 @@ public class UsersController(
         }
 
         var branchId = User.GetCurrentBranchId();
-        var companyId = User.GetCompanyId();
+        if (page < 1) page = 1;
+        if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 25;
+        userType = userType?.Trim() is "U" or "D" or "F" or "C" ? userType.Trim() : null;
+        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" or "locked" ? status.Trim().ToLowerInvariant() : null;
+        role = role?.Trim().ToLowerInvariant() is "nurse" or "phlebotomist" or "pathologist" or "labtech" or "logistics" ? role.Trim().ToLowerInvariant() : null;
+        search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
 
-        var query = dbContext.Users
-            .Include(x => x.UserBranches)
-                .ThenInclude(x => x.Branch)
-            .OrderBy(x => x.Username)
-            .AsQueryable();
-
-        if (!User.IsSuperAdmin())
+        UserListPageDto result;
+        try
         {
-            query = query.Where(x => x.CompanyId == companyId);
-        }
-
-        // Filter to current branch if a branch is active in session
-        if (branchId.HasValue)
-        {
-            query = query.Where(x => x.UserBranches.Any(ub => ub.BranchId == branchId.Value && ub.IsActive));
-        }
-
-        var deptDict = await dbContext.DepartmentMasters
-            .ToDictionaryAsync(d => d.DeptId, d => d.DeptName);
-
-        var rawUsers = await query
-            .Select(x => new
+            result = await userListApiClient.GetPagedAsync(User.IsSuperAdmin() ? null : User.GetCompanyId(),
+                await VisibleBranchIdsAsync(), branchId, search, userType, status, role, page, pageSize);
+            // a page past the end (e.g. after narrowing the filter): show the last page instead of an empty one
+            var lastPage = Math.Max(1, (int)Math.Ceiling(result.FilteredCount / (double)pageSize));
+            if (page > lastPage)
             {
-                x.Id,
-                x.Username,
-                EmployeeCode = branchId.HasValue
-                    ? (x.UserBranches.Where(ub => ub.IsActive && ub.BranchId == branchId.Value).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty)
-                    : (x.UserBranches.Where(ub => ub.IsActive).Select(ub => ub.EmployeeCode).FirstOrDefault() ?? string.Empty),
-                FullName = x.FullName ?? string.Concat(x.FirstName, " ", x.LastName),
-                Email = x.Email ?? string.Empty,
-                x.IsActive,
-                x.IsNursingStaff,
-                x.IsPhlebotomist,
-                x.IsPathologist,
-                x.IsLabTechnician,
-                x.IsLogisticsBoy,
-                x.DepartmentIds,
-                x.ProfilePicturePath,
-                HasSignature = x.SignaturePath != null && x.SignaturePath != "",
-                x.UserType,
-                x.ReferenceUserId,
-                Branches = string.Join(", ", x.UserBranches.Where(b => b.IsActive).Select(b => b.Branch.BranchName))
-            })
-            .ToListAsync();
-        var referenceNames = await ReferenceNamesAsync(rawUsers.Select(x => (x.UserType, x.ReferenceUserId)));
-
-        var users = rawUsers.Select(x =>
-        {
-            var deptNames = string.Empty;
-            if (!string.IsNullOrWhiteSpace(x.DepartmentIds))
-            {
-                var ids = x.DepartmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => int.TryParse(s.Trim(), out var did) ? did : 0)
-                    .Where(did => did > 0 && deptDict.ContainsKey(did))
-                    .Select(did => deptDict[did]);
-                deptNames = string.Join(", ", ids);
+                page = lastPage;
+                result = await userListApiClient.GetPagedAsync(User.IsSuperAdmin() ? null : User.GetCompanyId(),
+                    await VisibleBranchIdsAsync(), branchId, search, userType, status, role, page, pageSize);
             }
+        }
+        catch (HttpRequestException)
+        {
+            ViewData["PageName"] = "User Master";
+            return View("ApiDown");
+        }
 
-            return new UserListItemViewModel
+        var model = new UserListPageViewModel
+        {
+            Items = result.Items.Select(x => new UserListItemViewModel
             {
                 Id = x.Id,
                 Username = x.Username,
@@ -108,25 +109,42 @@ public class UsersController(
                 IsLabTechnician = x.IsLabTechnician,
                 IsLogisticsBoy = x.IsLogisticsBoy,
                 Branches = x.Branches,
-                DepartmentNames = deptNames,
+                DepartmentNames = x.DepartmentNames,
                 ProfilePicturePath = x.ProfilePicturePath,
                 HasSignature = x.HasSignature,
                 UserType = x.UserType,
                 ReferenceUserId = x.ReferenceUserId,
-                ReferenceName = x.ReferenceUserId.HasValue ? referenceNames.GetValueOrDefault((x.UserType, x.ReferenceUserId.Value)) : null
-            };
-        }).ToList();
+                ReferenceName = x.ReferenceName,
+                FailedLoginAttempts = x.FailedLoginAttempts,
+                LockedUntil = x.LockedUntil
+            }).ToList(),
+            TotalUsers = result.Kpis.TotalUsers,
+            ActiveUsers = result.Kpis.ActiveUsers,
+            InactiveUsers = result.Kpis.InactiveUsers,
+            Pathologists = result.Kpis.Pathologists,
+            PathologistsSigned = result.Kpis.PathologistsSigned,
+            LabTechnicians = result.Kpis.LabTechnicians,
+            LockedUsers = result.Kpis.LockedUsers,
+            FilteredCount = result.FilteredCount,
+            Page = page,
+            PageSize = pageSize,
+            Search = search,
+            UserType = userType,
+            Status = status,
+            Role = role
+        };
 
         ViewBag.BranchName = branchId.HasValue
             ? (await dbContext.BranchMasters.FindAsync(branchId.Value))?.BranchName
             : null;
 
-        return View(users);
+        return View(model);
     }
 
     [HttpGet]
     public async Task<IActionResult> Details(int id)
     {
+        if (!await MaySeeUserAsync(id)) return NotFound();
         var user = await dbContext.Users
             .Include(x => x.UserBranches.Where(b => b.IsActive))
                 .ThenInclude(x => x.Branch)
@@ -188,6 +206,10 @@ public class UsersController(
         var detailRefNames = await ReferenceNamesAsync(new[] { (user.UserType, user.ReferenceUserId) });
         var model = new UserDetailsViewModel
         {
+            ReportsToName = user.ReportsToUserId is null ? null
+                : await dbContext.Users.AsNoTracking().Where(u => u.Id == user.ReportsToUserId)
+                    .Select(u => (string.IsNullOrWhiteSpace(u.FullName) ? u.Username : u.FullName.Trim() + " (" + u.Username + ")"))
+                    .FirstOrDefaultAsync(),
             Id = user.Id,
             UserType = user.UserType,
             ReferenceUserId = user.ReferenceUserId,
@@ -219,7 +241,7 @@ public class UsersController(
             ShiftSlotId = user.ShiftSlotId,
             ShiftSlotName = shiftSlotName,
             AssignedZoneId = user.AssignedZoneId,
-            AssignedZoneName = user.AssignedZone?.AreaName,
+            AssignedZoneName = await ZoneNamesAsync(user.Id) ?? user.AssignedZone?.AreaName,
             DailyCollectionTarget = user.DailyCollectionTarget,
             LabTechnicianShiftSlotId = user.LabTechnicianShiftSlotId,
             LabTechnicianShiftSlotName = labShiftSlotName,
@@ -256,6 +278,7 @@ public class UsersController(
     public async Task<IActionResult> Create(UserFormViewModel model)
     {
         NormalizeBranchRoles(model);
+        ApplyZones(model);
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
@@ -266,9 +289,20 @@ public class UsersController(
             ModelState.AddModelError(nameof(model.Password), "Password is required.");
         }
 
-        if (await dbContext.Users.AnyAsync(x => x.Username == model.Username))
+        // sign-in is by e-mail (SQLScripts/2307): the e-mail is required and the user name is the e-mail
+        RequireEmail(model);
+        model.Username = (model.Email ?? "").Trim().ToLowerInvariant();
+        ModelState.Remove(nameof(model.Username));
+        // SQLScripts/2470 / 2490: 1) the central user register first (username unique across all installations, the platform super admin excepted); 2) the application database -
+        // always, so the name is still unique here when the central server is unreachable (Status UNAVAILABLE never blocks)
+        if (model.Username.Length > 0
+            && await centralUsers.CheckAsync((int?)User.GetCompanyId() ?? 0, model.Username) is { Taken: true } centralTaken)
         {
-            ModelState.AddModelError(nameof(model.Username), "Username already exists.");
+            ModelState.AddModelError(nameof(model.Email), centralTaken.Message);
+        }
+        else if (model.Username.Length > 0 && await dbContext.Users.AnyAsync(x => x.Username == model.Username))
+        {
+            ModelState.AddModelError(nameof(model.Email), "This e-mail is already used as a sign-in.");
         }
 
         if (!model.SelectedBranchIds.Any())
@@ -294,6 +328,9 @@ public class UsersController(
         }
 
         await ValidateEmployeeCodeUniquenessAsync(model);
+        await ValidateContactUniquenessAsync(model, User.GetCompanyId(), null, null);
+        await ValidateBranchesOfCompanyAsync(model);
+        await ValidateReportsToAsync(model, User.GetCompanyId());
         ValidateProfilePicture(model);
         await ValidateSignatureAsync(model);
 
@@ -302,6 +339,19 @@ public class UsersController(
             await PopulateSelections(model);
             return View(model);
         }
+
+        // SQLScripts/2470: the login is created in the central user register FIRST (reserved for this company); the
+        // application user follows with the existing logic and is linked to it after the save (CentralUserSyncInterceptor).
+        // Central database not reachable: the user is still created here and registered later (Companies > Sync Users).
+        var central = await centralUsers.SaveAsync((int?)User.GetCompanyId() ?? 0, model.Username, null, null);
+        if (central.Taken || central.NoCompany)
+        {
+            // taken in this installation, or no central company for it (no user without its company - FK): not created
+            ModelState.AddModelError(central.Taken ? nameof(model.Email) : string.Empty, central.Message);
+            await PopulateSelections(model);
+            return View(model);
+        }
+        long? reservedCentralId = central.Ok ? central.CentralUserId : null;
 
         var normalizedEmployeeCode = string.IsNullOrWhiteSpace(model.EmployeeCode)
             ? null
@@ -317,8 +367,8 @@ public class UsersController(
         var user = new User
         {
             CompanyId = User.GetCompanyId(),
-            Username = model.Username.Trim(),
-            Email = model.Email?.Trim(),
+            Username = model.Username,
+            Email = model.Email?.Trim().ToLowerInvariant(),
             PasswordHash = hash,
             Salt = salt,
             FirstName = model.FirstName.Trim(),
@@ -326,6 +376,7 @@ public class UsersController(
             FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim()),
             PhoneNumber = model.PhoneNumber,
             Phone = model.PhoneNumber,
+            ReportsToUserId = model.ReportsToUserId > 0 ? model.ReportsToUserId : null,
             DateOfJoining = model.DateOfJoining,
             DateOfBirth = model.DateOfBirth,
             Address = model.Address?.Trim(),
@@ -354,6 +405,7 @@ public class UsersController(
             AnalyzerTrainedOn = model.IsLabTechnician ? model.AnalyzerTrainedOn?.Trim() : null,
             UserType = UserTypes.General,          // created in User Master (logins of other masters are created there)
             ReferenceUserId = null,
+            CentralUserID = reservedCentralId,     // 2470: linked to the central row reserved above
             PasswordLastChanged = DateTime.Now,
             CreatedDate = DateTime.Now,
             LastModifiedDate = DateTime.Now,
@@ -361,11 +413,22 @@ public class UsersController(
 
 
         dbContext.Users.Add(user);
-        await dbContext.SaveChangesAsync();
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch
+        {
+            if (reservedCentralId is > 0) await centralUsers.ReleaseAsync(reservedCentralId.Value);   // no orphan central login
+            throw;
+        }
 
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
-        await auditLogService.LogAsync("MasterData", "Users.Create", $"Created user: {user.Username}", user.Id);
+        await SaveZonesAsync(user.Id, model);
+        await auditLogService.LogActivityAsync("MasterData", "Users.Create", $"Created user: {user.Username}", referenceId: user.Id);
         TempData["Success"] = "User created successfully.";
+        if (!central.Ok)
+            TempData["Warning"] = $"User created, but not yet in the central user register: {central.Message} Use \"Sync Users\" on the company profile.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -376,6 +439,7 @@ public class UsersController(
         {
             return RedirectToAction("Index", "Dashboard");
         }
+        if (!await MaySeeUserAsync(id)) return NotFound();
 
         var user = await dbContext.Users
             .Include(x => x.UserBranches)
@@ -408,6 +472,7 @@ public class UsersController(
             FirstName = user.FirstName ?? string.Empty,
             LastName = user.LastName ?? string.Empty,
             PhoneNumber = user.PhoneNumber,
+            ReportsToUserId = user.ReportsToUserId,
             EmployeeCode = user.UserBranches.Where(x => x.IsActive).Select(x => x.EmployeeCode).FirstOrDefault() ?? string.Empty,
             ExistingProfilePicturePath = user.ProfilePicturePath,
             ExistingSignaturePath = user.SignaturePath,
@@ -430,6 +495,7 @@ public class UsersController(
             RegistrationNo = user.RegistrationNo,
             ShiftSlotId = user.ShiftSlotId,
             AssignedZoneId = user.AssignedZoneId,
+            AssignedZoneIds = await ZoneIdsAsync(user.Id, user.AssignedZoneId),
             DailyCollectionTarget = user.DailyCollectionTarget,
             LabTechnicianShiftSlotId = user.LabTechnicianShiftSlotId,
             AnalyzerTrainedOn = user.AnalyzerTrainedOn,
@@ -453,11 +519,13 @@ public class UsersController(
     public async Task<IActionResult> Edit(UserFormViewModel model)
     {
         NormalizeBranchRoles(model);
+        ApplyZones(model);
         if (!CanManage())
         {
             return RedirectToAction("Index", "Dashboard");
         }
 
+        if (!await MaySeeUserAsync(model.Id)) return NotFound();
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == model.Id);
         if (user is null)
         {
@@ -475,19 +543,49 @@ public class UsersController(
             model.Username = user.Username;
             model.FirstName = user.FirstName ?? string.Empty;
             model.LastName = user.LastName ?? string.Empty;
-            model.Email = user.Email;
+            if (!model.EmailEditable)   // a doctor login's e-mail is changed here too (Doctor Master follows), SQLScripts/2307
+            {
+                model.Email = user.Email;
+                ModelState.Remove(nameof(model.Email));
+            }
             model.PhoneNumber = user.PhoneNumber;
             model.IsActive = user.IsActive;
             ModelState.Remove(nameof(model.Username));
             ModelState.Remove(nameof(model.FirstName));
             ModelState.Remove(nameof(model.LastName));
-            ModelState.Remove(nameof(model.Email));
             ModelState.Remove(nameof(model.PhoneNumber));
         }
 
-        if (await dbContext.Users.AnyAsync(x => x.Id != model.Id && x.Username == model.Username))
+        // the user name is not edited any more (sign-in is by e-mail, SQLScripts/2307): it follows the e-mail when it was
+        // the e-mail (users created since), otherwise the existing user name stays as it is
+        if (model.EmailEditable)
         {
-            ModelState.AddModelError(nameof(model.Username), "Username already exists.");
+            // user name = e-mail, on create and on edit; an older user whose e-mail is shared keeps the user name while
+            // another user holds that e-mail as user name and the e-mail is unchanged (it must be unique once changed)
+            RequireEmail(model);
+            var newEmail = model.Email?.Trim().ToLowerInvariant() ?? "";
+            var unchanged = string.Equals(newEmail, user.Email?.Trim(), StringComparison.OrdinalIgnoreCase);
+            model.Username = newEmail.Length == 0
+                || (unchanged && await dbContext.Users.AnyAsync(x => x.Id != user.Id && x.Username == newEmail))
+                ? user.Username : newEmail;
+            ModelState.Remove(nameof(model.Username));
+        }
+        // SQLScripts/2470: a changed username - 1) the central user register first (the save updates it there); 2) the application
+        // database below, always, so it stays unique here when the central server is unreachable
+        if (!string.Equals(model.Username, user.Username, StringComparison.OrdinalIgnoreCase)
+            && await centralUsers.CheckAsync(user.CompanyId ?? 0, model.Username, user.Id, user.CentralUserID) is { Taken: true } centralTakenEdit)
+        {
+            ModelState.AddModelError(nameof(model.Email), centralTakenEdit.Message);
+        }
+        // and the user's company must be a central company (no central user without its company - FK)
+        else if (!string.Equals(model.Username, user.Username, StringComparison.OrdinalIgnoreCase)
+                 && await centralUsers.EnsureCompanyAsync(user.CompanyId ?? 0) is { NoCompany: true } noCompanyEdit)
+        {
+            ModelState.AddModelError(string.Empty, noCompanyEdit.Message);
+        }
+        else if (await dbContext.Users.AnyAsync(x => x.Id != model.Id && x.Username == model.Username))
+        {
+            ModelState.AddModelError(nameof(model.Email), "This e-mail is already used as a sign-in.");
         }
 
         if (!model.SelectedBranchIds.Any())
@@ -513,6 +611,10 @@ public class UsersController(
         }
 
         await ValidateEmployeeCodeUniquenessAsync(model);
+        // e-mail / phone: checked when changed (existing records may already share them); a linked login keeps its own
+        await ValidateContactUniquenessAsync(model, user.CompanyId ?? User.GetCompanyId(), user.Email, user.PhoneNumber);
+        await ValidateBranchesOfCompanyAsync(model);
+        await ValidateReportsToAsync(model, user.CompanyId ?? User.GetCompanyId());
         ValidateProfilePicture(model);
         await ValidateSignatureAsync(model);
 
@@ -527,16 +629,25 @@ public class UsersController(
             ? null
             : model.EmployeeCode.Trim().ToUpperInvariant();
 
+        // a doctor's login: the e-mail (and a user name that is the e-mail) can change here - the doctor's e-mail follows
+        if (model.IsLinkedLogin && model.UserType == UserTypes.Doctor && user.ReferenceUserId is int doctorId)
+        {
+            user.Username = model.Username.Trim();
+            user.Email = model.Email?.Trim().ToLowerInvariant();
+            var doctor = await dbContext.DoctorMasters.FirstOrDefaultAsync(d => d.DoctorId == doctorId);
+            if (doctor is not null) doctor.EmailId = user.Email ?? doctor.EmailId;
+        }
         if (!model.IsLinkedLogin)
         {
             user.Username = model.Username.Trim();
-            user.Email = model.Email?.Trim();
+            user.Email = model.Email?.Trim().ToLowerInvariant();
             user.FirstName = model.FirstName.Trim();
             user.LastName = model.LastName.Trim();
             user.FullName = string.Concat(model.FirstName.Trim(), " ", model.LastName.Trim());
             user.PhoneNumber = model.PhoneNumber;
             user.Phone = model.PhoneNumber;
         }
+        user.ReportsToUserId = model.ReportsToUserId > 0 ? model.ReportsToUserId : null;
         user.DateOfJoining = model.DateOfJoining;
         user.DateOfBirth = model.DateOfBirth;
         user.Address = model.Address?.Trim();
@@ -578,7 +689,8 @@ public class UsersController(
 
         await SaveMappings(model, user.Id, normalizedEmployeeCode);
         await dbContext.SaveChangesAsync();
-        await auditLogService.LogAsync("MasterData", "Users.Edit", $"Updated user: {user.Username}", user.Id);
+        await SaveZonesAsync(user.Id, model);
+        await auditLogService.LogActivityAsync("MasterData", "Users.Edit", $"Updated user: {user.Username}", referenceId: user.Id);
         TempData["Success"] = "User updated successfully.";
 
         return RedirectToAction(nameof(Index));
@@ -593,6 +705,7 @@ public class UsersController(
             return RedirectToAction("Index", "Dashboard");
         }
 
+        if (!await MaySeeUserAsync(id)) return NotFound();
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == id);
         if (user is null)
         {
@@ -610,10 +723,114 @@ public class UsersController(
         user.IsActive = !user.IsActive;
         user.LastModifiedDate = DateTime.Now;
         await dbContext.SaveChangesAsync();
-        await auditLogService.LogAsync("MasterData", "Users.ToggleStatus", $"Toggled user status: {user.Username} => {(user.IsActive ? "Active" : "Inactive")}", user.Id);
+        await auditLogService.LogActivityAsync("MasterData", "Users.ToggleStatus", $"Toggled user status: {user.Username} => {(user.IsActive ? "Active" : "Inactive")}", referenceId: user.Id);
         TempData["Success"] = "User status updated.";
 
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// Unlock a user locked after too many wrong passwords (Hospital Settings > Login Retry Count, SQLScripts/2320).
+    /// Needs the SETTINGS.USERS:UNLOCK permission and a reason; audited. The administrator's own lock (inactive user) is not changed.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Unlock(int id, string? reason, string? returnUrl)
+    {
+        IActionResult Back() => Url.IsLocalUrl(returnUrl) ? Redirect(returnUrl!) : RedirectToAction(nameof(Index));
+        reason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length < 3)
+        {
+            TempData["Error"] = "Enter a reason to unlock the user.";
+            return Back();
+        }
+        if (reason.Length > 300) reason = reason[..300];
+        if (!await MaySeeUserAsync(id)) return NotFound();
+        var username = await dbContext.Users.Where(x => x.Id == id).Select(x => x.Username).FirstOrDefaultAsync();
+        if (username is null) return NotFound();
+
+        try
+        {
+            var (found, wasLocked) = await userListApiClient.UnlockAsync(id);
+            if (!found) return NotFound();
+            await auditLogService.LogAsync("MasterData", "Users.Unlock",
+                $"Unlocked user: {username}{(wasLocked ? "" : " (lock had already expired)")}. Reason: {reason}", id);
+            TempData["Success"] = wasLocked ? $"'{username}' is unlocked and can sign in now." : $"'{username}' was not locked any more; the wrong-password count is reset.";
+        }
+        catch (HttpRequestException)
+        {
+            TempData["Error"] = "The API is not reachable. Try again.";
+        }
+        return Back();
+    }
+
+    // ── Phlebotomist areas and phones (SQLScripts/2389) ─────────────────
+
+    /// <summary>The ticked areas; the main area (Users.AssignedZoneId) stays when still ticked, else the first one.</summary>
+    private static void ApplyZones(UserFormViewModel model)
+    {
+        var ids = model.IsPhlebotomist ? model.AssignedZoneIds.Where(x => x > 0).Distinct().ToList() : new List<int>();
+        model.AssignedZoneIds = ids;
+        model.AssignedZoneId = ids.Count == 0 ? null : ids.Contains(model.AssignedZoneId ?? 0) ? model.AssignedZoneId : ids[0];
+    }
+
+    private async Task SaveZonesAsync(int userId, UserFormViewModel model)
+    {
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.UserPhleboArea WHERE UserId = {userId}");
+        foreach (var areaId in model.AssignedZoneIds)
+            await dbContext.Database.ExecuteSqlInterpolatedAsync($"INSERT dbo.UserPhleboArea (UserId, AreaId) VALUES ({userId}, {areaId})");
+    }
+
+    private async Task<List<int>> ZoneIdsAsync(int userId, int? mainZoneId)
+    {
+        var ids = await dbContext.Database.SqlQuery<int>($"SELECT AreaId AS Value FROM dbo.UserPhleboArea WHERE UserId = {userId}").ToListAsync();
+        if (ids.Count == 0 && mainZoneId > 0) ids.Add(mainZoneId.Value);
+        return ids;
+    }
+
+    private async Task<string?> ZoneNamesAsync(int userId)
+    {
+        var names = await dbContext.Database.SqlQuery<string>(
+            $"SELECT a.AreaName AS Value FROM dbo.UserPhleboArea p JOIN dbo.AreaMaster a ON a.AreaId = p.AreaId WHERE p.UserId = {userId} ORDER BY a.AreaName").ToListAsync();
+        return names.Count == 0 ? null : string.Join(", ", names);
+    }
+
+    /// <summary>The phones the user signs in from in the phlebotomist app, for Clinical & Status.</summary>
+    [HttpGet]
+    public async Task<IActionResult> PhleboDevices(int id)
+    {
+        if (!await MaySeeUserAsync(id)) return NotFound();
+        var devices = await dbContext.Database.GetDbConnection().QueryAsync("dbo.usp_User_PhleboDevice_List",
+            new { OwnerUserId = id, CompanyId = await UserCompanyIdAsync(id) }, commandType: CommandType.StoredProcedure);
+        return Json(new { success = true, devices });
+    }
+
+    /// <summary>Approve (optionally blocking the user's other phones) or block a phone.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PhleboDeviceDecide(int id, int deviceId, string? decision, bool blockOthers = true)
+    {
+        if (!CanManage() || !await MaySeeUserAsync(id)) return NotFound();
+        var action = decision == "BLOCK" ? "BLOCK" : "APPROVE";
+        try
+        {
+            await dbContext.Database.GetDbConnection().ExecuteAsync("dbo.usp_User_PhleboDevice_Decide",
+                new { PhleboDeviceId = deviceId, OwnerUserId = id, CompanyId = await UserCompanyIdAsync(id), UserId = User.GetUserId(),
+                      Action = action, BlockOthers = action == "APPROVE" && blockOthers },
+                commandType: CommandType.StoredProcedure);
+        }
+        catch (SqlException ex) when (ex.Number >= 50000)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+
+        await auditLogService.LogAsync("MasterData", "Users.PhleboDevice",
+            $"Phone #{deviceId}: {action}{(action == "APPROVE" && blockOthers ? " (other phones blocked)" : "")}", id);
+        return Json(new
+        {
+            success = true,
+            message = action == "BLOCK" ? "Phone blocked." : blockOthers ? "Phone approved. The user's other phones are blocked." : "Phone approved."
+        });
     }
 
     /// <summary>Names of the records logins belong to: doctor (Doctor Master), franchise, company.</summary>
@@ -773,8 +990,24 @@ public class UsersController(
 
     private async Task PopulateSelections(UserFormViewModel model)
     {
+        // Reports To: the active users of the company (the one already chosen stays listed even if inactive), not the user
+        var companyId = User.GetCompanyId();
+        var reportsTo = await dbContext.Users.AsNoTracking()
+            .Where(u => u.CompanyId == companyId && u.Id != model.Id && (u.IsActive || u.Id == model.ReportsToUserId))
+            .Select(u => new { u.Id, u.FullName, u.FirstName, u.LastName, u.Username, u.IsActive })
+            .ToListAsync();
+        model.ReportsToOptions = reportsTo
+            .Select(u => new { u.Id, Name = !string.IsNullOrWhiteSpace(u.FullName) ? u.FullName.Trim() : $"{u.FirstName} {u.LastName}".Trim(), u.Username, u.IsActive })
+            .OrderBy(u => string.IsNullOrWhiteSpace(u.Name) ? u.Username : u.Name)
+            .Select(u => new SelectListItem(
+                (string.IsNullOrWhiteSpace(u.Name) ? u.Username : $"{u.Name} ({u.Username})") + (u.IsActive ? "" : " - inactive"),
+                u.Id.ToString(), u.Id == model.ReportsToUserId))
+            .ToList();
+
+        // Branch Access: only the branches of the user's company (the company of the user being edited, else the signed-in company)
+        var branchCompanyId = await UserCompanyIdAsync(model.Id);
         var branches = await dbContext.BranchMasters
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && x.CompanyId == branchCompanyId)
             .OrderBy(x => x.BranchName)
             .Select(x => new { x.BranchId, x.BranchName, x.BranchCode })
             .ToListAsync();
@@ -841,9 +1074,9 @@ public class UsersController(
                 .ToList();
         }
 
-        // Shift Slot options for Pathologist
+        // Shift Slot options for Pathologist: the Shift Master of the user's company
         var shifts = await dbContext.ShiftMasters
-            .Where(s => s.Status)
+            .Where(s => s.Status && s.CompanyId == branchCompanyId)
             .OrderBy(s => s.ShiftName)
             .ToListAsync();
 
@@ -862,54 +1095,34 @@ public class UsersController(
                 model.LabTechnicianShiftSlotId.HasValue && s.ShiftMaster_ID == model.LabTechnicianShiftSlotId.Value))
             .ToList();
 
-        // Standard LAB related Analyzers
-        var standardAnalyzers = new[]
-        {
-            "Fully Automated Biochemistry Analyzer (Roche Cobas / Beckman Coulter AU)",
-            "Semi-Automated Biochemistry Analyzer (Erba / Mindray)",
-            "5-Part Differential Hematology Analyzer (Sysmex XN / Mindray BC-6000)",
-            "3-Part Hematology Cell Counter (Mindray BC-3000 / Nihon Kohden)",
-            "Automated Immunoassay & Chemiluminescence (CLIA) Analyzer (Abbott Architect / Roche Elecsys)",
-            "Arterial Blood Gas (ABG) & Electrolyte Analyzer (Radiometer ABL / Nova Biomedical)",
-            "Automated Coagulation Analyzer (Stago STA Compact / Sysmex CS)",
-            "Automated Urine Chemistry & Sediment Analyzer (Dirui / Sysmex UC)",
-            "Molecular Diagnostics & Real-Time PCR (Bio-Rad CFX / GeneXpert)",
-            "ELISA Microplate Reader & Automated Washer",
-            "Microbiology Automated Microbial Identification & AST (bioMérieux VITEK 2 / BD Phoenix)",
-            "High Performance Liquid Chromatography (HPLC) HbA1c Analyzer"
-        };
-
-        model.LabAnalyzerOptions = standardAnalyzers
+        // Analyzers: the active Analyzer Master of the user's company; the analyzer already saved on the user stays listed
+        var analyzers = await dbContext.Database
+            .SqlQuery<string>($"SELECT Analyzer_Name AS Value FROM dbo.tbl_mst_analyzer WHERE CompanyId = {branchCompanyId} AND ISNULL(IsDeleted, 0) = 0 AND ISNULL(Status, 0) = 1")
+            .ToListAsync();
+        if (!string.IsNullOrWhiteSpace(model.AnalyzerTrainedOn)
+            && !analyzers.Any(a => string.Equals(a, model.AnalyzerTrainedOn, StringComparison.OrdinalIgnoreCase)))
+            analyzers.Add(model.AnalyzerTrainedOn);
+        model.LabAnalyzerOptions = analyzers
+            .OrderBy(a => a)
             .Select(a => new SelectListItem(a, a, !string.IsNullOrWhiteSpace(model.AnalyzerTrainedOn) && string.Equals(model.AnalyzerTrainedOn, a, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        // Area options for Phlebotomist Assigned Zone
-        if (model.CityId.HasValue && model.CityId.Value > 0)
-        {
-            var areas = await areaService.GetByCityAsync(model.CityId.Value);
-            model.AssignedZoneOptions = areas
-                .Where(a => a.IsActive)
-                .OrderBy(a => a.AreaName)
-                .Select(a => new SelectListItem(
-                    string.IsNullOrWhiteSpace(a.AreaCode) ? a.AreaName : $"{a.AreaName} ({a.AreaCode})",
-                    a.AreaId.ToString(),
-                    model.AssignedZoneId.HasValue && a.AreaId == model.AssignedZoneId.Value))
-                .ToList();
-        }
-        else if (model.AssignedZoneId.HasValue && model.AssignedZoneId.Value > 0)
-        {
-            var area = await areaService.GetByIdAsync(model.AssignedZoneId.Value);
-            if (area != null)
-            {
-                model.AssignedZoneOptions = new List<SelectListItem>
-                {
-                    new SelectListItem(
-                        string.IsNullOrWhiteSpace(area.AreaCode) ? area.AreaName : $"{area.AreaName} ({area.AreaCode})",
-                        area.AreaId.ToString(),
-                        true)
-                };
-            }
-        }
+        // Areas for a phlebotomist's Assigned Zones (SQLScripts/2389): the areas of the city on the Profile step, several
+        // can be ticked. Areas already assigned in another city stay listed under their city until they are unticked.
+        var zoneCityId = model.CityId ?? 0;
+        var zoneAreas = await dbContext.AreaMasters.AsNoTracking()
+            .Where(a => (a.IsActive && a.CityId == zoneCityId) || model.AssignedZoneIds.Contains(a.AreaId))
+            .Select(a => new { a.AreaId, a.AreaName, a.AreaCode, a.CityId, CityName = a.City != null ? a.City.CityName : "" })
+            .ToListAsync();
+        zoneAreas = zoneAreas.OrderBy(a => a.CityId == zoneCityId ? 0 : 1).ThenBy(a => a.CityName).ThenBy(a => a.AreaName).ToList();
+        var zoneGroups = zoneAreas.Select(a => a.CityName).Distinct()
+            .ToDictionary(c => c, c => new SelectListGroup { Name = string.IsNullOrWhiteSpace(c) ? "Other" : c });
+        model.AssignedZoneOptions = zoneAreas
+            .Select(a => new SelectListItem(
+                string.IsNullOrWhiteSpace(a.AreaCode) ? a.AreaName : $"{a.AreaName} ({a.AreaCode})",
+                a.AreaId.ToString(),
+                model.AssignedZoneIds.Contains(a.AreaId)) { Group = zoneGroups[a.CityName] })
+            .ToList();
     }
 
     /// <summary>The ticked (branch, role) pairs, limited to branches the user is actually mapped to.</summary>
@@ -929,6 +1142,26 @@ public class UsersController(
     private static void NormalizeBranchRoles(UserFormViewModel model)
     {
         model.SelectedRoleIds = ParseBranchRoles(model).Select(p => p.RoleId).Distinct().ToList();
+    }
+
+    /// <summary>The company a user form works in: the edited user's company, or the signed-in company for a new user.</summary>
+    private async Task<int> UserCompanyIdAsync(int userId)
+        => userId > 0 && await dbContext.Users.Where(u => u.Id == userId).Select(u => u.CompanyId).FirstOrDefaultAsync() is int c && c > 0
+            ? c : User.GetCompanyId();
+
+    /// <summary>Adds a model error when a selected branch is not a branch of the user's company.</summary>
+    private async Task ValidateBranchesOfCompanyAsync(UserFormViewModel model)
+    {
+        var ids = model.SelectedBranchIds.Distinct().ToList();
+        if (ids.Count == 0) return;
+        var companyId = await UserCompanyIdAsync(model.Id);
+        var own = await dbContext.BranchMasters.CountAsync(b => ids.Contains(b.BranchId) && b.CompanyId == companyId);
+        if (own != ids.Count)
+            ModelState.AddModelError(nameof(model.SelectedBranchIds), "A user can be given only the branches of its own company.");
+        // shift slots come from the company's own Shift Master
+        foreach (var (shiftId, field) in new[] { (model.ShiftSlotId, nameof(model.ShiftSlotId)), (model.LabTechnicianShiftSlotId, nameof(model.LabTechnicianShiftSlotId)) })
+            if (shiftId is > 0 && !await dbContext.ShiftMasters.AnyAsync(s => s.ShiftMaster_ID == shiftId && s.CompanyId == companyId))
+                ModelState.AddModelError(field, "Select a shift of this company's Shift Master.");
     }
 
     private async Task SaveMappings(UserFormViewModel model, int userId, string? normalizedEmployeeCode)
@@ -970,6 +1203,121 @@ public class UsersController(
                 ModifiedBy = User.GetUserId()
             });
         dbContext.UserRoles.AddRange(roleMappings);
+    }
+
+    /// <summary>
+    /// E-mail and phone number are unique within the company (SQLScripts/2305): e-mail ignoring case and spaces, phone by
+    /// its last 10 digits (so 09007524092 and 9007524092 are the same number). On edit a value is checked only when it is
+    /// changed, so records that already share one can still be saved.
+    /// </summary>
+    private async Task ValidateContactUniquenessAsync(UserFormViewModel model, int? companyId, string? storedEmail, string? storedPhone)
+    {
+        static string Phone10(string? phone)
+        {
+            var digits = new string((phone ?? "").Where(char.IsDigit).ToArray());
+            return digits.Length > 10 ? digits[^10..] : digits;
+        }
+
+        var email = model.Email?.Trim();
+        if (!string.IsNullOrEmpty(email)
+            && !string.Equals(email, storedEmail?.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            // e-mail is the sign-in: unique in the whole application (SQLScripts/2307)
+            var lower = email.ToLower();
+            var taken = await dbContext.Users.AsNoTracking()
+                .Where(u => u.Id != model.Id && u.Email != null && u.Email.Trim().ToLower() == lower)
+                .Select(u => new { u.Username, u.CompanyId }).FirstOrDefaultAsync();
+            if (taken is not null)
+                ModelState.AddModelError(nameof(model.Email), taken.CompanyId == companyId
+                    ? "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address."
+                    : "This e-mail is already registered to another account.");
+        }
+
+        var phone = Phone10(model.PhoneNumber);
+        if (phone.Length > 0 && phone != Phone10(storedPhone))
+        {
+            // compared in memory by the last 10 digits (numbers are stored with or without a leading 0 / +91)
+            var tail = phone.Length >= 6 ? phone[^6..] : phone;
+            var candidates = await dbContext.Users.AsNoTracking()
+                .Where(u => u.CompanyId == companyId && u.Id != model.Id && u.PhoneNumber != null && u.PhoneNumber.Contains(tail))
+                .Select(u => new { u.Username, u.PhoneNumber }).ToListAsync();
+            var taken = candidates.FirstOrDefault(u => Phone10(u.PhoneNumber) == phone);
+            if (taken is not null)
+                ModelState.AddModelError(nameof(model.PhoneNumber), "This phone number is already used by another user in this company.");
+        }
+    }
+
+    private void RequireEmail(UserFormViewModel model)
+    {
+        if (string.IsNullOrWhiteSpace(model.Email))
+            ModelState.AddModelError(nameof(model.Email), "E-mail is required - it is used to sign in.");
+    }
+
+    /// <summary>
+    /// User Master: is this e-mail free to sign in with? (SQLScripts/2307) Checked while typing; the save checks again.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> CheckEmail(string? email, int id = 0)
+    {
+        if (!CanManage()) return Forbid();
+        var e = (email ?? "").Trim();
+        if (e.Length == 0) return Json(new { valid = false, available = false, message = "" });
+        if (e.Length > 100 || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(e) || !e.Contains('.'))
+            return Json(new { valid = false, available = false, message = "Enter a valid e-mail address." });
+        var lower = e.ToLower();
+        // SQLScripts/2470 / 2490: 1) the central user register first (username unique across all installations, the platform super admin excepted); 2) this application's database -
+        // always; when the central server is unreachable only the application could be checked, and the message says so
+        var (checkCompanyId, checkCentralId) = id > 0
+            ? await dbContext.Users.AsNoTracking().Where(u => u.Id == id).Select(u => new ValueTuple<int, long?>(u.CompanyId ?? 0, u.CentralUserID)).FirstOrDefaultAsync()
+            : ((int?)User.GetCompanyId() ?? 0, null);
+        var central = await centralUsers.CheckAsync(checkCompanyId, lower, id > 0 ? id : null, checkCentralId);
+        if (central.Taken)
+            return Json(new { valid = true, available = false, message = central.Message });
+        var taken = await dbContext.Users.AsNoTracking()
+            .Where(u => u.Id != id && ((u.Email != null && u.Email.Trim().ToLower() == lower) || u.Username == lower))
+            .Select(u => new { u.Username, u.CompanyId }).FirstOrDefaultAsync();
+        if (taken is null)
+            return Json(new
+            {
+                valid = true, available = true,
+                message = central.Status == "UNAVAILABLE"
+                    ? "Available in this application - this e-mail will be the sign-in. (Central user register not reachable now: it is registered there on the next sync.)"
+                    : "Available - this e-mail will be the sign-in."
+            });
+        return Json(new
+        {
+            valid = true, available = false,
+            message = "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address."
+        });
+    }
+
+    /// <summary>Reports To (SQLScripts/2305): a user of the same company, not the user itself, and no reporting loop.</summary>
+    private async Task ValidateReportsToAsync(UserFormViewModel model, int? companyId)
+    {
+        if (model.ReportsToUserId is not > 0) { model.ReportsToUserId = null; return; }
+        if (model.ReportsToUserId == model.Id)
+        {
+            ModelState.AddModelError(nameof(model.ReportsToUserId), "A user cannot report to himself / herself.");
+            return;
+        }
+        if (!await dbContext.Users.AnyAsync(u => u.Id == model.ReportsToUserId && u.CompanyId == companyId))
+        {
+            ModelState.AddModelError(nameof(model.ReportsToUserId), "Choose a user of this company.");
+            return;
+        }
+        if (model.Id <= 0) return;   // a new user cannot be anybody's manager yet
+        // walk up the chain from the chosen manager: reaching this user again would make a loop
+        var seen = new HashSet<int>();
+        int? cur = model.ReportsToUserId;
+        while (cur is int id && seen.Add(id))
+        {
+            if (id == model.Id)
+            {
+                ModelState.AddModelError(nameof(model.ReportsToUserId), "This would make a reporting loop - the chosen user already reports (directly or through others) to this user.");
+                return;
+            }
+            cur = await dbContext.Users.Where(u => u.Id == id).Select(u => u.ReportsToUserId).FirstOrDefaultAsync();
+        }
     }
 
     private async Task ValidateEmployeeCodeUniquenessAsync(UserFormViewModel model)

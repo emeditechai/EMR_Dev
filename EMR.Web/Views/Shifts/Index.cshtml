@@ -163,15 +163,15 @@
                         }
                     </td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.SHIFTS:DETAILS" asp-action="Details" asp-route-id="@item.ShiftMaster_ID"
+                        <a asp-permission="MASTER.SHIFTS:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.ShiftMaster_ID"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.SHIFTS:EDIT" asp-action="Edit" asp-route-id="@item.ShiftMaster_ID"
+                        <a asp-permission="MASTER.SHIFTS:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.ShiftMaster_ID"
                            class="btn btn-sm btn-outline-primary me-1" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>
-                        <form asp-permission="MASTER.SHIFTS:DELETE" asp-action="Delete" asp-route-id="@item.ShiftMaster_ID" method="post" class="d-inline"
+                        <form asp-permission="MASTER.SHIFTS:DELETE" asp-action="Delete" asp-encrypted-route-id="@item.ShiftMaster_ID" method="post" class="d-inline"
                               onsubmit="return confirm('Are you sure you want to delete @item.ShiftName?');">
                             @Html.AntiForgeryToken()
                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">

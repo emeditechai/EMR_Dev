@@ -58,7 +58,7 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
     }
 
     public async Task<ReportApiResult<B2CCollectionRegisterResult>> GetLabB2CCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate,
-        int? paymentMethodId, int? collectedBy, string? search, int userId, bool isAdmin, bool isSuperAdmin)
+        int? paymentMethodId, int? collectedBy, string? search, int userId, bool isAdmin, bool isSuperAdmin, string? billingType = null)
     {
         try
         {
@@ -66,6 +66,7 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
             if (paymentMethodId is > 0) url += $"&paymentMethodId={paymentMethodId}";
             if (collectedBy is > 0) url += $"&collectedBy={collectedBy}";
             if (!string.IsNullOrWhiteSpace(search)) url += $"&search={Uri.EscapeDataString(search.Trim())}";
+            if (billingType is "B2C" or "B2B") url += $"&billingType={billingType}";
             url += $"&userId={userId}&isAdmin={isAdmin.ToString().ToLowerInvariant()}&isSuperAdmin={isSuperAdmin.ToString().ToLowerInvariant()}";
 
             var response = await _http.GetAsync(url);

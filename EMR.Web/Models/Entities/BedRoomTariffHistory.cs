@@ -41,6 +41,8 @@ public class BedRoomTariffHistory
 
     [Column(TypeName = "decimal(18,2)")]
     public decimal NursingCharge { get; set; }
+    /// <summary>RMO (Resident Medical Officer) charge per day (SQLScripts/2485).</summary>
+    public decimal RmoCharge { get; set; }
 
     [Column(TypeName = "decimal(18,2)")]
     public decimal AttendantCharge { get; set; }
@@ -64,7 +66,7 @@ public class BedRoomTariffHistory
 
     public DateTime ChangedDate { get; set; } = DateTime.Now;
 
-    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + AttendantCharge + IsolationCharge;
+    public decimal TotalBaseCharge => RoomCharge + BedCharge + NursingCharge + RmoCharge + AttendantCharge + IsolationCharge;
     public decimal TotalGstAmount => Math.Round(TotalBaseCharge * (GstPercentage / 100m), 2);
     public decimal TotalGrossAmount => TotalBaseCharge + TotalGstAmount;
 

@@ -22,9 +22,77 @@ public class DoctorsController(
     IDoctorConsultingFeeService consultingFeeService,
     ApplicationDbContext dbContext,
     IAuditLogService auditLogService,
-    IPasswordHasherService passwordHasherService) : Controller
+    IPasswordHasherService passwordHasherService,
+    MarketingExecutiveApiClient marketingExecutives,
+    ILogger<DoctorsController> logger) : Controller
 {
-    public async Task<IActionResult> Index([FromQuery] int? doctorId = null, [FromQuery] int page = 1)
+    // ── marketing executive (Master > General > Marketing Executive, SQLScripts/2440 / 2441) ──────────────────────
+    private static readonly Dictionary<string, string> ExecutiveTypeNames = new() { ["OPD"] = "OPD", ["LAB"] = "LAB", ["IPD"] = "IPD", ["MED"] = "MED (Pharmacy)" };
+
+    private async Task<List<System.Text.Json.JsonElement>> ActiveExecutivesAsync()
+    {
+        try { return (await marketingExecutives.GetAsync(IpdApiClient.Q(("status", "ACTIVE")))).Items(); }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException) { logger.LogWarning(ex, "Marketing executives not loaded"); return []; }
+    }
+
+    private async Task<System.Text.Json.JsonElement?> DoctorExecutiveAsync(int doctorId)
+    {
+        try
+        {
+            var row = await marketingExecutives.GetAsync($"/doctor/{doctorId}");
+            return row.ValueKind == System.Text.Json.JsonValueKind.Object ? row : null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException) { logger.LogWarning(ex, "Doctor's marketing executive not loaded"); return null; }
+    }
+
+    /// <summary>The choice must be an active executive, or the one the doctor already has (kept even if deactivated since).</summary>
+    private async Task ValidateMarketingExecutiveAsync(DoctorFormViewModel model, int? currentExecutiveId)
+    {
+        if (model.MarketingExecutiveId is not > 0) { model.MarketingExecutiveId = null; return; }
+        if (model.MarketingExecutiveId == currentExecutiveId) return;
+        if (!(await ActiveExecutivesAsync()).Any(x => x.I("ExecutiveId") == model.MarketingExecutiveId))
+            ModelState.AddModelError(nameof(model.MarketingExecutiveId), "Choose an active marketing executive.");
+    }
+
+    /// <summary>Saves the doctor's executive after the doctor (API + procedure); a failure is reported, the doctor stays saved.</summary>
+    private async Task<string?> SaveMarketingExecutiveAsync(int doctorId, int? executiveId)
+    {
+        try
+        {
+            var row = await marketingExecutives.PostAsync($"/doctor/{doctorId}", new { ExecutiveId = executiveId });
+            return row.B("Success") ? null : row.S("Error");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "Doctor's marketing executive not saved");
+            return "The marketing executive could not be saved (EMR API not reachable). Edit the doctor to set it again.";
+        }
+    }
+
+    /// <summary>Active executives as "Name — Type (Code)", by name; an executive already on the doctor and deactivated since is kept, marked.</summary>
+    private async Task FillMarketingExecutiveOptionsAsync(DoctorFormViewModel model)
+    {
+        static string Label(string? name, string? type, string? code, bool inactive = false) =>
+            $"{name} — {ExecutiveTypeNames.GetValueOrDefault(type ?? "", type ?? "")} ({code}){(inactive ? " · inactive" : "")}";
+        var list = (await ActiveExecutivesAsync())
+            .Select(x => new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+            {
+                Value = x.I("ExecutiveId").ToString(), Text = Label(x.S("ExecutiveName"), x.S("ExecutiveType"), x.S("ExecutiveCode"))
+            }).ToList();
+        if (model.MarketingExecutiveId is > 0 && list.All(o => o.Value != model.MarketingExecutiveId.ToString()) && model.DoctorId > 0
+            && await DoctorExecutiveAsync(model.DoctorId) is { } cur && cur.NI("MarketingExecutiveId") == model.MarketingExecutiveId)
+            list.Add(new Microsoft.AspNetCore.Mvc.Rendering.SelectListItem
+            {
+                Value = model.MarketingExecutiveId.ToString(),
+                Text = Label(cur.S("MarketingExecutiveName"), cur.S("MarketingExecutiveType"), cur.S("MarketingExecutiveCode"), inactive: true)
+            });
+        model.MarketingExecutiveOptions = list.OrderBy(o => o.Text, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Doctor Master list, paged and filtered on the server (SQLScripts/2315).</summary>
+    public async Task<IActionResult> Index([FromQuery] int? doctorId = null, [FromQuery] string? search = null, [FromQuery] string? status = null,
+        [FromQuery] string? referral = null, [FromQuery] string? speciality = null, [FromQuery] string? department = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, [FromQuery] string? deptType = null)
     {
         var branchId = User.GetCurrentBranchId();
 
@@ -33,55 +101,68 @@ public class DoctorsController(
             : null;
         ViewBag.SelectedDoctorId = doctorId;
 
+        if (page < 1) page = 1;
+        if (pageSize is not (10 or 25 or 50 or 100)) pageSize = 25;
+        status = status?.Trim().ToLowerInvariant() is "active" or "inactive" or "suspended" ? status.Trim().ToLowerInvariant() : null;   // suspended: 2484
+        referral = referral?.Trim().ToLowerInvariant() is "yes" or "no" ? referral.Trim().ToLowerInvariant() : null;
+        search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        speciality = string.IsNullOrWhiteSpace(speciality) ? null : speciality.Trim();
+        department = string.IsNullOrWhiteSpace(department) ? null : department.Trim();
+        deptType = deptType?.Trim().ToUpperInvariant() is "OPD" or "LAB" or "IPD" or "MED" ? deptType.Trim().ToUpperInvariant() : null;   // 2469
+        var oneDoctor = doctorId is > 0 ? doctorId : null;
+
         try
         {
             // Strictly via EMR.Api — no DB fallback
-            // All doctors of the branch in one call: the list filters instantly in the browser (User Master pattern)
-            var pagedDoctors = await doctorApiClient.GetListAsync(branchId, pageNumber: 1, pageSize: 5000, companyId: User.GetCompanyId());
-            var apiDoctors = pagedDoctors.Items;
-            
-            if (doctorId.HasValue && doctorId.Value > 0)
+            var result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize, deptType);
+            // a page past the end (e.g. after narrowing the filter): show the last page
+            var lastPage = Math.Max(1, (int)Math.Ceiling(result.FilteredCount / (double)pageSize));
+            if (page > lastPage)
             {
-                apiDoctors = apiDoctors.Where(d => d.DoctorId == doctorId.Value).ToList();
-                var selectedDoctor = apiDoctors.FirstOrDefault();
-                if (selectedDoctor != null)
-                {
-                    ViewBag.SelectedDoctorName = $"{selectedDoctor.FullName} ({selectedDoctor.PrimarySpecialityName})";
-                }
-                
-                // Override pagination stats for single-item filter
-                pagedDoctors.TotalCount = selectedDoctor != null ? 1 : 0;
-                pagedDoctors.Page = 1;
-                pagedDoctors.PageSize = 1;
+                page = lastPage;
+                result = await doctorApiClient.GetPagedListAsync(User.GetCompanyId(), branchId, search, status, referral, speciality, department, oneDoctor, page, pageSize, deptType);
             }
+            if (oneDoctor.HasValue && result.Items.FirstOrDefault() is { } selected)
+                ViewBag.SelectedDoctorName = $"{selected.FullName} ({selected.PrimarySpecialityName})";
 
-            var doctors = apiDoctors.Select(d => new DoctorListItemViewModel
+            var model = new DoctorListPageViewModel
             {
-                DoctorId              = d.DoctorId,
-                FullName              = d.FullName,
-                PrimarySpecialityName = d.PrimarySpecialityName ?? string.Empty,
-                DepartmentNames       = d.DepartmentNames ?? string.Empty,
-                PhoneNumber           = d.PhoneNumber ?? string.Empty,
-                EmailId               = d.EmailId ?? string.Empty,
-                IsActive              = d.IsActive,
-                ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
-                HasOPDDept            = d.HasOPDDept,
-                IsReferralDoctor      = d.IsReferralDoctor
-            });
-            
-            // Stats from the paged result (before local filter if any)
-            ViewBag.TotalCount = pagedDoctors.TotalCount;
-            ViewBag.CurrentPage = pagedDoctors.Page;
-            ViewBag.TotalPages = pagedDoctors.TotalPages;
-            ViewBag.PageSize = pagedDoctors.PageSize;
-
-            // Department name -> Type (Department Master) for the "Pathology (LAB)" filter labels
-            ViewBag.DeptTypes = (await dbContext.DepartmentMasters.AsNoTracking()
-                    .Select(d => new { d.DeptName, d.DeptType }).ToListAsync())
-                .GroupBy(d => d.DeptName.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => (g.First().DeptType ?? string.Empty).Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase);
-
-            return View(doctors);
+                Items = result.Items.Select(d => new DoctorListItemViewModel
+                {
+                    DoctorId              = d.DoctorId,
+                    FullName              = d.FullName,
+                    PrimarySpecialityName = d.PrimarySpecialityName ?? string.Empty,
+                    DepartmentNames       = d.DepartmentNames ?? string.Empty,
+                    PhoneNumber           = d.PhoneNumber ?? string.Empty,
+                    EmailId               = d.EmailId ?? string.Empty,
+                    IsActive              = d.IsActive,
+                    ConsultingFeeNames    = d.ConsultingFeeNames ?? string.Empty,
+                    HasOPDDept            = d.HasOPDDept,
+                    IsReferralDoctor      = d.IsReferralDoctor,
+                    IsSuspended           = d.IsSuspended,
+                    SuspendReason         = d.SuspendReason,
+                    MarketingExecutiveName = d.MarketingExecutiveName,
+                    MarketingExecutiveType = d.MarketingExecutiveType
+                }).ToList(),
+                TotalDoctors = result.TotalDoctors,
+                ActiveDoctors = result.ActiveDoctors,
+                InactiveDoctors = result.InactiveDoctors,
+                OpdDoctors = result.OpdDoctors,
+                WithFees = result.WithFees,
+                FilteredCount = result.FilteredCount,
+                Page = page,
+                PageSize = pageSize,
+                Search = search,
+                Status = status,
+                Referral = referral,
+                Speciality = speciality,
+                Department = department,
+                DeptType = deptType,
+                DoctorId = oneDoctor,
+                Specialities = result.Specialities,
+                Departments = result.Departments.Select(d => (d.Name, d.Type)).ToList()
+            };
+            return View(model);
         }
         catch (HttpRequestException)
         {
@@ -121,6 +202,43 @@ public class DoctorsController(
     [HttpGet]
     [RequiresPermission("MASTER.DOCTORS", PermissionControls.Create)]
     [RequiresPermission("MASTER.DOCTORS", PermissionControls.Edit)]
+    /// <summary>
+    /// Doctor Master > Login Account: is the doctor's e-mail free to sign in with? (SQLScripts/2307) Checked while typing;
+    /// the save checks again. The doctor's own login is not counted.
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> CheckLoginEmail(string? email, int? doctorId)
+    {
+        var e = (email ?? "").Trim().ToLower();
+        if (e.Length == 0) return Json(new { valid = false, available = false, message = "" });
+        if (e.Length > 100 || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(e) || !e.Contains('.'))
+            return Json(new { valid = false, available = false, message = e.Length > 100 ? "Up to 100 characters for a login e-mail." : "Enter a valid e-mail address." });
+        int? ownUserId = null;
+        if (doctorId is > 0)
+            ownUserId = await dbContext.Users.Where(u => u.UserType == UserTypes.Doctor && u.ReferenceUserId == doctorId)
+                                             .Select(u => (int?)u.Id).FirstOrDefaultAsync();
+        var own = ownUserId is int oid ? await dbContext.Users.AsNoTracking().Where(u => u.Id == oid).Select(u => u.Email).FirstOrDefaultAsync() : null;
+        if (own is not null && string.Equals(own.Trim(), e, StringComparison.OrdinalIgnoreCase))
+            return Json(new { valid = true, available = true, message = "Current sign-in of this doctor." });
+        var taken = await dbContext.Users.AsNoTracking()
+            .Where(u => (ownUserId == null || u.Id != ownUserId) && ((u.Email != null && u.Email.Trim().ToLower() == e) || u.Username == e))
+            .Select(u => u.Username).FirstOrDefaultAsync();
+        if (taken is not null)
+            return Json(new { valid = true, available = false, message = "This e-mail is already in use as a sign-in and cannot be used. Please use a different e-mail address." });   // who holds it is never told
+        // SQLScripts/2490: sign-in e-mails are unique across all installations (central user register) - same check as User Master
+        var ownCentral = ownUserId is int cu ? await dbContext.Users.AsNoTracking().Where(u => u.Id == cu).Select(u => new { u.CompanyId, u.CentralUserID }).FirstOrDefaultAsync() : null;
+        var central = await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+            .CheckAsync(ownCentral?.CompanyId ?? ((int?)User.GetCompanyId() ?? 0), e, ownUserId, ownCentral?.CentralUserID);
+        if (central.Taken) return Json(new { valid = true, available = false, message = central.Message });
+        return Json(new
+        {
+            valid = true, available = true,
+            message = central.Status == "UNAVAILABLE"
+                ? "Available in this application - the doctor will sign in with this e-mail. (Central user register not reachable now: checked again on save.)"
+                : "Available - the doctor will sign in with this e-mail."
+        });
+    }
+
     public async Task<IActionResult> SuggestLoginUsernames(string? fullName, string? email, string? check, int? doctorId)
     {
         int? ownUserId = null;
@@ -220,6 +338,7 @@ public class DoctorsController(
 
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
+        await ValidateMarketingExecutiveAsync(model, currentExecutiveId: null);
         if (model.IsLoginRequired)
             await ValidateLoginFieldsAsync(model, existingUserId: null);
 
@@ -251,6 +370,8 @@ public class DoctorsController(
         // the doctor first: its login points at the doctor (Users.User_Type 'D', ReferenceUserID = DoctorId)
         var doctorId = await doctorService.CreateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
         doctor.DoctorId = doctorId;
+        var meError = model.MarketingExecutiveId is > 0 ? await SaveMarketingExecutiveAsync(doctorId, model.MarketingExecutiveId) : null;
+        if (meError is not null) TempData["Warning"] = meError;
         if (model.IsLoginRequired)
         {
             var loginUserId = await CreateLinkedUserAsync(model, doctor.FullName, doctorId);
@@ -289,9 +410,14 @@ public class DoctorsController(
             JoiningDate = doctor.JoiningDate,
             IsActive = doctor.IsActive,
             IsReferralDoctor = doctor.IsReferralDoctor,
+            IsSuspended = doctor.IsSuspended,
+            SuspendReason = doctor.SuspendReason,
+            SuspendedAt = doctor.SuspendedAt,
+            SuspendedByName = doctor.SuspendedBy is int sb ? await dbContext.Users.Where(u => u.Id == sb).Select(u => u.FullName).FirstOrDefaultAsync() : null,
             SelectedBranchIds = await doctorService.GetBranchIdsAsync(doctor.DoctorId),
             SelectedDepartmentIds = await doctorService.GetDepartmentIdsAsync(doctor.DoctorId),
-            LinkedUserId = doctor.LinkedUserId
+            LinkedUserId = doctor.LinkedUserId,
+            MarketingExecutiveId = (await DoctorExecutiveAsync(doctor.DoctorId))?.NI("MarketingExecutiveId")
         };
 
         // the doctor's login: switched on when DoctorMaster links it; a switched-off one is shown so it is re-used
@@ -344,6 +470,14 @@ public class DoctorsController(
 
         await ApplyBranchAssignmentRules(model, currentBranchId.Value);
         ValidateForm(model);
+        // suspension (SQLScripts/2484): a reason is required - the popup asks for it, the server insists
+        model.SuspendReason = string.IsNullOrWhiteSpace(model.SuspendReason) ? null : model.SuspendReason.Trim();
+        if (model.IsSuspended && model.SuspendReason is null)
+            ModelState.AddModelError(nameof(model.SuspendReason), "Enter the reason for suspending the doctor.");
+        if (model.SuspendReason?.Length > 500)
+            ModelState.AddModelError(nameof(model.SuspendReason), "The reason can be at most 500 characters.");
+        var currentExecutiveId = (await DoctorExecutiveAsync(model.DoctorId))?.NI("MarketingExecutiveId");
+        await ValidateMarketingExecutiveAsync(model, currentExecutiveId);
         if (model.IsLoginRequired)
             await ValidateLoginFieldsAsync(model, existingUserId: login?.Id);
 
@@ -365,6 +499,21 @@ public class DoctorsController(
         doctor.JoiningDate = model.JoiningDate;
         doctor.IsActive = model.IsActive;
         doctor.IsReferralDoctor = model.IsReferralDoctor;
+
+        // ── Suspension (SQLScripts/2484): who / when set when the doctor is suspended; cleared when it is lifted ──
+        var wasSuspended = doctor.IsSuspended;
+        var oldReason = doctor.SuspendReason;
+        if (model.IsSuspended)
+        {
+            if (!wasSuspended) { doctor.SuspendedBy = User.GetUserId(); doctor.SuspendedAt = DateTime.Now; }
+            doctor.IsSuspended = true;
+            doctor.SuspendReason = model.SuspendReason;
+        }
+        else
+        {
+            doctor.IsSuspended = false;
+            doctor.SuspendReason = null; doctor.SuspendedBy = null; doctor.SuspendedAt = null;
+        }
 
         // ── Login account management ──────────────────────────────────────────
         if (model.IsLoginRequired)
@@ -393,10 +542,35 @@ public class DoctorsController(
         }
 
         await doctorService.UpdateAsync(doctor, model.SelectedBranchIds, model.SelectedDepartmentIds, User.GetUserId());
+        if (model.MarketingExecutiveId != currentExecutiveId)
+        {
+            var meError = await SaveMarketingExecutiveAsync(doctor.DoctorId, model.MarketingExecutiveId);
+            if (meError is not null) TempData["Warning"] = meError;
+        }
 
         await auditLogService.LogAsync("MasterData", "Doctors.Edit", $"Updated doctor: {doctor.FullName} ({doctor.EmailId})");
+        // suspension history (SQLScripts/2484): suspended / reason changed / lifted
+        if (doctor.IsSuspended != wasSuspended || (doctor.IsSuspended && !string.Equals(oldReason, doctor.SuspendReason, StringComparison.Ordinal)))
+            await auditLogService.LogActivityAsync("MasterData",
+                doctor.IsSuspended ? (wasSuspended ? "Doctors.SuspendReason" : "Doctors.Suspend") : "Doctors.Unsuspend",
+                doctor.IsSuspended
+                    ? $"Doctor {doctor.FullName} {(wasSuspended ? "suspension reason changed" : "suspended")}: {doctor.SuspendReason}"
+                    : $"Doctor {doctor.FullName}: suspension lifted (was: {oldReason})",
+                referenceId: doctor.DoctorId);
         TempData["Success"] = "Doctor updated successfully.";
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>
+    /// SQLScripts/2484: the booking screens (LAB B2C / B2B referral doctor, OPD consulting doctor) ask when a doctor is
+    /// chosen - suspended doctors are refused with the reason. keepOpdServiceId: an OPD visit being edited (its own doctor is kept).
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> SuspensionStatus(int id, string? role, int? keepOpdServiceId)
+    {
+        var label = role == "consulting" ? "the consulting doctor" : "the referral doctor";
+        var msg = await doctorService.SuspensionBlockAsync(id, label, keepOpdServiceId);
+        return Json(new { suspended = msg != null, message = msg });
     }
 
     [HttpGet]
@@ -408,6 +582,14 @@ public class DoctorsController(
 
         if (branchId.HasValue)
             model.ConsultingFees = (await consultingFeeService.GetByDoctorAsync(id, branchId.Value)).ToList();
+        if (await DoctorExecutiveAsync(id) is { } me && me.NI("MarketingExecutiveId") is > 0)
+        {
+            model.MarketingExecutiveName = me.S("MarketingExecutiveName");
+            model.MarketingExecutiveCode = me.S("MarketingExecutiveCode");
+            model.MarketingExecutiveType = me.S("MarketingExecutiveType");
+            model.MarketingExecutivePhone = me.S("MarketingExecutivePhone");
+            model.MarketingExecutiveActive = me.B("MarketingExecutiveActive");
+        }
 
         return View(model);
     }
@@ -437,22 +619,42 @@ public class DoctorsController(
 
     private async Task ValidateLoginFieldsAsync(DoctorFormViewModel model, int? existingUserId)
     {
-        if (string.IsNullOrWhiteSpace(model.LoginUsername))
+        // Sign-in is by e-mail (SQLScripts/2307): the doctor's login signs in with the doctor's e-mail and its user name
+        // is that e-mail. The e-mail must be unique among all sign-ins when it is new or changed; an older login whose
+        // e-mail is shared keeps its user name until the e-mail is changed to a unique one.
+        var email = model.EmailId?.Trim().ToLowerInvariant() ?? "";
+        var stored = existingUserId.HasValue
+            ? await dbContext.Users.AsNoTracking().Where(u => u.Id == existingUserId.Value).Select(u => new { u.Username, u.Email }).FirstOrDefaultAsync()
+            : null;
+        var emailChanged = stored is null || !string.Equals(stored.Email?.Trim(), email, StringComparison.OrdinalIgnoreCase);
+        ModelState.Remove(nameof(model.LoginUsername));
+        if (email.Length == 0)
         {
-            ModelState.AddModelError(nameof(model.LoginUsername), "Username is required when login is enabled.");
+            ModelState.AddModelError(nameof(model.EmailId), "E-mail is required when login is enabled - the doctor signs in with it.");
+            model.LoginUsername = stored?.Username;
         }
-        else if (!existingUserId.HasValue && UsernameFormatError(model.LoginUsername.Trim()) is { } formatError)
+        else if (email.Length > 100)
         {
-            ModelState.AddModelError(nameof(model.LoginUsername), formatError);
+            ModelState.AddModelError(nameof(model.EmailId), "For a doctor with a login the e-mail can be up to 100 characters (it is the sign-in).");
+            model.LoginUsername = stored?.Username;
         }
         else
         {
-            // Check username uniqueness (allow same user on edit)
-            var taken = await dbContext.Users.AnyAsync(u =>
-                u.Username == model.LoginUsername.Trim() &&
-                (!existingUserId.HasValue || u.Id != existingUserId.Value));
-            if (taken)
-                ModelState.AddModelError(nameof(model.LoginUsername), "This username is already taken.");
+            var others = dbContext.Users.Where(u => !existingUserId.HasValue || u.Id != existingUserId.Value);
+            if (emailChanged && await others.AnyAsync(u => (u.Email != null && u.Email.Trim().ToLower() == email) || u.Username == email))
+                ModelState.AddModelError(nameof(model.EmailId), "This e-mail is already used by another sign-in - the doctor's login signs in with this e-mail.");
+            // SQLScripts/2490: sign-in e-mails are unique across all eCare360 installations (central user register)
+            else if (emailChanged)
+            {
+                var own = existingUserId.HasValue
+                    ? await dbContext.Users.AsNoTracking().Where(u => u.Id == existingUserId.Value).Select(u => new { u.CompanyId, u.CentralUserID }).FirstOrDefaultAsync()
+                    : null;
+                if (await HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Licensing.ICentralUserRegistry>()
+                        .CheckAsync(own?.CompanyId ?? ((int?)User.GetCompanyId() ?? 0), email, existingUserId, own?.CentralUserID) is { Taken: true } centralTaken)
+                    ModelState.AddModelError(nameof(model.EmailId), centralTaken.Message);
+            }
+            // user name = e-mail, unless another login already holds it (only possible for an unchanged, shared e-mail)
+            model.LoginUsername = await others.AnyAsync(u => u.Username == email) && stored is not null ? stored.Username : email;
         }
 
         // Password is mandatory on Create; optional on Edit (blank = keep existing)
@@ -499,8 +701,8 @@ public class DoctorsController(
         var user = new User
         {
             CompanyId        = User.GetCompanyId(),
-            Username         = model.LoginUsername!.Trim(),
-            Email            = model.EmailId.Trim(),
+            Username         = model.LoginUsername!.Trim(),       // the e-mail (ValidateLoginFieldsAsync), SQLScripts/2307
+            Email            = model.EmailId.Trim().ToLowerInvariant(),
             PasswordHash     = hash,
             Salt             = salt,
             FirstName        = firstName,
@@ -568,8 +770,8 @@ public class DoctorsController(
         user.ReferenceUserId = doctorId;
 
         var nameParts = fullName.Trim().Split(' ', 2);
-        user.Username        = model.LoginUsername!.Trim();
-        user.Email           = model.EmailId.Trim();
+        user.Username        = model.LoginUsername!.Trim();       // the e-mail (ValidateLoginFieldsAsync), SQLScripts/2307
+        user.Email           = model.EmailId.Trim().ToLowerInvariant();
         user.FirstName       = nameParts[0];
         user.LastName        = nameParts.Length > 1 ? nameParts[1] : string.Empty;
         user.FullName        = fullName;
@@ -642,6 +844,7 @@ public class DoctorsController(
 
         model.CurrentBranchId = currentBranchId.Value;
         model.CurrentBranchName = currentBranch?.BranchName ?? "Current Branch";
+        await FillMarketingExecutiveOptionsAsync(model);
 
         model.CanAssignMultipleBranches = await CanAssignMultipleBranchesAsync(currentBranchId.Value);
 
@@ -795,6 +998,7 @@ public class DoctorsController(
         var fees = await consultingFeeService.GetByDoctorAsync(req.DoctorId, branchId.Value);
         return Json(new { success = true, fees });
     }
+
 }
 
 public record ConsultingFeeRequest(int DoctorId, int ServiceId, int? GraceTime);

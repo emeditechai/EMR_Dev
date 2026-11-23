@@ -15,7 +15,7 @@
     </div>
     <partial name="_AccAlerts" />
 
-    <form asp-action="@(isNew ? "Create" : "Edit")" asp-route-id="@(isNew ? null : Model.ExpenseId)" method="post" id="expenseForm" enctype="multipart/form-data">
+    <form asp-action="@(isNew ? "Create" : "Edit")" asp-encrypted-route-id="@(isNew ? null : Model.ExpenseId)" method="post" id="expenseForm" enctype="multipart/form-data">
         @Html.AntiForgeryToken()
         <input type="hidden" asp-for="ExpenseId" />
         <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>

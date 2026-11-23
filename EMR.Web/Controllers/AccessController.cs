@@ -86,9 +86,7 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
             return NotFound();
         }
 
-        var companyId = user.CompanyId > 0 ? user.CompanyId : (User.GetCompanyId() > 0 ? User.GetCompanyId() : 1);
-        var companyRoleIds = await dbContext.Roles
-            .Where(x => x.CompanyId == companyId)
+        var companyRoleIds = await dbContext.Roles   // roles are global (script 2334)
             .Select(x => x.Id)
             .ToListAsync();
 
@@ -153,9 +151,7 @@ public class AccessController(ApplicationDbContext dbContext, IAuditLogService a
             .ToList();
 
         var selectedBranchId = branchId ?? user.UserBranches.FirstOrDefault()?.BranchId ?? 0;
-        var companyId = user.CompanyId > 0 ? user.CompanyId : (User.GetCompanyId() > 0 ? User.GetCompanyId() : 1);
-        var companyRoles = await dbContext.Roles
-            .Where(x => x.CompanyId == companyId)
+        var companyRoles = await dbContext.Roles   // roles are global (script 2334)
             .OrderBy(x => x.Name)
             .ToListAsync();
 

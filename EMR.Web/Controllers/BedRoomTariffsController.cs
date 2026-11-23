@@ -106,6 +106,7 @@ public class BedRoomTariffsController(
             RoomCharge = model.RoomCharge,
             BedCharge = model.BedCharge,
             NursingCharge = model.NursingCharge,
+            RmoCharge = model.RmoCharge,
             AttendantCharge = model.AttendantCharge,
             IsolationCharge = model.IsolationCharge,
             GstPercentage = model.GstPercentage,
@@ -117,7 +118,7 @@ public class BedRoomTariffsController(
             branchId: branchId);
 
         TempData["Success"] = "Bed/Room Tariff Rate created successfully.";
-        return RedirectToAction(nameof(Details), new { id = newId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = newId });
     }
 
     [HttpGet]
@@ -140,6 +141,7 @@ public class BedRoomTariffsController(
             RoomCharge = entity.RoomCharge,
             BedCharge = entity.BedCharge,
             NursingCharge = entity.NursingCharge,
+            RmoCharge = entity.RmoCharge,
             AttendantCharge = entity.AttendantCharge,
             IsolationCharge = entity.IsolationCharge,
             GstPercentage = entity.GstPercentage,
@@ -194,6 +196,7 @@ public class BedRoomTariffsController(
             RoomCharge = model.RoomCharge,
             BedCharge = model.BedCharge,
             NursingCharge = model.NursingCharge,
+            RmoCharge = model.RmoCharge,
             AttendantCharge = model.AttendantCharge,
             IsolationCharge = model.IsolationCharge,
             GstPercentage = model.GstPercentage,
@@ -205,7 +208,7 @@ public class BedRoomTariffsController(
             branchId: branchId);
 
         TempData["Success"] = "Bed/Room Tariff Rate updated and change logged to history.";
-        return RedirectToAction(nameof(Details), new { id = model.BedRateId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = model.BedRateId });
     }
 
     [HttpGet]

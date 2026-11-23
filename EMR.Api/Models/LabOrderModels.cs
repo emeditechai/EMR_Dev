@@ -10,7 +10,10 @@ namespace EMR.Api.Models
         public string CollectionType { get; set; } = "Lab";
         public int? PhlebotomistId { get; set; }
         public DateTime? BookingDate { get; set; }
+        public bool IsBookingRequired { get; set; }   // 2384: booking number BK<Branch><FY><seq>
         public DateTime? DueDate { get; set; }
+        public DateTime? LmpDate { get; set; }        // 2453: last menstrual period (stored for a Female patient only)
+        public string? PatientGender { get; set; }    // 2453: the gender on the booking form
         public bool IsB2B { get; set; }
         public int? B2BAgentId { get; set; }
         public string? AgentType { get; set; } // 'F' or 'C'
@@ -65,6 +68,7 @@ namespace EMR.Api.Models
         public int LabOrderId { get; set; }
         public string BillNo { get; set; } = string.Empty;
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
     }
 
     public class AvailableInvestigationDto
@@ -120,6 +124,8 @@ namespace EMR.Api.Models
         public DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }
@@ -174,6 +180,8 @@ namespace EMR.Api.Models
         public DateTime OrderDate { get; set; }
         public string? BillNo { get; set; }
         public string? TokenNo { get; set; }
+        public string? BookingNo { get; set; }          // 2384
+        public bool IsBookingRequired { get; set; }
         public bool IsUrgent { get; set; }
         public decimal TotalAmount { get; set; }
         public bool IsB2B { get; set; }
@@ -187,6 +195,9 @@ namespace EMR.Api.Models
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string? ReferralDoctorName { get; set; }
+        /// <summary>Marketing executive tagged on the referral doctor (Doctor Master, SQLScripts/2442).</summary>
+        public string? MarketingExecutiveName { get; set; }
+        public string? MarketingExecutiveType { get; set; }
         public DateTime? BookingDate { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedDate { get; set; }
@@ -197,6 +208,7 @@ namespace EMR.Api.Models
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? Gender { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public DateTime? DateOfBirth { get; set; }
         public int? Age { get; set; }
         public string? Address { get; set; }

@@ -80,11 +80,11 @@
                     </td>
                     <td class="text-muted small">@item.CreatedDate.ToString("dd MMM yyyy")</td>
                     <td class="text-end">
-                        <a asp-permission="MASTER.DOCTORSPECIALITIES:DETAILS" asp-action="Details" asp-route-id="@item.SpecialityId"
+                        <a asp-permission="MASTER.DOCTORSPECIALITIES:DETAILS" asp-action="Details" asp-encrypted-route-id="@item.SpecialityId"
                            class="btn btn-sm btn-outline-secondary me-1" title="View Details">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a asp-permission="MASTER.DOCTORSPECIALITIES:EDIT" asp-action="Edit" asp-route-id="@item.SpecialityId"
+                        <a asp-permission="MASTER.DOCTORSPECIALITIES:EDIT" asp-action="Edit" asp-encrypted-route-id="@item.SpecialityId"
                            class="btn btn-sm btn-outline-primary" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </a>

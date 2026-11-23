@@ -103,3 +103,31 @@ public class DoctorDashboardQueueResult
     public int TotalWaiting { get; set; }
     public int TotalCompleted { get; set; }
 }
+
+/// <summary>OPD doctor prescription pad of a consultation visit (SQLScripts/2527, usp_Api_ServiceBooking_PrescriptionPad).</summary>
+public class PrescriptionPadInfo
+{
+    public int OPDServiceId { get; set; }
+    public int BranchId { get; set; }
+    public string? OPDBillNo { get; set; }
+    public string? TokenNo { get; set; }
+    public DateTime VisitDate { get; set; }
+    public TimeSpan? AppointmentTime { get; set; }
+    public DateTime CreatedDate { get; set; }
+    public string? Status { get; set; }
+    public string? PatientCode { get; set; }
+    public string? PatientName { get; set; }
+    public string? Gender { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string? AgeText { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Address { get; set; }
+    public int? DoctorId { get; set; }
+    public string? DoctorName { get; set; }
+    public string? Department { get; set; }
+    public string? Qualification { get; set; }
+    public string? RegistrationNo { get; set; }
+    public string? RegistrationCouncil { get; set; }
+    public bool HasConsultation { get; set; }
+    public string? CreatedByUser { get; set; }
+}

@@ -27,6 +27,9 @@ namespace EMR.Api.Models
         public string? TokenNo { get; set; }
         public bool IsUrgent { get; set; }
         public string CollectionType { get; set; } = "Lab";
+        public string? HomeVisitStatus { get; set; }   // 2390: latest home visit
+        public bool CanCollect { get; set; } = true;   // 2390: false = Home Collection not handed over yet
+        public int WithPhlebotomistCount { get; set; }   // 2418: tubes the app collected, not handed over yet
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string PaymentStatus { get; set; } = "U";
@@ -60,6 +63,7 @@ namespace EMR.Api.Models
         public string PatientName { get; set; } = string.Empty;
         public int? Age { get; set; }
         public string? Gender { get; set; }
+        public System.DateTime? LmpDate { get; set; }   // 2453: last menstrual period (female patients)
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? Address { get; set; }
@@ -71,6 +75,8 @@ namespace EMR.Api.Models
         public string? TokenNo { get; set; }
         public bool IsUrgent { get; set; }
         public string CollectionType { get; set; } = "Lab";
+        public string? HomeVisitStatus { get; set; }   // 2390
+        public string? CollectionHoldReason { get; set; }   // 2390: why it cannot be collected yet (null = it can)
         public int? PhlebotomistId { get; set; }
         public string? PhlebotomistName { get; set; }
         public string PaymentStatus { get; set; } = "U";
@@ -104,6 +110,7 @@ namespace EMR.Api.Models
         public string? BarcodeNo { get; set; }
         /// <summary>True for a Franchise (PreprintedBarcode = Yes) order's rows: no system barcode was ever generated - the operator enters the franchise's own pre-printed sticker here instead.</summary>
         public bool RequiresManualBarcode { get; set; }
+        public bool AwaitingHandover { get; set; }       // 2418: collected by the phlebotomist, not handed over yet
         public int CollectionstatusID { get; set; }
         public string StatusName { get; set; } = string.Empty;
         public string StatusCode { get; set; } = string.Empty;

@@ -59,7 +59,7 @@
                 <label asp-for="PhoneNumber" class="form-label fw-semibold">Phone Number <span class="text-danger">*</span></label>
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-telephone"></i></span>
-                    <input asp-for="PhoneNumber" class="form-control" maxlength="20" placeholder="+91-9876543210" />
+                    <input asp-for="PhoneNumber" class="form-control" maxlength="14" inputmode="tel" placeholder="10-digit mobile, e.g. 9876543210" />
                 </div>
                 <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
             </div>
@@ -124,12 +124,43 @@
                 </div>
             </div>
 
+            <div class="col-md-6">
+                <label asp-for="MarketingExecutiveId" class="form-label fw-semibold">Marketing Executive</label>
+                <div>
+                    <select asp-for="MarketingExecutiveId" asp-items="Model.MarketingExecutiveOptions" class="form-select" id="marketingExecutive">
+                        <option value="">-- None --</option>
+                    </select>
+                </div>
+                <span asp-validation-for="MarketingExecutiveId" class="text-danger small"></span>
+                <div class="form-text">Optional. Type a name, type (OPD / LAB / IPD / MED) or code to search.</div>
+            </div>
+
             <div class="col-md-12">
                 <div class="form-check form-switch">
                     <input asp-for="IsReferralDoctor" class="form-check-input" type="checkbox" role="switch" />
                     <label asp-for="IsReferralDoctor" class="form-check-label fw-semibold">Is Referral Doctor</label>
                     <span class="badge ms-1 @(Model.IsReferralDoctor ? "bg-success-subtle text-success border border-success-subtle" : "bg-secondary-subtle text-secondary border border-secondary-subtle")" id="isReferralDoctorText">@(Model.IsReferralDoctor ? "Yes" : "No")</span>
                     <div class="form-text text-muted">Mark this doctor as a referral doctor. Default is No.</div>
+                </div>
+            </div>
+
+            @* ── Is Suspended (SQLScripts/2484): switching it on asks for the reason in a popup; the server requires it ── *@
+            <div class="col-md-12">
+                <div class="form-check form-switch">
+                    <input asp-for="IsSuspended" class="form-check-input" type="checkbox" role="switch" />
+                    <label asp-for="IsSuspended" class="form-check-label fw-semibold">Is Suspended</label>
+                    <span class="badge ms-1 @(Model.IsSuspended ? "bg-danger-subtle text-danger border border-danger-subtle" : "bg-secondary-subtle text-secondary border border-secondary-subtle")" id="isSuspendedText">@(Model.IsSuspended ? "Suspended" : "No")</span>
+                    <input type="hidden" asp-for="SuspendReason" />
+                    <div id="suspendInfo" class="alert alert-danger py-2 px-3 mt-2 mb-0 small @(Model.IsSuspended ? "" : "d-none")">
+                        <i class="bi bi-slash-circle me-1"></i><b>Reason:</b> <span id="suspendReasonText">@Model.SuspendReason</span>
+                        @if (Model.SuspendedAt.HasValue)
+                        {
+                            <span class="text-muted ms-1">· suspended on @Model.SuspendedAt.Value.ToString("dd-MMM-yyyy hh:mm tt")@(string.IsNullOrWhiteSpace(Model.SuspendedByName) ? "" : " by " + Model.SuspendedByName)</span>
+                        }
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline" id="btnSuspendReason">Change reason</button>
+                    </div>
+                    <span asp-validation-for="SuspendReason" class="text-danger small d-block"></span>
+                    <div class="form-text text-muted">Suspend the doctor with a reason. The doctor stays in the master; switching it off lifts the suspension.</div>
                 </div>
             </div>
 
@@ -199,16 +230,15 @@
                     <span class="input-group-text"><i class="bi bi-person"></i></span>
                     @if (Model.LoginAccountId.HasValue)
                     {
-                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="off" disabled />
+                        <input asp-for="LoginUsername" class="form-control bg-light" maxlength="100" readonly tabindex="-1" placeholder="Same as the e-mail" />
                     }
                     else
                     {
-                        <input asp-for="LoginUsername" class="form-control" maxlength="100" placeholder="e.g. dr.smith" autocomplete="emr-no-autofill" spellcheck="false" />
+                        <input asp-for="LoginUsername" class="form-control bg-light" maxlength="100" readonly tabindex="-1" placeholder="Same as the e-mail" />
                     }
                 </div>
+                <div class="small text-muted mt-1">The doctor signs in with the e-mail; the user name follows it when saved.</div>
                 <span asp-validation-for="LoginUsername" class="text-danger small"></span>
-                <div id="usernameStatus" class="small mt-1"></div>
-                <div id="usernameSuggestions" class="d-flex flex-wrap align-items-center gap-1 mt-1"></div>
             </div>
             <div class="col-md-4">
                 <label asp-for="LoginPassword" class="form-label fw-semibold">
@@ -259,54 +289,55 @@
 
 @section Scripts {
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+    <script src="~/js/views/Doctors/Edit.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />
     <script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
+    <script src="~/js/views/Doctors/Edit-2.js" asp-append-version="true"></script>
+    @* sign-in is by e-mail (SQLScripts/2307): the login's user name is the doctor's e-mail, checked for availability while
+       typing (only when a login is required); the save checks again *@
+    <link rel="stylesheet" href="~/css/views/Doctors/Edit.css" asp-append-version="true" />
     <script>
-        new TomSelect('#primarySpeciality', { create: false, sortField: { field: 'text', direction: 'asc' } });
-        new TomSelect('#secondarySpeciality', { create: false, allowEmptyOption: true });
-        new TomSelect('#departmentMulti', {
-            create: false,
-            plugins: ['remove_button'],
-            maxItems: null,
-            hideSelected: true,
-            placeholder: 'Select one or more departments'
-        });
-
-        const branchElement = document.getElementById('branchMulti');
-        if (branchElement) {
-            new TomSelect('#branchMulti', {
-                create: false,
-                plugins: ['remove_button'],
-                maxItems: null,
-                hideSelected: true,
-                placeholder: 'Assign one or more branches'
-            });
-        }
-
-        // ── Login account toggle ──
-        // Is Referral Doctor: show Yes / No next to the switch
         (function () {
-            const sw = document.getElementById('IsReferralDoctor'), txt = document.getElementById('isReferralDoctorText');
-            if (!sw || !txt) return;
-            const paint = () => {
-                txt.textContent = sw.checked ? 'Yes' : 'No';
-                txt.className = 'badge ms-1 ' + (sw.checked ? 'bg-success-subtle text-success border border-success-subtle'
-                                                           : 'bg-secondary-subtle text-secondary border border-secondary-subtle');
+            const mail = document.getElementById('EmailId'), user = document.getElementById('LoginUsername'), toggle = document.getElementById('isLoginRequired');
+            if (!mail || !user) return;
+            let box = document.getElementById('dlLoginState');
+            if (!box) { box = document.createElement('div'); box.id = 'dlLoginState'; box.className = 'dl-state'; box.setAttribute('aria-live', 'polite'); user.closest('.input-group').after(box); }
+            let timer = null, seq = 0, emailOk = false;
+            // SQLScripts/2490 (as User Master): with a login, Save stays disabled until the e-mail is confirmed free -
+            // in this application and in the central user register
+            const saveBtns = mail.form ? [...mail.form.querySelectorAll('button[type="submit"]')] : [];
+            const gate = () => saveBtns.forEach(b => {
+                const off = !!toggle?.checked && !emailOk;
+                b.disabled = off;
+                b.title = off ? 'Enter an e-mail that is available for the login - Save is enabled once it is confirmed.' : '';
+            });
+            const paint = (kind, text) => {
+                emailOk = kind === 'ok'; gate();
+                [mail, user].forEach(el => { el.classList.toggle('dl-ok', kind === 'ok'); el.classList.toggle('dl-bad', kind === 'bad'); });
+                box.className = 'dl-state ' + (kind || '');
+                box.innerHTML = !text ? '' : (kind === 'ok' ? '<i class="bi bi-check-circle-fill me-1"></i>' : kind === 'bad' ? '<i class="bi bi-x-circle-fill me-1"></i>'
+                              : '<span class="spinner-border spinner-border-sm me-1"></span>') + text.replace(/[<>&]/g, '');
             };
-            sw.addEventListener('change', paint);
-        })();
-
-        const loginToggle = document.getElementById('isLoginRequired');
-        const loginPanel  = document.getElementById('loginFieldsPanel');
-        function syncLoginPanel() {
-            if (loginToggle.checked) {
-                loginPanel.classList.remove('d-none');
-            } else {
-                loginPanel.classList.add('d-none');
+            async function check() {
+                const v = mail.value.trim();
+                if (!toggle?.checked) { paint('', ''); return; }
+                if (!v) { paint('bad', 'Enter the e-mail the doctor signs in with.'); return; }
+                const my = ++seq;
+                paint('wait', 'Checking...');
+                try {
+                    const r = await (await fetch('@Url.Action("CheckLoginEmail", "Doctors")?email=' + encodeURIComponent(v) + '&doctorId=@Model.DoctorId', { credentials: 'same-origin' })).json();
+                    if (my === seq) paint(r.valid && r.available ? 'ok' : 'bad', r.message);
+                } catch (e) { if (my === seq) paint('bad', 'The e-mail could not be checked. Check the connection and try again.'); }
             }
-        }
-        loginToggle.addEventListener('change', syncLoginPanel);
-        // Panel visibility already set server-side via Razor class binding
+            const sync = () => user.value = mail.value.trim().toLowerCase();
+            mail.addEventListener('input', () => { sync(); emailOk = false; gate(); clearTimeout(timer); timer = setTimeout(check, 450); });
+            mail.addEventListener('blur', () => { clearTimeout(timer); check(); });
+            toggle?.addEventListener('change', check);
+            // not sent while the e-mail is known to be taken by another sign-in
+            mail.form?.addEventListener('submit', e => {
+                if (toggle?.checked && !emailOk) { e.preventDefault(); mail.focus(); mail.scrollIntoView({ block: 'center' }); check(); }
+            });
+            sync(); check();
+        })();
     </script>
-    <partial name="_LoginUsernameAssist" model="Model" />
 }

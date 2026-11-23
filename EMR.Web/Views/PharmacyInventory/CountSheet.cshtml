@@ -1,0 +1,18 @@
+@using EMR.Web.Services
+@model PhInvDoc
+@{ Layout = null; var h = (PhBranchHeader)ViewBag.Header; }
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Count sheet @Model.DocNo</title>
+<style>body{font-family:Arial,sans-serif;font-size:11px;margin:0}.doc{max-width:200mm;margin:0 auto;padding:8px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #999;padding:4px}th{background:#f1ecff}h2{page-break-before:auto;margin:10px 0 4px;font-size:13px}@@media print{.noprint{display:none}}</style></head>
+<body><div class="doc">
+    <div class="noprint" style="text-align:right"><button onclick="window.print()">Print</button></div>
+    <h1 style="font-size:16px;color:#644098;margin:0">@h.Name</h1>
+    <div><b>PHYSICAL STOCK COUNT SHEET (blind)</b> · @Model.DocNo · frozen @Model.FrozenAt?.ToString("dd-MMM-yyyy HH:mm") · @Model.Scope</div>
+    @foreach (var g in Model.Lines.GroupBy(l => l.RackNo ?? "No rack"))
+    {
+        <h2>Rack @g.Key</h2>
+        <table><thead><tr><th style="width:30px">#</th><th>Item</th><th>Batch</th><th>Expiry</th><th style="width:70px">Unit</th><th style="width:110px">Counted</th><th>Remarks</th></tr></thead>
+        <tbody>@{ var n = 0; }@foreach (var l in g) { <tr><td>@(++n)</td><td>@l.FormShort @l.ItemName</td><td>@l.BatchNo</td><td>@l.ExpiryDate?.ToString("MM/yy")</td><td>@l.SaleUom</td><td></td><td></td></tr> }</tbody></table>
+    }
+    <br /><div style="display:flex;justify-content:space-between"><span>Counted by: ____________________</span><span>Checked by: ____________________</span><span>Date: __________</span></div>
+</div></body></html>

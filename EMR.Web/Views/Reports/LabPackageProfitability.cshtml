@@ -1,0 +1,68 @@
+@{
+    ViewData["Title"] = "Package & Profile Profitability";
+    ViewData["ReportSubtitle"] = "Package and profile price against its cost, and against the price of its tests ordered one by one";
+    ViewData["ReportIcon"] = "bi-boxes";
+    ViewData["ReportAccent"] = "#1d4ed8";
+    ViewData["ScopeNote"] = "Company BOM master · B2C rates of this branch · as on today";
+}
+@* SQLScripts/2248 #8: a package costs its tests + one kit per distinct sample type; a profile test costs its own BOM (one run of the panel).
+   Open a row for its tests / parameters with their own rate and cost. *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const tone = { 'Healthy': 'good', 'Low margin': 'warn', 'Loss': 'bad', 'Partly costed': 'info', 'BOM missing': 'muted', 'No B2C rate': 'muted' };
+    const linesOf = (r, data) => (data.lines || []).filter(l => l.ProfileId === r.ProfileId && l.Kind === r.Kind);
+    LabReport.init({
+        report: 'package-profitability', title: 'Package and Profile Profitability', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Package or profile name / code...',
+        filters: [
+            { id: 'kind', label: 'Type', allLabel: 'Packages and profiles', options: [['Package', 'Packages'], ['Profile', 'Profile tests']] }
+        ],
+        kpis: [
+            { label: 'Packages / profiles', color: '#1d4ed8', value: (s, h) => `${h.num(s.Packages)} / ${h.num(s.Profiles)}`, sub: () => 'with their own B2C rate' },
+            { label: 'Average margin', color: '#15803d', value: s => QcRep.marginPct(s.AvgMarginPct), sub: () => 'fully costed ones' },
+            { label: 'Patient saving', color: '#0e7490', value: s => QcRep.pct(s.AvgSavingPct), sub: () => 'average, against the tests ordered one by one' },
+            { label: 'Loss / low margin', color: '#b91c1c', value: (s, h) => h.num(s.WeakItems), sub: () => 'margin below 30%' },
+            { label: 'Incomplete', color: '#64748b', value: (s, h) => h.num(s.IncompleteItems), sub: () => 'BOM missing, partly costed or no rate' }
+        ],
+        groups: [
+            { key: 'byStatus', label: 'Status', rowField: 'Status' },
+            { key: 'byKind', label: 'Type', rowField: 'Kind' }
+        ],
+        groupCols: [
+            { field: 'Items', label: 'Items', num: true },
+            { field: 'Price', label: 'Price', money: true },
+            { field: 'Cost', label: 'Cost', money: true },
+            { field: 'Margin', label: 'Margin', money: true }
+        ],
+        shareOf: 'Items',
+        rowClass: r => r.Status === 'Loss' ? 'row-muted' : '',
+        cols: [
+            { label: 'Type', html: (r, h) => QcRep.kind(r.Kind, h), text: r => r.Kind },
+            { label: 'Name', html: (r, h) => QcRep.name(r.Name, r.Code, h), text: r => `${r.Name} (${r.Code || ''})` },
+            { label: 'Tests', cls: 'text-end', html: r => `${r.Members}` + (r.MissingBom > 0 && r.Kind === 'Package' ? `<div class="text-warning-emphasis fs-9">${r.MissingBom} without BOM</div>` : ''), text: r => r.Members },
+            { label: 'Price', cls: 'text-end amt fw-semibold', html: (r, h) => QcRep.money(r.Rate, h), text: r => r.Rate ?? '' },
+            { label: 'Tests one by one', cls: 'text-end amt', html: (r, h) => QcRep.money(r.SeparatePrice, h), text: r => r.SeparatePrice ?? '' },
+            { label: 'Patient saving', cls: 'text-end amt', html: (r, h) => r.PatientSaving == null ? '—' : `${h.money(r.PatientSaving)}<div class="text-muted fs-9">${QcRep.pct(r.SavingPct)}</div>`, text: r => r.PatientSaving ?? '' },
+            { label: 'Cost', cls: 'text-end amt', html: (r, h) => QcRep.money(r.TotalCost, h), text: r => r.TotalCost ?? '' },
+            { label: 'Margin', cls: 'text-end amt', html: (r, h) => `${QcRep.margin(r.Margin, r.MarginPct, h)}<div class="fs-9">${QcRep.marginPct(r.MarginPct)}</div>`, text: r => r.Margin ?? '' },
+            { label: 'Status', html: (r, h) => QcRep.pill(r.Status, tone[r.Status], h), text: r => r.Status }
+        ],
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => QcRep.lines(linesOf(r, data), [
+                { label: r.Kind === 'Package' ? 'Test' : 'Parameter', html: l => `<span class="font-monospace text-muted me-1">${h.esc(l.TestCode || '')}</span>${h.esc(l.TestName || '')}` + (l.IsOutsourced ? ' <span class="badge bg-secondary-subtle text-secondary border">Outsourced</span>' : '') },
+                { label: 'Own rate', cls: 'text-end', html: l => QcRep.money(l.OwnRate, h) },
+                { label: 'Own cost', cls: 'text-end', html: l => l.HasBom ? QcRep.money(l.OwnCost, h) : '<span class="text-warning-emphasis">No BOM</span>' }
+            ], r.Kind === 'Profile' ? `<td colspan="3" class="text-muted fw-normal">A profile test is costed on its own BOM (one run of the panel), not on the sum of its parameters.</td>` : '')
+        }
+    });
+})();
+</script>
+}

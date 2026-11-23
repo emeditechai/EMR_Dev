@@ -1,0 +1,76 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPrintView
+@{
+    Layout = "_IpdPrintLayout";
+    var h = Model.Header; var t = Model.Totals;
+    ViewData["DocTitle"] = Model.Title;
+    if (Model.Format != "deposit") ViewData["Watermark"] = "PROVISIONAL";
+    string Payer(string p) => p switch { "CASH" => "Cash / Self", "CORPORATE" => "Corporate", "INSURANCE" => "Insurance / TPA", "SCHEME" => "Government scheme", _ => p };
+    var asOf = h.D("AsOf") ?? DateTime.Now;
+    var heads = Model.Rows.Where(r => r.I("Lines") > 0).ToList();
+}
+<table class="info">
+    <tr><td class="k">Patient</td><td class="b">@h.S("PatientName")</td><td class="k">UHID / IP No.</td><td class="mono">@h.S("PatientCode") / @h.S("IpNo")</td><td class="k">Age / Sex</td><td>@h.S("AgeText") / @h.S("Gender")</td></tr>
+    <tr><td class="k">Admitted</td><td>@h.Dt("AdmissionAt")</td><td class="k">Ward / bed</td><td>@h.S("WardName") / @h.S("BedNumber") (@h.S("BedCategoryName"))</td><td class="k">Mobile</td><td>@h.S("PhoneNumber")</td></tr>
+    <tr><td class="k">Consultant</td><td>@h.S("ConsultantDoctorName")</td><td class="k">Payer</td><td>@Payer(h.S("PayerType")) @h.S("PayerName")</td><td class="k">Policy / card</td><td>@h.S("PolicyNo")</td></tr>
+    <tr><td class="k">Estimate as of</td><td class="b">@asOf.ToString("dd-MMM-yyyy hh:mm tt")</td><td class="k">Bed days</td><td>@t.I("BedDays")</td><td class="k">Tariff</td><td>@h.S("TariffCategoryName")</td></tr>
+</table>
+
+@if (Model.Format == "deposit")
+{
+    <div style="margin-top:14px;font-size:12px;line-height:1.6">
+        <p>Dear @h.S("PatientName") / attendant,</p>
+        <p>The bill of the stay up to @asOf.ToString("dd-MMM-yyyy hh:mm tt") is <b>@t.M("BillNow").Rs()</b> against an advance of <b>@t.M("NetAdvance").Rs()</b>.
+           @if (t.M("BalanceDue") > 0) { <span>The amount now due is <b>@t.M("BalanceDue").Rs()</b>.</span> }
+           @if (t.Prop("ProjectedTotal") is not null) { <span>Up to the expected discharge on @h.Dt("ExpectedDischargeAt", "dd-MMM-yyyy") the bill is estimated at <b>@t.M("ProjectedTotal").Rs()</b>.</span> }</p>
+        <p>Please deposit <b>@(Math.Max(t.M("BalanceDue"), t.Prop("ProjectedBalance") is not null ? t.M("ProjectedBalance") : 0m).Rs())</b> at the billing counter at the earliest, so that treatment continues without interruption.</p>
+        <p>This is an estimate; the final bill may differ with the treatment given.</p>
+    </div>
+    <div class="sign"><div>Received by (patient / attendant)</div><div>Billing department</div></div>
+}
+else
+{
+    <div class="sec-h">Summary</div>
+    <table class="grid"><thead><tr><th>Head</th><th class="r">Gross</th><th class="r">Discount</th><th class="r">GST</th><th class="r">Net</th></tr></thead><tbody>
+    @foreach (var r in heads) { <tr><td>@r.S("HeadName")</td><td class="r">@r.M("Gross").ToString("N2")</td><td class="r">@r.M("Discount").ToString("N2")</td><td class="r">@r.M("Gst").ToString("N2")</td><td class="r b">@r.M("Net").ToString("N2")</td></tr> }
+    @if (heads.Count == 0) { <tr><td colspan="5">No charges yet.</td></tr> }
+    </tbody></table>
+
+    if (Model.Format is "head" or "date")
+    {
+        var byDate = Model.Format == "date";
+        var groups = Model.Rows2.GroupBy(l => byDate ? (l.D("ChargeAt")?.ToString("dd-MMM-yyyy") ?? "") : l.S("HeadName"))
+                                .OrderBy(g => byDate ? (g.First().D("ChargeAt") ?? DateTime.MinValue).Ticks : g.First().I("HeadSort"));
+        <div class="sec-h">Details @(byDate ? "by date" : "by head")</div>
+        <table class="grid"><thead><tr><th>Date</th><th>Item</th><th>Details</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">GST</th><th class="r">Amount</th></tr></thead><tbody>
+        @foreach (var g in groups)
+        {
+            <tr><td colspan="6" class="b" style="background:#f9fafb">@g.Key</td><td class="r b" style="background:#f9fafb">@g.Sum(x => x.M("Net")).ToString("N2")</td></tr>
+            foreach (var l in g)
+            {
+                <tr><td>@l.Dt("ChargeAt", "dd-MMM-yy")</td><td>@l.S("ItemName")@(l.S("Status") == "ACCRUED" ? " *" : "")</td><td>@l.S("Detail") @l.S("DoctorName")</td><td class="r">@l.M("Qty").ToString("0.##")</td>
+                    <td class="r">@l.M("Rate").ToString("N2")</td><td class="r">@(l.M("GstAmount") > 0 ? l.M("GstAmount").ToString("N2") : "")</td><td class="r">@l.M("Net").ToString("N2")</td></tr>
+            }
+        }
+        </tbody></table>
+        <div class="note">* accrued: worked out up to the time of this estimate, not yet posted.</div>
+    }
+
+    <table class="tot" style="margin-top:8px;width:55%;margin-left:auto">
+        <tr><td class="k">Gross</td><td class="r">@t.M("Gross").Rs()</td></tr>
+        <tr><td class="k">Discount</td><td class="r">@t.M("Discount").Rs()</td></tr>
+        <tr><td class="k">GST</td><td class="r">@t.M("Gst").Rs()</td></tr>
+        <tr><td class="k b">Bill if discharged now</td><td class="r b">@t.M("BillNow").Rs()</td></tr>
+        <tr><td class="k">Advance held</td><td class="r">@t.M("NetAdvance").Rs()</td></tr>
+        <tr><td class="k">TPA / corporate approved</td><td class="r">@t.M("ApprovedAmount").Rs()</td></tr>
+        <tr><td class="k b">@(t.M("RefundDue") > 0 ? "Refundable" : "Balance due")</td><td class="r b">@(t.M("RefundDue") > 0 ? t.M("RefundDue").Rs() : t.M("BalanceDue").Rs())</td></tr>
+        @if (Model.Format == "projection" || t.Prop("ProjectedTotal") is not null)
+        {
+            <tr><td class="k">Estimated till discharge (@h.Dt("ProjectTo", "dd-MMM-yyyy hh:mm tt"))</td><td class="r b">@(t.Prop("ProjectedTotal") is null ? "—" : t.M("ProjectedTotal").Rs())</td></tr>
+            <tr><td class="k">Balance at discharge</td><td class="r">@(t.Prop("ProjectedBalance") is null ? "—" : t.M("ProjectedBalance").Rs())</td></tr>
+        }
+    </table>
+    <div class="note"><b>PROVISIONAL ESTIMATE – NOT A FINAL BILL.</b> Charges are worked out as of the time above; the final bill may vary with the treatment, stay and investigations.
+        @if (Model.Format == "projection") { <span>The estimate till discharge counts the bed and nursing charges at today's rate up to the expected discharge.</span> }</div>
+    <div class="sign"><div>Patient / attendant</div><div>Billing department</div></div>
+}

@@ -30,7 +30,7 @@
                                 @if (first)
                                 {
                                     <td class="ps-3 text-nowrap" rowspan="@v.Count()">@h.TransactionDate.ToString("dd-MMM-yyyy")</td>
-                                    <td class="font-monospace small text-nowrap" rowspan="@v.Count()"><a asp-action="Voucher" asp-route-id="@h.TransactionId">@h.VoucherNo</a></td>
+                                    <td class="font-monospace small text-nowrap" rowspan="@v.Count()"><a asp-action="Voucher" asp-encrypted-route-id="@h.TransactionId">@h.VoucherNo</a></td>
                                     <td class="text-nowrap" rowspan="@v.Count()">@h.VoucherTypeName @if (h.IsReversal) { <span class="badge bg-secondary">Reversal</span> } else if (h.Status == "C") { <span class="badge bg-secondary">Cancelled</span> }</td>
                                 }
                                 <td class="@(l.CreditAmount > 0 ? "ps-4" : "fw-semibold")">@l.LedgerName</td>

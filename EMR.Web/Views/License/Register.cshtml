@@ -18,17 +18,15 @@
 
     @if (Model.MovedClientCode != null)
     {
-        <div class="lic-body">
-            <div class="alert alert-warning d-flex gap-2 mb-0">
-                <i class="bi bi-exclamation-triangle-fill fs-5"></i>
-                <div>This server already holds licence <b>@Model.MovedClientCode</b> for <b>@Model.MovedAppUrl</b>.
-                    A licence cannot be registered again under a new address: contact the vendor to move it to <b>@Model.AppUrl</b>.
-                    @if (!string.IsNullOrWhiteSpace(Model.VendorContact)) { <div class="mt-1">Vendor: <b>@Model.VendorContact</b></div> }</div>
+        <div class="lic-body pb-0">
+            <div class="alert alert-info d-flex gap-2 mb-0">
+                <i class="bi bi-info-circle-fill fs-5"></i>
+                <div>This server also hosts licence <b>@Model.MovedClientCode</b> for <b>@Model.MovedAppUrl</b>.
+                    <b>@Model.AppUrl</b> is a different address, so it is registered as a new licence of its own.</div>
             </div>
         </div>
     }
-    else
-    {
+    @{
         <div class="lic-steps">
             <div class="lic-step active" id="stepDetails"><span>1</span>Client details</div>
             <div class="lic-step-line"></div>

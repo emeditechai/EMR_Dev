@@ -1,5 +1,8 @@
+using Dapper;
 using EMR.Web.ApiClients;
+using EMR.Web.Data;
 using EMR.Web.Extensions;
+using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -14,8 +17,22 @@ public class LabReportDispatchController(
     ILabReportingApiClient labReportingApiClient,
     ILabReportPdfService reportPdfService,
     IAuditLogService auditLogService,
-    IQueryStringEncryptionService encryptionService) : Controller
+    IQueryStringEncryptionService encryptionService,
+    IDbConnectionFactory db,
+    EMR.Web.Services.Notifications.INotificationService notifications) : Controller
 {
+    /// <summary>A franchise login works only on the bills it created or that are for its own franchise (2259); every other login: all bills.</summary>
+    private int? OwnBillsOnly => User.IsFranchiseUser() ? User.GetUserId() : null;
+
+    private async Task<bool> MayOpenAsync(int labOrderId)
+    {
+        if (OwnBillsOnly is not int userId) return true;
+        using var con = db.CreateConnection();
+        return await con.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM dbo.LabOrder WHERE LabOrderId = @labOrderId AND (CreatedBy = @userId OR (AgentType = 'F' AND B2BAgentID = @franchiseId))",
+            new { labOrderId, userId, franchiseId = User.GetFranchiseId() }) > 0;
+    }
+
     private static readonly HashSet<string> DispatchStatuses = new(StringComparer.OrdinalIgnoreCase)
         { "ALL", "READY", "PARTIAL", "AWAITING", "INPROGRESS", "NOTSTARTED", "PRINTED", "NOTPRINTED" };
 
@@ -53,11 +70,28 @@ public class LabReportDispatchController(
 
         try
         {
-            var result = await dispatchApiClient.GetDashboardAsync(branchId, from, to, basis, search, status, client);
+            var result = await dispatchApiClient.GetDashboardAsync(branchId, from, to, basis, search, status, client, OwnBillsOnly);
             var encMap = result.Rows.ToDictionary(
                 r => r.LabOrderId,
                 r => encryptionService.EncryptParameters(new Dictionary<string, string?> { ["labOrderId"] = r.LabOrderId.ToString() }));
-            return Json(new { success = true, stats = result.Stats, rows = result.Rows, encMap });
+            // 2465: B2C bills with a due - the branch's "Allow Print Lab Report in Due" and the newest approval request
+            var dueIds = result.Rows.Where(r => r.BalanceDue > 0 && !string.Equals(r.BillingType, "B2B", StringComparison.OrdinalIgnoreCase))
+                                    .Select(r => r.LabOrderId).ToList();
+            var duePrint = new Dictionary<int, object>();
+            if (dueIds.Count > 0)
+            {
+                try
+                {
+                    foreach (var s in await dispatchApiClient.GetDuePrintStatesAsync(dueIds))
+                        duePrint[s.LabOrderId] = new
+                        {
+                            allow = s.AllowPrintInDue, status = s.Status, remarks = s.Remarks, requestedBy = s.RequestedByName,
+                            requestedAt = s.Requested_Date, actionedBy = s.ActionedByName, actionedAt = s.Actioned_Date
+                        };
+                }
+                catch (HttpRequestException) { /* the list still shows; due bills stay locked */ }
+            }
+            return Json(new { success = true, stats = result.Stats, rows = result.Rows, encMap, duePrint });
         }
         catch (HttpRequestException)
         {
@@ -70,6 +104,7 @@ public class LabReportDispatchController(
     public async Task<IActionResult> GetBillTestsJson(int labOrderId)
     {
         if (labOrderId <= 0) return Json(new { success = false, message = "Valid LabOrderId is required." });
+        if (!await MayOpenAsync(labOrderId)) return Json(new { success = false, message = "This bill is not available to you." });
 
         try
         {
@@ -103,9 +138,10 @@ public class LabReportDispatchController(
     public async Task<IActionResult> PrintBill(int labOrderId)
     {
         if (labOrderId <= 0) return BadRequest("Valid LabOrderId is required.");
+        if (!await MayOpenAsync(labOrderId)) return Forbid();
 
         await LogPrintAsync(labOrderId, "LAB.BillPrinted", "Lab bill printed from the Report Dispatch dashboard.", null);
-        return RedirectToAction("PrintBill", "LabOrderBooking", new { labOrderId });
+        return this.RedirectToActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId });
     }
 
     /// <summary>
@@ -117,11 +153,100 @@ public class LabReportDispatchController(
     /// Every copy after the first carries a DUPLICATE marker.
     /// </summary>
     [HttpGet]
+    /// <summary>
+    /// Action > Send Report (SQLScripts/2392): the final (all tests approved) report to the patient by WhatsApp and e-mail,
+    /// through the same senders as the automatic send after approval - sent again if it already went. Refused while the
+    /// bill has a due or any test is not approved. Each channel reports its own outcome (switched off, no number, sent...).
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SendReport(int labOrderId)
+    {
+        if (labOrderId <= 0) return Json(new { success = false, message = "Valid LabOrderId is required." });
+        if (!await MayOpenAsync(labOrderId)) return Json(new { success = false, message = "This bill is not available to you." });
+
+        var detail = await labReportingApiClient.GetDetailAsync(labOrderId);
+        if (detail == null) return Json(new { success = false, message = "Lab report details not found." });
+        if (detail.BalanceDue > 0)
+            return Json(new { success = false, message = $"Bill {detail.BillNo} has a due of Rs. {detail.BalanceDue:N2}. The report can be sent once the due is cleared." });
+        var tests = detail.Items ?? [];
+        if (tests.Count == 0 || tests.Any(i => i.ReportStatusId != 5))
+            return Json(new { success = false, message = $"Only an approved report can be sent: {tests.Count(i => i.ReportStatusId == 5)} of {tests.Count} test(s) of bill {detail.BillNo} are approved." });
+
+        var whatsApp = HttpContext.RequestServices.GetRequiredService<ILabReportWhatsAppService>();
+        var email = HttpContext.RequestServices.GetRequiredService<ILabReportEmailService>();
+        var wa = await whatsApp.SendIfFinalAsync(labOrderId, User, LabReportEmailTriggers.DispatchSend, resend: true);
+        var em = await email.SendIfFinalAsync(labOrderId, User, LabReportEmailTriggers.DispatchSend, resend: true);
+
+        await auditLogService.LogActivityAsync(
+            eventType: "Lab Report", actionName: "LAB.ReportSent",
+            description: $"Report of bill {detail.BillNo} sent from Report Dispatch - WhatsApp: {wa.Status} ({wa.Message}); e-mail: {em.Status} ({em.Message}).",
+            userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "LAB",
+            referenceNo: detail.BillNo, referenceId: labOrderId, patientCode: detail.PatientCode);
+
+        return Json(new
+        {
+            success = wa.Status == "Sent" || em.Status == "Sent",
+            billNo = detail.BillNo,
+            whatsApp = new { status = wa.Status, message = wa.Message },
+            email = new { status = em.Status, message = em.Message }
+        });
+    }
+
+    /// <summary>2465: the bill's branch allows printing in due and its newest Due Report Print request is approved.</summary>
+    private async Task<bool> DuePrintApprovedAsync(int labOrderId)
+    {
+        try
+        {
+            var s = (await dispatchApiClient.GetDuePrintStatesAsync([labOrderId])).FirstOrDefault();
+            return s is { AllowPrintInDue: true, Status: "A" };
+        }
+        catch (HttpRequestException) { return false; }
+    }
+
+    /// <summary>
+    /// Action > Send Approval for Due Report Print (SQLScripts/2465): when the branch allows printing in due, asks the
+    /// approvers of Approval Matrix > Due Report Print to release the report of this B2C bill. The approvers get a bell /
+    /// live notification; they act on Utility > Approval Dashboard and the requester is notified back.
+    /// </summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RequestDuePrint(int labOrderId, string? reason)
+    {
+        if (labOrderId <= 0) return Json(new { success = false, message = "Valid LabOrderId is required." });
+        if (!await MayOpenAsync(labOrderId)) return Json(new { success = false, message = "This bill is not available to you." });
+        reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()[..Math.Min(reason.Trim().Length, 500)];
+        if (reason is null || reason.Length < 5) return Json(new { success = false, message = "Give the reason for printing with a due (at least 5 characters)." });
+
+        LabDuePrintSubmitResult r;
+        try { r = await dispatchApiClient.SubmitDuePrintAsync(labOrderId, User.GetUserId(), reason); }
+        catch (HttpRequestException) { return Json(new { success = false, message = "The reporting service is unreachable. Please try again." }); }
+        if (r.Request_ID <= 0) return Json(new { success = false, message = r.ErrorMessage ?? "The request could not be sent." });
+
+        await auditLogService.LogActivityAsync(
+            eventType: "Lab Report", actionName: "LAB.DuePrintRequested",
+            description: $"Approval requested to print the report of bill {r.BillNo} with a due of Rs. {r.BalanceDue:N2} [Request #{r.Request_ID}]: {reason}",
+            userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "LAB",
+            referenceNo: r.BillNo, referenceId: labOrderId);
+
+        if (r.ApproverIds.Count > 0)
+        {
+            var where = r.Scope == "C" ? "the head-office branch" : (r.BranchName ?? "the branch");
+            await notifications.NotifyUsersAsync(r.ApproverIds, MasterApprovalService.NotifyCategory, "WARNING",
+                $"Due Report Print awaiting approval · {r.BillNo}",
+                $"{User.GetDisplayName()} asks to print the lab report of bill {r.BillNo} ({r.PatientName}) with a due of Rs. {r.BalanceDue:N2}. Reason: {reason}. Approve it on the Approval Dashboard of {where}.",
+                MasterApprovalService.DashboardLink, MasterApprovalService.NotifyRef, r.Request_ID, $"APPROVAL_SUBMIT:{r.Request_ID}",
+                r.BranchId, User.GetUserId());
+        }
+        return Json(new { success = true, message = $"Sent for approval to {r.ApproverIds.Count} approver(s). Report Print opens for bill {r.BillNo} once it is approved." });
+    }
+
     public async Task<IActionResult> PrintReportPdf(int labOrderId, string mode = "preview", string? scope = null, string? reportingType = null)
     {
         // Numeric = the Lab Report (default, as always); Template = the Microbiology Report
         var reportType = LabReportTypes.Normalize(reportingType);
         if (labOrderId <= 0) return BadRequest(new { message = "Valid LabOrderId is required." });
+        if (!await MayOpenAsync(labOrderId)) return StatusCode(StatusCodes.Status403Forbidden, new { message = "This bill is not available to you." });
 
         // "approved" prints only the approved tests of a partly approved bill (a clean, final-looking copy);
         // "pending" prints the validated-but-unapproved ones; the default keeps the whole printable report.
@@ -140,7 +265,9 @@ public class LabReportDispatchController(
             var balanceDue = detail?.BalanceDue ?? 0m;
             // A B2B bill is settled with the franchise/company, not collected from the patient at the
             // counter, so it must always be printable once ready - the due rule is B2C only.
-            if (balanceDue > 0 && detail?.IsB2B != true)
+            // 2465: a B2C bill with a due prints only when the branch allows printing in due (Hospital Settings > LAB)
+            // AND a Due Report Print approval for the bill is approved.
+            if (balanceDue > 0 && detail?.IsB2B != true && !await DuePrintApprovedAsync(labOrderId))
             {
                 return StatusCode(StatusCodes.Status402PaymentRequired, new
                 {

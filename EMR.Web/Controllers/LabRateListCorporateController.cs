@@ -83,7 +83,7 @@ public class LabRateListCorporateController(
         var isHO = CheckIsHOBranch();
         var currentBranchId = User.GetCurrentBranchId();
 
-        IQueryable<BranchMaster> query = dbContext.BranchMasters.Where(b => b.IsActive);
+        IQueryable<BranchMaster> query = dbContext.BranchMasters.Where(b => b.IsActive && b.CompanyId == User.GetCompanyId());
         if (!isHO && currentBranchId.HasValue)
         {
             query = query.Where(b => b.BranchId == currentBranchId.Value);
@@ -96,6 +96,25 @@ public class LabRateListCorporateController(
             Text = b.BranchName,
             Selected = selectedId.HasValue && b.BranchId == selectedId.Value
         }).ToList();
+    }
+
+    /// <summary>
+    /// "Copy Rates from Source Corporate": active corporates (status on, within their effective dates) that have a
+    /// corporate rate list made on this page - active and not deleted, in this company (the list the copy reads in
+    /// GetDetailsForCorporate). The corporate being edited is left out.
+    /// </summary>
+    private async Task<List<SelectListItem>> GetSourceCorporateListAsync(int? excludeCorporateId = null)
+    {
+        try
+        {
+            var cards = await rateCardApi.GetListAsync(CorporateRateType, null, true, User.GetCompanyId());
+            var withRateList = cards
+                .Where(c => c.B2CIdentity_ID.HasValue && c.B2CIdentity_ID != excludeCorporateId)
+                .Select(c => c.B2CIdentity_ID!.Value)
+                .ToHashSet();
+            return (await GetActiveCorporateListAsync()).Where(c => withRateList.Contains(int.Parse(c.Value))).ToList();
+        }
+        catch { return []; }
     }
 
     private async Task<List<SelectListItem>> GetActiveCorporateListAsync(int? selectedId = null, bool filterExistingConfigured = false)
@@ -181,7 +200,7 @@ public class LabRateListCorporateController(
 
         var branches = await GetBranchListAsync(currentBranchId);
         var corporates = await GetActiveCorporateListAsync(filterExistingConfigured: true);
-        var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+        var allCorporates = await GetSourceCorporateListAsync();
 
         var vm = new LabRateCardFormViewModel
         {
@@ -215,7 +234,7 @@ public class LabRateListCorporateController(
         var isHO = CheckIsHOBranch();
         var branches = await GetBranchListAsync(card.Header.Branch_ID);
         var corporates = await GetActiveCorporateListAsync(card.Header.B2CIdentity_ID, filterExistingConfigured: true);
-        var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+        var allCorporates = await GetSourceCorporateListAsync(card.Header.B2CIdentity_ID);
 
         var vm = new LabRateCardFormViewModel
         {
@@ -231,6 +250,8 @@ public class LabRateListCorporateController(
             Effective_From = card.Header.Effective_From,
             Effective_To = card.Header.Effective_To,
             Status = card.Header.Status,
+            Is_Govt_Scheme = card.Header.Is_Govt_Scheme,
+            Scheme_Name = card.Header.Scheme_Name,
             DepartmentList = new SelectList(await GetDepartmentListAsync(), "Value", "Text"),
             CategoryList = new SelectList(await GetCategoryListAsync(), "Value", "Text"),
             SubCategoryList = new SelectList(await GetSubCategoryListAsync(), "Value", "Text"),
@@ -253,7 +274,7 @@ public class LabRateListCorporateController(
             TempData["ErrorMessage"] = string.IsNullOrWhiteSpace(errors) ? "Please fill all required fields correctly." : errors;
             var isHO = CheckIsHOBranch();
             var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
-            var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+            var allCorporates = await GetSourceCorporateListAsync(vm.B2CIdentity_ID);
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
@@ -277,7 +298,7 @@ public class LabRateListCorporateController(
                     TempData["ErrorMessage"] = "A rate list already exists for this Corporate. Only one rate list is allowed per Corporate.";
                     var isHO = CheckIsHOBranch();
                     var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
-                    var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+                    var allCorporates = await GetSourceCorporateListAsync(vm.B2CIdentity_ID);
                     vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
                     vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
                     vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");
@@ -299,6 +320,16 @@ public class LabRateListCorporateController(
                 item.Is_Discount_Allowed = false;
             }
 
+            // government scheme (e.g. WBHS): scheme name and a scheme code on every active item are required
+            if (vm.Is_Govt_Scheme)
+            {
+                if (string.IsNullOrWhiteSpace(vm.Scheme_Name))
+                    throw new InvalidOperationException("Enter the scheme name (e.g. WBHS).");
+                var missing = details.Count(d => d.Status && string.IsNullOrWhiteSpace(d.Scheme_Code));
+                if (missing > 0)
+                    throw new InvalidOperationException($"{missing} active item(s) have no scheme code. Enter the scheme code for each item.");
+            }
+
             var req = new LabRateCardSaveRequestModel
             {
                 RateCard_ID = vm.RateCard_ID,
@@ -309,6 +340,8 @@ public class LabRateListCorporateController(
                 Effective_From = vm.Effective_From,
                 Effective_To = vm.Effective_To,
                 Status = vm.Status,
+                Is_Govt_Scheme = vm.Is_Govt_Scheme,
+                Scheme_Name = vm.Is_Govt_Scheme ? vm.Scheme_Name?.Trim() : null,
                 UserId = User.GetUserId(),
                 Details = details
             };
@@ -323,7 +356,7 @@ public class LabRateListCorporateController(
             TempData["ErrorMessage"] = ex.Message;
             var isHO = CheckIsHOBranch();
             var corporates = await GetActiveCorporateListAsync(vm.B2CIdentity_ID, filterExistingConfigured: true);
-            var allCorporates = await GetActiveCorporateListAsync(filterExistingConfigured: false);
+            var allCorporates = await GetSourceCorporateListAsync(vm.B2CIdentity_ID);
             vm.BranchList = new SelectList(await GetBranchListAsync(vm.Branch_ID), "Value", "Text", vm.Branch_ID);
             vm.CorporateList = new SelectList(corporates, "Value", "Text", vm.B2CIdentity_ID);
             vm.SourceCorporateList = new SelectList(allCorporates, "Value", "Text");

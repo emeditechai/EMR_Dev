@@ -27,3 +27,34 @@ public class ChangePasswordViewModel
 
     public DateTime? PasswordLastChanged { get; set; }
 }
+
+/// <summary>Login > "Forgot password?": the user name or email of the account to reset.</summary>
+public class ForgotPasswordViewModel
+{
+    [Required(ErrorMessage = "Enter your user name or email address.")]
+    [StringLength(256)]
+    [Display(Name = "User name or email")]
+    public string UserNameOrEmail { get; set; } = string.Empty;
+}
+
+/// <summary>The page the emailed reset link opens: the new password, same rules as Change Password.</summary>
+public class ResetPasswordViewModel
+{
+    [Required]
+    public string Token { get; set; } = string.Empty;
+
+    public string? UserName { get; set; }
+
+    [Required(ErrorMessage = "Enter a new password.")]
+    [DataType(DataType.Password)]
+    [StringLength(128, MinimumLength = ChangePasswordViewModel.MinLength, ErrorMessage = "The new password must be at least {2} characters.")]
+    [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$", ErrorMessage = "Use at least one letter and one number.")]
+    [Display(Name = "New password")]
+    public string NewPassword { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Type the new password again.")]
+    [DataType(DataType.Password)]
+    [Compare(nameof(NewPassword), ErrorMessage = "The two passwords do not match.")]
+    [Display(Name = "Confirm new password")]
+    public string ConfirmPassword { get; set; } = string.Empty;
+}

@@ -1,0 +1,54 @@
+@{
+    ViewData["Title"] = "CAPA Register (Report)";
+    ViewData["ReportSubtitle"] = "Corrective and preventive actions raised in the period, their status, owner and time to close";
+    ViewData["ReportIcon"] = "bi-clipboard2-check";
+    ViewData["ReportAccent"] = "#7c3aed";
+    ViewData["ScopeNote"] = "CAPAs of this branch";
+    ViewData["DateLabel"] = "raised on";
+}
+@* SQLScripts/2253 (LF-06) *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const capaUrl = '@Url.Action("Index", "QcCapa")';
+    const tone = { OPEN: 'bad', ACTION_TAKEN: 'warn', CLOSED: 'good' };
+    LabReport.init({
+        report: 'capa-register', title: 'CAPA Register', defaultRange: 'year',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'CAPA no. or title...',
+        filters: [
+            { id: 'capaStatus', label: 'Status', allLabel: 'All', options: [['OPEN', 'Open'], ['ACTION_TAKEN', 'Action taken'], ['CLOSED', 'Closed'], ['OVERDUE', 'Overdue']] },
+            { id: 'sourceType', label: 'Source', allLabel: 'All sources', options: [['EQAS', 'EQAS'], ['CALIBRATION', 'Calibration'], ['BREAKDOWN', 'Breakdown'], ['OTHER', 'Other']] }
+        ],
+        kpis: [
+            { label: 'CAPAs', color: '#7c3aed', value: (s, h) => h.num(s.Capas), sub: (s, h) => `${h.num(s.Closed)} closed` },
+            { label: 'Still open', color: '#b91c1c', value: (s, h) => h.num(s.OpenCapas), sub: (s, h) => `${h.num(s.Overdue)} past the target date` },
+            { label: 'Average days to close', color: '#1d4ed8', value: s => s.AvgDaysToClose == null ? '—' : Number(s.AvgDaysToClose).toFixed(1), sub: () => 'closed CAPAs' }
+        ],
+        groups: [
+            { key: 'bySource', label: 'Source', rowField: 'SourceLabel' },
+            { key: 'byStatus', label: 'Status', rowField: 'StatusLabel' },
+            { key: 'byResponsible', label: 'Responsible', rowField: 'ResponsibleId', byId: true }
+        ],
+        groupCols: [{ field: 'Capas', label: 'CAPAs', num: true }, { field: 'OpenCapas', label: 'Open', num: true }, { field: 'Overdue', label: 'Overdue', num: true }],
+        shareOf: 'Capas',
+        rowClass: r => r.IsOverdue ? 'row-muted' : '',
+        cols: [
+            { label: 'CAPA', html: (r, h) => `<a class="fw-semibold font-monospace" target="_blank" href="${capaUrl}?id=${r.CapaId}">${h.esc(r.CapaNo)}</a><div class="fs-9 text-muted">${h.fmtD(r.CreatedDate)}</div>`, text: r => r.CapaNo },
+            { label: 'Source', html: (r, h) => QcRep.pill(r.SourceLabel, 'info', h), text: r => r.SourceLabel },
+            { label: 'Title', html: (r, h) => `<div class="fw-semibold">${h.esc(r.Title)}</div><div class="fs-9 text-muted">${h.esc(r.EquipmentName ? r.AssetCode + ' ' + r.EquipmentName : (r.ProgramName || ''))}</div>`, text: r => r.Title },
+            { label: 'Root cause / action', html: (r, h) => `<div class="fs-9">${h.esc(r.RootCause || '')}</div><div class="fs-9 text-muted">${h.esc(r.CorrectiveAction || '')}</div>`, text: r => `${r.RootCause || ''} / ${r.CorrectiveAction || ''}` },
+            { label: 'Responsible', html: (r, h) => h.esc(r.ResponsibleName), text: r => r.ResponsibleName },
+            { label: 'Target', cls: 'text-nowrap', html: (r, h) => r.TargetDate ? `<span class="${r.IsOverdue ? 'text-danger fw-bold' : ''}">${h.fmtD(r.TargetDate)}</span>` : '—', text: r => r.TargetDate || '' },
+            { label: 'Status', html: (r, h) => QcRep.pill(r.StatusLabel, tone[r.Status], h) + (r.ClosedOn ? `<div class="fs-9 text-muted">${h.fmtD(r.ClosedOn)}</div>` : ''), text: r => r.StatusLabel },
+            { label: 'Age (days)', cls: 'text-end', html: r => r.AgeDays, text: r => r.AgeDays },
+            { label: 'Effectiveness', html: (r, h) => `<span class="fs-9">${h.esc(r.Effectiveness || '')}</span>`, text: r => r.Effectiveness || '' }
+        ]
+    });
+})();
+</script>
+}

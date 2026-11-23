@@ -1,0 +1,65 @@
+@{
+    ViewData["Title"] = "Price-Change Impact (What-if)";
+    ViewData["ReportSubtitle"] = "If an item's (or a whole category's) price changes, which tests' cost and margin move, and by how much";
+    ViewData["ReportIcon"] = "bi-sliders";
+    ViewData["ReportAccent"] = "#9333ea";
+    ViewData["ScopeNote"] = "Simulation only · nothing is changed · B2C rates of this branch";
+}
+@* SQLScripts/2248 #11: choose the change % and an item or a category (neither = every item); tests with a default BOM whose BOM or
+   sample kit uses a changed item are listed with their cost and margin now and after the change *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const tone = { 'Turns loss-making': 'bad', 'Already loss-making': 'bad', 'Falls below 30% margin': 'warn', 'Already below 30%': 'warn', 'Still 30% or more': 'good', 'No B2C rate': 'muted' };
+    const signed = (v, h) => (v > 0 ? '+' : '') + h.money(v);
+    LabReport.init({
+        report: 'price-impact', title: 'Price-Change Impact', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name or code...',
+        filters: [
+            { id: 'changePct', label: 'Price change', allLabel: '+10% (default)',
+              options: [['5', '+5%'], ['15', '+15%'], ['20', '+20%'], ['25', '+25%'], ['50', '+50%'], ['100', '+100%'], ['-5', '-5%'], ['-10', '-10%'], ['-20', '-20%']] },
+            { id: 'itemId', label: 'Item', allLabel: 'All items', fromOptions: 'itemId' },
+            { id: 'categoryId', label: 'Category', allLabel: 'All categories', fromOptions: 'categoryId' }
+        ],
+        kpis: [
+            { label: 'Scenario', color: '#9333ea', value: s => `${s.ChangePct > 0 ? '+' : ''}${QcRep.pct(s.ChangePct, 0)}`, sub: (s, h) => `${h.esc(s.ChangedWhat || '')} · ${h.num(s.ItemsChanged)} items` },
+            { label: 'Tests affected', color: '#1d4ed8', value: (s, h) => h.num(s.TestsAffected), sub: () => 'their BOM or sample kit uses a changed item' },
+            { label: 'Cost change', color: '#b45309', value: (s, h) => s.AvgCostChange == null ? '—' : signed(s.AvgCostChange, h), sub: (s, h) => `average per test · largest ${s.MaxCostChange == null ? '—' : signed(s.MaxCostChange, h)}` },
+            { label: 'Average margin', color: '#0f766e', value: s => `${QcRep.marginPct(s.AvgMarginPct)} → ${QcRep.marginPct(s.AvgNewMarginPct)}`, sub: () => 'now → after the change' },
+            { label: 'Turn loss / fall below 30%', color: '#b91c1c', value: (s, h) => `${h.num(s.TurnLoss)} / ${h.num(s.FallBelow30)}`, sub: () => 'tests' }
+        ],
+        groups: [
+            { key: 'byOutcome', label: 'Outcome', rowField: 'Outcome' },
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentId', byId: true }
+        ],
+        groupCols: [
+            { field: 'Tests', label: 'Tests', num: true },
+            { field: 'CostChange', label: 'Cost change', money: true },
+            { field: 'MarginPct', label: 'Margin now', num: true, total: 'none', fmt: v => QcRep.marginPct(v) },
+            { field: 'NewMarginPct', label: 'Margin after', num: true, total: 'none', fmt: v => QcRep.marginPct(v) }
+        ],
+        shareOf: 'Tests',
+        rowClass: r => r.OutcomeOrder === 1 ? 'row-muted' : '',
+        cols: [
+            { label: 'Test', html: (r, h) => QcRep.name(r.TestName, r.TestCode, h, r.Kind === 'Profile' ? QcRep.kind('Profile', h) : ''), text: r => `${r.TestName} (${r.TestCode || ''})` },
+            { label: 'Department', html: (r, h) => `<span class="fs-9">${h.esc(r.DepartmentName)}</span>`, text: r => r.DepartmentName },
+            { label: 'Changed items used', html: (r, h) => `<span class="fs-9">${h.esc(r.ItemsAffected || '')}</span>`, text: r => r.ItemsAffected || '' },
+            { label: 'Cost now', cls: 'text-end amt', html: (r, h) => h.money(r.TotalCost), text: r => r.TotalCost },
+            { label: 'Cost after', cls: 'text-end amt fw-semibold', html: (r, h) => h.money(r.NewTotalCost), text: r => r.NewTotalCost },
+            { label: 'Change', cls: 'text-end amt', html: (r, h) => `<span class="${r.CostChange > 0 ? 'text-danger' : 'text-success'}">${signed(r.CostChange, h)}</span><div class="text-muted fs-9">${QcRep.pct(r.CostChangePct)}</div>`,
+              text: r => r.CostChange, sum: 'CostChange' },
+            { label: 'B2C rate', cls: 'text-end amt', html: (r, h) => QcRep.money(r.Rate, h), text: r => r.Rate ?? '' },
+            { label: 'Margin now', cls: 'text-end', html: r => QcRep.marginPct(r.MarginPct), text: r => r.MarginPct ?? '' },
+            { label: 'Margin after', cls: 'text-end', html: r => QcRep.marginPct(r.NewMarginPct), text: r => r.NewMarginPct ?? '' },
+            { label: 'Outcome', html: (r, h) => QcRep.pill(r.Outcome, tone[r.Outcome], h), text: r => r.Outcome }
+        ]
+    });
+})();
+</script>
+}

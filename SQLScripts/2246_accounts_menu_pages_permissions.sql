@@ -6,7 +6,7 @@
 --     UTILITY.ACCOUNTS.COUNTERS      VIEW, EDIT (add / edit a counter), FLOAT (issue / replenish / return)
 --     UTILITY.ACCOUNTS.CLOSING       VIEW, CREATE (close a day)
 --     UTILITY.ACCOUNTS.VOUCHERS      VIEW, CREATE, APPROVE (approve / reject), CANCEL, PRINT, ATTACH (bill scans)
---     UTILITY.ACCOUNTS.REPORTS       VIEW, EXPORT
+--     REPORTS.ACCOUNTS               VIEW, EXPORT  (the reports: under Reports > Accounts, not under Utility)
 --     UTILITY.ACCOUNTS.LEDGERS       VIEW, EDIT (add / edit ledgers and groups)
 --     UTILITY.ACCOUNTS.EXPENSEHEADS  VIEW, EDIT
 --     UTILITY.ACCOUNTS.PAYEES        VIEW, EDIT
@@ -22,11 +22,11 @@ GO
 
 DECLARE @Pages TABLE (Code NVARCHAR(150), Title NVARCHAR(150), Controller NVARCHAR(100), Action NVARCHAR(100), Sort INT, Icon NVARCHAR(100));
 INSERT INTO @Pages VALUES
+    (N'REPORTS.ACCOUNTS',              N'Accounts Reports',    N'AccReports',      N'Index',    10, N'bi bi-bar-chart-line me-2'),
     (N'UTILITY.ACCOUNTS.PETTYEXPENSE', N'Petty Expenses',      N'PettyExpense',    N'Index',    10, N'bi bi-receipt me-2'),
     (N'UTILITY.ACCOUNTS.COUNTERS',     N'Petty Cash Counters', N'PettyCash',       N'Counters', 20, N'bi bi-safe me-2'),
     (N'UTILITY.ACCOUNTS.CLOSING',      N'Petty Cash Closing',  N'PettyCash',       N'Closing',  30, N'bi bi-calendar-check me-2'),
     (N'UTILITY.ACCOUNTS.VOUCHERS',     N'Voucher Entry',       N'AccVouchers',     N'Index',    40, N'bi bi-journal-plus me-2'),
-    (N'UTILITY.ACCOUNTS.REPORTS',      N'Accounts Reports',    N'AccReports',      N'Index',    50, N'bi bi-bar-chart-line me-2'),
     (N'UTILITY.ACCOUNTS.LEDGERS',      N'Ledgers and Groups',  N'AccLedgers',      N'Index',    60, N'bi bi-diagram-3 me-2'),
     (N'UTILITY.ACCOUNTS.EXPENSEHEADS', N'Expense Heads',       N'AccExpenseHeads', N'Index',    70, N'bi bi-tags me-2'),
     (N'UTILITY.ACCOUNTS.PAYEES',       N'Payees',              N'AccPayees',       N'Index',    75, N'bi bi-person-lines-fill me-2'),
@@ -41,7 +41,7 @@ INSERT INTO @Controls VALUES
     (N'UTILITY.ACCOUNTS.CLOSING',      'CREATE',  N'Close a day', 20),
     (N'UTILITY.ACCOUNTS.VOUCHERS',     'CREATE',  N'Enter voucher', 20),       (N'UTILITY.ACCOUNTS.VOUCHERS',     'APPROVE', N'Approve / reject', 30),
     (N'UTILITY.ACCOUNTS.VOUCHERS',     'CANCEL',  N'Cancel a voucher', 40),    (N'UTILITY.ACCOUNTS.VOUCHERS',     'PRINT',  N'Print voucher', 50),
-    (N'UTILITY.ACCOUNTS.REPORTS',      'EXPORT',  N'Export to Excel', 20),
+    (N'REPORTS.ACCOUNTS',      'EXPORT',  N'Export to Excel', 20),
     (N'UTILITY.ACCOUNTS.LEDGERS',      'EDIT',    N'Add / edit ledgers and groups', 20),
     (N'UTILITY.ACCOUNTS.EXPENSEHEADS', 'EDIT',    N'Add / edit expense heads', 20),
     (N'UTILITY.ACCOUNTS.PETTYEXPENSE', 'ATTACH',  N'Add / remove bill attachments', 80),
@@ -67,10 +67,10 @@ INSERT INTO @Endpoints VALUES
     (N'UTILITY.ACCOUNTS.VOUCHERS',     'GET',  N'AccVouchers',  N'Create',      'CREATE'), (N'UTILITY.ACCOUNTS.VOUCHERS',     'POST', N'AccVouchers',  N'Create',  'CREATE'),
     (N'UTILITY.ACCOUNTS.VOUCHERS',     'POST', N'AccVouchers',  N'Approve',     'APPROVE'),(N'UTILITY.ACCOUNTS.VOUCHERS',     'POST', N'AccVouchers',  N'Reject',  'APPROVE'),
     (N'UTILITY.ACCOUNTS.VOUCHERS',     'POST', N'AccVouchers',  N'Cancel',      'CANCEL'), (N'UTILITY.ACCOUNTS.VOUCHERS',     'GET',  N'AccVouchers',  N'Print',   'PRINT'),
-    (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'Index',       'VIEW'),   (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'LedgerStatement', 'VIEW'),
-    (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'DayBook',     'VIEW'),   (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'TrialBalance', 'VIEW'),
-    (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'IncomeExpense', 'VIEW'), (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'ExpenseSummary', 'VIEW'),
-    (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'Voucher',     'VIEW'),   (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'Export',  'EXPORT'),
+    (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'Index',       'VIEW'),   (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'LedgerStatement', 'VIEW'),
+    (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'DayBook',     'VIEW'),   (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'TrialBalance', 'VIEW'),
+    (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'IncomeExpense', 'VIEW'), (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'ExpenseSummary', 'VIEW'),
+    (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'Voucher',     'VIEW'),   (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'Export',  'EXPORT'),
     (N'UTILITY.ACCOUNTS.LEDGERS',      'GET',  N'AccLedgers',   N'Index',       'VIEW'),   (N'UTILITY.ACCOUNTS.LEDGERS',      'POST', N'AccLedgers',   N'SaveLedger', 'EDIT'),
     (N'UTILITY.ACCOUNTS.LEDGERS',      'POST', N'AccLedgers',   N'SaveGroup',   'EDIT'),
     (N'UTILITY.ACCOUNTS.EXPENSEHEADS', 'GET',  N'AccExpenseHeads', N'Index',    'VIEW'),   (N'UTILITY.ACCOUNTS.EXPENSEHEADS', 'POST', N'AccExpenseHeads', N'Save', 'EDIT'),
@@ -81,9 +81,9 @@ INSERT INTO @Endpoints VALUES
     (N'UTILITY.ACCOUNTS.PETTYEXPENSE', 'POST', N'PettyExpense', N'DeleteAttachment', 'ATTACH'),
     (N'UTILITY.ACCOUNTS.VOUCHERS',     'GET',  N'AccVouchers',  N'Attachment',  'VIEW'),   (N'UTILITY.ACCOUNTS.VOUCHERS',     'POST', N'AccVouchers',  N'AddAttachment', 'ATTACH'),
     (N'UTILITY.ACCOUNTS.VOUCHERS',     'POST', N'AccVouchers',  N'DeleteAttachment', 'ATTACH'),
-    (N'UTILITY.ACCOUNTS.REPORTS',      'GET',  N'AccReports',   N'PostingAudit', 'VIEW');
+    (N'REPORTS.ACCOUNTS',      'GET',  N'AccReports',   N'PostingAudit', 'VIEW');
 
-DECLARE @co INT, @utility INT, @menu INT, @page INT, @ctl INT;
+DECLARE @co INT, @utility INT, @menu INT, @page INT, @ctl INT, @reports INT, @reportsMenu INT, @target INT;
 DECLARE @pc NVARCHAR(150), @title NVARCHAR(150), @controller NVARCHAR(100), @action NVARCHAR(100), @sort INT, @icon NVARCHAR(100), @code VARCHAR(30), @method VARCHAR(10);
 
 DECLARE cc CURSOR LOCAL FAST_FORWARD FOR SELECT CompanyId FROM dbo.CompanyMaster WHERE IsActive = 1;
@@ -98,12 +98,19 @@ BEGIN
         EXEC dbo.usp_Auth_MenuMaster_Upsert @CompanyId = @co, @Parent_Menu_ID = @utility, @Menu_Type = 'MENU', @Menu_Code = N'UTILITY.ACCOUNTS', @Title = N'Accounts',
              @Icon = N'bi bi-calculator me-2', @Sort_Order = 55, @UserId = NULL, @Menu_ID = @menu OUTPUT;
 
+        -- the reports sit under Reports > Accounts
+        SET @reportsMenu = NULL; SET @reports = NULL;
+        SELECT @reports = Menu_ID FROM dbo.MenuMaster WHERE Menu_Code = 'REPORTS' AND CompanyId = @co;
+        EXEC dbo.usp_Auth_MenuMaster_Upsert @CompanyId = @co, @Parent_Menu_ID = @reports, @Menu_Type = 'MENU', @Menu_Code = N'REPORTS.ACCOUNTS_MENU', @Title = N'Accounts',
+             @Icon = N'bi bi-calculator me-2', @Sort_Order = 40, @UserId = NULL, @Menu_ID = @reportsMenu OUTPUT;
+
         DECLARE p1 CURSOR LOCAL FAST_FORWARD FOR SELECT Code, Title, Controller, Action, Sort, Icon FROM @Pages;
         OPEN p1; FETCH NEXT FROM p1 INTO @pc, @title, @controller, @action, @sort, @icon;
         WHILE @@FETCH_STATUS = 0
         BEGIN
             SET @page = NULL;
-            EXEC dbo.usp_Auth_PageMaster_Upsert @CompanyId = @co, @Menu_ID = @menu, @Page_Code = @pc, @Title = @title, @Controller = @controller, @Action = @action,
+            SET @target = CASE WHEN @pc = N'REPORTS.ACCOUNTS' THEN @reportsMenu ELSE @menu END;
+            EXEC dbo.usp_Auth_PageMaster_Upsert @CompanyId = @co, @Menu_ID = @target, @Page_Code = @pc, @Title = @title, @Controller = @controller, @Action = @action,
                  @Show_In_Menu = 1, @Sort_Order = @sort, @Icon = @icon, @Route_Values = NULL, @Link_Target = NULL, @UserId = NULL, @Page_ID = @page OUTPUT;
 
             DECLARE c1 CURSOR LOCAL FAST_FORWARD FOR SELECT Code, Title, Sort FROM @Controls WHERE PageCode = @pc;

@@ -1,0 +1,65 @@
+@{
+    // Reports > LAB > Marketing Field Report (SQLScripts/2462): what the Marketing Executive App recorded, for the office to check
+    ViewData["Title"] = "Marketing Field Report";
+}
+<link rel="stylesheet" href="~/lib/leaflet/dist/leaflet.css" />
+<link rel="stylesheet" href="~/css/views/MarketingField/Index.css" asp-append-version="true" />
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+        <h1 class="h3 fw-bold mb-0"><i class="bi bi-map me-2 text-primary"></i>Marketing Field Report</h1>
+        <small class="text-muted">Visits, field days and doctors from the Marketing Executive App for <b>@(User.FindFirst("BranchName")?.Value ?? "this branch")</b> · check that each visit was made at the doctor's clinic</small>
+    </div>
+    <button type="button" class="btn btn-sm btn-outline-success" id="mfExport"><i class="bi bi-file-earmark-excel me-1"></i>Export to Excel</button>
+</div>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation"><button class="nav-link active" data-tab="visits" type="button" role="tab"><i class="bi bi-geo-alt me-1"></i>Visits</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" data-tab="days" type="button" role="tab"><i class="bi bi-signpost-split me-1"></i>Field days</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" data-tab="doctors" type="button" role="tab"><i class="bi bi-person-vcard me-1"></i>Doctors</button></li>
+</ul>
+
+<div class="card border-0 shadow-sm mb-3"><div class="card-body py-3"><div class="row g-2 align-items-end">
+    <div class="col-6 col-md-2 mf-dates"><label class="form-label small fw-semibold" for="mfFrom">From</label><input type="date" id="mfFrom" class="form-control form-control-sm" /></div>
+    <div class="col-6 col-md-2 mf-dates"><label class="form-label small fw-semibold" for="mfTo">To</label><input type="date" id="mfTo" class="form-control form-control-sm" /></div>
+    <div class="col-12 col-md-3"><label class="form-label small fw-semibold" for="mfExec">Marketing executive</label><select id="mfExec" class="form-select form-select-sm"><option value="">All executives</option></select></div>
+    <div class="col-6 col-md-2 mf-only-visits"><label class="form-label small fw-semibold" for="mfStatus">Visit status</label>
+        <select id="mfStatus" class="form-select form-select-sm">
+            <option value="">All</option><option value="VERIFIED">Verified</option><option value="UNCONFIRMED">Unconfirmed pin</option>
+            <option value="OUTSIDE">Outside clinic</option><option value="NO_PIN">Clinic not pinned</option><option value="NO_GPS">No location</option>
+            <option value="MOCK">Fake location</option><option value="FLAGGED">With a warning</option>
+        </select></div>
+    <div class="col-6 col-md-2 mf-only-doctors d-none"><label class="form-label small fw-semibold" for="mfStage">Stage</label>
+        <select id="mfStage" class="form-select form-select-sm"><option value="">All</option><option value="PROSPECT">Prospect</option><option value="CONTACTED">Contacted</option>
+            <option value="ENGAGED">Engaged</option><option value="TRIAL">Trial</option><option value="ACTIVE">Active</option><option value="LOST">Lost</option></select></div>
+    <div class="col-6 col-md-2 mf-only-doctors d-none"><label class="form-label small fw-semibold" for="mfPin">Clinic location</label>
+        <select id="mfPin" class="form-select form-select-sm"><option value="">All</option><option value="FLAGGED">Flagged</option><option value="UNCONFIRMED">From the address</option>
+            <option value="OK">GPS, checked</option><option value="NONE">Not saved</option></select></div>
+    <div class="col-12 col-md-2 mf-search"><label class="form-label small fw-semibold" for="mfSearch">Search</label><input id="mfSearch" class="form-control form-control-sm" placeholder="Doctor, clinic, address" /></div>
+    <div class="col-12 col-md-1"><button type="button" class="btn btn-sm btn-primary w-100" id="mfShow"><i class="bi bi-funnel me-1"></i>Show</button></div>
+</div></div></div>
+
+<div class="row g-3 mb-3" id="mfKpis"></div>
+
+<div class="card shadow-sm border-0"><div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 mf-table">
+        <thead class="table-light" id="mfHead"></thead>
+        <tbody id="mfRows"><tr><td class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+</div></div>
+<p class="small text-muted mt-2 mb-0" id="mfNote"></p>
+
+<div class="modal fade" id="mfMapModal" tabindex="-1" aria-labelledby="mfMapTitle" aria-hidden="true"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><div><h5 class="modal-title fw-bold" id="mfMapTitle">Map</h5><small class="text-muted" id="mfMapSub"></small></div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <div class="modal-body p-0"><div id="mfMap"></div></div>
+    <div class="modal-footer justify-content-between"><div class="small" id="mfMapLegend"></div><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button></div>
+</div></div></div>
+
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script src="~/lib/leaflet/dist/leaflet.js"></script>
+    <script src="~/lib/xlsx/xlsx.full.min.js"></script>
+    <script>window.MfPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/MarketingField/") }));</script>
+    <script src="~/js/lab/marketing-field.js" asp-append-version="true"></script>
+}

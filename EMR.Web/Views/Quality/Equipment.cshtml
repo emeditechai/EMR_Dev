@@ -1,0 +1,197 @@
+@{
+    ViewData["Title"] = "Equipment Register";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@* Quality & Compliance > Equipment & EQAS > Equipment Register (SQLScripts/2253, LF-06): every instrument of the lab with its
+   calibration, preventive maintenance and service contract position; open an equipment for its card (records and history). *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item active">Equipment Register</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-tools me-2"></i>Equipment Register</h4>
+            <div class="text-muted small">Instruments, calibration, preventive maintenance and service contracts (ISO 15189 6.4)</div>
+        </div>
+        <button type="button" class="btn btn-primary px-3 shadow-sm" id="btnAdd" asp-permission="QC.EQUIPMENT:ADD"><i class="bi bi-plus-lg me-1"></i>Add Equipment</button>
+    </div>
+
+    <div class="row g-2 mb-3" id="kpis"></div>
+
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3"><div class="row g-2 align-items-end">
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold text-muted">Branch</label><select id="fBranch" class="form-select"></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold text-muted">Type</label><select id="fType" class="form-select"></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold text-muted">Department</label><select id="fDept" class="form-select"></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold text-muted">Status</label><select id="fStatus" class="form-select">
+            <option value="">All</option><option value="IN_USE">In use</option><option value="OUT_OF_SERVICE">Out of service</option><option value="RETIRED">Retired</option></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold text-muted">Due</label><select id="fDue" class="form-select">
+            <option value="">Any</option><option value="OVERDUE">Overdue / not done</option><option value="DUE_30">Due in 30 days</option></select></div>
+        <div class="col-6 col-md-2"><label class="form-label small fw-semibold text-muted">Search</label><input id="fSearch" class="form-control" placeholder="Name, code, serial..." /></div>
+    </div></div></div>
+
+    <div class="card border-0 shadow-sm"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Code</th><th>Equipment</th><th>Type</th><th>Department / location</th><th>Calibration</th><th>Preventive maint.</th>
+            <th>Service contract</th><th class="text-center">Status</th><th class="text-end pe-3">Actions</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="9" class="text-center text-muted py-4">Loading...</td></tr></tbody></table>
+    </div></div></div>
+</div>
+
+<div class="modal fade" id="eqModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="eqTitle">Equipment</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><form id="eqForm" autocomplete="off"><input type="hidden" name="EquipmentId" data-type="number" />
+        <div class="row g-3">
+            <div class="col-md-3"><label class="form-label fw-semibold">Branch <span class="text-danger">*</span></label><select name="BranchId" data-type="number" class="form-select" id="eBranch"></select></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Type <span class="text-danger">*</span></label><select name="TypeId" data-type="number" class="form-select" id="eType"></select></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Analyzer (Analyzer master)</label><select name="AnalyzerId" data-type="number" class="form-select" id="eAnalyzer"></select>
+                <div class="form-text">Link the analyzer so its compliance shows on the Analyzers page.</div></div>
+            <div class="col-md-6"><label class="form-label fw-semibold">Equipment name <span class="text-danger">*</span></label><input name="EquipmentName" class="form-control" maxlength="200" id="eName" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">LAB department</label><select name="DepartmentId" data-type="number" class="form-select" id="eDept"></select></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Location</label><input name="Location" class="form-control" maxlength="150" placeholder="e.g. Biochemistry bench 2" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Make</label><input name="Make" class="form-control" maxlength="100" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Model</label><input name="Model" class="form-control" maxlength="100" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Serial no.</label><input name="SerialNo" class="form-control" maxlength="100" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Supplied by</label><select name="SupplierId" data-type="number" class="form-select" id="eSupplier"></select></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Installed on</label><input name="InstallDate" type="date" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Warranty up to</label><input name="WarrantyUpto" type="date" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Purchase cost (₹)</label><input name="PurchaseCost" data-type="number" type="number" min="0" step="0.01" class="form-control" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Calibration every (days)</label><input name="CalibrationFreqDays" data-type="number" type="number" min="1" max="3650" class="form-control" id="eCal" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Preventive maint. every (days)</label><input name="PmFreqDays" data-type="number" type="number" min="1" max="3650" class="form-control" id="ePm" /></div>
+            <div class="col-12"><hr class="my-1" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Service contract</label><select name="ContractType" class="form-select" id="eContract">
+                <option value="NONE">None</option><option value="AMC">AMC (maintenance)</option><option value="CMC">CMC (comprehensive)</option></select></div>
+            <div class="col-md-3 contract"><label class="form-label fw-semibold">Service vendor <span class="text-danger">*</span></label><select name="ContractVendorId" data-type="number" class="form-select" id="eVendor"></select></div>
+            <div class="col-md-2 contract"><label class="form-label fw-semibold">From</label><input name="ContractFrom" type="date" class="form-control" /></div>
+            <div class="col-md-2 contract"><label class="form-label fw-semibold">Up to <span class="text-danger">*</span></label><input name="ContractUpto" type="date" class="form-control" /></div>
+            <div class="col-md-2 contract"><label class="form-label fw-semibold">Cost (₹ / year)</label><input name="ContractCost" data-type="number" type="number" min="0" step="0.01" class="form-control" /></div>
+            <div class="col-12"><label class="form-label fw-semibold">Remarks</label><textarea name="Remarks" class="form-control" rows="2" maxlength="500"></textarea></div>
+        </div></form></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btnSave"><i class="bi bi-save me-1"></i>Save Equipment</button></div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson);
+    const myBranch = @(ViewBag.BranchId ?? 0), prefillAnalyzer = @(ViewBag.PrefillAnalyzerId ?? 0);
+    const canEdit = !!document.getElementById('btnAdd');
+    const $ = id => document.getElementById(id);
+    const modal = new bootstrap.Modal($('eqModal')), form = $('eqForm');
+    const cardUrl = '@Url.Action("Card", "QcEquipment")';
+    let rows = [];
+
+    $('fBranch').innerHTML = QC.options(L.branches.filter(b => b.Id === myBranch), myBranch); $('fBranch').disabled = true;   // equipment is branch-wise: the branch signed in to
+    $('fType').innerHTML = QC.options(L.types, '', 'All types');
+    $('fDept').innerHTML = QC.options(L.departments, '', 'All departments');
+    $('eBranch').innerHTML = QC.options(L.branches.filter(b => b.Id === myBranch), myBranch); $('eBranch').disabled = true;
+    $('eType').innerHTML = QC.options(L.types, '', '-- Type --');
+    $('eDept').innerHTML = QC.options(L.departments, '', '-- Not set --');
+    $('eSupplier').innerHTML = QC.options(L.suppliers, '', '-- Not set --');
+    $('eVendor').innerHTML = QC.options(L.suppliers, '', '-- Vendor --');
+
+    const due = (state, date) => {
+        const t = { OVERDUE: ['bg-danger', 'Overdue'], NEVER: ['bg-danger', 'Not done'], DUE_30: ['bg-warning text-dark', 'Due soon'], OK: ['bg-success', 'OK'] }[state];
+        return t ? `<span class="badge ${t[0]}">${t[1]}</span><div class="small text-muted">${date ? QC.date(date) : (state === 'NEVER' ? 'no record' : '')}</div>` : '<span class="text-muted">—</span>';
+    };
+    const statusBadge = (s, reason) => ({
+        IN_USE: '<span class="badge bg-success-subtle text-success border border-success-subtle">In use</span>',
+        OUT_OF_SERVICE: `<span class="badge bg-danger" title="${QC.esc(reason || '')}">Out of service</span>`,
+        RETIRED: '<span class="badge bg-secondary">Retired</span>' })[s] || s;
+    const contract = r => r.ContractType === 'NONE' ? '<span class="text-muted">—</span>'
+        : `<span class="fw-semibold">${r.ContractType}</span> <span class="small">${QC.esc(r.ContractVendorName || '')}</span>` +
+          `<div class="small ${r.ContractState === 'EXPIRED' ? 'text-danger fw-bold' : r.ContractState === 'DUE_30' ? 'text-warning-emphasis fw-semibold' : 'text-muted'}">up to ${QC.date(r.ContractUpto)}${r.ContractState === 'EXPIRED' ? ' · expired' : ''}</div>`;
+
+    function analyzerOptions(selected, ownId) {
+        // an analyzer already linked to another equipment cannot be picked again
+        return '<option value="">-- Not an analyzer / not linked --</option>' + L.analyzers.map(a => {
+            const taken = a.EquipmentId && a.EquipmentId !== ownId;
+            return `<option value="${a.Id}" ${String(a.Id) === String(selected || '') ? 'selected' : ''} ${taken ? 'disabled' : ''}>${QC.esc(a.Name)}${taken ? ' (registered)' : ''}</option>`;
+        }).join('');
+    }
+
+    async function loadKpis() {
+        const r = await QC.get('@Url.Action("Summary", "QcEquipment")', {});
+        if (!r.success || !r.data || !r.data.length) { $('kpis').innerHTML = ''; return; }
+        const s = r.data[0];
+        const tile = (label, value, cls, icon, filter) => `<div class="col-6 col-md"><div class="card border-0 shadow-sm h-100 ${filter ? 'kpi-click' : ''}" role="button" data-filter='${filter || ''}'>
+            <div class="card-body py-2"><div class="small text-muted"><i class="bi ${icon} me-1"></i>${label}</div><div class="fs-4 fw-bold ${cls}">${value}</div></div></div></div>`;
+        $('kpis').innerHTML = tile('Equipment in register', s.Equipment, '', 'bi-tools', '{}')
+            + tile('Out of service', s.OutOfService, s.OutOfService ? 'text-danger' : '', 'bi-x-octagon', '{"status":"OUT_OF_SERVICE"}')
+            + tile('Calibration overdue', s.CalibrationOverdue, s.CalibrationOverdue ? 'text-danger' : '', 'bi-speedometer2', '{"due":"OVERDUE"}')
+            + tile('Maintenance overdue', s.PmOverdue, s.PmOverdue ? 'text-danger' : '', 'bi-wrench', '{"due":"OVERDUE"}')
+            + tile('Due in 30 days', (s.CalibrationDue30 || 0) + (s.PmDue30 || 0), (s.CalibrationDue30 + s.PmDue30) ? 'text-warning-emphasis' : '', 'bi-calendar-event', '{"due":"DUE_30"}')
+            + tile('Open breakdowns', s.OpenBreakdowns, s.OpenBreakdowns ? 'text-danger' : '', 'bi-exclamation-octagon', '{"status":"OUT_OF_SERVICE"}')
+            + tile('Contracts ending (30 days)', s.ContractsEnding, s.ContractsEnding ? 'text-warning-emphasis' : '', 'bi-file-earmark-text', '');
+    }
+
+    async function load() {
+        loadKpis();
+        const r = await QC.get('@Url.Action("List", "QcEquipment")', { typeId: $('fType').value, departmentId: $('fDept').value,
+            status: $('fStatus').value, due: $('fDue').value, search: $('fSearch').value });
+        const tb = $('rows');
+        if (!r.success) { tb.innerHTML = `<tr><td colspan="9" class="text-danger text-center py-4">${QC.esc(r.message)}</td></tr>`; return; }
+        rows = r.data || [];
+        tb.innerHTML = rows.length ? rows.map(e => `<tr class="${e.Status === 'OUT_OF_SERVICE' ? 'table-danger' : e.Status === 'RETIRED' ? 'text-muted' : ''}">
+            <td class="ps-3 font-monospace small">${QC.esc(e.AssetCode)}</td>
+            <td><a class="fw-semibold text-decoration-none" href="${cardUrl}?id=${e.EquipmentId}">${QC.esc(e.EquipmentName)}</a>
+                <div class="small text-muted">${QC.esc([e.Make, e.Model].filter(Boolean).join(' '))}${e.SerialNo ? ' · SN ' + QC.esc(e.SerialNo) : ''}</div>
+                ${e.AnalyzerName ? `<span class="badge bg-info-subtle text-info-emphasis border"><i class="bi bi-cpu me-1"></i>${QC.esc(e.AnalyzerName)}</span>` : ''}</td>
+            <td class="small">${QC.esc(e.TypeName)}</td>
+            <td class="small">${QC.esc(e.DepartmentName || '—')}<div class="text-muted">${QC.esc(e.Location || '')}</div></td>
+            <td>${due(e.CalibrationState, e.NextCalibrationDue)}</td><td>${due(e.PmState, e.NextPmDue)}</td><td>${contract(e)}</td>
+            <td class="text-center">${statusBadge(e.Status, e.StatusReason)}${e.OpenBreakdowns ? `<div class="small text-danger">${e.OpenBreakdowns} breakdown open</div>` : ''}${e.OpenCapas ? `<div class="small text-warning-emphasis">${e.OpenCapas} CAPA open</div>` : ''}</td>
+            <td class="text-end pe-3 text-nowrap"><a class="btn btn-sm btn-outline-primary" href="${cardUrl}?id=${e.EquipmentId}"><i class="bi bi-card-checklist me-1"></i>Card</a>
+                ${canEdit ? `<button class="btn btn-sm btn-outline-secondary act-edit" data-id="${e.EquipmentId}"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`).join('')
+            : '<tr><td colspan="9" class="text-center text-muted py-4">No equipment. Add the lab\'s instruments to start their calibration and maintenance records.</td></tr>';
+    }
+
+    const syncContract = () => document.querySelectorAll('#eqForm .contract').forEach(el => el.classList.toggle('d-none', $('eContract').value === 'NONE'));
+    $('eContract').addEventListener('change', syncContract);
+    $('eType').addEventListener('change', function () {
+        if (form.EquipmentId.value) return;   // a new equipment takes the type's intervals
+        const t = L.types.find(x => String(x.Id) === this.value);
+        if (t) { $('eCal').value = t.CalibrationFreqDays ?? ''; $('ePm').value = t.PmFreqDays ?? ''; }
+    });
+    $('eAnalyzer').addEventListener('change', function () {
+        const a = L.analyzers.find(x => String(x.Id) === this.value); if (!a) return;
+        if (!$('eName').value) $('eName').value = a.Name;
+        if (!$('eDept').value && a.DepartmentId) $('eDept').value = a.DepartmentId;
+        const t = L.types.find(x => x.Name === 'Analyzer');
+        if (t && !$('eType').value) { $('eType').value = t.Id; $('eType').dispatchEvent(new Event('change')); }
+    });
+
+    function open(row, analyzerId) {
+        form.reset();
+        $('eAnalyzer').innerHTML = analyzerOptions(row ? row.AnalyzerId : analyzerId, row ? row.EquipmentId : null);
+        QC.fill(form, row || { BranchId: myBranch, ContractType: 'NONE', AnalyzerId: analyzerId || '' });
+        ['InstallDate', 'WarrantyUpto', 'ContractFrom', 'ContractUpto'].forEach(k => { if (row && row[k]) form[k].value = String(row[k]).slice(0, 10); });
+        syncContract();
+        $('eqTitle').textContent = row ? `Edit ${row.AssetCode} · ${row.EquipmentName}` : 'Add equipment';
+        if (!row && analyzerId) $('eAnalyzer').dispatchEvent(new Event('change'));
+        modal.show();
+    }
+    $('btnAdd')?.addEventListener('click', () => open(null));
+    $('rows').addEventListener('click', e => { const b = e.target.closest('.act-edit'); if (b) open(rows.find(x => x.EquipmentId === +b.dataset.id)); });
+    $('btnSave').addEventListener('click', async function () {
+        const body = QC.formData(form);
+        if (!body.EquipmentName) return QC.fail('Equipment name is required.');
+        if (body.ContractType === 'NONE') { body.ContractVendorId = null; body.ContractFrom = null; body.ContractUpto = null; body.ContractCost = null; }
+        this.disabled = true; const r = await QC.post('@Url.Action("Save", "QcEquipment")', body); this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        const a = L.analyzers.find(x => x.Id === body.AnalyzerId); if (a) a.EquipmentId = r.data;
+        modal.hide(); QC.ok('Equipment saved'); load();
+    });
+    ['fType', 'fDept', 'fStatus', 'fDue'].forEach(id => $(id).addEventListener('change', load));
+    $('fSearch').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+    $('kpis').addEventListener('click', e => {
+        const c = e.target.closest('.kpi-click'); if (!c || !c.dataset.filter) return;
+        const f = JSON.parse(c.dataset.filter); $('fStatus').value = f.status || ''; $('fDue').value = f.due || ''; load();
+    });
+    load();
+    if (prefillAnalyzer && canEdit) open(null, prefillAnalyzer);
+})();
+</script>
+}

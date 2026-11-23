@@ -1,0 +1,46 @@
+@model EMR.Web.Services.CertificateVerifyModel
+@{
+    // Public QR check of a certificate (no login): only what proves it is genuine, nothing more of the patient
+    Layout = null;
+    var valid = Model.Found && Model.Status == "I";
+    var expired = valid && Model.ValidTo is { } vt && vt.Date < DateTime.Today;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Certificate Verification</title>
+    <link rel="stylesheet" href="~/css/views/Certificates/Verify.css" asp-append-version="true" />
+</head>
+<body>
+<div class="wrap">
+    <div class="card">
+        @if (!Model.Found)
+        {
+            <div class="head bad"><div class="ic">&#10007;</div><h1>Certificate not found</h1></div>
+            <div class="foot">This QR code does not match any certificate issued by this hospital. Contact the hospital that issued it.</div>
+        }
+        else
+        {
+            <div class="head @(valid ? (expired ? "warn" : "ok") : "bad")">
+                <div class="ic">@Html.Raw(valid ? "&#10003;" : "&#10007;")</div>
+                <h1>@(valid ? (expired ? "Genuine - validity period over" : "Genuine certificate") : "This certificate was cancelled")</h1>
+            </div>
+            <dl>
+                <dt>Certificate no.</dt><dd>@Model.CertificateNo</dd>
+                <dt>Type</dt><dd>@Model.TypeName</dd>
+                <dt>Issued to</dt><dd>@Model.PatientMasked</dd>
+                <dt>Date of issue</dt><dd>@Model.IssueDate?.ToString("dd MMM yyyy")</dd>
+                @if (Model.ValidTo != null) { <dt>Valid till</dt><dd>@Model.ValidTo?.ToString("dd MMM yyyy")</dd> }
+                <dt>Signed by</dt><dd>@Model.DoctorName@(string.IsNullOrWhiteSpace(Model.DoctorRegNo) ? "" : " (Regn. " + Model.DoctorRegNo + ")")</dd>
+                <dt>Issued by</dt><dd>@Model.HospitalName</dd>
+                @if (!valid && !string.IsNullOrWhiteSpace(Model.CancelReason)) { <dt>Reason</dt><dd>@Model.CancelReason</dd> }
+            </dl>
+            <div class="foot">Compare these details with the printed certificate. The patient's name is partly hidden for privacy.</div>
+        }
+    </div>
+</div>
+</body>
+</html>

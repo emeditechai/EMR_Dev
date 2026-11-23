@@ -85,7 +85,7 @@ public class NursingStationsController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Nursing Station created successfully.";
-        return RedirectToAction(nameof(Index), new { wardId = model.WardId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { wardId = model.WardId });
     }
 
     [HttpGet]
@@ -147,7 +147,7 @@ public class NursingStationsController(
             branchId: model.BranchId);
 
         TempData["Success"] = "Nursing Station updated successfully.";
-        return RedirectToAction(nameof(Index), new { wardId = model.WardId });
+        return this.RedirectToActionEncrypted(nameof(Index), new { wardId = model.WardId });
     }
 
     [HttpGet]

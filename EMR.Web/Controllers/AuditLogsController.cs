@@ -31,8 +31,10 @@ public class AuditLogsController(ApplicationDbContext dbContext) : Controller
             PageSize = pageSize
         };
 
-        // Base query
-        var query = from log in dbContext.AuditLogs
+        // Base query: only the signed-in company's activity (AuditLogs.CompanyId, scripts 2333 / 2335)
+        var companyId = User.GetCompanyId();
+        var companyLogs = dbContext.AuditLogs.Where(l => l.CompanyId == companyId);
+        var query = from log in companyLogs
                     join user in dbContext.Users on log.UserId equals user.Id into userJoin
                     from user in userJoin.DefaultIfEmpty()
                     join branch in dbContext.BranchMasters on log.BranchId equals branch.BranchId into branchJoin
@@ -89,12 +91,12 @@ public class AuditLogsController(ApplicationDbContext dbContext) : Controller
         var totalCount = await query.CountAsync();
 
         // Lifecycle module counts
-        var totalOpdLogs = await dbContext.AuditLogs.CountAsync(x => x.ModuleCode == "OPD" || x.EventType.Contains("OPD"));
-        var totalLabLogs = await dbContext.AuditLogs.CountAsync(x => x.ModuleCode == "LAB" || x.EventType.Contains("LAB") || x.EventType.Contains("Sample") || x.EventType.Contains("Reporting"));
-        var totalSecurityLogs = await dbContext.AuditLogs.CountAsync(x => x.EventType.StartsWith("Auth") || x.ActionName.StartsWith("Account"));
+        var totalOpdLogs = await companyLogs.CountAsync(x => x.ModuleCode == "OPD" || x.EventType.Contains("OPD"));
+        var totalLabLogs = await companyLogs.CountAsync(x => x.ModuleCode == "LAB" || x.EventType.Contains("LAB") || x.EventType.Contains("Sample") || x.EventType.Contains("Reporting"));
+        var totalSecurityLogs = await companyLogs.CountAsync(x => x.EventType.StartsWith("Auth") || x.ActionName.StartsWith("Account"));
 
         // Available event types for filter dropdown (distinct, cheap)
-        var eventTypes = await dbContext.AuditLogs
+        var eventTypes = await companyLogs
             .Select(x => x.EventType)
             .Where(x => x != null)
             .Distinct()

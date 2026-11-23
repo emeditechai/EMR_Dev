@@ -133,7 +133,7 @@
                                         @item.Profile_Code
                                     </td>
                                     <td>
-                                        <span class="fw-semibold text-dark">@item.Profile_Name</span>
+                                        <span class="fw-semibold text-dark">@item.Profile_Name</span><partial name="_ApprovalBadge" model="@((ViewBag.ApprovalStates as Dictionary<int, string>)?.GetValueOrDefault(item.Profile_ID) ?? "")" />
                                         <div class="small text-muted">Seq: @item.Report_Print_Sequence | TAT: @item.Profile_TAT_Hours hrs</div>
                                     </td>
                                     <td class="text-center">

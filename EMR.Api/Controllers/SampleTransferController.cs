@@ -20,7 +20,8 @@ namespace EMR.Api.Controllers
             [FromQuery] string? search = null,
             [FromQuery] int? departmentId = null,
             [FromQuery] int? categoryId = null,
-            [FromQuery] int? subCategoryId = null)
+            [FromQuery] int? subCategoryId = null,
+            [FromQuery] int? createdBy = null)   // 2264: a franchise login's own samples only
         {
             if (sourceBranchId <= 0)
                 return BadRequest("Valid sourceBranchId is required.");
@@ -31,7 +32,7 @@ namespace EMR.Api.Controllers
             }
 
             var result = await sampleTransferService.GetEligibleSamplesAsync(
-                sourceBranchId, fromDate, toDate, dateFilterType, transferStatusFilter, search, departmentId, categoryId, subCategoryId);
+                sourceBranchId, fromDate, toDate, dateFilterType, transferStatusFilter, search, departmentId, categoryId, subCategoryId, createdBy);
 
             return Ok(result);
         }
@@ -72,7 +73,8 @@ namespace EMR.Api.Controllers
             [FromQuery] string? mode = "Outgoing",
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null,
-            [FromQuery] string? search = null)
+            [FromQuery] string? search = null,
+            [FromQuery] int? createdBy = null)
         {
             if (branchId <= 0)
                 return BadRequest("Valid branchId is required.");
@@ -83,7 +85,7 @@ namespace EMR.Api.Controllers
             }
 
             var list = await sampleTransferService.GetTransferHistoryAsync(
-                branchId, mode, fromDate, toDate, search);
+                branchId, mode, fromDate, toDate, search, createdBy);
 
             return Ok(list);
         }
@@ -105,7 +107,8 @@ namespace EMR.Api.Controllers
             [FromQuery] string? search = null,
             [FromQuery] int? departmentId = null,
             [FromQuery] int? categoryId = null,
-            [FromQuery] int? subCategoryId = null)
+            [FromQuery] int? subCategoryId = null,
+            [FromQuery] int? createdBy = null)   // 2264: a franchise login's own samples only
         {
             if (targetBranchId <= 0)
                 return BadRequest("Valid targetBranchId is required.");
@@ -116,20 +119,20 @@ namespace EMR.Api.Controllers
             }
 
             var result = await sampleTransferService.GetReceivableSamplesAsync(
-                targetBranchId, fromDate, toDate, dateFilterType, receiveStatusFilter, search, departmentId, categoryId, subCategoryId);
+                targetBranchId, fromDate, toDate, dateFilterType, receiveStatusFilter, search, departmentId, categoryId, subCategoryId, createdBy);
 
             return Ok(result);
         }
 
         [HttpGet("worksheet-data")]
-        public async Task<IActionResult> GetWorksheetData([FromQuery] string sampleCollectionIds)
+        public async Task<IActionResult> GetWorksheetData([FromQuery] string sampleCollectionIds, [FromQuery] int? createdBy = null)
         {
             if (string.IsNullOrWhiteSpace(sampleCollectionIds))
                 return BadRequest("sampleCollectionIds is required.");
 
             try
             {
-                var result = await sampleTransferService.GetWorksheetDataAsync(sampleCollectionIds);
+                var result = await sampleTransferService.GetWorksheetDataAsync(sampleCollectionIds, createdBy);
                 return Ok(result);
             }
             catch (Exception ex)

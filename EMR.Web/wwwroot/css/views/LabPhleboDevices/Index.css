@@ -1,0 +1,10 @@
+/* moved from Views/LabPhleboDevices/Index.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .pd-tile { border: 0; border-radius: .8rem; color: #fff; padding: .8rem 1rem; width: 100%; text-align: left; }
+    .pd-tile .n { font-size: 1.55rem; font-weight: 800; line-height: 1.1; }
+    .pd-tile .l { font-size: .78rem; font-weight: 600; opacity: .92; }
+    .pd-tile.on { box-shadow: 0 0 0 3px rgba(100, 64, 152, .35); }
+    .pd-pending { background: linear-gradient(135deg, #c9232e 0%, #f13a43 100%); }
+    .pd-approved { background: linear-gradient(135deg, #059c6e 0%, #1fcf96 100%); }
+    .pd-blocked { background: linear-gradient(135deg, #475569 0%, #7a8aa0 100%); }
+    .pd-all { background: linear-gradient(135deg, #644098 0%, #7e52b8 50%, #a8407a 100%); }
+    .pd-note { font-size: .78rem; color: #64748b; }

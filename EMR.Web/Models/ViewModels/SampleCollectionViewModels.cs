@@ -16,6 +16,7 @@ namespace EMR.Web.Models.ViewModels
         public string DateFilterType { get; set; } = "BookingDate";
         public string StatusFilter { get; set; } = "All";
         public string? Search { get; set; }
+        public string? CollectionType { get; set; }   // 2390: Lab / Home Collection filter; null = all
     }
 
     public class BarcodeLabelPrintViewModel

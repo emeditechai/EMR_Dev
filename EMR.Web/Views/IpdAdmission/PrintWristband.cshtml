@@ -1,0 +1,32 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@{
+    Layout = null;
+    var h = Model.Header;
+    var hosp = ViewBag.PrintHospital as IpdPrintHospital;
+}
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8" /><title>Wristband @h.S("IpNo")</title>
+<style>
+    @@page { size: 250mm 25mm; margin: 0; }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; background: #e5e7eb; }
+    .toolbar { background: #1f2937; padding: 8px; text-align: center; } .toolbar button { background: #2563eb; color: #fff; border: 0; border-radius: 6px; padding: 6px 16px; font-weight: 600; }
+    .band { width: 250mm; height: 25mm; background: #fff; margin: 16px auto; display: flex; align-items: center; gap: 4mm; padding: 1.5mm 6mm 1.5mm 40mm; box-sizing: border-box; border: 1px dashed #9ca3af; }
+    .t { font-size: 10pt; line-height: 1.25; } .n { font-size: 12pt; font-weight: 700; } .a { color: #b91c1c; font-weight: 700; font-size: 9pt; }
+    @@media print { body { background: #fff; } .toolbar { display: none; } .band { margin: 0; border: 0; } }
+</style></head>
+<body>
+<div class="toolbar"><button type="button" onclick="window.print()">Print wristband</button></div>
+<div class="band">
+    <svg id="bc"></svg>
+    <div class="t">
+        <div class="n">@h.S("PatientName")</div>
+        <div>@h.S("AgeText") / @h.S("Gender") · UHID <b>@h.S("PatientCode")</b> · IP <b>@h.S("IpNo")</b></div>
+        <div>Adm. @h.Dt("AdmissionAt", "dd-MMM-yyyy") · @h.S("ConsultantDoctorName") · Bed @h.S("BedNumber") @(string.IsNullOrWhiteSpace(h.S("BloodGroup")) ? "" : "· " + h.S("BloodGroup"))</div>
+        @if (!string.IsNullOrWhiteSpace(h.S("KnownAllergies"))) { <div class="a">ALLERGY: @h.S("KnownAllergies")</div> }
+    </div>
+    <div class="t" style="margin-left:auto;font-size:8pt;color:#4b5563">@hosp?.Name</div>
+</div>
+<script src="~/lib/jsbarcode/dist/JsBarcode.all.min.js"></script>
+<script>try { JsBarcode('#bc', '@h.S("IpNo")', { height: 40, width: 1.2, fontSize: 9, margin: 0 }); } catch (e) { }</script>
+</body></html>

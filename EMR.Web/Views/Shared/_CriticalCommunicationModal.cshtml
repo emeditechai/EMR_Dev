@@ -2,17 +2,7 @@
    approval and Reports > LAB > Critical & Panic Value Register. Driven by wwwroot/js/critical-communication.js:
    CriticalComm.ensure({ labOrderId, sampleIds, context }) before a sign-off, CriticalComm.open({ labOrderId, sampleIds })
    from the register. Render it inside the page's Scripts section (after jQuery / Bootstrap). *@
-<style>
-    #critCommModal .cc-table td, #critCommModal .cc-table th { font-size:.78rem; vertical-align:middle; }
-    #critCommModal .cc-table th { font-size:.66rem; text-transform:uppercase; letter-spacing:.4px; color:#64748b; background:#f8fafc; }
-    #critCommModal .cc-pick .btn { font-size:.74rem; }
-    #critCommModal .cc-pick .btn.active { background:#b91c1c; border-color:#b91c1c; color:#fff; }
-    #critCommModal .cc-outcome .btn.active[data-outcome="INFORMED"] { background:#15803d; border-color:#15803d; color:#fff; }
-    #critCommModal .cc-outcome .btn.active[data-outcome="ATTEMPTED"] { background:#b45309; border-color:#b45309; color:#fff; }
-    #critCommModal .form-label { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:#64748b; margin-bottom:2px; }
-    #critCommModal .cc-history { font-size:.74rem; }
-    #critCommModal .cc-history .inactive { text-decoration:line-through; color:#94a3b8; }
-</style>
+<link rel="stylesheet" href="~/css/views/Shared/_CriticalCommunicationModal.css" asp-append-version="true" />
 <div class="modal fade" id="critCommModal" tabindex="-1" aria-labelledby="critCommTitle" aria-hidden="true" data-bs-backdrop="static"
      data-pending-url="@Url.Action("Pending", "LabCriticalCommunication")" data-record-url="@Url.Action("Record", "LabCriticalCommunication")">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">

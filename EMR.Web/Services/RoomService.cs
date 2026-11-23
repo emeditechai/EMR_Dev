@@ -301,6 +301,7 @@ public class RoomService(IDbConnectionFactory db) : IRoomService
     {
         var types = new[]
         {
+            "General",
             "Single Room",
             "Double Sharing Room",
             "Triple Sharing Room",

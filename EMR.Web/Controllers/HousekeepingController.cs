@@ -202,12 +202,12 @@ public class HousekeepingController(
                 TempData["Success"] = $"Location '{model.LocationName}' created successfully.";
             }
 
-            return RedirectToAction(nameof(Index), new { tab = "locations" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "locations" });
         }
         catch (Exception ex)
         {
             TempData["Error"] = ex.Message;
-            return RedirectToAction(nameof(Index), new { tab = "locations" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "locations" });
         }
     }
 
@@ -226,7 +226,7 @@ public class HousekeepingController(
             TempData["Error"] = ex.Message;
         }
 
-        return RedirectToAction(nameof(Index), new { tab = "locations" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "locations" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -244,7 +244,7 @@ public class HousekeepingController(
             TempData["Error"] = ex.Message;
         }
 
-        return RedirectToAction(nameof(Index), new { tab = "locations" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "locations" });
     }
 
     // ── Cleaning Master AJAX Endpoints ───────────────────────────────────────
@@ -283,12 +283,12 @@ public class HousekeepingController(
                 TempData["Success"] = $"Cleaning protocol '{model.CleaningType}' created successfully.";
             }
 
-            return RedirectToAction(nameof(Index), new { tab = "cleanings" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "cleanings" });
         }
         catch (Exception ex)
         {
             TempData["Error"] = ex.Message;
-            return RedirectToAction(nameof(Index), new { tab = "cleanings" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "cleanings" });
         }
     }
 
@@ -307,7 +307,7 @@ public class HousekeepingController(
             TempData["Error"] = ex.Message;
         }
 
-        return RedirectToAction(nameof(Index), new { tab = "cleanings" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "cleanings" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -325,7 +325,7 @@ public class HousekeepingController(
             TempData["Error"] = ex.Message;
         }
 
-        return RedirectToAction(nameof(Index), new { tab = "cleanings" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "cleanings" });
     }
 
     // ── HK Staff Master AJAX Endpoints ───────────────────────────────────────
@@ -364,12 +364,12 @@ public class HousekeepingController(
                 TempData["Success"] = "Housekeeping Staff allocation created successfully.";
             }
 
-            return RedirectToAction(nameof(Index), new { tab = "staff" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "staff" });
         }
         catch (Exception ex)
         {
             TempData["Error"] = ex.Message;
-            return RedirectToAction(nameof(Index), new { tab = "staff" });
+            return this.RedirectToActionEncrypted(nameof(Index), new { tab = "staff" });
         }
     }
 
@@ -388,7 +388,7 @@ public class HousekeepingController(
             TempData["Error"] = ex.Message;
         }
 
-        return RedirectToAction(nameof(Index), new { tab = "staff" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "staff" });
     }
 
     [HttpPost, ValidateAntiForgeryToken]
@@ -406,6 +406,6 @@ public class HousekeepingController(
             TempData["Error"] = ex.Message;
         }
 
-        return RedirectToAction(nameof(Index), new { tab = "staff" });
+        return this.RedirectToActionEncrypted(nameof(Index), new { tab = "staff" });
     }
 }

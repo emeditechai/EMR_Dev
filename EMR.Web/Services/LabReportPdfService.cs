@@ -5,6 +5,7 @@ using EMR.Web.Extensions;
 using EMR.Web.Models.DTOs;
 using EMR.Web.Models.ViewModels;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace EMR.Web.Services;
 
@@ -17,7 +18,9 @@ public interface ILabReportPdfService
     /// <summary>The report view model, or null when the order has no reporting detail.</summary>
     /// <param name="scope">"all" (default), "approved" or "pending" - see <see cref="LabReportPrintBuilder"/>.</param>
     /// <param name="reportingType">Which report: "Numeric" (Lab Report Entry, default) or "Template" (Microbiology Report Entry).</param>
-    Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric");
+    /// <param name="sampleIds">Only these tests (SamplecollectionID) - the patient app's one-test report; null = the whole bill.</param>
+    Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric",
+        IReadOnlyCollection<long>? sampleIds = null);
 
     /// <summary>Hospital logo bytes for the letterhead (png / jpg inside wwwroot only).</summary>
     byte[]? LoadLogo(string? logoPath);
@@ -30,6 +33,15 @@ public interface ILabReportPdfService
 
     /// <summary>The reports of the bill that have something to print in this scope: Numeric (Lab Report) and/or Template (Microbiology).</summary>
     Task<List<string>> GetPrintableReportTypesAsync(int labOrderId, string scope = LabReportPrintBuilder.ScopeAll);
+
+
+    /// <summary>Utility > Print Templates (SQLScripts/2324): puts the branch's Lab Report template (or, for the designer's
+    /// preview, a template's draft) on the report. BuildAsync already applies the published one.</summary>
+    Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId);
+
+    /// <summary>LAB > External Document Upload (SQLScripts/2391) for the Image / Descriptive report page: the latest external
+    /// document of each given test (InvestigationId -> test name), as report pages. Never throws.</summary>
+    Task<Dictionary<int, LabReportExternalDoc>> LoadExternalDocumentsAsync(int labOrderId, int companyId, IReadOnlyDictionary<int, string> tests);
 }
 
 /// <summary>
@@ -62,15 +74,22 @@ public class LabReportPdfService(
     ILabDefaultSignatoryApiClient defaultSignatoryApiClient,
     ILabParameterOptionApiClient parameterOptionApiClient,
     ApplicationDbContext dbContext,
-    IWebHostEnvironment env) : ILabReportPdfService
+    IWebHostEnvironment env,
+    IPrintTemplateRuntime printTemplates,
+    ILabFtpService ftp,
+    Microsoft.Extensions.Caching.Memory.IMemoryCache cache,
+    ILogger<LabReportPdfService> logger) : ILabReportPdfService
 {
     public const string PrintedAction = "LAB.ReportPrinted";
 
-    public async Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric")
+    public async Task<LabReportPrintViewModel?> BuildAsync(int labOrderId, ClaimsPrincipal user, string scope = LabReportPrintBuilder.ScopeAll, string reportingType = "Numeric",
+        IReadOnlyCollection<long>? sampleIds = null)
     {
         scope = LabReportPrintBuilder.NormalizeScope(scope);
         var detail = await labReportingApiClient.GetDetailAsync(labOrderId, null, reportingType);
         if (detail == null) return null;
+        if (sampleIds is { Count: > 0 })
+            detail.Items = (detail.Items ?? new()).Where(i => sampleIds.Contains(i.SamplecollectionID)).ToList();
 
         // Microbiology (Template) report: a picklist parameter has no numeric range - its normal answers are printed instead.
         if (!string.Equals(reportingType, "Numeric", StringComparison.OrdinalIgnoreCase))
@@ -99,7 +118,32 @@ public class LabReportPdfService(
         try { signoffLevels = await labReportingApiClient.GetSignoffPanelAsync(labOrderId, detail.BranchId, reportingType: reportingType); }
         catch (HttpRequestException) { /* the report still prints without the signature panel */ }
 
+        // Investigation Master > Reporting Name is the name printed on the report (every format); the screens keep the
+        // Test Name. A test without a reporting name prints its Test Name (SQLScripts/2223).
+        try
+        {
+            var ids = detail.Items.Select(i => i.InvestigationID).Where(i => i > 0).Distinct().ToList();
+            if (ids.Count > 0)
+            {
+                var names = (await Dapper.SqlMapper.QueryAsync<(int Id, string Name)>(dbContext.Database.GetDbConnection(),
+                        @"SELECT Test_ID, LTRIM(RTRIM(Reporting_Name)) FROM dbo.LabInvestigationMaster
+                           WHERE Test_ID IN @ids AND NULLIF(LTRIM(RTRIM(Reporting_Name)), '') IS NOT NULL", new { ids }))
+                    .ToDictionary(x => x.Id, x => x.Name);
+                foreach (var item in detail.Items)
+                    if (names.TryGetValue(item.InvestigationID, out var printName)) item.TestName = printName;
+            }
+        }
+        catch (Exception) { /* the report prints with the Test Name */ }
+
         var vm = LabReportPrintBuilder.Build(detail, order, meta, settings, branch, printedBy, DateTime.Now, scope, signoffLevels);
+        // SQLScripts/2514: the Lab Serial No of this report (Lab = LAB, Microbiology = MICRO)
+        try
+        {
+            vm.LabSerialNo = await Dapper.SqlMapper.QueryFirstOrDefaultAsync<string>(dbContext.Database.GetDbConnection(), "dbo.usp_Api_LabSerialNo_ForPrint",
+                new { LabOrderId = labOrderId, ReportType = LabReportTypes.Normalize(reportingType) == LabReportTypes.Template ? "MICRO" : "LAB" },
+                commandType: System.Data.CommandType.StoredProcedure);
+        }
+        catch (Exception) { /* printed without it */ }
         // franchise B2B bill whose Report Header Required is No: no header / footer (B2C and company B2B unchanged)
         vm.FranchiseHeaderRequired = await LabFranchiseHeader.ForOrderAsync(dbContext, labOrderId);
         if (vm.FranchiseHeaderRequired == false) vm.ShowLetterhead = false;
@@ -117,10 +161,217 @@ public class LabReportPdfService(
         }
         catch (HttpRequestException) { /* fall back to the built-in conditions text */ }
 
+        // LAB > External Document Upload (SQLScripts/2391): each approved test's external document, merged below the test
+        await AttachExternalDocumentsAsync(vm, labOrderId, branch?.CompanyId ?? user.GetCompanyId());
+
         // Every copy after the first one is a duplicate, on screen and on paper.
         vm.PrintSequence = await GetPrintCountAsync(vm.BillNo, scope, reportingType) + 1;
 
+        // Utility > Print Templates (SQLScripts/2324): the billing branch's Lab Report template, for every print,
+        // email and WhatsApp copy alike (none = the Classic letterhead and footer)
+        await ApplyPrintTemplateAsync(vm, user, branch?.CompanyId ?? user.GetCompanyId(), null);
+
         return vm;
+    }
+
+    // a row of dbo.usp_Lab_ExternalDoc_ForReport (properties, so extra columns of the procedure do not break the read)
+    private sealed class ExternalDocRow
+    {
+        public int DocumentId { get; set; }
+        public int CompanyId { get; set; }
+        public int BranchId { get; set; }
+        public int InvestigationId { get; set; }
+        public string? OriginalFileName { get; set; }
+        public string FileName { get; set; } = "";
+        public string FilePath { get; set; } = "";
+        public string? ContentType { get; set; }
+        public DateTime UpdatedDate { get; set; }
+    }
+
+    private const int MaxExternalPages = 15;
+
+    /// <summary>
+    /// Merges the external documents (dbo.LabExternalDocument) into the report: a document goes under the group of its test,
+    /// only when that test is printed and approved. PDF pages become images (150 dpi), a JPG / PNG becomes one page;
+    /// a Word file or an unreachable FTP server leaves a note instead. Files are cached for 10 minutes per upload, so a
+    /// reprint or the e-mail / WhatsApp copy does not read the FTP server again. Never blocks the report.
+    /// </summary>
+    private async Task AttachExternalDocumentsAsync(LabReportPrintViewModel vm, int labOrderId, int companyId)
+    {
+        try
+        {
+            var docs = (await Dapper.SqlMapper.QueryAsync<ExternalDocRow>(dbContext.Database.GetDbConnection(),
+                "dbo.usp_Lab_ExternalDoc_ForReport", new { LabOrderId = labOrderId }, commandType: System.Data.CommandType.StoredProcedure)).ToList();
+            if (docs.Count == 0) return;
+
+            foreach (var d in docs)
+            {
+                var group = vm.Sections.SelectMany(s => s.Groups)
+                    .FirstOrDefault(g => g.Rows.Any(r => r.InvestigationId == d.InvestigationId && r.IsApproved));
+                if (group is null) continue;   // the test is not on this report, or not approved yet
+                var row = group.Rows.First(r => r.InvestigationId == d.InvestigationId);
+
+                group.ExternalDocuments.Add(await LoadExternalDocAsync(d, row.TestName, companyId));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "External documents of lab order {LabOrderId} were not merged into the report", labOrderId);
+        }
+    }
+
+    public async Task<Dictionary<int, LabReportExternalDoc>> LoadExternalDocumentsAsync(int labOrderId, int companyId, IReadOnlyDictionary<int, string> tests)
+    {
+        var result = new Dictionary<int, LabReportExternalDoc>();
+        if (tests.Count == 0) return result;
+        try
+        {
+            var docs = (await Dapper.SqlMapper.QueryAsync<ExternalDocRow>(dbContext.Database.GetDbConnection(),
+                "dbo.usp_Lab_ExternalDoc_ForReport", new { LabOrderId = labOrderId }, commandType: System.Data.CommandType.StoredProcedure)).ToList();
+            foreach (var d in docs)
+                if (tests.TryGetValue(d.InvestigationId, out var testName) && !result.ContainsKey(d.InvestigationId))
+                    result[d.InvestigationId] = await LoadExternalDocAsync(d, testName, companyId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "External documents of lab order {LabOrderId} were not merged into the image report", labOrderId);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// One external document as report pages: a PDF page by page (150 dpi), a JPG / PNG as one page - turned upright
+    /// (camera rotation), sized for an A4 page and flattened on white, the way a PDF page is. A file that cannot be read
+    /// leaves a note instead, so it never stops the report.
+    /// </summary>
+    private async Task<LabReportExternalDoc> LoadExternalDocAsync(ExternalDocRow d, string testName, int companyId)
+    {
+        var ext = new LabReportExternalDoc { TestName = testName, FileName = d.OriginalFileName ?? d.FileName };
+        var kind = ExternalKind(d.FileName, d.ContentType);
+        if (kind == "word")
+        {
+            ext.Note = $"External document \"{ext.FileName}\" (Word file) is not printed here - it is kept with the booking.";
+            return ext;
+        }
+
+        var key = $"labextdoc:{d.DocumentId}:{d.UpdatedDate.Ticks}";
+        var unreadable = false;
+        var pages = await cache.GetOrCreateAsync(key, async e =>
+        {
+            e.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            var settings = await ftp.GetForBranchAsync(d.CompanyId > 0 ? d.CompanyId : companyId, d.BranchId);
+            if (settings is null) return null;
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            var bytes = await ftp.DownloadAsync(settings, d.FilePath, cts.Token);
+            if (bytes is null || bytes.Length == 0) return null;
+            if (kind == "pdf") return PdfPages(bytes);
+            var page = ImagePage(bytes);
+            if (page is null) { unreadable = true; return null; }
+            return new List<byte[]> { page };
+        });
+        if (pages is { Count: > 0 }) ext.Pages = pages;
+        else
+        {
+            cache.Remove(key);   // not kept: the next print tries the server again
+            ext.Note = unreadable
+                ? $"External document \"{ext.FileName}\" is not a readable image - it is kept with the booking."
+                : $"External document \"{ext.FileName}\" could not be read from the document server.";
+        }
+        return ext;
+    }
+
+    /// <summary>Longest side of an external image page: about A4 at 170 dpi, like a PDF page at 150 dpi.</summary>
+    private const int MaxImagePageSide = 2000;
+
+    /// <summary>
+    /// A JPG / PNG as a report page (JPEG bytes): upright per its EXIF orientation, at most <see cref="MaxImagePageSide"/>
+    /// px on the longest side, transparency on white. Null when the file is not a readable image.
+    /// </summary>
+    private static byte[]? ImagePage(byte[] bytes)
+    {
+        try
+        {
+            using var data = SkiaSharp.SKData.CreateCopy(bytes);
+            using var codec = SkiaSharp.SKCodec.Create(data);
+            if (codec is null) return null;
+            using var src = SkiaSharp.SKImage.FromEncodedData(data);
+            if (src is null || src.Width <= 0 || src.Height <= 0) return null;
+
+            var origin = codec.EncodedOrigin;
+            var quarterTurn = origin is SkiaSharp.SKEncodedOrigin.RightTop or SkiaSharp.SKEncodedOrigin.LeftBottom;
+            int w0 = quarterTurn ? src.Height : src.Width, h0 = quarterTurn ? src.Width : src.Height;
+            var scale = Math.Min(1f, (float)MaxImagePageSide / Math.Max(w0, h0));
+            int w = Math.Max(1, (int)Math.Round(w0 * scale)), h = Math.Max(1, (int)Math.Round(h0 * scale));
+
+            using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo(w, h, SkiaSharp.SKColorType.Rgba8888, SkiaSharp.SKAlphaType.Premul));
+            if (surface is null) return null;
+            var canvas = surface.Canvas;
+            canvas.Clear(SkiaSharp.SKColors.White);
+            switch (origin)
+            {
+                case SkiaSharp.SKEncodedOrigin.BottomRight: canvas.Translate(w, h); canvas.RotateDegrees(180); break;
+                case SkiaSharp.SKEncodedOrigin.RightTop:    canvas.Translate(w, 0); canvas.RotateDegrees(90);  break;
+                case SkiaSharp.SKEncodedOrigin.LeftBottom:  canvas.Translate(0, h); canvas.RotateDegrees(270); break;
+            }
+            canvas.DrawImage(src, new SkiaSharp.SKRect(0, 0, src.Width * scale, src.Height * scale),
+                new SkiaSharp.SKSamplingOptions(SkiaSharp.SKFilterMode.Linear, SkiaSharp.SKMipmapMode.Linear));
+            canvas.Flush();
+
+            using var page = surface.Snapshot();
+            using var jpeg = page.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90);
+            return jpeg?.ToArray();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ExternalKind(string fileName, string? contentType)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
+        if (ext == ".pdf" || string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase)) return "pdf";
+        if (ext is ".jpg" or ".jpeg" or ".png") return "image";
+        return "word";
+    }
+
+    /// <summary>The pages of a PDF as PNG images (at most <see cref="MaxExternalPages"/>).</summary>
+    private static List<byte[]> PdfPages(byte[] pdf)
+    {
+        var pages = new List<byte[]>();
+        int count;
+        using (var s = new MemoryStream(pdf)) count = Math.Min(PDFtoImage.Conversion.GetPageCount(s), MaxExternalPages);
+        for (var i = 0; i < count; i++)
+        {
+            using var src = new MemoryStream(pdf);
+            using var png = new MemoryStream();
+            PDFtoImage.Conversion.SavePng(png, src, i, options: new PDFtoImage.RenderOptions(Dpi: 150, BackgroundColor: SkiaSharp.SKColors.White));
+            pages.Add(png.ToArray());
+        }
+        return pages;
+    }
+
+    public async Task ApplyPrintTemplateAsync(LabReportPrintViewModel vm, ClaimsPrincipal? user, int companyId, int? previewTemplateId)
+    {
+        if (vm.BranchId <= 0) return;
+        var lab = vm.ProcessingLabName ?? vm.HospitalName;
+        var (layout, values) = await printTemplates.ForReportAsync(user, companyId, vm.BranchId, new PrintDocInfo
+        {
+            DocNo = vm.BillNo,
+            DocDate = vm.Reported?.ToString("dd-MMM-yyyy hh:mm tt"),
+            CopyLabel = vm.IsDuplicate ? $"Duplicate copy - print #{vm.PrintSequence}" : "Original",
+            ProcessingLab = string.IsNullOrWhiteSpace(vm.ProcessingLabAddress) ? lab : $"{lab}, {vm.ProcessingLabAddress}",
+            PrintedAt = vm.PrintedOn.ToString("dd-MMM-yyyy hh:mm tt"),
+            PrintedBy = vm.PrintedBy
+        }, previewTemplateId);
+        vm.PrintTemplate = layout;
+        vm.PrintValues = values;
+        vm.PrintImages.Clear();
+        if (layout is null) return;
+        // uploaded images are read now: the PDF is drawn without file access
+        foreach (var path in new[] { layout.Header, layout.Footer }.SelectMany(b => b.Rows).SelectMany(r => r.Cols).SelectMany(c => c.Blocks)
+                     .Where(b => b.Type == "image" && !string.IsNullOrWhiteSpace(b.ImageUrl)).Select(b => b.ImageUrl!).Distinct())
+            if (LoadLogo(path) is { } bytes) vm.PrintImages[path] = bytes;
     }
 
     private async Task FillPicklistRangesAsync(LabReportingOrderDetailDto detail, ClaimsPrincipal user)

@@ -9,6 +9,9 @@ public class DoctorIpCommissionPendingItem
     public int Pending_Items { get; set; }
     public decimal Pending_Amount { get; set; }
     public decimal Estimated_Commission { get; set; }
+    public int Omitted_Items { get; set; }
+    public decimal Omitted_Amount { get; set; }
+    public decimal Omitted_Commission { get; set; }
     public DateTime First_Order_Date { get; set; }
     public DateTime Last_Order_Date { get; set; }
 }
@@ -111,4 +114,45 @@ public class DoctorIpCommissionDueSchedule
     public string Frequency_Of_Disbursal { get; set; } = string.Empty;
     public DateTime Period_From { get; set; }
     public DateTime Period_To { get; set; }
+}
+
+/// <summary>A pending lab order item of a doctor, for choosing the tests before the commission is calculated.</summary>
+public class DoctorIpCommissionPendingTest
+{
+    public int LabOrderItemId { get; set; }
+    public int LabOrderId { get; set; }
+    public string? BillNo { get; set; }
+    public DateTime Order_Date { get; set; }
+    public string? Patient_Name { get; set; }
+    public string Item_Type { get; set; } = "Test";
+    public long Test_ID { get; set; }
+    public string? Test_Code { get; set; }
+    public string Test_Name { get; set; } = string.Empty;
+    public decimal Billed_Amount { get; set; }
+    public decimal Commission_Rate { get; set; }
+    public decimal Commission_Amount { get; set; }
+    public bool Is_Omitted { get; set; }
+    public string? Omit_Reason { get; set; }
+    public DateTime? Omitted_On { get; set; }
+    public string? Omitted_By_Name { get; set; }
+}
+
+/// <summary>Omit / restore pending items of one doctor in a period (LabOrderItemIds).</summary>
+public class DoctorIpCommissionOmitRequest
+{
+    public int BranchId { get; set; }
+    public int DoctorId { get; set; }
+    public DateTime FromDate { get; set; }
+    public DateTime ToDate { get; set; }
+    public int? CompanyId { get; set; }
+    public int? UserId { get; set; }
+    public List<int> OmitIds { get; set; } = [];
+    public List<int> IncludeIds { get; set; } = [];
+    public string? Reason { get; set; }
+}
+
+public class DoctorIpCommissionOmitResult
+{
+    public int Omitted_Count { get; set; }
+    public int Restored_Count { get; set; }
 }

@@ -1,0 +1,54 @@
+@{
+    ViewData["Title"] = "Equipment Breakdown & Downtime";
+    ViewData["ReportSubtitle"] = "Breakdowns reported in the period, response and repair time, downtime and repair cost";
+    ViewData["ReportIcon"] = "bi-exclamation-octagon";
+    ViewData["ReportAccent"] = "#b91c1c";
+    ViewData["ScopeNote"] = "Equipment of this branch";
+    ViewData["DateLabel"] = "reported on";
+}
+@* SQLScripts/2253 (LF-06): downtime of an open breakdown runs until now *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    LabReport.init({
+        report: 'equipment-downtime', title: 'Equipment Breakdown and Downtime', defaultRange: 'month',
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")', seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Equipment or problem...',
+        filters: [
+            { id: 'breakdownStatus', label: 'Status', allLabel: 'Open and resolved', options: [['OPEN', 'Open'], ['RESOLVED', 'Resolved']] },
+            { id: 'typeId', label: 'Type', allLabel: 'All types', fromOptions: 'typeId' }
+        ],
+        kpis: [
+            { label: 'Breakdowns', color: '#b91c1c', value: (s, h) => h.num(s.Breakdowns), sub: (s, h) => `${h.num(s.EquipmentAffected)} equipment · ${h.num(s.OpenNow)} still open` },
+            { label: 'Downtime', color: '#b45309', value: s => `${Number(s.DowntimeHours || 0).toFixed(1)} h`, sub: () => 'reported to resolved (open: until now)' },
+            { label: 'Average repair time', color: '#1d4ed8', value: s => s.AvgRepairHours == null ? '—' : `${Number(s.AvgRepairHours).toFixed(1)} h`, sub: () => 'resolved breakdowns' },
+            { label: 'Repair cost', color: '#7c3aed', value: (s, h) => h.money(s.RepairCost), sub: () => 'parts and service' }
+        ],
+        groups: [
+            { key: 'byEquipment', label: 'Equipment', rowField: 'EquipmentId', byId: true },
+            { key: 'byType', label: 'Type', rowField: 'TypeId', byId: true },
+            { key: 'byStatus', label: 'Status', rowField: 'StatusLabel' },
+            { key: 'byDate', label: 'Date', rowField: 'ReportedDay', name: (r, h) => h.fmtD(r.GroupName) }
+        ],
+        groupCols: [{ field: 'Breakdowns', label: 'Breakdowns', num: true }, { field: 'DowntimeHours', label: 'Downtime (h)', num: true, fmt: v => Number(v || 0).toFixed(1) }, { field: 'Cost', label: 'Repair cost', money: true }],
+        shareOf: 'DowntimeHours',
+        rowClass: r => r.Status === 'OPEN' ? 'row-muted' : '',
+        cols: [
+            { label: 'Reported', cls: 'text-nowrap', html: (r, h) => `${h.fmtDT(r.ReportedOn)}<div class="fs-9 text-muted">${h.esc(r.ReportedByName || '')}</div>`, text: r => r.ReportedOn },
+            { label: 'Equipment', html: (r, h) => `<div class="fw-semibold">${h.esc(r.EquipmentName)}</div><div class="fs-9 text-muted">${h.esc(r.AssetCode)} · ${h.esc(r.TypeName)}</div>`, text: r => `${r.AssetCode} ${r.EquipmentName}` },
+            { label: 'Problem', html: (r, h) => `${h.esc(r.Problem)}${r.Impact ? `<div class="fs-9 text-muted">${h.esc(r.Impact)}</div>` : ''}`, text: r => r.Problem },
+            { label: 'Vendor', html: (r, h) => `${h.esc(r.VendorName || '')}${r.VendorTicketNo ? ' #' + h.esc(r.VendorTicketNo) : ''}${r.ResponseHours != null ? `<div class="fs-9 text-muted">called after ${Number(r.ResponseHours).toFixed(1)} h</div>` : ''}`, text: r => r.VendorName || '' },
+            { label: 'Status', html: (r, h) => QcRep.pill(r.StatusLabel, r.Status === 'OPEN' ? 'bad' : 'good', h), text: r => r.StatusLabel },
+            { label: 'Resolution', html: (r, h) => r.ResolvedOn ? `${h.fmtDT(r.ResolvedOn)}<div class="fs-9">${h.esc(r.Resolution || '')}</div>` : '', text: r => r.Resolution || '' },
+            { label: 'Downtime', cls: 'text-end', html: r => `${Number(r.DowntimeHours).toFixed(1)} h`, text: r => r.DowntimeHours },
+            { label: 'Cost', cls: 'text-end amt', html: (r, h) => h.money(r.Cost), text: r => r.Cost, sum: 'Cost' },
+            { label: 'CAPA', html: (r, h) => h.esc(r.CapaNo || ''), text: r => r.CapaNo || '' }
+        ]
+    });
+})();
+</script>
+}

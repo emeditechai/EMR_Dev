@@ -1,0 +1,29 @@
+@using EMR.Web.Services
+@model List<PhStockRow>
+@{
+    // Pharmacy > Inventory > Expiry / Damage Write-off > expiry list (SQLScripts/2349)
+    ViewData["Title"] = "Expiry List";
+    int days = ViewBag.Days;
+    var stats = new List<KeyValuePair<string, int>> { new("Expired", Model.Count(m => m.DaysToExpiry <= 0)), new("Within 30 d", Model.Count(m => m.DaysToExpiry is > 0 and <= 30)), new("Within " + days + " d", Model.Count) };
+}
+<link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Expiry / Damage Write-off", "bi-calendar-x", "Expired and near-expiry stock of this branch. Expired stock is never sold; send it back to the supplier (Purchase Return) or destroy it (write-off with a destruction record).", null, null, "Expiry list", "Expiry list", Url.Action("Index"), stats, "Pharmacy", "Inventory"))" />
+<div class="card shadow-sm border-0">
+    <form method="get" class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+        <span class="small fw-semibold">Show expiring within</span>
+        <select name="days" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">@foreach (var d in new[] { 0, 30, 60, 90, 180 }) { <option value="@d" selected="@(d == days)">@(d == 0 ? "already expired" : d + " days")</option> }</select>
+        <span class="small text-muted">Value at cost <b>₹ @Model.Sum(m => m.CostValue).ToString("N2")</b></span>
+        <div class="ms-auto d-flex gap-2">
+            <a asp-controller="PhPurchaseReturns" asp-action="Form" asp-permission="PHARMACY.PURCHASERETURN:SAVE" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-up me-1"></i>Return to supplier</a>
+            <a asp-action="Form" asp-permission="PHARMACY.WRITEOFF:SAVE" class="btn btn-sm btn-danger"><i class="bi bi-trash3 me-1"></i>Write off / destroy</a>
+        </div>
+    </form>
+    <div class="ph-wrap"><table class="table table-hover mb-0 ph-table">
+        <thead><tr><th>#</th><th>Item</th><th>Batch</th><th>Expiry</th><th class="text-end">Days</th><th class="text-end">Stock</th><th class="text-end">Value (cost)</th><th>Supplier</th><th>Rack</th></tr></thead>
+        <tbody>@for (var i = 0; i < Model.Count; i++) { var r = Model[i];
+            <tr class="@(r.DaysToExpiry <= 0 ? "table-danger" : r.DaysToExpiry <= 30 ? "table-warning" : "")"><td class="text-muted small">@(i + 1)</td><td class="fw-semibold">@r.FormShort @r.ItemName</td><td class="font-monospace small">@r.BatchNo</td>
+                <td>@r.ExpiryDate.ToString("MMM-yyyy")</td><td class="text-end">@(r.DaysToExpiry <= 0 ? "expired" : r.DaysToExpiry.ToString())</td><td class="text-end">@r.Stock.ToString("0.##") @r.SaleUom</td>
+                <td class="text-end fw-semibold">@r.CostValue.ToString("N2")</td><td class="small">@r.SupplierName</td><td>@r.RackNo</td></tr> }</tbody>
+    </table>
+    @if (Model.Count == 0) { <div class="text-center text-muted py-5"><i class="bi bi-emoji-smile fs-2 d-block mb-2"></i>Nothing expiring in this window.</div> }</div>
+</div>

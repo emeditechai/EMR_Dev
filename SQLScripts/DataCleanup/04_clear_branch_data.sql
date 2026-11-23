@@ -3,7 +3,8 @@
 -- Branch-wise clean-up: everything recorded for one branch
 -- ----------------------------------------------------------------------------
 --   For the chosen branch:
---     all LAB transactions (as 01) and all OPD transactions (as 19),
+--     all LAB transactions (as 01) and all OPD transactions (as 19), and (2026-11-12) all IPD, pharmacy and
+--     marketing field transactions of the branch (as 07),
 --     the branch's lab rate lists and the patients registered at the branch (as 02, optional),
 --     the branch's activity logs (page views, module audit, e-mail and WhatsApp send logs; optional),
 --     and its number series (bills, tokens, receipts, barcodes, cancellations, patient codes restart at 1).
@@ -29,7 +30,7 @@ DECLARE @ClearPatients     BIT = 1;      -- 1 = also the patients registered at 
 DECLARE @ClearActivityLogs BIT = 1;      -- 1 = also the branch's activity / e-mail / WhatsApp logs
 
 IF @BranchId IS NULL THROW 50120, 'Set @BranchId: this script clears one branch.', 1;
-DECLARE @Areas NVARCHAR(200) = CONCAT(N'LAB,OPD,', CASE WHEN @ClearRateLists = 1 THEN N'RATELISTS,' END,
+DECLARE @Areas NVARCHAR(200) = CONCAT(N'IPD,LAB,OPD,PHARMACY,MARKETING,', CASE WHEN @ClearRateLists = 1 THEN N'RATELISTS,' END,
                                       CASE WHEN @ClearPatients = 1 THEN N'PATIENTS,' END, CASE WHEN @ClearActivityLogs = 1 THEN N'LOGS,' END, N'SEQUENCES');
 
 IF OBJECT_ID('cleanup.usp_Run', 'P') IS NULL

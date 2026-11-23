@@ -74,7 +74,7 @@ public class BuildingsController(
             branchId: entity.BranchId);
 
         TempData["Success"] = "Building created successfully.";
-        return RedirectToAction(nameof(Details), new { id = newId });
+        return this.RedirectToActionEncrypted(nameof(Details), new { id = newId });
     }
 
     [HttpGet]

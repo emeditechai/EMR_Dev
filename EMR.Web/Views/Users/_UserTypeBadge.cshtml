@@ -8,7 +8,7 @@
         </span>
         @if (Model.ReferenceUserId.HasValue)
         {
-            <a class="small text-decoration-none ms-1" asp-controller="Doctors" asp-action="Details" asp-route-id="@Model.ReferenceUserId">@(Model.ReferenceName ?? $"Doctor #{Model.ReferenceUserId}")</a>
+            <a class="small text-decoration-none ms-1" asp-controller="Doctors" asp-action="Details" asp-encrypted-route-id="@Model.ReferenceUserId">@(Model.ReferenceName ?? $"Doctor #{Model.ReferenceUserId}")</a>
         }
         break;
     case "F":

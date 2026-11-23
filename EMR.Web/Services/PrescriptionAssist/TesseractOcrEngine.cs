@@ -14,7 +14,29 @@ public interface IPrescriptionOcrEngine
     /// prescriptions), otherwise its pages are rendered and read with OCR. Throws <see cref="PrescriptionOcrUnavailableException"/>
     /// when the OCR engine is needed but not installed.
     /// </summary>
-    Task<PrescriptionReading> ReadAsync(Stream document, string fileExtension, IReadOnlyList<string> handwritingCandidates, CancellationToken ct);
+    /// <param name="crop">The area of the first page the user marked as "the tests" (fractions of the page): only it is read,
+    /// every word of it (no column guessing), which is far more reliable on a busy prescription. Null = the whole page.</param>
+    Task<PrescriptionReading> ReadAsync(Stream document, string fileExtension, IReadOnlyList<string> handwritingCandidates, CancellationToken ct,
+        PrescriptionCrop? crop = null);
+}
+
+/// <summary>An area of the page as fractions (0-1) of its width / height, as marked on the preview.</summary>
+public sealed record PrescriptionCrop(double X, double Y, double W, double H)
+{
+    public bool IsValid => X >= 0 && Y >= 0 && W >= 0.03 && H >= 0.02 && X + W <= 1.0001 && Y + H <= 1.0001;
+
+    /// <summary>"x,y,w,h" (invariant culture); null when absent or not a valid area.</summary>
+    public static PrescriptionCrop? Parse(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        var p = s.Split(',');
+        if (p.Length != 4) return null;
+        var v = new double[4];
+        for (var i = 0; i < 4; i++)
+            if (!double.TryParse(p[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v[i])) return null;
+        var c = new PrescriptionCrop(v[0], v[1], v[2], v[3]);
+        return c.IsValid ? c : null;
+    }
 }
 
 /// <summary>What was read: the text (OCR, or a typed PDF's own text) and the handwritten lines the handwriting model recognised.</summary>
@@ -34,23 +56,69 @@ public sealed class TesseractOcrEngine(IOptionsMonitor<PrescriptionAssistOptions
     private static readonly string[] PageModes = ["4", "6", "11"];
     private const int MaxPdfPages = 3;
 
-    public async Task<PrescriptionReading> ReadAsync(Stream document, string fileExtension, IReadOnlyList<string> handwritingCandidates, CancellationToken ct)
+    public async Task<PrescriptionReading> ReadAsync(Stream document, string fileExtension, IReadOnlyList<string> handwritingCandidates, CancellationToken ct,
+        PrescriptionCrop? crop = null)
     {
         if (fileExtension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-            return await ReadPdfAsync(document, handwritingCandidates, ct);
+            return await ReadPdfAsync(document, handwritingCandidates, ct, crop);
 
         var tempFile = TempPath(fileExtension);
         try
         {
             await using (var fs = File.Create(tempFile))
                 await document.CopyToAsync(fs, ct);
-            return await ReadImageFileAsync(tempFile, handwritingCandidates, ct);
+            return await ReadMaybeCroppedAsync(tempFile, handwritingCandidates, ct, crop);
         }
         finally { Delete(tempFile); }
     }
 
+    /// <summary>The marked area cut out (upright, enlarged so its writing is ~1800 px wide) and read on its own; else the whole image.</summary>
+    private async Task<PrescriptionReading> ReadMaybeCroppedAsync(string file, IReadOnlyList<string> handwritingCandidates, CancellationToken ct, PrescriptionCrop? crop)
+    {
+        if (crop is null) return await ReadImageFileAsync(file, handwritingCandidates, ct);
+        var cut = Cut(file, crop);
+        if (cut is null) return await ReadImageFileAsync(file, handwritingCandidates, ct);
+        try { return await ReadImageFileAsync(cut, handwritingCandidates, ct, region: true); }
+        finally { Delete(cut); }
+    }
+
+    private string? Cut(string file, PrescriptionCrop c)
+    {
+        try
+        {
+            using var codec = SkiaSharp.SKCodec.Create(file);
+            if (codec is null) return null;
+            using var decoded = SkiaSharp.SKBitmap.Decode(codec);
+            if (decoded is null) return null;
+            using var upright = Orient(decoded, codec.EncodedOrigin);
+            var src = SkiaSharp.SKRectI.Create((int)(c.X * upright.Width), (int)(c.Y * upright.Height),
+                Math.Max(8, (int)(c.W * upright.Width)), Math.Max(8, (int)(c.H * upright.Height)));
+            src.Intersect(new SkiaSharp.SKRectI(0, 0, upright.Width, upright.Height));
+            if (src.Width < 8 || src.Height < 8) return null;
+            var scale = Math.Clamp(1800f / src.Width, 1f, 4f);
+            int w = (int)(src.Width * scale), h = (int)(src.Height * scale);
+            using var outBmp = new SkiaSharp.SKBitmap(w, h);
+            using (var canvas = new SkiaSharp.SKCanvas(outBmp))
+            using (var img = SkiaSharp.SKImage.FromBitmap(upright))
+            {
+                canvas.Clear(SkiaSharp.SKColors.White);
+                canvas.DrawImage(img, new SkiaSharp.SKRect(src.Left, src.Top, src.Right, src.Bottom), new SkiaSharp.SKRect(0, 0, w, h),
+                    new SkiaSharp.SKSamplingOptions(SkiaSharp.SKCubicResampler.Mitchell));
+            }
+            var outFile = TempPath(".png");
+            using var data = outBmp.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            using (var fs = File.Create(outFile)) data.SaveTo(fs);
+            return outFile;
+        }
+        catch (Exception ex)
+        {
+            logger.LogInformation(ex, "Prescription assist: the marked area could not be cut out, reading the whole page");
+            return null;
+        }
+    }
+
     // ── PDF ──────────────────────────────────────────────────────────────────
-    private async Task<PrescriptionReading> ReadPdfAsync(Stream pdf, IReadOnlyList<string> handwritingCandidates, CancellationToken ct)
+    private async Task<PrescriptionReading> ReadPdfAsync(Stream pdf, IReadOnlyList<string> handwritingCandidates, CancellationToken ct, PrescriptionCrop? crop = null)
     {
         using var ms = new MemoryStream();
         await pdf.CopyToAsync(ms, ct);
@@ -64,7 +132,7 @@ public sealed class TesseractOcrEngine(IOptionsMonitor<PrescriptionAssistOptions
             foreach (var page in doc.GetPages().Take(MaxPdfPages))
                 sb.AppendLine(ContentOrderTextExtractor.GetText(page));
             var text = sb.ToString();
-            if (text.Count(char.IsLetter) >= 25) return new PrescriptionReading(text, []);   // typed: exact text, no handwriting
+            if (text.Count(char.IsLetter) >= 25 && crop is null) return new PrescriptionReading(text, []);   // typed: exact text, no handwriting
         }
         catch (Exception ex)
         {
@@ -103,7 +171,10 @@ public sealed class TesseractOcrEngine(IOptionsMonitor<PrescriptionAssistOptions
             for (var i = 0; i < pages.Count; i++)
             {
                 // handwriting is read on the first page (where the prescription is); OCR reads every page
-                var r = await ReadImageFileAsync(pages[i], i == 0 ? handwritingCandidates : [], ct);
+                // a marked area is on the first page: only that is read
+                if (crop is not null && i > 0) break;
+                var r = crop is not null ? await ReadMaybeCroppedAsync(pages[i], handwritingCandidates, ct, crop)
+                                         : await ReadImageFileAsync(pages[i], i == 0 ? handwritingCandidates : [], ct);
                 texts.Add(r.Text); lines.AddRange(r.Handwriting);
             }
             return new PrescriptionReading(string.Join("\n", texts), lines);
@@ -112,7 +183,7 @@ public sealed class TesseractOcrEngine(IOptionsMonitor<PrescriptionAssistOptions
     }
 
     // ── image ────────────────────────────────────────────────────────────────
-    private async Task<PrescriptionReading> ReadImageFileAsync(string file, IReadOnlyList<string> handwritingCandidates, CancellationToken ct)
+    private async Task<PrescriptionReading> ReadImageFileAsync(string file, IReadOnlyList<string> handwritingCandidates, CancellationToken ct, bool region = false)
     {
         var o = options.CurrentValue;
         var enhanced = Enhance(file);
@@ -130,7 +201,7 @@ public sealed class TesseractOcrEngine(IOptionsMonitor<PrescriptionAssistOptions
             IReadOnlyList<HandwrittenLine> hand = [];
             if (handwritingCandidates.Count > 0 && handwriting.IsAvailable)
             {
-                try { hand = await Task.Run(() => handwriting.Read(file, handwritingCandidates, printed, ct), ct); }
+                try { hand = await Task.Run(() => handwriting.Read(file, handwritingCandidates, region ? [] : printed, ct, region), ct); }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     logger.LogWarning(ex, "Prescription assist: handwriting reading failed - OCR text only");

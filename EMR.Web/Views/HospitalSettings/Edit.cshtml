@@ -1,39 +1,11 @@
+@inject EMR.Web.ApiClients.IIpdMasterApiClient IpdMasterApi
 @model EMR.Web.Models.ViewModels.HospitalSettingsViewModel
 @{
     ViewData["Title"] = "Edit Hospital Settings";
 }
 
 @section HeadStyles {
-<style>
-    .module-tab-nav .nav-link { font-size:.82rem; font-weight:600; letter-spacing:.02em; padding:.55rem 1.2rem; border-radius:8px 8px 0 0; color:#6c757d; border:1px solid transparent; }
-    .module-tab-nav .nav-link.active { color:#fff; border-color: transparent; }
-    .module-tab-nav .nav-link[data-tab="opd"].active  { background:#0d6efd; }
-    .module-tab-nav .nav-link[data-tab="ipd"].active  { background:#198754; }
-    .module-tab-nav .nav-link[data-tab="lab"].active  { background:#fd7e14; }
-    .module-tab-nav .nav-link[data-tab="med"].active  { background:#6f42c1; }
-    .module-tab-nav .nav-link[data-tab="opd"]:not(.active):hover { background:#e8f0fe; color:#0d6efd; }
-    .module-tab-nav .nav-link[data-tab="ipd"]:not(.active):hover { background:#e6f4ea; color:#198754; }
-    .module-tab-nav .nav-link[data-tab="lab"]:not(.active):hover { background:#fff3e0; color:#fd7e14; }
-    .module-tab-nav .nav-link[data-tab="med"]:not(.active):hover { background:#f1ecff; color:#6f42c1; }
-    .module-tab-pane { background:#fff; border:1px solid #e9ecef; border-radius:0 12px 12px 12px; padding:1.4rem; min-height:220px; }
-    /* LAB tab: grouped, evenly sized parameter cards with the switch on the right */
-    .lab-section-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:700; display:flex; align-items:center; gap:.6rem; margin:0 0 .85rem; }
-    .lab-section-title::after { content:""; flex:1; height:1px; background:#e2e8f0; }
-    .lab-param { --lp:#2563eb; --lp-bg:#dbeafe; display:flex; gap:.9rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--lp); border-radius:12px; padding:1rem 1.1rem; height:100%; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-    .lab-param .lp-icon { width:42px; height:42px; border-radius:10px; background:var(--lp-bg); color:var(--lp); display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
-    .lab-param .lp-body { flex:1 1 auto; min-width:0; }
-    .lab-param .lp-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#475569; font-weight:700; line-height:1.25; }
-    .lab-param .lp-desc { font-size:.74rem; color:#94a3b8; margin-top:.2rem; line-height:1.3; }
-    .lab-param .form-check-input { width:2.6rem; height:1.35rem; cursor:pointer; margin:0; }
-    .lab-param .form-check-input:checked { background-color:var(--lp); border-color:var(--lp); }
-    .lab-param .lp-switch { display:flex; align-items:center; gap:.55rem; margin-top:.6rem; }
-    .lab-param .lp-switch label { font-size:.8rem; font-weight:600; color:#334155; cursor:pointer; margin:0; }
-    .lab-soon-row { display:flex; flex-wrap:wrap; gap:.5rem; }
-    .lab-soon-chip { border:1px dashed #cbd5e1; border-radius:2rem; padding:.3rem .85rem; font-size:.76rem; color:#94a3b8; background:#f8fafc; }
-    .param-placeholder { background:#f8f9fc; border:1px dashed #ced4da; border-radius:10px; padding:1rem 1.2rem; }
-    .param-placeholder .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#adb5bd; font-weight:700; margin-bottom:.4rem; }
-    .coming-soon-badge { font-size:.65rem; background:#e9ecef; color:#6c757d; padding:2px 7px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; }
-</style>
+<link rel="stylesheet" href="~/css/views/HospitalSettings/Edit.css" asp-append-version="true" />
 }
 
 <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
@@ -49,8 +21,18 @@
     </a>
 </div>
 
-<form asp-action="Edit" method="post" enctype="multipart/form-data">
+<form asp-action="Edit" method="post" enctype="multipart/form-data" id="hsForm" novalidate>
     @Html.AntiForgeryToken()
+    @* why a save was refused, whatever tab the field is on *@
+    <div class="alert alert-danger @(ViewData.ModelState.IsValid ? "d-none" : "")" id="hsErrors">
+        <div class="fw-bold mb-1"><i class="bi bi-exclamation-octagon me-1"></i>Settings not saved - please correct:</div>
+        <ul class="mb-0 small" id="hsErrorList">
+            @foreach (var e in ViewData.ModelState.Where(x => x.Value!.Errors.Count > 0))
+            {
+                foreach (var er in e.Value!.Errors) { <li data-field="@e.Key">@(string.IsNullOrEmpty(er.ErrorMessage) ? $"{e.Key}: the value is not valid." : er.ErrorMessage)</li> }
+            }
+        </ul>
+    </div>
     <input type="hidden" asp-for="Id" />
     <input type="hidden" asp-for="BranchId" />
     <input type="hidden" asp-for="BranchName" />
@@ -212,6 +194,63 @@
         </div>
     </div>
 
+    <!-- 2b. Pharmacy & drug licence (SQLScripts/2343): one pharmacy per branch -->
+    <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold" style="color:var(--emr-primary, #644098)"><i class="bi bi-capsule-pill me-2"></i>Pharmacy &amp; Drug Licence</h6>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyEnabled">
+                <label class="form-check-label fw-semibold" asp-for="PharmacyEnabled">Pharmacy Enabled at this Branch</label>
+            </div>
+        </div>
+        <div class="card-body p-4">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label asp-for="PharmacyName" class="form-label fw-semibold">Pharmacy Display Name</label>
+                    <input asp-for="PharmacyName" class="form-control" placeholder="empty = hospital name (e.g. CarePlus Pharmacy)" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyGstin" class="form-label fw-semibold">Pharmacy GSTIN</label>
+                    <input asp-for="PharmacyGstin" class="form-control text-uppercase" maxlength="15" placeholder="empty = hospital GSTIN" />
+                    <span asp-validation-for="PharmacyGstin" class="text-danger small"></span>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyContactNo" class="form-label fw-semibold">Pharmacy Contact No.</label>
+                    <input asp-for="PharmacyContactNo" class="form-control" placeholder="e.g. 033-2456 7891" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyDrugLicence20B" class="form-label fw-semibold">Drug Licence No. (Form 20B)</label>
+                    <input asp-for="PharmacyDrugLicence20B" class="form-control" placeholder="Retail - drugs other than Schedule C / C1 / X" />
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="PharmacyDrugLicence20BValidTo" class="form-label fw-semibold">Valid To</label>
+                    <input asp-for="PharmacyDrugLicence20BValidTo" type="date" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyDrugLicence21B" class="form-label fw-semibold">Drug Licence No. (Form 21B)</label>
+                    <input asp-for="PharmacyDrugLicence21B" class="form-control" placeholder="Retail - Schedule C / C1 drugs" />
+                </div>
+                <div class="col-md-2">
+                    <label asp-for="PharmacyDrugLicence21BValidTo" class="form-label fw-semibold">Valid To</label>
+                    <input asp-for="PharmacyDrugLicence21BValidTo" type="date" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacistName" class="form-label fw-semibold">Pharmacist In-charge</label>
+                    <input asp-for="PharmacistName" class="form-control" placeholder="Registered pharmacist" />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacistRegNo" class="form-label fw-semibold">Pharmacist Registration No.</label>
+                    <input asp-for="PharmacistRegNo" class="form-control" placeholder="State Pharmacy Council reg. no." />
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyNdpsLicenceNo" class="form-label fw-semibold">NDPS / Schedule X Licence No.</label>
+                    <input asp-for="PharmacyNdpsLicenceNo" class="form-control" placeholder="only if narcotics are stocked" />
+                </div>
+            </div>
+            <div class="small text-muted mt-3"><i class="bi bi-info-circle me-1"></i>Licence numbers, GSTIN and the pharmacist's registration print on every pharmacy bill. Sale and IPD issue are refused when the pharmacy is not enabled or the drug licence has expired (warning from 30 days before).</div>
+        </div>
+    </div>
+
     <!-- 3. Operating Timings & Global Status -->
     <div class="card border-0 shadow-sm rounded-3 mb-4">
         <div class="card-header bg-white border-bottom py-3">
@@ -288,6 +327,20 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-receipt-cutoff"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Registration Charges Not Required</div>
+                            <div class="lp-desc">Yes: an OPD consultation can be billed without the Registration service (it stays optional). No: when Registration Charges Validity is set and the patient's registration has lapsed, the Registration service is mandatory with the consultation.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="OpdRegistrationChargesNotRequired">
+                                <label class="form-check-label" asp-for="OpdRegistrationChargesNotRequired">Allow consultation without registration charge</label>
+                            </div>
+                            <span asp-validation-for="OpdRegistrationChargesNotRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
                         <div class="lp-icon"><i class="bi bi-search"></i></div>
                         <div class="lp-body">
@@ -298,6 +351,32 @@
                                 <label class="form-check-label" asp-for="GlobalPatientSearchRequired">Require global search for patient workflows</label>
                             </div>
                             <span asp-validation-for="GlobalPatientSearchRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-person-vcard"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">ABHA</div>
+                            <div class="lp-desc">Optional ABHA fields on OPD and LAB forms. Applies to all branches.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="EnableAbha">
+                                <label class="form-check-label" asp-for="EnableAbha">Enable ABHA</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-shield-plus"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Ayushman Bharat</div>
+                            <div class="lp-desc">Optional Ayushman Card No. on OPD registration. Applies to all branches.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="EnableAyushmanBharat">
+                                <label class="form-check-label" asp-for="EnableAyushmanBharat">Enable Ayushman Bharat</label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -329,6 +408,98 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Notification Required for Issue Certificate</div>
+                            <div class="lp-desc">Yes: when a certificate is issued (OPD &gt; Certificates), the patient gets it as a PDF by WhatsApp and e-mail, with the QR verify link. No: nothing is sent.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="OpdCertificateNotificationRequired">
+                                <label class="form-check-label" asp-for="OpdCertificateNotificationRequired">Send issued certificates to the patient</label>
+                            </div>
+                            <span asp-validation-for="OpdCertificateNotificationRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#4f46e5;--lp-bg:#e0e7ff;">
+                        <div class="lp-icon"><i class="bi bi-qr-code"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Show QR on B2B Invoice</div>
+                            <div class="lp-desc">Yes: the B2B tax invoice shows this branch's UPI payment QR (Settings &gt; Payment QR Configuration) in its payment details while a balance is due. No: the invoice stays as it is.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="ShowQrOnB2BInvoice">
+                                <label class="form-check-label" asp-for="ShowQrOnB2BInvoice">Print the payment QR on B2B invoices</label>
+                            </div>
+                            <span asp-validation-for="ShowQrOnB2BInvoice" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Block Billing Until Day Closed</div>
+                            <div class="lp-desc">OPD and LAB Day Closing. Yes: a user cannot take payments while an earlier day of that module is not closed. No: the user is only warned at login.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="DayClosingBlockBilling">
+                                <label class="form-check-label" asp-for="DayClosingBlockBilling">Block billing until the day is closed</label>
+                            </div>
+                            <span asp-validation-for="DayClosingBlockBilling" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-person-check-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Allow Verifying Own Day Closing</div>
+                            <div class="lp-desc">OPD and LAB Day Closing. Yes: a user with the Verify permission may verify their own cash closing. No: a second person must verify it.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="DayClosingAllowSelfVerify">
+                                <label class="form-check-label" asp-for="DayClosingAllowSelfVerify">Allow verifying own closing</label>
+                            </div>
+                            <span asp-validation-for="DayClosingAllowSelfVerify" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-alarm"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Remind Day Closing Notification</div>
+                            <div class="lp-desc">OPD and LAB Day Closing. Yes: after login, a pop-up reminds the user of earlier days whose cash is not closed. No: no pop-up after login (the bell notification stays).</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="DayClosingLoginReminder">
+                                <label class="form-check-label" asp-for="DayClosingLoginReminder">Remind at login</label>
+                            </div>
+                            <span asp-validation-for="DayClosingLoginReminder" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#dc2626;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-shield-lock"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Login Retry Count</div>
+                            <div class="lp-desc">Wrong passwords allowed before the account is locked for 10 minutes. 0: no lock. An administrator can unlock a user from User Master.</div>
+                            <input asp-for="LoginRetryCount" type="number" min="0" max="20" step="1" class="form-control form-control-sm mt-2" placeholder="0" />
+                            <span asp-validation-for="LoginRetryCount" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#16a34a;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-whatsapp"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Login Alert After Wrong Attempts</div>
+                            <div class="lp-desc">After this many wrong passwords, the user gets a WhatsApp alert with the time, public IP and browser (and again if the account is locked). 0: no alert. Needs the user's mobile in User Master.</div>
+                            <input asp-for="LoginAlertCount" type="number" min="0" max="20" step="1" class="form-control form-control-sm mt-2" placeholder="0" />
+                            <span asp-validation-for="LoginAlertCount" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>
@@ -342,17 +513,108 @@
 
         @* IPD *@
         <div class="tab-pane fade module-tab-pane" id="editTabIpd" role="tabpanel">
-            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>IPD-specific parameters will be configurable here.</p>
+            @{
+                var ipdTariffs = new List<EMR.Web.Models.ViewModels.TariffCategoryListItemViewModel>();
+                try { ipdTariffs = (await IpdMasterApi.GetTariffCategoriesAsync(null, User.GetCompanyId(), Model.BranchId)).Where(t => t.IsActive).ToList(); } catch { }
+            }
+            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>In-patient rules for this branch: admission numbering, bed charge cycle, advance and estimate.</p>
             <div class="row g-3">
-                @foreach (var p in new[] { "Admission Prefix","Default Ward","Bed Booking Advance (Days)","Auto Discharge Reminder","Diet Plan Enabled","Nursing Notes","OT Module","Print Discharge Summary" })
-                {
-                    <div class="col-6 col-md-3">
-                        <div class="param-placeholder">
-                            <div class="param-label">@p</div>
-                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                        </div>
+                <div class="col-12 small fw-bold text-uppercase" style="color:#198754;letter-spacing:.05em">Admission</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdNumberPrefix" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdNumberPrefix" class="form-control text-uppercase" maxlength="10" />
+                    <div class="form-text">IP no. = prefix / branch code / FY / 000001</div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IpdNumberResetYearly">
+                        <label class="form-check-label fw-semibold small" asp-for="IpdNumberResetYearly"></label>
                     </div>
-                }
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IpdBlockWardGenderMismatch">
+                        <label class="form-check-label fw-semibold small" asp-for="IpdBlockWardGenderMismatch"></label>
+                    </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="IpdConsentRequired">
+                        <label class="form-check-label fw-semibold small" asp-for="IpdConsentRequired"></label>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDefaultDischargeHour" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdDefaultDischargeHour" type="number" min="0" max="23" class="form-control" />
+                    <div class="form-text">Time put on the expected discharge date (24-hour clock).</div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#198754;letter-spacing:.05em">Bed charges</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdBedChargeMode" class="form-label fw-semibold small"></label>
+                    <select asp-for="IpdBedChargeMode" class="form-select">
+                        <option value="CHECKINOUT">Check-in / Check-out time (hotel-style day)</option>
+                        <option value="CALENDAR">Calendar day (midnight census)</option>
+                        <option value="HOURLY24">Every 24 hours from admission</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDischargeGraceHour" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdDischargeGraceHour" type="number" min="0" max="23" class="form-control" />
+                    <div class="form-text">Leaving before this hour: the discharge day is not charged.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdHourlyGraceHours" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdHourlyGraceHours" type="number" min="0" max="12" class="form-control" />
+                    <div class="form-text">24-hour and check-in / check-out cycles: hours after the day ends (and before check-out at admission) that add no day.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDefaultTariffCategoryId" class="form-label fw-semibold small"></label>
+                    <select asp-for="IpdDefaultTariffCategoryId" class="form-select">
+                        <option value="">-- None --</option>
+                        @foreach (var t in ipdTariffs)
+                        {
+                            <option value="@t.TariffCategoryId" selected="@(Model.IpdDefaultTariffCategoryId == t.TariffCategoryId)">@t.Name (@t.PatientCategory)</option>
+                        }
+                    </select>
+                    <div class="form-text">Rate used when a bed has no rate for the patient's category.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdRoomGstThreshold" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdRoomGstThreshold" type="number" min="0" step="0.01" class="form-control" />
+                    <div class="form-text">GST of the bed tariff only above this daily rate (not ICU). 0 = always.</div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#198754;letter-spacing:.05em">Bed management</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdReleaseBedTo" class="form-label fw-semibold small"></label>
+                    <select asp-for="IpdReleaseBedTo" class="form-select">
+                        <option value="CLEANING">Housekeeping (Cleaning) first</option>
+                        <option value="AVAILABLE">Available straight away</option>
+                    </select>
+                    <div class="form-text">After a transfer, discharge or cancelled admission.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdReservationHoldHours" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdReservationHoldHours" type="number" min="1" max="168" class="form-control" />
+                    <div class="form-text">An unused reservation is released after this.</div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#198754;letter-spacing:.05em">Advance &amp; estimate</div>
+                <div class="col-md-3">
+                    <label asp-for="IpdMinAdvanceDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdMinAdvanceDays" type="number" min="0" max="60" class="form-control" />
+                    <div class="form-text">Cash patients only. 0 = no minimum advance.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdDepositAlertPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdDepositAlertPercent" type="number" min="10" max="100" class="form-control" />
+                    <div class="form-text">The patient's balance turns red when the bill reaches this % of the advance.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="IpdEstimateValidityDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="IpdEstimateValidityDays" type="number" min="1" max="90" class="form-control" />
+                </div>
             </div>
         </div>
 
@@ -403,6 +665,20 @@
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c9232e;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-check2-square"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Bill Change Approval Required</div>
+                            <div class="lp-desc">Yes: the office approves every change from the phlebotomist app. No: test changes apply at once; discounts still need approval. Applies to all branches.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="BillChangeApprovalRequired">
+                                <label class="form-check-label" asp-for="BillChangeApprovalRequired">Bill change approval required</label>
+                            </div>
+                            <span asp-validation-for="BillChangeApprovalRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#d97706;--lp-bg:#fef3c7;">
                         <div class="lp-icon"><i class="bi bi-eyedropper"></i></div>
                         <div class="lp-body">
@@ -413,6 +689,38 @@
                                 <label class="form-check-label" asp-for="IsSampleCollectionMandatory">Is Sample Collection Mandatory</label>
                             </div>
                             <span asp-validation-for="IsSampleCollectionMandatory" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lab-section-title">AI Assist</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#9333ea;--lp-bg:#f3e8ff;">
+                        <div class="lp-icon"><i class="bi bi-stars"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Enable AI Features at Billing</div>
+                            <div class="lp-desc">Yes: AI prescription assist and Smart ID Scan on B2C / B2B booking. No: billing works as before, without AI.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="EnableAiBillingFeatures">
+                                <label class="form-check-label" asp-for="EnableAiBillingFeatures">Enable AI Features at Billing</label>
+                            </div>
+                            <span asp-validation-for="EnableAiBillingFeatures" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c026d3;--lp-bg:#fae8ff;">
+                        <div class="lp-icon"><i class="bi bi-chat-square-heart"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Enable Ask AI Features</div>
+                            <div class="lp-desc">Yes: the AI Help Assistant (Ask eMedi) on the Home dashboard and in the Help Center. No: not shown; the Help Center guides stay.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="EnableAskAiFeatures">
+                                <label class="form-check-label" asp-for="EnableAskAiFeatures">Enable Ask AI Features</label>
+                            </div>
+                            <span asp-validation-for="EnableAskAiFeatures" class="text-danger small d-block mt-1"></span>
                         </div>
                     </div>
                 </div>
@@ -517,6 +825,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-aspect-ratio"></i></div>
+                        <div class="lp-body w-100">
+                            <div class="lp-label">LAB Bill Print Page Size</div>
+                            <div class="lp-desc">A4: the LAB bill prints on a full A4 page (as before). A5 Landscape: a compact bill on half an A4 sheet. B2C and B2B bills.</div>
+                            <select class="form-select form-select-sm mt-1" asp-for="LabBillPrintPageSize">
+                                <option value="A4">A4 (portrait)</option>
+                                <option value="A5L">A5 Landscape</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Doctor IP Commission</div>
@@ -556,12 +877,65 @@
                         <div class="lp-icon"><i class="bi bi-person-badge-fill"></i></div>
                         <div class="lp-body">
                             <div class="lp-label">Required Patient Portal</div>
-                            <div class="lp-desc">Yes: a B2C lab booking creates the patient's Patient Portal login and e-mails the credentials (once per patient, when the patient has a mobile number and an e-mail). No: lab bookings do not create portal logins. B2B bookings are never affected.</div>
+                            <div class="lp-desc">Yes: OPD registration / booking and B2C lab booking create the patient's Patient Portal login and send the Patient ID and password by e-mail and WhatsApp (once per patient, when the patient has a mobile number or an e-mail). No: no automatic logins; staff can still send one from Patient Master. B2B bookings are never affected.</div>
                             <div class="form-check form-switch lp-switch ps-0">
                                 <input class="form-check-input" type="checkbox" role="switch" asp-for="LabPatientPortalRequired">
-                                <label class="form-check-label" asp-for="LabPatientPortalRequired">Create Patient Portal login for B2C patients</label>
+                                <label class="form-check-label" asp-for="LabPatientPortalRequired">Create Patient Portal login for OPD and B2C patients</label>
                             </div>
                             <span asp-validation-for="LabPatientPortalRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* SQLScripts/2395 *@
+            <div class="lab-section-title">Phlebotomist App</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-phone-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Is Phlebotomist App Required</div>
+                            <div class="lp-desc">Yes: this branch uses the Phlebotomist App for home collection (visits, sample collection and hand-over on the phone). No: home collection is handled from the desk only.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="IsPhlebotomistAppRequired">
+                                <label class="form-check-label" asp-for="IsPhlebotomistAppRequired">Use the Phlebotomist App at this branch</label>
+                            </div>
+                            <span asp-validation-for="IsPhlebotomistAppRequired" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* SQLScripts/2464 *@
+            <div class="lab-section-title">Report Printing</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-printer-fill"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Allow Print Lab Report in Due</div>
+                            <div class="lp-desc">Yes: the Lab / Microbiology report prints even when the bill still has a balance due. No: a bill with a due cannot be printed until it is paid. B2B bills always print.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="AllowPrintLabReportInDue">
+                                <label class="form-check-label" asp-for="AllowPrintLabReportInDue">Print the report even with a balance due</label>
+                            </div>
+                            <span asp-validation-for="AllowPrintLabReportInDue" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                @* SQLScripts/2513 *@
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0e7490;--lp-bg:#cffafe;">
+                        <div class="lp-icon"><i class="bi bi-123"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Is Lab Serial No Req</div>
+                            <div class="lp-desc">Yes: this branch requires a Lab Serial No. No: the Lab Serial No is not required.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="IsLabSerialNoReq">
+                                <label class="form-check-label" asp-for="IsLabSerialNoReq">Lab Serial No is required at this branch</label>
+                            </div>
+                            <span asp-validation-for="IsLabSerialNoReq" class="text-danger small d-block mt-1"></span>
                         </div>
                     </div>
                 </div>
@@ -715,6 +1089,105 @@
                 </div>
             </div>
 
+            @* FTP for external lab documents (SQLScripts/2354): saved on its own, not with the main form *@
+            <div class="lab-section-title">FTP Credentials for Report Docs</div>
+            <div class="lab-param mb-3" style="--lp:#0369a1;--lp-bg:#e0f2fe;" id="ftpBox">
+                <div class="lp-icon"><i class="bi bi-hdd-network-fill"></i></div>
+                <div class="lp-body w-100">
+                    <div class="lp-label">FTP server for External Document Upload</div>
+                    <div class="lp-desc">Documents uploaded in LAB &gt; External Document Upload are stored at
+                        <code>&lt;Root folder&gt;/&lt;Company&gt;/&lt;Branch&gt;/&lt;Lab order date&gt;/BranchCode_LabOrderNo_TestCode</code>. Folders are created when missing.
+                        <span id="ftpInherited" class="d-none text-warning-emphasis"></span></div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-5"><label class="form-label small mb-0">Host name / IP <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="ftpHost" maxlength="200" autocomplete="off" placeholder="e.g. ftp.example.com" /></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Port</label>
+                            <input type="number" class="form-control form-control-sm" id="ftpPort" min="1" max="65535" value="21" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Root folder</label>
+                            <input type="text" class="form-control form-control-sm" id="ftpRoot" maxlength="300" value="emedidoc/reports" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">User ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="ftpUser" maxlength="150" autocomplete="off" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Password <span class="text-danger" id="ftpPwdReq">*</span></label>
+                            <input type="password" class="form-control form-control-sm" id="ftpPassword" maxlength="200" autocomplete="new-password" /></div>
+                        <div class="col-md-6 d-flex gap-4 align-items-center">
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="ftpPassive" checked>
+                                <label class="form-check-label small" for="ftpPassive">Passive mode</label></div>
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="ftpFtps">
+                                <label class="form-check-label small" for="ftpFtps">FTPS (TLS)</label></div>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="ftpTest"><i class="bi bi-plug me-1"></i>Test connection</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="ftpSave"><i class="bi bi-save me-1"></i>Save FTP credentials</button>
+                        </div>
+                    </div>
+                    <div class="small mt-1 text-muted" id="ftpStatus"></div>
+                </div>
+            </div>
+
+
+            @* FTP + upload for Android app files (SQLScripts/2393): saved on its own, not with the main form *@
+            <div class="lab-section-title">FTP Credentials for App (APK) Upload</div>
+            <div class="lab-param mb-3" style="--lp:#15803d;--lp-bg:#dcfce7;" id="appFtpBox">
+                <div class="lp-icon"><i class="bi bi-android2"></i></div>
+                <div class="lp-body w-100">
+                    <div class="lp-label">FTP server for App (APK) Upload</div>
+                    <div class="lp-desc">Android app files uploaded here are stored at
+                        <code>&lt;Root folder&gt;/&lt;App name&gt;/&lt;Version&gt;/AppName_vVersion_yyyyMMddHHmmss.apk</code>. Folders are created when missing.
+                        <span id="appFtpInherited" class="d-none text-warning-emphasis"></span></div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-md-5"><label class="form-label small mb-0">Host name / IP <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="appFtpHost" maxlength="200" autocomplete="off" placeholder="e.g. ftp.example.com" /></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Port</label>
+                            <input type="number" class="form-control form-control-sm" id="appFtpPort" min="1" max="65535" value="21" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Root folder</label>
+                            <input type="text" class="form-control form-control-sm" id="appFtpRoot" maxlength="300" value="emedidoc/apps" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">User ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="appFtpUser" maxlength="150" autocomplete="off" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">Password <span class="text-danger" id="appFtpPwdReq">*</span></label>
+                            <input type="password" class="form-control form-control-sm" id="appFtpPassword" maxlength="200" autocomplete="new-password" /></div>
+                        <div class="col-md-6 d-flex gap-4 align-items-center">
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="appFtpPassive" checked>
+                                <label class="form-check-label small" for="appFtpPassive">Passive mode</label></div>
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="appFtpFtps">
+                                <label class="form-check-label small" for="appFtpFtps">FTPS (TLS)</label></div>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="appFtpTest"><i class="bi bi-plug me-1"></i>Test connection</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="appFtpSave"><i class="bi bi-save me-1"></i>Save FTP credentials</button>
+                        </div>
+                    </div>
+                    <div class="small mt-1 text-muted" id="appFtpStatus"></div>
+
+                    <hr class="my-3" />
+                    <div class="lp-label mb-1"><i class="bi bi-cloud-arrow-up me-1"></i>Upload app (.apk)</div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3"><label class="form-label small mb-0">App name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="apkAppName" maxlength="100" list="apkAppNames" placeholder="e.g. Phlebotomist App" />
+                            <datalist id="apkAppNames"></datalist></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Version <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="apkVersion" maxlength="50" placeholder="e.g. 1.0.3" /></div>
+                        <div class="col-md-2"><label class="form-label small mb-0">Version code</label>
+                            <input type="number" class="form-control form-control-sm" id="apkVersionCode" min="0" placeholder="e.g. 103" /></div>
+                        <div class="col-md-5"><label class="form-label small mb-0">APK file <span class="text-danger">*</span></label>
+                            <input type="file" class="form-control form-control-sm" id="apkFile" accept=".apk,application/vnd.android.package-archive" /></div>
+                        <div class="col-md-9"><label class="form-label small mb-0">Release notes</label>
+                            <input type="text" class="form-control form-control-sm" id="apkNotes" maxlength="1000" placeholder="What changed (optional)" /></div>
+                        <div class="col-md-3 text-md-end">
+                            <button type="button" class="btn btn-success btn-sm w-100" id="apkUpload"><i class="bi bi-cloud-arrow-up-fill me-1"></i>Upload APK</button>
+                        </div>
+                    </div>
+                    <div class="progress mt-2 d-none" style="height:6px" id="apkProgressWrap"><div class="progress-bar bg-success" id="apkProgress" style="width:0%"></div></div>
+                    <div class="small mt-1 text-muted" id="apkStatus">.apk up to 300 MB. Each upload is kept in the history below and becomes the app's Latest.</div>
+
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm align-middle mb-0 small">
+                            <thead class="table-light"><tr><th>App</th><th>Version</th><th>File</th><th class="text-end">Size</th><th>Uploaded</th><th>Notes</th><th class="text-end">Action</th></tr></thead>
+                            <tbody id="apkRows"><tr><td colspan="7" class="text-muted">No app uploaded yet.</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <div class="lab-section-title">Planned parameters</div>
             <div class="lab-soon-row">
                 @foreach (var soon in new[] { "Report Prefix", "Default Sample Type", "Report TAT (Hours)", "External Lab Integration", "Barcode on Sample" })
@@ -724,19 +1197,309 @@
             </div>
         </div>
 
-        @* MED *@
+        @* MED / Pharmacy (SQLScripts/2343) *@
         <div class="tab-pane fade module-tab-pane" id="editTabMed" role="tabpanel">
-            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Pharmacy/MED specific parameters will be configurable here.</p>
+            <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Pharmacy rules for this branch. Licence details are under <b>Pharmacy &amp; Drug Licence</b> above.</p>
             <div class="row g-3">
-                @foreach (var p in new[] { "Invoice Prefix","GST Registration No.","Drug License No.","Low Stock Alert (Qty)","Expiry Alert (Days)","Return Policy (Days)","Auto Reorder","Print Prescription" })
-                {
-                    <div class="col-6 col-md-3">
-                        <div class="param-placeholder">
-                            <div class="param-label">@p</div>
-                            <input class="form-control form-control-sm" disabled placeholder="— coming soon —" />
-                        </div>
+                <div class="col-12 small fw-bold text-uppercase" style="color:#6f42c1;letter-spacing:.05em">Stock &amp; expiry</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMinShelfLifeSaleDays" class="form-label fw-semibold small">Min. Shelf Life for Sale (Days)</label>
+                    <input asp-for="PharmacyMinShelfLifeSaleDays" type="number" min="0" max="365" class="form-control" />
+                    <div class="form-text">A batch expiring sooner is not sold over the counter.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMinShelfLifeIpdDays" class="form-label fw-semibold small">Min. Shelf Life for IPD Issue (Days)</label>
+                    <input asp-for="PharmacyMinShelfLifeIpdDays" type="number" min="0" max="365" class="form-control" />
+                    <div class="form-text">0 = until the expiry date.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMinShelfLifeGrnDays" class="form-label fw-semibold small">Min. Shelf Life to Accept at GRN (Days)</label>
+                    <input asp-for="PharmacyMinShelfLifeGrnDays" type="number" min="0" max="730" class="form-control" />
+                    <div class="form-text">Short-expiry supplies are warned at receipt.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyNearExpiryAlertDays" class="form-label fw-semibold small">Near-Expiry Alert (Days)</label>
+                    <input asp-for="PharmacyNearExpiryAlertDays" type="number" min="0" max="365" class="form-control" />
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch p-2 border rounded w-100 bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyAllowNegativeStock">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyAllowNegativeStock">Allow Negative Stock</label>
                     </div>
-                }
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Purchase</div>
+                <div class="col-md-6">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyGrnNotRequired">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyGrnNotRequired">GRN Not Required</label>
+                        <div class="form-text mt-0">Yes: the purchase order takes the supplier bill, batch, expiry and MRP, and approving it adds the stock. No: stock comes in on the GRN.</div>
+                    </div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Counter sale &amp; returns</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacySaleReturnDays" class="form-label fw-semibold small">Sale Return Allowed Within (Days)</label>
+                    <input asp-for="PharmacySaleReturnDays" type="number" min="0" max="90" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyMaxManualDiscountPercent" class="form-label fw-semibold small">Max. Manual Discount % (without approval)</label>
+                    <input asp-for="PharmacyMaxManualDiscountPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyBillPrintFormat" class="form-label fw-semibold small">Pharmacy Bill Print Format</label>
+                    <select asp-for="PharmacyBillPrintFormat" class="form-select">
+                        <option value="A4">A4</option><option value="A5">A5 (half page)</option><option value="80MM">80 mm thermal</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex flex-column justify-content-end gap-2">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLooseReturnAllowed"><label class="form-check-label small fw-semibold" asp-for="PharmacyLooseReturnAllowed">Loose / Cut-Strip Return Allowed</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyRoundOffBill"><label class="form-check-label small fw-semibold" asp-for="PharmacyRoundOffBill">Round Off Bill to Rupee</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyBillNotificationRequired"><label class="form-check-label small fw-semibold" asp-for="PharmacyBillNotificationRequired">Send Bill by WhatsApp / E-mail</label></div>
+                </div>
+
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Auto reorder</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyAutoReorderEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyAutoReorderEnabled"></label>
+                        <div class="form-text mt-0">Suggest purchase quantities from sales and raise POs grouped by supplier.</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyReorderSalesDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyReorderSalesDays" type="number" min="1" max="180" class="form-control" />
+                    <div class="form-text">Window used for average daily sales.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyReorderSafetyDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyReorderSafetyDays" type="number" min="0" max="60" class="form-control" />
+                    <div class="form-text">Extra days of sales kept as buffer.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyReorderCoverDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyReorderCoverDays" type="number" min="1" max="120" class="form-control" />
+                    <div class="form-text">Suggested order brings stock up to this many days of sales.</div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Purchase</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacySchemeAutoApply">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacySchemeAutoApply"></label>
+                        <div class="form-text mt-0">Free quantity of a running scheme (e.g. 10+1) is filled in automatically.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyGs1ScanEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyGs1ScanEnabled"></label>
+                        <div class="form-text mt-0">Read GTIN, batch and expiry from a 2D pack code at GRN and sale.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Stock audit</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyCountBlind">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyCountBlind"></label>
+                        <div class="form-text mt-0">Counters do not see the system quantity while counting.</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyCountRecountPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyCountRecountPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">Lines whose variance exceeds this % must be recounted before submit. 0 = off.</div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyCycleCountDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyCycleCountDays" type="number" min="1" max="365" class="form-control" />
+                    <div class="form-text">Each rack is due for a count after this many days.</div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Stock analysis</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyAbcAPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyAbcAPercent" type="number" min="1" max="99" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyAbcBPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyAbcBPercent" type="number" min="1" max="99" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacySlowMovingDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacySlowMovingDays" type="number" min="7" max="365" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyDeadStockDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyDeadStockDays" type="number" min="30" max="730" class="form-control" />
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Counter sale</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacySplitPaymentEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacySplitPaymentEnabled"></label>
+                        <div class="form-text mt-0">One bill can be paid by cash + UPI + card.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacySubstituteSuggest">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacySubstituteSuggest"></label>
+                        <div class="form-text mt-0">Show in-stock brands of the same generic and strength.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyRxLinkEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyRxLinkEnabled"></label>
+                        <div class="form-text mt-0">Load the patient's OPD prescription and check dispensed vs prescribed.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Clinical</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyClinicalChecksEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyClinicalChecksEnabled"></label>
+                        <div class="form-text mt-0">Drug interaction, allergy and duplicate-therapy warnings at sale.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyMajorInteractionBlock">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyMajorInteractionBlock"></label>
+                        <div class="form-text mt-0">Off: the pharmacist may continue with a reason. On: a Major interaction stops the sale.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Customer</div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyRefillReminderEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyRefillReminderEnabled"></label>
+                        <div class="form-text mt-0">Remind customers before their medicines run out.</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyRefillReminderDaysBefore" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyRefillReminderDaysBefore" type="number" min="0" max="15" class="form-control" />
+                </div>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">Loyalty</div>
+                <div class="col-md-4 ">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyEnabled"></label>
+                        <div class="form-text mt-0">Patients, pharmacy customers and (if set below) walk-ins by mobile get a loyalty benefit.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label asp-for="PharmacyLoyaltyType" class="form-label fw-semibold small"></label>
+                    <select asp-for="PharmacyLoyaltyType" class="form-select" id="loyType">
+                        <option value="POINTS">Wallet - credit % of the bill as points, used on the next bill</option>
+                        <option value="DISCOUNT">Instant discount - fixed % off on every bill</option>
+                    </select>
+                    <div class="form-text" id="loyTypeHelp"></div>
+                </div>
+                <div class="col-md-4 ">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyNotifyWhatsApp">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyNotifyWhatsApp"></label>
+                        <div class="form-text mt-0">Credited / used / balance after each bill, and before points expire.</div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyWalkinByMobile">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyWalkinByMobile"></label>
+                        <div class="form-text mt-0">A walk-in who gives a 10-digit mobile gets the loyalty benefit (member discount or wallet) on that number.</div>
+                    </div>
+                </div>
+                <div class="col-12 small fw-semibold text-muted loy-pts mt-2">Wallet - earning</div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyEarnPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyEarnPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">E.g. 5 = ₹5 worth of points for a ₹100 bill.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyEarnBasis" class="form-label fw-semibold small"></label>
+                    <select asp-for="PharmacyLoyaltyEarnBasis" class="form-select"><option value="NET">Net bill paid</option><option value="DISCOUNTABLE">Discount-allowed items only</option></select>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMinBillToEarn" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMinBillToEarn" type="number" min="0" max="1000000" step="0.01" class="form-control" />
+                    <div class="form-text">0 = any bill.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMaxEarnPerBill" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMaxEarnPerBill" type="number" min="0" max="1000000" step="any" class="form-control" />
+                    <div class="form-text">0 = no cap.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyLockInDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyLockInDays" type="number" min="0" max="90" class="form-control" />
+                    <div class="form-text">Pending until then (keep ≥ the sale return days).</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyExpiryDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyExpiryDays" type="number" min="0" max="3650" class="form-control" />
+                    <div class="form-text">From when usable. 0 = never.</div>
+                </div>
+                <div class="col-md-4 loy-pts">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyEarnOnRedeemBill">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyEarnOnRedeemBill"></label>
+                        <div class="form-text mt-0">Off: a bill paid partly by points earns nothing.</div>
+                    </div>
+                </div>
+
+                <div class="col-12 small fw-semibold text-muted loy-pts mt-2">Wallet - using points</div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyPointValue" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyPointValue" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">₹ value of 1 point.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMinRedeem" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMinRedeem" type="number" min="0" max="100000" class="form-control" />
+                    <div class="form-text">Balance needed before points can be used.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMinBillToRedeem" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMinBillToRedeem" type="number" min="0" max="1000000" step="0.01" class="form-control" />
+                    <div class="form-text">0 = any bill.</div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyMaxRedeemPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyMaxRedeemPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">Part of a bill points can pay.</div>
+                </div>
+                <div class="col-md-4 loy-pts">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyLoyaltyRedeemOtp">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyLoyaltyRedeemOtp"></label>
+                        <div class="form-text mt-0">A code is sent to the member's WhatsApp before points are used.</div>
+                    </div>
+                </div>
+                <div class="col-md-3 loy-pts">
+                    <label asp-for="PharmacyLoyaltyExpiryReminderDays" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyExpiryReminderDays" type="number" min="0" max="60" class="form-control" />
+                    <div class="form-text">0 = no reminder.</div>
+                </div>
+
+                <div class="col-md-3 loy-disc">
+                    <label asp-for="PharmacyLoyaltyDiscountPercent" class="form-label fw-semibold small"></label>
+                    <input asp-for="PharmacyLoyaltyDiscountPercent" type="number" min="0" max="100" step="0.01" class="form-control" />
+                    <div class="form-text">Filled in as the bill discount for a member; not counted against the counter's discount limit.</div>
+                </div>
+                <script src="~/js/views/HospitalSettings/Edit.js" asp-append-version="true"></script>
+                <div class="col-12 small fw-bold text-uppercase mt-4" style="color:#6f42c1;letter-spacing:.05em">IPD issue</div>
+                <div class="col-md-3">
+                    <label asp-for="PharmacyTtoBillingMode" class="form-label fw-semibold small">Discharge Medicines (TTO) Billed On</label>
+                    <select asp-for="PharmacyTtoBillingMode" class="form-select">
+                        <option value="IPD">Patient's IPD bill</option><option value="SALE">Separate pharmacy bill</option>
+                    </select>
+                </div>
+                <div class="col-md-5 d-flex flex-column justify-content-end gap-2">
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyIpdGstExempt"><label class="form-check-label small fw-semibold" asp-for="PharmacyIpdGstExempt">IPD Issue GST Exempt (part of healthcare service - confirm with your CA)</label></div>
+                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyBlockDischargeOnPendingIndent"><label class="form-check-label small fw-semibold" asp-for="PharmacyBlockDischargeOnPendingIndent">Block Discharge on Pending Pharmacy Indent / Return</label></div>
+                </div>
             </div>
         </div>
 
@@ -793,6 +1556,163 @@
 </div>
 
 @section Scripts {
+<script src="~/js/views/HospitalSettings/Edit-2.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const $ = id => document.getElementById(id);
+    if (!$('ftpBox')) return;
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const status = (t, cls) => { $('ftpStatus').className = 'small mt-1 ' + (cls || 'text-muted'); $('ftpStatus').textContent = t; };
+    function body() {
+        const b = new FormData();
+        b.append('host', $('ftpHost').value.trim()); b.append('port', $('ftpPort').value || '21');
+        b.append('userName', $('ftpUser').value.trim()); b.append('password', $('ftpPassword').value);
+        b.append('rootFolder', $('ftpRoot').value.trim());
+        b.append('usePassive', $('ftpPassive').checked); b.append('useFtps', $('ftpFtps').checked);
+        b.append('__RequestVerificationToken', token());
+        return b;
+    }
+    async function load() {
+        try {
+            const r = await (await fetch('@Url.Action("FtpSettings")')).json();
+            if (!r.success) return;
+            $('ftpHost').value = r.host || ''; $('ftpPort').value = r.port || 21; $('ftpUser').value = r.userName || '';
+            $('ftpRoot').value = r.rootFolder || 'emedidoc/reports'; $('ftpPassive').checked = r.usePassive; $('ftpFtps').checked = r.useFtps;
+            $('ftpPassword').placeholder = r.hasPassword ? '•••••••• saved — leave blank to keep' : '';
+            $('ftpPwdReq').classList.toggle('d-none', r.hasPassword);
+            if (!r.own && r.inheritedFromBranchId) {
+                $('ftpInherited').classList.remove('d-none');
+                $('ftpInherited').textContent = ' This branch uses the FTP settings of another branch; save here to give it its own.';
+            }
+            if (r.modifiedDate) status('Last saved ' + new Date(r.modifiedDate).toLocaleString('en-GB'));
+        } catch { }
+    }
+    async function post(url, btn) {
+        btn.disabled = true; status('Working…');
+        try {
+            const r = await (await fetch(url, { method: 'POST', body: body() })).json();
+            status(r.message, r.success ? 'text-success' : 'text-danger');
+            return r.success;
+        } catch { status('Could not reach the server.', 'text-danger'); return false; }
+        finally { btn.disabled = false; }
+    }
+    $('ftpBox').addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    $('ftpTest').addEventListener('click', () => post('@Url.Action("TestFtpSettings")', $('ftpTest')));
+    $('ftpSave').addEventListener('click', async () => {
+        if (await post('@Url.Action("SaveFtpSettings")', $('ftpSave'))) { $('ftpPassword').value = ''; load(); }
+    });
+    load();
+})();
+</script>
+
+<script>
+// FTP for App (APK) upload and the APK version history (SQLScripts/2393) - same pattern as the report-document FTP above
+(function () {
+    const $ = id => document.getElementById(id);
+    if (!$('appFtpBox')) return;
+    const token = () => document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const status = (el, t, cls) => { $(el).className = 'small mt-1 ' + (cls || 'text-muted'); $(el).textContent = t; };
+    const size = b => b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
+    function body() {
+        const b = new FormData();
+        b.append('host', $('appFtpHost').value.trim()); b.append('port', $('appFtpPort').value || '21');
+        b.append('userName', $('appFtpUser').value.trim()); b.append('password', $('appFtpPassword').value);
+        b.append('rootFolder', $('appFtpRoot').value.trim());
+        b.append('usePassive', $('appFtpPassive').checked); b.append('useFtps', $('appFtpFtps').checked);
+        b.append('__RequestVerificationToken', token());
+        return b;
+    }
+    async function load() {
+        try {
+            const r = await (await fetch('@Url.Action("AppFtpSettings")')).json();
+            if (!r.success) return;
+            $('appFtpHost').value = r.host || ''; $('appFtpPort').value = r.port || 21; $('appFtpUser').value = r.userName || '';
+            $('appFtpRoot').value = r.rootFolder || 'emedidoc/apps'; $('appFtpPassive').checked = r.usePassive; $('appFtpFtps').checked = r.useFtps;
+            $('appFtpPassword').placeholder = r.hasPassword ? '•••••••• saved — leave blank to keep' : '';
+            $('appFtpPwdReq').classList.toggle('d-none', r.hasPassword);
+            if (!r.own && r.inheritedFromBranchId) {
+                $('appFtpInherited').classList.remove('d-none');
+                $('appFtpInherited').textContent = ' This branch uses the App FTP settings of another branch; save here to give it its own.';
+            }
+            if (r.modifiedDate) status('appFtpStatus', 'Last saved ' + new Date(r.modifiedDate).toLocaleString('en-GB'));
+        } catch { }
+    }
+    async function post(url, btn) {
+        btn.disabled = true; status('appFtpStatus', 'Working…');
+        try {
+            const r = await (await fetch(url, { method: 'POST', body: body() })).json();
+            status('appFtpStatus', r.message, r.success ? 'text-success' : 'text-danger');
+            return r.success;
+        } catch { status('appFtpStatus', 'Could not reach the server.', 'text-danger'); return false; }
+        finally { btn.disabled = false; }
+    }
+    async function loadReleases() {
+        try {
+            const r = await (await fetch('@Url.Action("ApkReleases")')).json();
+            const rows = r.rows || [];
+            $('apkAppNames').innerHTML = [...new Set(rows.map(x => x.appName))].map(n => '<option value="' + esc(n) + '">').join('');
+            $('apkRows').innerHTML = rows.length ? rows.map(x => '<tr' + (x.isLatest ? ' class="table-success"' : '') + '>'
+                + '<td class="fw-semibold">' + esc(x.appName) + '</td>'
+                + '<td>v' + esc(x.versionName) + (x.versionCode != null ? ' <span class="text-muted">(' + x.versionCode + ')</span>' : '')
+                +     (x.isLatest ? ' <span class="badge bg-success">Latest</span>' : '') + '</td>'
+                + '<td><div class="font-monospace text-break" style="max-width:260px">' + esc(x.fileName) + '</div><div class="text-muted text-break" style="max-width:260px;font-size:.72rem">' + esc(x.filePath) + '</div></td>'
+                + '<td class="text-end text-nowrap">' + size(x.fileSizeBytes) + '</td>'
+                + '<td class="text-nowrap">' + esc(new Date(x.uploadedDate).toLocaleString('en-GB')) + '<div class="text-muted">' + esc(x.uploadedByName || '') + '</div></td>'
+                + '<td style="max-width:220px">' + esc(x.releaseNotes || '') + '</td>'
+                + '<td class="text-end text-nowrap">' + (x.isLatest ? '' : '<button type="button" class="btn btn-outline-success btn-sm py-0 px-2 me-1" data-latest="' + x.apkId + '" title="Make this the latest release">Make Latest</button>')
+                +     '<button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" data-remove="' + x.apkId + '" title="Remove from the list (the file stays on the FTP server)"><i class="bi bi-trash"></i></button></td>'
+                + '</tr>').join('') : '<tr><td colspan="7" class="text-muted">No app uploaded yet.</td></tr>';
+        } catch { }
+    }
+    async function act(url, id) {
+        const b = new FormData(); b.append('apkId', id); b.append('__RequestVerificationToken', token());
+        try {
+            const r = await (await fetch(url, { method: 'POST', body: b })).json();
+            status('apkStatus', r.message, r.success ? 'text-success' : 'text-danger');
+            if (r.success) loadReleases();
+        } catch { status('apkStatus', 'Could not reach the server.', 'text-danger'); }
+    }
+    $('apkRows').addEventListener('click', e => {
+        const latest = e.target.closest('[data-latest]'), remove = e.target.closest('[data-remove]');
+        if (latest) act('@Url.Action("SetLatestApk")', latest.dataset.latest);
+        if (remove && window.confirm('Remove this release from the list? The file stays on the FTP server.')) act('@Url.Action("RemoveApk")', remove.dataset.remove);
+    });
+    $('apkUpload').addEventListener('click', () => {
+        const f = $('apkFile').files[0];
+        if (!$('apkAppName').value.trim()) return status('apkStatus', 'Enter the app name.', 'text-danger');
+        if (!$('apkVersion').value.trim()) return status('apkStatus', 'Enter the version.', 'text-danger');
+        if (!f) return status('apkStatus', 'Choose the .apk file.', 'text-danger');
+        if (!/\.apk$/i.test(f.name)) return status('apkStatus', 'Only an .apk file can be uploaded.', 'text-danger');
+        if (f.size > 300 * 1048576) return status('apkStatus', 'The file is larger than 300 MB.', 'text-danger');
+        const b = new FormData();
+        b.append('file', f); b.append('appName', $('apkAppName').value.trim()); b.append('versionName', $('apkVersion').value.trim());
+        if ($('apkVersionCode').value) b.append('versionCode', $('apkVersionCode').value);
+        b.append('releaseNotes', $('apkNotes').value.trim()); b.append('__RequestVerificationToken', token());
+        // XMLHttpRequest for the upload progress of a large file
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '@Url.Action("UploadApk")');
+        xhr.upload.onprogress = e => { if (e.lengthComputable) $('apkProgress').style.width = Math.round(e.loaded * 100 / e.total) + '%'; };
+        xhr.onload = () => {
+            $('apkUpload').disabled = false; $('apkProgressWrap').classList.add('d-none');
+            let r; try { r = JSON.parse(xhr.responseText); } catch { r = { success: false, message: xhr.status === 413 ? 'The file is too large for the server.' : 'Upload failed (' + xhr.status + ').' }; }
+            status('apkStatus', r.message, r.success ? 'text-success' : 'text-danger');
+            if (r.success) { $('apkFile').value = ''; $('apkNotes').value = ''; $('apkVersion').value = ''; $('apkVersionCode').value = ''; loadReleases(); }
+        };
+        xhr.onerror = () => { $('apkUpload').disabled = false; $('apkProgressWrap').classList.add('d-none'); status('apkStatus', 'Could not reach the server.', 'text-danger'); };
+        $('apkUpload').disabled = true; $('apkProgress').style.width = '0%'; $('apkProgressWrap').classList.remove('d-none');
+        status('apkStatus', 'Uploading ' + f.name + ' (' + size(f.size) + ')…');
+        xhr.send(b);
+    });
+    $('appFtpBox').addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+    $('appFtpTest').addEventListener('click', () => post('@Url.Action("TestAppFtpSettings")', $('appFtpTest')));
+    $('appFtpSave').addEventListener('click', async () => {
+        if (await post('@Url.Action("SaveAppFtpSettings")', $('appFtpSave'))) { $('appFtpPassword').value = ''; load(); }
+    });
+    load(); loadReleases();
+})();
+</script>
+
     <script>
         // Critical value communication: the target minutes only matter while the feature is on
         $(function () {

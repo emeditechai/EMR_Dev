@@ -11,6 +11,11 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
+// warnings / errors also to App_Data/logs/web-yyyyMMdd.log (an intermittent failure leaves a trace); a failing
+// background service is logged and the application keeps running (the .NET default would stop it)
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.AddErrorFile(builder.Logging, builder.Environment.ContentRootPath, "web");
+EMR.Shared.Security.Diagnostics.ErrorFileLogging.KeepRunningOnBackgroundFailure(builder.Services);
+builder.Configuration.DecryptConnectionStrings();
 
 // Add services to the container.
 builder.Services.AddControllersWithViews(options =>
@@ -22,14 +27,41 @@ builder.Services.AddControllersWithViews(options =>
 builder.Services.AddEmrAuthorization(builder.Configuration, "DefaultConnection",
     new EmrAuthorizationApp { Name = "WEB" });
 builder.Services.AddScoped<IPermissionAdminService, PermissionAdminService>();
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+           // SQLScripts/2470: a user added / renamed through EF is registered in the central user register after the save
+           .AddInterceptors(sp.GetRequiredService<EMR.Web.Services.Licensing.CentralUserSyncInterceptor>()));
 
 builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IMasterApprovalService, MasterApprovalService>();
+builder.Services.AddScoped<ILoginCredentialsMailer, LoginCredentialsMailer>();
+builder.Services.AddScoped<ILabFtpService, LabFtpService>();
+builder.Services.AddScoped<IAppApkService, AppApkService>();
+builder.Services.AddScoped<IAuditNotificationService, AuditNotificationService>();   // Settings > Audit Notification Setup (SQLScripts/2397)   // Hospital Settings > App (APK) upload (SQLScripts/2393)
+builder.Services.AddScoped<IDoctorRosterNotificationService, DoctorRosterNotificationService>();   // OPD Doctor Roster Notification (SQLScripts/2528)
+builder.Services.AddScoped<IDueAlertNotificationService, DueAlertNotificationService>();          // Due Alert - OPD / LAB B2C dues (SQLScripts/2531)
+builder.Services.AddHostedService<NotificationScheduleWorker>();                                      // Notification Setup: every daily alert at its send time, all areas (SQLScripts/2531)
+builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR.Web.Services.Reports.LabTestWorkloadService>();
+// Utility > Campaigns (SQLScripts/2299): EMR.Api api/campaigns, and the background sender (also started at once on "Send now")
+builder.Services.AddScoped<EMR.Web.ApiClients.ICampaignApiClient, EMR.Web.ApiClients.CampaignApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.IHelpApiClient, EMR.Web.ApiClients.HelpApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.IOpdVisitHistoryApiClient, EMR.Web.ApiClients.OpdVisitHistoryApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ITerminologyApiClient, EMR.Web.ApiClients.TerminologyApiClient>();   // Utility > API data, LOINC (SQLScripts/2316)
+builder.Services.AddScoped<EMR.Web.ApiClients.IUserListApiClient, EMR.Web.ApiClients.UserListApiClient>();   // User Master server paging (SQLScripts/2314)
+builder.Services.AddScoped<EMR.Web.ApiClients.IPrintTemplateApiClient, EMR.Web.ApiClients.PrintTemplateApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyCopyApiClient, EMR.Web.ApiClients.CompanyCopyApiClient>();
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyPurgeApiClient, EMR.Web.ApiClients.CompanyPurgeApiClient>();   // Company > Remove data / Delete company (SQLScripts/2337)   // Company > Copy master data (SQLScripts/2328)   // Utility > Print Templates (SQLScripts/2324)
+builder.Services.AddScoped<EMR.Web.Services.IPrintTemplateRuntime, EMR.Web.Services.PrintTemplateRuntime>();
+builder.Services.AddScoped<EMR.Web.ApiClients.IBillingSubmissionApiClient, EMR.Web.ApiClients.BillingSubmissionApiClient>();   // one bill per booking (SQLScripts/2310)
+builder.Services.AddScoped<EMR.Web.ApiClients.ICompanyOnboardingApiClient, EMR.Web.ApiClients.CompanyOnboardingApiClient>();   // New Company wizard (SQLScripts/2306)   // OPD visit Audit History (SQLScripts/2304)   // Utility > Help Center (SQLScripts/2300)
+builder.Services.AddSingleton<EMR.Web.Services.Campaigns.CampaignSenderService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<EMR.Web.Services.Campaigns.CampaignSenderService>());
 
 // Geography Masters (Dapper)
 builder.Services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
+builder.Services.AddScoped<EMR.Common.IDbConnections>(sp => sp.GetRequiredService<IDbConnectionFactory>());
 builder.Services.AddScoped<ICountryService, CountryService>();
 builder.Services.AddScoped<IStateService, StateService>();
 builder.Services.AddScoped<IDistrictService, DistrictService>();
@@ -45,9 +77,22 @@ builder.Services.AddScoped<IDoctorService, DoctorService>();
 // LAB billing AI assist: Tesseract OCR on this server + ML.NET test matching (PrescriptionAssist section)
 builder.Services.Configure<EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions>(builder.Configuration.GetSection(EMR.Web.Services.PrescriptionAssist.PrescriptionAssistOptions.SectionName));
 builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient("GeoAddress");
+builder.Services.AddScoped<EMR.Web.Services.GeoAddressService>();   // Home Collection Address search (Google Places / OpenStreetMap)
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IHandwritingRecognizer, EMR.Web.Services.PrescriptionAssist.HandwritingRecognizer>();
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionOcrEngine, EMR.Web.Services.PrescriptionAssist.TesseractOcrEngine>();
 builder.Services.AddSingleton<EMR.Web.Services.PrescriptionAssist.IPrescriptionTestMatcher, EMR.Web.Services.PrescriptionAssist.PrescriptionTestMatcher>();
+// ID document assist: OCR (same engine) + ML.NET document-type classifier + number validation (SQLScripts/2284)
+builder.Services.AddSingleton<EMR.Web.Services.IdDocumentAssist.IIdDocumentReader, EMR.Web.Services.IdDocumentAssist.IdDocumentReader>();
+// Hospital Settings > LAB > Enable AI Features at Billing (per branch, SQLScripts/2286)
+builder.Services.AddScoped<EMR.Web.Services.IAiBillingFeatures, EMR.Web.Services.AiBillingFeatures>();
+builder.Services.AddScoped<EMR.Web.Services.IGovernmentIdFeatures, EMR.Web.Services.GovernmentIdFeatures>();
+// Hospital Settings > LAB > Enable Ask AI Features (per branch, SQLScripts/2302): the AI Help Assistant
+builder.Services.AddScoped<EMR.Web.Services.IAskAiFeatures, EMR.Web.Services.AskAiFeatures>();
+// AI test suggestions at B2C billing: learned from past bills, kept in memory per branch (SQLScripts/2287)
+// reflex test suggestions at LAB Reporting (SQLScripts/2289)
+builder.Services.AddScoped<EMR.Web.Services.Reflex.ILabReflexService, EMR.Web.Services.Reflex.LabReflexService>();
+builder.Services.AddScoped<EMR.Web.Services.TestSuggestions.ILabTestSuggestionService, EMR.Web.Services.TestSuggestions.LabTestSuggestionService>();
 
 builder.Services.AddScoped<IBuildingService, BuildingService>();
 
@@ -90,6 +135,15 @@ builder.Services.AddScoped<IDiscountTypeService, DiscountTypeService>();
 
 // Patient Registration (Dapper)
 builder.Services.AddScoped<IPatientService, PatientService>();
+builder.Services.AddScoped<ICertificateService, CertificateService>();   // OPD > Certificates (SQLScripts/2341)
+builder.Services.AddScoped<ICertificateNotificationService, CertificateNotificationService>();   // certificate WhatsApp / e-mail (SQLScripts/2342)
+builder.Services.AddScoped<EMR.Web.ApiClients.PharmacyApiClient>();   // EMR.Api pharmacy endpoints (SQLScripts/2357+)
+builder.Services.AddScoped<IPharmacyMasterService, PharmacyMasterService>();   // Master > Pharmacy Master (SQLScripts/2343)
+builder.Services.AddScoped<IPharmacyPurchaseService, PharmacyPurchaseService>();   // Pharmacy > Purchase (SQLScripts/2344)
+builder.Services.AddScoped<IPharmacySaleService, PharmacySaleService>();   // Pharmacy > Sales (SQLScripts/2348)
+builder.Services.AddScoped<IPharmacyBillNotifier, PharmacyBillNotifier>();
+builder.Services.AddScoped<ILoginAlertNotifier, LoginAlertNotifier>();   // WhatsApp alert after wrong passwords (SQLScripts/2383)   // pharmacy bill PDF + WhatsApp / e-mail (SQLScripts/2348)
+builder.Services.AddScoped<IPharmacyInventoryService, PharmacyInventoryService>();   // Pharmacy > Inventory (SQLScripts/2349)
 
 // EMR Template Service (EF Core)
 builder.Services.AddScoped<IEmrTemplateService, EmrTemplateService>();
@@ -105,6 +159,7 @@ builder.Services.AddScoped<ILedgerService, LedgerService>();
 
 // Utility > Accounts: petty cash, vouchers, ledger reports (Dapper)
 builder.Services.AddScoped<IAccountsService, AccountsService>();
+builder.Services.AddScoped<IDayClosingService, DayClosingService>();   // OPD / LAB Day Closing (SQLScripts/2275)
 
 // Cancellation & Refund (Dapper)
 builder.Services.AddScoped<ICancellationService, CancellationService>();
@@ -119,6 +174,7 @@ builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
 builder.Services.AddHostedService<FollowUpReminderService>();
 // membership points: expire points not used by their expiry date (SQLScripts/2236)
 builder.Services.AddHostedService<MembershipPointsExpiryService>();
+builder.Services.AddHostedService<PharmacyRefillReminderService>();   // SQLScripts/2406
 
 // Video Consultation (Whereby)
 builder.Services.AddHttpClient("Whereby", client =>
@@ -142,6 +198,13 @@ builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailSender, EMR
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.IMachineFingerprintProvider, EMR.Web.Services.Licensing.MachineFingerprintProvider>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseCrypto, EMR.Web.Services.Licensing.LicenseCrypto>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralLicenseRepository, EMR.Web.Services.Licensing.CentralLicenseRepository>();
+// SQLScripts/2467: central company register (Central_Lic_DB.dbo.Central_Company), same licensing connection
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralCompanyRegistry, EMR.Web.Services.Licensing.CentralCompanyRegistry>();
+// SQLScripts/2470: central user register (Central_Users), and the EF hook that keeps it in step
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.ICentralUserRegistry, EMR.Web.Services.Licensing.CentralUserRegistry>();
+builder.Services.AddSingleton<EMR.Web.Services.Licensing.CentralUserSyncInterceptor>();
+// users the central server missed (it was unreachable) are registered in the background once it is back
+builder.Services.AddHostedService<EMR.Web.Services.Licensing.CentralUserSyncWorker>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILocalLicenseRepository, EMR.Web.Services.Licensing.LocalLicenseRepository>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicenseMailer, EMR.Web.Services.Licensing.LicenseMailer>();
 builder.Services.AddSingleton<EMR.Web.Services.Licensing.ILicensingService, EMR.Web.Services.Licensing.LicensingService>();
@@ -157,8 +220,20 @@ builder.Services.AddRateLimiter(o =>
     o.AddPolicy(EMR.Web.Controllers.LicenseController.OtpRateLimit, http =>
         System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter("otp:" + (http.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
             _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = Math.Max(1, licensingOptions.OtpSendsPerIpPer15Min), Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
+    // "Forgot password?" requests and reset submits per client address
+    o.AddPolicy(EMR.Web.Controllers.AccountController.PasswordResetRateLimit, http =>
+        System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter("pwreset:" + (http.Connection.RemoteIpAddress?.ToString() ?? "unknown"),
+            _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     o.OnRejected = async (ctx, ct) =>
     {
+        if (ctx.HttpContext.Request.Path.StartsWithSegments("/Account/ForgotPassword", StringComparison.OrdinalIgnoreCase)
+            || ctx.HttpContext.Request.Path.StartsWithSegments("/Account/ResetPassword", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.HttpContext.Response.Headers.RetryAfter = "900";
+            ctx.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
+            await ctx.HttpContext.Response.WriteAsync("Too many password reset requests from this network. Wait 15 minutes and try again.", ct);
+            return;
+        }
         var isLicense = ctx.HttpContext.Request.Path.StartsWithSegments("/License", StringComparison.OrdinalIgnoreCase);
         ctx.HttpContext.Response.Headers.RetryAfter = isLicense ? "900" : "60";
         ctx.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
@@ -202,7 +277,17 @@ builder.Services.AddScoped<IVitalApiClient,             VitalApiClient>();
 builder.Services.AddScoped<IDoctorScheduleApiClient,    DoctorScheduleApiClient>();
 builder.Services.AddScoped<IPatientPortalApiClient,     PatientPortalApiClient>();
 builder.Services.AddScoped<EMR.Web.Services.IPatientPortalLoginService, EMR.Web.Services.PatientPortalLoginService>();
+builder.Services.AddScoped<EMR.Web.Services.IPatientProfileService, EMR.Web.Services.PatientProfileService>();   // Patient Master view + Patient Portal dashboard
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
+builder.Services.AddScoped<IpdApiClient>();
+builder.Services.AddScoped<QcStockApiClient>();   // Quality & Compliance > Stock Management api/qc/stock (SQLScripts/2498-2500)
+builder.Services.AddScoped<LabRxLearningApiClient>();
+builder.Services.AddScoped<PaymentQrApiClient>();   // Settings > Payment QR Configuration (SQLScripts/2452)
+builder.Services.AddScoped<LabEstimateApiClient>();   // LAB > B2C Bill Estimate (SQLScripts/2451)
+builder.Services.AddScoped<LabWorksheetApiClient>();  // LAB > Work Sheet (SQLScripts/2477)
+builder.Services.AddScoped<LabSerialNoApiClient>();  // Lab Serial No on report entry (SQLScripts/2514)
+builder.Services.AddScoped<BankFundApiClient>();  // Bank Master, Fund Master (SQLScripts/2522)
+builder.Services.AddScoped<MarketingExecutiveApiClient>();   // Master > General > Marketing Executive (SQLScripts/2440)   // AI Prescription Assist learning (SQLScripts/2439)   // IPD transactions: admission, beds, advances, live estimate (SQLScripts/2422-2424)
 builder.Services.AddScoped<IHospitalPackageApiClient,   HospitalPackageApiClient>();
 builder.Services.AddScoped<ICorporateApiClient,         CorporateApiClient>();
 builder.Services.AddScoped<ICorporateHospitalRateApiClient, CorporateHospitalRateApiClient>();
@@ -238,6 +323,9 @@ builder.Services.AddScoped<ILabSampleRejectionReasonApiClient, LabSampleRejectio
 builder.Services.AddScoped<ILabMiscChargeApiClient, LabMiscChargeApiClient>();
 builder.Services.AddScoped<ILabFranchiseApiClient,            LabFranchiseApiClient>();
 builder.Services.AddScoped<ILabFranchiseBarcodeApiClient,     LabFranchiseBarcodeApiClient>();
+builder.Services.AddScoped<ILabPhleboBarcodeApiClient,        LabPhleboBarcodeApiClient>();
+builder.Services.AddScoped<PharmacyItemImport>();   // SQLScripts/2411
+builder.Services.AddScoped<IFranchiseLoginService, FranchiseLoginService>();
 builder.Services.AddScoped<ILabBulkUploadApiClient,           LabBulkUploadApiClient>();
 builder.Services.AddScoped<ILabReferenceRangeApiClient,        LabReferenceRangeApiClient>();
 builder.Services.AddScoped<ILabFormulaParameterApiClient,      LabFormulaParameterApiClient>();
@@ -250,10 +338,15 @@ builder.Services.AddScoped<ILabCriticalApiClient,             LabCriticalApiClie
 builder.Services.AddScoped<ILabDefaultSignatoryApiClient,     LabDefaultSignatoryApiClient>();
 builder.Services.AddScoped<ILabApprovalFlowApiClient,           LabApprovalFlowApiClient>();
 builder.Services.AddScoped<ILabReportPdfService,              LabReportPdfService>();
+builder.Services.AddScoped<IPatientDocumentService, PatientDocumentService>();   // LAB report + live stage for the patient portal and the patient app
+builder.Services.AddSingleton<IOpdBookingNotifier, OpdBookingNotifier>();   // OPD booking bill by WhatsApp + e-mail (OPD screens and the patient app)
 builder.Services.AddScoped<ILabReportEmailService,            LabReportEmailService>();
 builder.Services.AddScoped<ILabReportWhatsAppService,         LabReportWhatsAppService>();
 builder.Services.AddScoped<IMembershipPointsWhatsAppService, MembershipPointsWhatsAppService>();
 builder.Services.AddScoped<ILabCriticalNotificationService,   LabCriticalNotificationService>();
+// the bell: in-app notifications pushed live to the signed-in user (SQLScripts/2263)
+builder.Services.AddSignalR();
+builder.Services.AddScoped<EMR.Web.Services.Notifications.INotificationService, EMR.Web.Services.Notifications.NotificationService>();
 builder.Services.AddScoped<IDiscountTypeApiClient,        DiscountTypeApiClient>();
 builder.Services.AddScoped<IMembershipApiClient,          MembershipApiClient>();
 builder.Services.AddScoped<IMembershipCardDeliveryService, MembershipCardDeliveryService>();
@@ -282,8 +375,18 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/AccessDenied";
         options.SlidingExpiration = true;
-        options.ExpireTimeSpan = TimeSpan.FromHours(1); // Auto logout if idle for 1 hour
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(Math.Max(60, EMR.Web.Services.IdleSessionPolicy.IdleMinutes)); // the cookie outlives the idle limit; IdleSessionPolicy decides
+        // idle sign-out enforced by the server: background requests (bell poll, hub, auto-refresh) do not count as
+        // activity, so they can no longer keep an idle session alive (IdleSessionPolicy, Security:IdleTimeoutMinutes)
+        options.Events.OnValidatePrincipal = async ctx =>
+        {
+            await EMR.Web.Services.IdleSessionPolicy.ValidateAsync(ctx);
+            // SQLScripts/2472: a company outside its Valid From / Valid To ends its users' sessions (cached 5 min per company)
+            await EMR.Web.Services.CompanyValidity.ValidateAsync(ctx);
+        };
+        options.Events.OnSigningIn = ctx => { ctx.Properties.Items[EMR.Web.Services.IdleSessionPolicy.ActivityKey] = DateTimeOffset.UtcNow.UtcTicks.ToString(); return Task.CompletedTask; };
     });
+EMR.Web.Services.IdleSessionPolicy.Configure(builder.Configuration);
 
 builder.Services.AddAuthorization();
 
@@ -362,6 +465,10 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Files as they are on disk first: an image replaced after a publish (e.g. Images/login-bg.jpg) or a file uploaded on
+// the server (wwwroot/uploads) is served as it is; MapStaticAssets below only describes the files of the build and fails
+// for a file whose size changed after publishing.
+app.UseStaticFiles();
 app.UseRouting();
 app.UseRateLimiter();
 app.UseMiddleware<EMR.Web.Middleware.QueryStringDecryptionMiddleware>();
@@ -463,5 +570,7 @@ app.MapControllerRoute(
     pattern: "{controller=Account}/{action=Login}/{id?}")
     .WithStaticAssets();
 
+
+app.MapHub<EMR.Web.Services.Notifications.NotificationHub>("/hubs/notifications");
 
 app.Run();

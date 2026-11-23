@@ -11,16 +11,7 @@
 }
 
 @section HeadStyles {
-    <style>
-        .stat-card { border-radius:12px; border:1px solid #e9ecef; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.06); padding:1rem 1.4rem; }
-        .stat-card .stat-icon { width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem; }
-        .stat-card .stat-val  { font-size:1.6rem;font-weight:700;line-height:1; }
-        .table>thead>tr>th { font-size:.78rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; border-bottom:2px solid #dee2e6; white-space:nowrap; }
-        .table>tbody>tr>td { font-size:.88rem; vertical-align:middle; }
-        .badge-status-P { background:#d1e7dd; color:#0f5132; }
-        .badge-status-R { background:#fff3cd; color:#664d03; }
-        .badge-status-U { background:#f8d7da; color:#842029; }
-    </style>
+    <link rel="stylesheet" href="~/css/views/LabOrderBooking/B2COrderList.css" asp-append-version="true" />
 }
 
 @* ── Payment Modal (Standby mode for on-demand collection) ── *@
@@ -150,10 +141,10 @@
                     <i class="bi bi-funnel-fill me-1"></i>Filter
                 </button>
                 <a asp-action="B2COrderList"
-                   asp-route-dateType="B"
-                   asp-route-fromDate="@today"
-                   asp-route-toDate="@today"
-                   asp-route-pageSize="@Model.PageSize"
+                   asp-encrypted-route-dateType="B"
+                   asp-encrypted-route-fromDate="@today"
+                   asp-encrypted-route-toDate="@today"
+                   asp-encrypted-route-pageSize="@Model.PageSize"
                    class="btn btn-sm btn-outline-secondary" title="Today's bookings">Reset</a>
             </div>
         </form>
@@ -190,7 +181,6 @@
                             <th>Patient ID</th>
                             <th>Patient Name</th>
                             <th>Phone</th>
-                            <th>Investigations</th>
                             <th class="text-center">Tests</th>
                             <th class="text-end">Total Amount</th>
                             <th>Payment</th>
@@ -202,7 +192,7 @@
                         {
                             var badgeCls = o.PaymentStatus switch { "P" => "badge-status-P", "R" => "badge-status-R", _ => "badge-status-U" };
                             var payText  = o.PaymentStatus switch { "P" => "Paid", "R" => "Partial", _ => "Unpaid" };
-                            var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
+                            var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.BookingNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
                             <tr data-search="@searchText">
                                 <td class="text-nowrap">@((o.CreatedDate > DateTime.MinValue ? o.CreatedDate : o.OrderDate).ToString("dd MMM yyyy HH:mm"))</td>
                                 <td class="text-nowrap">@(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")</td>
@@ -222,6 +212,10 @@
                                     {
                                         <span class="badge text-bg-light text-muted font-monospace border">Pending</span>
                                     }
+                                    @if (!string.IsNullOrEmpty(o.BookingNo))
+                                    {
+                                        <div class="mt-1"><span class="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace" title="Booking No"><i class="bi bi-journal-bookmark me-1"></i>@o.BookingNo</span></div>
+                                    }
                                 </td>
                                 <td><span class="badge text-bg-info text-dark font-monospace">@o.PatientCode</span></td>
                                 <td class="fw-semibold">
@@ -234,18 +228,6 @@
                                     }
                                 </td>
                                 <td>@(o.PhoneNumber ?? "—")</td>
-                                <td style="max-width: 250px;">
-                                    @if (!string.IsNullOrEmpty(o.TestNamesSummary))
-                                    {
-                                        <span class="d-inline-block text-truncate w-100" title="@o.TestNamesSummary">
-                                            @o.TestNamesSummary
-                                        </span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted small">—</span>
-                                    }
-                                </td>
                                 @{
                                     // tests cancelled after billing / refunds (Services/LabBillAdjustments)
                                     var adjMap = ViewBag.Adjustments as Dictionary<int, EMR.Web.Services.LabBillAdjustment>;
@@ -255,12 +237,12 @@
                                 <td class="text-center">
                                     @if (partlyCancelled)
                                     {
-                                        <span class="badge rounded-pill bg-light text-dark border" title="@adj!.ActiveTests active, @adj.CancelledTests cancelled">@adj.ActiveTests</span>
+                                        <span class="badge rounded-pill bg-light text-dark border" title="@adj!.ActiveTests active, @adj.CancelledTests cancelled">@adj.ActiveTests</span><button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline btn-bill-tests" data-order-id="@o.LabOrderId" data-bill-no="@o.BillNo" title="View the tests of this bill"><i class="bi bi-eye"></i></button>
                                         <div class="text-danger" style="font-size:.66rem;">+@adj.CancelledTests cancelled</div>
                                     }
                                     else
                                     {
-                                        <span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span>
+                                        <span class="badge rounded-pill bg-light text-dark border">@o.ItemCount</span><button type="button" class="btn btn-sm btn-link p-0 ms-1 align-baseline btn-bill-tests" data-order-id="@o.LabOrderId" data-bill-no="@o.BillNo" title="View the tests of this bill"><i class="bi bi-eye"></i></button>
                                     }
                                 </td>
                                 <td class="text-end fw-semibold @(o.PaymentStatus == "P" ? "text-success" : (o.PaymentStatus == "R" ? "text-warning-emphasis" : "text-danger"))">
@@ -311,6 +293,7 @@
                                         <button type="button"
                                                 class="btn btn-sm btn-outline-secondary dropdown-toggle px-3"
                                                 data-bs-toggle="dropdown"
+                                                data-bs-popper-config='{"strategy":"fixed"}'
                                                 aria-expanded="false">
                                             <i class="bi bi-three-dots-vertical"></i>
                                         </button>
@@ -322,7 +305,7 @@
                                                 </button>
                                             </li>
                                             <li>
-                                                <a asp-permission="LAB.LABORDERBOOKING.B2CORDERLIST:PRINT" class="dropdown-item" href="@Url.Action("PrintBill", "LabOrderBooking", new { labOrderId = o.LabOrderId })" target="_blank">
+                                                <a asp-permission="LAB.LABORDERBOOKING.B2CORDERLIST:PRINT" class="dropdown-item" href="@Url.ActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId = o.LabOrderId })" target="_blank">
                                                     <i class="bi bi-printer-fill me-2 text-dark"></i>Print Bill
                                                 </a>
                                             </li>
@@ -356,7 +339,7 @@
                             </tr>
                         }
                         <tr id="noFilterMatch" style="display:none">
-                            <td colspan="12" class="text-center text-muted py-4">
+                            <td colspan="11" class="text-center text-muted py-4">
                                 <i class="bi bi-search me-2"></i>No rows matched your search filter.
                             </td>
                         </tr>
@@ -381,12 +364,12 @@
                                 <li class="page-item @(!Model.HasPrevious ? "disabled" : "")">
                                     <a class="page-link"
                                        asp-action="B2COrderList"
-                                       asp-route-page="@(Model.Page - 1)"
-                                       asp-route-pageSize="@Model.PageSize"
-                                       asp-route-dateType="@dateType"
-                                       asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">
+                                       asp-encrypted-route-page="@(Model.Page - 1)"
+                                       asp-encrypted-route-pageSize="@Model.PageSize"
+                                       asp-encrypted-route-dateType="@dateType"
+                                       asp-encrypted-route-fromDate="@fromDate"
+                                       asp-encrypted-route-toDate="@toDate"
+                                       asp-encrypted-route-search="@Model.Search" asp-encrypted-route-paymentStatus="@payStatus">
                                         <i class="bi bi-chevron-left"></i>
                                     </a>
                                 </li>
@@ -397,9 +380,9 @@
                                 @if (startPage > 1)
                                 {
                                     <li class="page-item">
-                                        <a class="page-link" asp-action="B2COrderList" asp-route-page="1"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">1</a>
+                                        <a class="page-link" asp-action="B2COrderList" asp-encrypted-route-page="1"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-dateType="@dateType"
+                                           asp-encrypted-route-fromDate="@fromDate" asp-encrypted-route-toDate="@toDate" asp-encrypted-route-search="@Model.Search" asp-encrypted-route-paymentStatus="@payStatus">1</a>
                                     </li>
                                     @if (startPage > 2)
                                     {
@@ -409,9 +392,9 @@
                                 @for (int pg = startPage; pg <= endPage; pg++)
                                 {
                                     <li class="page-item @(pg == Model.Page ? "active" : "")">
-                                        <a class="page-link" asp-action="B2COrderList" asp-route-page="@pg"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">@pg</a>
+                                        <a class="page-link" asp-action="B2COrderList" asp-encrypted-route-page="@pg"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-dateType="@dateType"
+                                           asp-encrypted-route-fromDate="@fromDate" asp-encrypted-route-toDate="@toDate" asp-encrypted-route-search="@Model.Search" asp-encrypted-route-paymentStatus="@payStatus">@pg</a>
                                     </li>
                                 }
                                 @if (endPage < Model.TotalPages)
@@ -421,20 +404,20 @@
                                         <li class="page-item disabled"><span class="page-link">…</span></li>
                                     }
                                     <li class="page-item">
-                                        <a class="page-link" asp-action="B2COrderList" asp-route-page="@Model.TotalPages"
-                                           asp-route-pageSize="@Model.PageSize" asp-route-dateType="@dateType"
-                                           asp-route-fromDate="@fromDate" asp-route-toDate="@toDate" asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">@Model.TotalPages</a>
+                                        <a class="page-link" asp-action="B2COrderList" asp-encrypted-route-page="@Model.TotalPages"
+                                           asp-encrypted-route-pageSize="@Model.PageSize" asp-encrypted-route-dateType="@dateType"
+                                           asp-encrypted-route-fromDate="@fromDate" asp-encrypted-route-toDate="@toDate" asp-encrypted-route-search="@Model.Search" asp-encrypted-route-paymentStatus="@payStatus">@Model.TotalPages</a>
                                     </li>
                                 }
                                 <li class="page-item @(!Model.HasNext ? "disabled" : "")">
                                     <a class="page-link"
                                        asp-action="B2COrderList"
-                                       asp-route-page="@(Model.Page + 1)"
-                                       asp-route-pageSize="@Model.PageSize"
-                                       asp-route-dateType="@dateType"
-                                       asp-route-fromDate="@fromDate"
-                                       asp-route-toDate="@toDate"
-                                       asp-route-search="@Model.Search" asp-route-paymentStatus="@payStatus">
+                                       asp-encrypted-route-page="@(Model.Page + 1)"
+                                       asp-encrypted-route-pageSize="@Model.PageSize"
+                                       asp-encrypted-route-dateType="@dateType"
+                                       asp-encrypted-route-fromDate="@fromDate"
+                                       asp-encrypted-route-toDate="@toDate"
+                                       asp-encrypted-route-search="@Model.Search" asp-encrypted-route-paymentStatus="@payStatus">
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
                                 </li>
@@ -474,6 +457,8 @@
         </div>
     </div>
 </div>
+
+<partial name="_BillTestsPopup" />
 
 @section Scripts {
     <script src="~/js/lab-compliance-docs-viewer.js"></script>
@@ -672,6 +657,7 @@
                                 <div class="col-8 fw-bold">${d.patientName ?? '—'}</div>
                                 <div class="col-4 text-muted">Gender / Age:</div>
                                 <div class="col-8">${d.gender ?? '—'}${d.formattedAge ? ', ' + d.formattedAge : (d.dateOfBirth ? ', ' + formatAgePattern(d.dateOfBirth, d.age) : (d.age ? ', ' + d.age + ' yrs' : ''))}</div>
+                                ${d.lmpDate ? `<div class="col-4 text-muted">LMP Date:</div><div class="col-8 fw-semibold" style="color:#be185d">${new Date(d.lmpDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>` : ''}
                                 <div class="col-4 text-muted">Phone:</div>
                                 <div class="col-8">${d.phoneNumber ?? '—'}</div>
                                 <div class="col-4 text-muted">Email:</div>
@@ -697,6 +683,7 @@
                                 <div class="col-8">${d.collectionType === 'Home Collection' ? '<span class="badge bg-danger"><i class="bi bi-house-door-fill me-1"></i>Home</span>' : '<span class="badge bg-primary"><i class="bi bi-building me-1"></i>Lab</span>'}</div>
                                 <div class="col-4 text-muted">Referred By:</div>
                                 <div class="col-8 fw-semibold">${d.referralDoctorName ?? 'Self'}</div>
+                                ${d.marketingExecutiveName ? `<div class="col-4 text-muted">Marketing Exec.:</div><div class="col-8"><span class="badge" style="background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;"><i class="bi bi-person-badge me-1"></i>${d.marketingExecutiveName} · ${d.marketingExecutiveType === 'MED' ? 'MED (Pharmacy)' : (d.marketingExecutiveType || '')}</span></div>` : ''}
                                 <div class="col-4 text-muted">Branch:</div>
                                 <div class="col-8">${d.branchName ?? '—'}</div>
                                 <div class="col-4 text-muted">Booked By:</div>

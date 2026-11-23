@@ -59,7 +59,7 @@ public class RoomFormViewModel
     [Required(ErrorMessage = "Room Category is required.")]
     [MaxLength(50)]
     [Display(Name = "Room Category")]
-    public string RoomCategory { get; set; } = "General";
+    public string RoomCategory { get; set; } = string.Empty;
 
     [Display(Name = "Isolation Room")]
     public bool IsIsolation { get; set; } = false;

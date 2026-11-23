@@ -7,6 +7,7 @@ public class SmtpEmailConfiguration
     public int Id { get; set; }
 
     public int BranchId { get; set; }
+    public int CompanyId { get; set; } = 1;   // the branch's company
 
     [MaxLength(100)]
     public string ConfigName { get; set; } = string.Empty;

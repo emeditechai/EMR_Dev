@@ -1,0 +1,32 @@
+@* Utility > API data: header and the links between its pages (SQLScripts/2316) *@
+@{
+    var active = ViewData["ApiDataPage"] as string ?? "";
+    var items = new[]
+    {
+        ("Releases", "Terminology Import", "bi-cloud-arrow-down", "UTILITY.APIDATA.RELEASES:VIEW"),
+        ("Search", "Standard Test Search", "bi-search", "UTILITY.APIDATA.SEARCH:VIEW"),
+        ("Mapping", "Investigation Mapping", "bi-diagram-3", "UTILITY.APIDATA.MAPPING:VIEW"),
+        ("Changes", "Release Changes", "bi-arrow-left-right", "UTILITY.APIDATA.CHANGES:VIEW")
+    };
+}
+<link rel="stylesheet" href="~/css/views/LabTerminology/_ApiDataNav.css" asp-append-version="true" />
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3 ad-head">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Utility</li>
+                <li class="breadcrumb-item text-muted">API data</li>
+                <li class="breadcrumb-item active" aria-current="page">@ViewData["Title"]</li>
+            </ol>
+        </nav>
+        <h4 class="mb-0 text-primary"><i class="bi bi-database-gear me-2"></i>@ViewData["Title"]</h4>
+        <div class="ad-note mt-1"><i class="bi bi-shield-check me-1 text-success"></i>Standard Laboratory Test Master (LOINC) - kept separate from your Investigation Master, which is only read here.</div>
+    </div>
+    <div class="ad-nav">
+        @foreach (var (action, title, icon, perm) in items)
+        {
+            <a asp-permission="@perm" asp-action="@action" class="@(active == action ? "active" : "")"><i class="bi @icon"></i>@title</a>
+        }
+    </div>
+</div>

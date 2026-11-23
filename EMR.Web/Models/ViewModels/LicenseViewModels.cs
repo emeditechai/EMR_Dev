@@ -15,7 +15,7 @@ public sealed class LicenseRegisterViewModel
     public DateTime MaxEndDate { get; set; }
     public int OtpLength { get; set; } = 6;
     public int OtpLifetimeSeconds { get; set; } = 120;
-    /// <summary>This hardware already holds a licence under another URL: show the vendor message, not the form.</summary>
+    /// <summary>This hardware also holds a licence under another URL: shown as a note; the new URL still registers its own licence.</summary>
     public string? MovedClientCode { get; set; }
     public string? MovedAppUrl { get; set; }
     public string? VendorContact { get; set; }

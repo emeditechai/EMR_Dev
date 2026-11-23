@@ -1,0 +1,73 @@
+@{
+    ViewData["Title"] = "Test BOM Register";
+    ViewData["ReportSubtitle"] = "Current bill of material of every test: items, quantity per run, unit cost and line cost";
+    ViewData["ReportIcon"] = "bi-diagram-3";
+    ViewData["ReportAccent"] = "#0f766e";
+    ViewData["ScopeNote"] = "Company BOM master · as on today";
+}
+@* SQLScripts/2248 #1: one row per current BOM (default or an analyzer's); its item lines open under it and print with it (SOP annexure) *@
+<partial name="_LabReportShell" />
+
+@section Scripts {
+<partial name="_QcReportScripts" />
+<script>
+(function () {
+    const linesOf = (r, data) => (data.lines || []).filter(l => l.BomId === r.BomId);
+    LabReport.init({
+        report: 'bom-register', title: 'Test BOM Register', noDates: true,
+        dataUrl: '@Url.Action("GetLabReportData", "Reports")',
+        seeAll: true,
+        branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
+        searchPlaceholder: 'Test name / code or item name...',
+        filters: [
+            { id: 'appliesTo', label: 'Applies to', allLabel: 'All BOMs', options: [['DEFAULT', 'Default BOMs'], ['ANALYZER', 'Analyzer BOMs']] },
+            { id: 'departmentId', label: 'Department', allLabel: 'All departments', fromOptions: 'departmentId' },
+            { id: 'categoryId', label: 'Uses item of', allLabel: 'Any category', fromOptions: 'categoryId' }
+        ],
+        kpis: [
+            { label: 'Tests with a BOM', color: '#0f766e', value: (s, h) => h.num(s.TestCount), sub: (s, h) => `${h.num(s.BomCount)} BOMs · ${h.num(s.AnalyzerBoms)} analyzer-specific` },
+            { label: 'BOM lines', color: '#1d4ed8', value: (s, h) => h.num(s.LineCount), sub: (s, h) => `${h.num(s.ItemCount)} different items used` },
+            { label: 'Average material cost', color: '#b45309', value: (s, h) => QcRep.money(s.AvgMaterialCost, h), sub: () => 'per test, with reruns and dead volume' }
+        ],
+        groups: [
+            { key: 'byDept', label: 'Department', rowField: 'DepartmentId', byId: true },
+            { key: 'byAppliesTo', label: 'Applies to', rowField: 'AppliesToId', byId: true }
+        ],
+        groupCols: [
+            { field: 'Boms', label: 'BOMs', num: true },
+            { field: 'Lines', label: 'Lines', num: true },
+            { field: 'AvgCost', label: 'Avg material cost', money: true, total: 'none' }
+        ],
+        shareOf: 'Boms',
+        cols: [
+            { label: 'Test', html: (r, h) => QcRep.name(r.TestName, r.TestCode, h, r.Kind === 'Profile' ? QcRep.kind('Profile', h) : ''), text: r => `${r.TestName} (${r.TestCode || ''})` },
+            { label: 'Department', html: (r, h) => h.esc(r.DepartmentName), text: r => r.DepartmentName },
+            { label: 'Sample', html: (r, h) => `<span class="fs-9">${h.esc(r.SampleType || '—')}</span>`, text: r => r.SampleType || '' },
+            { label: 'Applies to', html: (r, h) => r.AppliesToId ? QcRep.pill(r.AppliesTo, 'info', h) : `<span class="text-muted">${h.esc(r.AppliesTo)}</span>`, text: r => r.AppliesTo },
+            { label: 'Version', cls: 'text-nowrap', html: (r, h) => `v${r.VersionNo}<div class="text-muted fs-9">since ${h.fmtD(r.EffectiveFrom)}</div>`, text: r => `v${r.VersionNo}` },
+            { label: 'Lines', cls: 'text-end', html: r => r.LineCount, text: r => r.LineCount },
+            { label: 'Items cost', cls: 'text-end amt', html: (r, h) => QcRep.money(r.ItemsCost, h), text: r => r.ItemsCost },
+            { label: 'Reruns / dead vol.', cls: 'text-end', html: r => `${QcRep.pct(r.RerunPct, 0)} / ${QcRep.pct(r.DeadVolumePct, 0)}`, text: r => `${r.RerunPct}% / ${r.DeadVolumePct}%` },
+            { label: 'Material cost', cls: 'text-end amt fw-semibold', html: (r, h) => QcRep.money(r.MaterialCost, h), text: r => r.MaterialCost },
+            { label: 'Remarks', html: (r, h) => `<span class="fs-9">${h.esc(r.Remarks || '')}</span>`, text: r => r.Remarks || '' }
+        ],
+        expand: {
+            has: (r, data) => linesOf(r, data).length > 0,
+            html: (r, data, h) => QcRep.lines(linesOf(r, data), [
+                { label: 'Item', html: l => `<span class="font-monospace text-muted me-1">${h.esc(l.ItemCode)}</span>${h.esc(l.ItemName)}` },
+                { label: 'Category', html: l => h.esc(l.CategoryName) + (l.IsQcMaterial ? ' <span class="badge bg-warning-subtle text-warning-emphasis border">QC</span>' : '') },
+                { label: 'Qty / run', cls: 'text-end', html: l => `${QcRep.qty(l.Qty)} ${h.esc(l.Unit)}` },
+                { label: 'Unit cost', cls: 'text-end', html: l => QcRep.unitCost(l.UnitCost) },
+                { label: 'Line cost', cls: 'text-end', html: l => QcRep.unitCost(l.LineCost) },
+                { label: 'Remarks', html: l => h.esc(l.Remarks || '') }
+            ], `<td colspan="4" class="text-end">Items ${h.money(r.ItemsCost)} + reruns ${r.RerunPct}% + dead volume ${r.DeadVolumePct}%</td><td class="text-end">${h.money(r.MaterialCost)}</td><td></td>`)
+        },
+        exportExtra: (rows, data) => ({
+            sheet: 'BOM lines', title: 'BOM lines',
+            head: ['Test', 'Applies to', 'Version', 'Item code', 'Item', 'Category', 'Qty per run', 'Unit', 'Unit cost', 'Line cost', 'Remarks'],
+            rows: rows.flatMap(r => linesOf(r, data).map(l => [r.TestName, r.AppliesTo, 'v' + r.VersionNo, l.ItemCode, l.ItemName, l.CategoryName, l.Qty, l.Unit, l.UnitCost, l.LineCost, l.Remarks || '']))
+        })
+    });
+})();
+</script>
+}

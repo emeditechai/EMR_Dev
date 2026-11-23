@@ -15,12 +15,7 @@
     if (Model.EmailEnabled) { channels.Add("email" + (string.IsNullOrWhiteSpace(Model.EmailId) ? " (no email address)" : " to " + Model.EmailId)); }
 }
 
-<style>
-    .mc-results { position:absolute; z-index:1060; left:0; right:0; max-height:220px; overflow:auto; background:#fff; border:1px solid #dee2e6; border-radius:.375rem; box-shadow:0 .5rem 1rem rgba(0,0,0,.12); display:none; }
-    .mc-results .mc-item { padding:.45rem .75rem; cursor:pointer; border-bottom:1px solid #f1f5f9; }
-    .mc-results .mc-item:hover { background:#f1f5f9; }
-    .mc-results .mc-none { padding:.6rem .75rem; color:#64748b; font-size:.875rem; }
-</style>
+<link rel="stylesheet" href="~/css/views/MembershipCards/Details.css" asp-append-version="true" />
 
 <div class="card emr-card mb-3">
     <div class="card-body">
@@ -34,7 +29,7 @@
                 </div>
                 @if (Model.RenewedToCardId.HasValue)
                 {
-                    <div class="small mt-1"><i class="bi bi-arrow-repeat me-1 text-info"></i>Renewed as card <a asp-action="Details" asp-route-id="@Model.RenewedToCardId" class="font-monospace fw-semibold">@Model.RenewedToCardNo</a></div>
+                    <div class="small mt-1"><i class="bi bi-arrow-repeat me-1 text-info"></i>Renewed as card <a asp-action="Details" asp-encrypted-route-id="@Model.RenewedToCardId" class="font-monospace fw-semibold">@Model.RenewedToCardNo</a></div>
                 }
                 else if (!string.IsNullOrWhiteSpace(Model.StatusReason) && !isActive)
                 {
@@ -42,7 +37,7 @@
                 }
                 @if (Model.RenewedFromCardId.HasValue)
                 {
-                    <div class="small mt-1"><i class="bi bi-arrow-repeat me-1 text-info"></i>Issued in renewal of card <a asp-action="Details" asp-route-id="@Model.RenewedFromCardId" class="font-monospace fw-semibold">@Model.RenewedFromCardNo</a></div>
+                    <div class="small mt-1"><i class="bi bi-arrow-repeat me-1 text-info"></i>Issued in renewal of card <a asp-action="Details" asp-encrypted-route-id="@Model.RenewedFromCardId" class="font-monospace fw-semibold">@Model.RenewedFromCardNo</a></div>
                 }
                 @if (Model.IsLifetime)
                 {
@@ -62,9 +57,9 @@
                 }
             </div>
             <div class="d-flex flex-wrap gap-2">
-                <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-route-id="@Model.CardId" target="_blank" class="btn btn-primary btn-sm"><i class="bi bi-printer me-1"></i>Print Card</a>
-                <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-route-id="@Model.CardId" asp-route-download="true" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Download PDF</a>
-                <form asp-permission="MASTER.MEMBERSHIPCARDS:SEND" asp-action="Send" asp-route-id="@Model.CardId" method="post" class="d-inline" id="sendForm">
+                <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-encrypted-route-id="@Model.CardId" target="_blank" class="btn btn-primary btn-sm"><i class="bi bi-printer me-1"></i>Print Card</a>
+                <a asp-permission="MASTER.MEMBERSHIPCARDS:PRINT" asp-action="Card" asp-encrypted-route-id="@Model.CardId" asp-encrypted-route-download="true" class="btn btn-outline-primary btn-sm"><i class="bi bi-download me-1"></i>Download PDF</a>
+                <form asp-permission="MASTER.MEMBERSHIPCARDS:SEND" asp-action="Send" asp-encrypted-route-id="@Model.CardId" method="post" class="d-inline" id="sendForm">
                     <button type="button" class="btn btn-success btn-sm" id="btnSend" disabled="@(!canSend)"
                             title="@(canSend ? "Send the card soft copy" : "Sending the card is switched off in Hospital Settings")">
                         <i class="bi bi-send me-1"></i>Send Card
@@ -234,7 +229,7 @@
     </div>
 </div>
 
-<form asp-permission="MASTER.MEMBERSHIPCARDS:STATUS" asp-action="SetStatus" asp-route-id="@Model.CardId" method="post" id="statusForm" style="display:none;">
+<form asp-permission="MASTER.MEMBERSHIPCARDS:STATUS" asp-action="SetStatus" asp-encrypted-route-id="@Model.CardId" method="post" id="statusForm" style="display:none;">
     <input type="hidden" name="status" id="statusValue" />
     <input type="hidden" name="reason" id="statusReason" />
 </form>
@@ -244,7 +239,7 @@
     var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
     <div class="modal fade" id="renewModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-            <form asp-action="Renew" asp-route-id="@Model.CardId" method="post" class="modal-content" id="renewForm" autocomplete="off">
+            <form asp-action="Renew" asp-encrypted-route-id="@Model.CardId" method="post" class="modal-content" id="renewForm" autocomplete="off">
                 <div class="modal-header">
                     <h6 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>Renew @Model.CardNo</h6>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -313,7 +308,7 @@
 
 <div class="modal fade" id="addMemberModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
-        <form asp-action="AddMember" asp-route-id="@Model.CardId" method="post" class="modal-content" id="addMemberForm" autocomplete="off">
+        <form asp-action="AddMember" asp-encrypted-route-id="@Model.CardId" method="post" class="modal-content" id="addMemberForm" autocomplete="off">
             <div class="modal-header">
                 <h6 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add Member to @Model.CardNo</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

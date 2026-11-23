@@ -5,38 +5,7 @@
 
 @section HeadStyles {
     <link href="~/lib/select2/dist/css/select2.min.css" rel="stylesheet" />
-    <style>
-        .rate-grid-container {
-            max-height: 520px;
-            overflow-y: auto;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            background: #fff;
-        }
-        .rate-grid-container table {
-            margin-bottom: 0;
-        }
-        .rate-grid-container thead th {
-            position: sticky;
-            top: 0;
-            background-color: #212529 !important;
-            color: #fff;
-            z-index: 5;
-            box-shadow: inset 0 -1px 0 #495057;
-            white-space: nowrap;
-        }
-        .rate-grid-container::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        .rate-grid-container::-webkit-scrollbar-thumb {
-            background-color: #adb5bd;
-            border-radius: 4px;
-        }
-        .rate-grid-container::-webkit-scrollbar-thumb:hover {
-            background-color: #6c757d;
-        }
-    </style>
+    <link rel="stylesheet" href="~/css/views/LabRateListCorporate/Form.css" asp-append-version="true" />
 }
 
 <div class="card mb-4">
@@ -86,6 +55,24 @@
                         <input asp-for="Status" class="form-check-input" type="checkbox">
                         <label asp-for="Status" class="form-check-label">Is Active</label>
                     </div>
+                </div>
+            </div>
+
+            <!-- Government scheme (e.g. WBHS): the scheme's code against each test -->
+            <div class="row mb-3 g-3 align-items-end">
+                <div class="col-md-3">
+                    <div class="form-check form-switch">
+                        <input asp-for="Is_Govt_Scheme" class="form-check-input" type="checkbox" role="switch">
+                        <label asp-for="Is_Govt_Scheme" class="form-check-label fw-semibold">Is Government Scheme</label>
+                    </div>
+                    <small class="text-muted">e.g. WBHS: each test gets the scheme's code.</small>
+                </div>
+                <div class="col-md-3 govt-scheme-only" style="@(Model.Is_Govt_Scheme ? "" : "display:none;")">
+                    <label asp-for="Scheme_Name" class="form-label">Scheme Name <span class="text-danger">*</span></label>
+                    <input asp-for="Scheme_Name" class="form-control" maxlength="100" placeholder="e.g. WBHS" />
+                </div>
+                <div class="col-md-6 govt-scheme-only small text-muted" style="@(Model.Is_Govt_Scheme ? "" : "display:none;")">
+                    <i class="bi bi-info-circle me-1"></i>Enter the scheme code of each test in the <b>Scheme Code</b> column below. It is printed against the test on the scheme's bill.
                 </div>
             </div>
 
@@ -237,6 +224,7 @@
                             <th style="width: 90px;">Type</th>
                             <th style="width: 110px;">Code</th>
                             <th>Item Name</th>
+                            <th style="width: 140px;" class="govt-scheme-only">Scheme Code <span class="text-danger">*</span></th>
                             <th style="width: 120px;" class="text-end">Default MRP (₹)</th>
                             <th style="width: 150px;" class="text-end">Corporate Rate (₹)</th>
                             <th style="width: 70px;" class="text-center">Active</th>
@@ -328,6 +316,10 @@
         });
 
         $('#btnApplyCategoryFilter').click(function() {
+            if (!allLabItems.length) {
+                toastr.warning("The test list is still loading. Try again in a moment.");
+                return;
+            }
             var deptId = $('#cboFilterDept').val();
             var catId = $('#cboFilterCategory').val();
             var subCatId = $('#cboFilterSubCategory').val();
@@ -449,6 +441,7 @@
                             SubCategory_ID: itemSubCatId,
                             Default_Rate: item.Default_Rate || item.default_Rate,
                             Rate: Math.round(newRate * 100) / 100,
+                            Scheme_Code: item.Scheme_Code || item.scheme_Code || null,
                             Is_Discount_Allowed: false,
                             Status: item.Status !== undefined ? item.Status : true
                         };
@@ -560,6 +553,19 @@
             currentDetails[idx].Rate = newRate;
         });
 
+        $('#tblDetails').on('change', '.inp-scheme-code', function() {
+            var idx = $(this).closest('tr').data('idx');
+            var code = ($(this).val() || '').trim();
+            currentDetails[idx].Scheme_Code = code || null;
+            $(this).toggleClass('is-invalid', !code && !!currentDetails[idx].Status);
+        });
+
+        // Government scheme: show the Scheme Name and the Scheme Code column
+        $('#Is_Govt_Scheme').on('change', function () {
+            $('.govt-scheme-only').toggle($(this).is(':checked'));
+            renderGrid();
+        });
+
         $('#tblDetails').on('change', '.chk-status', function() {
             var idx = $(this).closest('tr').data('idx');
             currentDetails[idx].Status = $(this).is(':checked');
@@ -577,6 +583,25 @@
                 e.preventDefault();
                 toastr.error("Please add at least one item to the rate card.");
                 return false;
+            }
+            if ($('#Is_Govt_Scheme').is(':checked')) {
+                if (!($('#Scheme_Name').val() || '').trim()) {
+                    e.preventDefault();
+                    toastr.error("Enter the scheme name (e.g. WBHS).");
+                    $('#Scheme_Name').focus();
+                    return false;
+                }
+                var missing = currentDetails.filter(function (d) { return d.Status && !((d.Scheme_Code || d.scheme_Code || '').trim()); });
+                if (missing.length > 0) {
+                    e.preventDefault();
+                    // show only the active items without a code, so they can be filled in
+                    $('#txtDetailSearch').val(''); $('#btnClearDetailSearch').hide(); $('#cboDetailTypeFilter').val('');
+                    renderGrid();
+                    toastr.error(missing.length + " active item(s) have no scheme code. Enter the scheme code for each item (first: "
+                        + (missing[0].Item_Name || missing[0].item_Name || '') + ").");
+                    $('#tblDetails .inp-scheme-code.is-invalid').first().focus();
+                    return false;
+                }
             }
             return true;
         });
@@ -627,11 +652,12 @@
         initItemDropdown();
 
         if (totalCount === 0) {
-            tbody.append('<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use copy rates or search dropdown above to add items.</td></tr>');
+            tbody.append('<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No items added yet. Use copy rates or search dropdown above to add items.</td></tr>');
             return;
         }
 
         var searchTerm = ($('#txtDetailSearch').val() || '').toLowerCase().trim();
+        var isScheme = $('#Is_Govt_Scheme').is(':checked');
         var typeFilter = $('#cboDetailTypeFilter').val() || '';
 
         var html = '';
@@ -641,6 +667,7 @@
             var type = item.Item_Type || item.item_Type || '';
             var code = item.Item_Code || item.item_Code || '';
             var name = item.Item_Name || item.item_Name || '';
+            var schemeCode = item.Scheme_Code || item.scheme_Code || '';
 
             if (typeFilter && type !== typeFilter) {
                 return;
@@ -650,7 +677,8 @@
                 var matchName = name.toLowerCase().includes(searchTerm);
                 var matchCode = code.toLowerCase().includes(searchTerm);
                 var matchType = type.toLowerCase().includes(searchTerm);
-                if (!matchName && !matchCode && !matchType) {
+                var matchScheme = schemeCode.toLowerCase().includes(searchTerm);
+                if (!matchName && !matchCode && !matchType && !matchScheme) {
                     return;
                 }
             }
@@ -673,6 +701,9 @@
                         <td><span class="badge ${typeBadge}">${type}</span></td>
                         <td class="fw-semibold text-dark">${code}</td>
                         <td class="fw-medium">${name}</td>
+                        <td class="govt-scheme-only"${isScheme ? '' : ' style="display:none;"'}>
+                            <input type="text" maxlength="30" class="form-control form-control-sm inp-scheme-code font-monospace${isScheme && !schemeCode && item.Status ? ' is-invalid' : ''}" value="${$('<div>').text(schemeCode).html()}" placeholder="Code" />
+                        </td>
                         <td class="text-end text-muted">₹${defaultRate.toFixed(2)}</td>
                         <td class="text-end">
                             <div class="input-group input-group-sm justify-content-end" style="max-width: 130px; margin-left: auto;">
@@ -692,7 +723,7 @@
         });
 
         if (visibleCount === 0) {
-            tbody.append(`<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-search me-1"></i>No items matching "<b>${searchTerm}</b>". <a href="javascript:void(0)" id="lnkClearSearch" class="text-primary fw-semibold ms-2">Clear Filter</a></td></tr>`);
+            tbody.append(`<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-search me-1"></i>No items matching "<b>${searchTerm}</b>". <a href="javascript:void(0)" id="lnkClearSearch" class="text-primary fw-semibold ms-2">Clear Filter</a></td></tr>`);
         } else {
             tbody.html(html);
         }

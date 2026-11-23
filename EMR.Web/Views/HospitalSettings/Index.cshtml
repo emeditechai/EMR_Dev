@@ -4,62 +4,7 @@
 }
 
 @section HeadStyles {
-<style>
-    .hs-info-bar { background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:1.25rem 1.4rem; box-shadow:0 2px 8px rgba(0,0,0,.04); }
-    .hs-meta-badge { font-size:0.75rem; font-weight:600; padding:0.35rem 0.65rem; border-radius:6px; }
-    .hs-info-item { display:flex; flex-direction:column; min-width:0; }
-    .hs-info-item .lbl { font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:700; margin-bottom: 2px; }
-    .hs-info-item .val { font-size:.92rem; font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .hs-divider { width:1px; background:#e2e8f0; align-self:stretch; margin:0 .35rem; }
-
-    .module-tab-nav .nav-link { font-size:.82rem; font-weight:600; letter-spacing:.02em; padding:.6rem 1.4rem; border-radius:10px 10px 0 0; color:#64748b; border:1px solid transparent; }
-    .module-tab-nav .nav-link.active { color:#fff; border-color: transparent; }
-    .module-tab-nav .nav-link[data-tab="opd"].active  { background:#0d6efd; }
-    .module-tab-nav .nav-link[data-tab="ipd"].active  { background:#198754; }
-    .module-tab-nav .nav-link[data-tab="lab"].active  { background:#fd7e14; }
-    .module-tab-nav .nav-link[data-tab="med"].active  { background:#6f42c1; }
-
-    .module-tab-nav .nav-link[data-tab="opd"]:not(.active):hover { background:#e8f0fe; color:#0d6efd; }
-    .module-tab-nav .nav-link[data-tab="ipd"]:not(.active):hover { background:#e6f4ea; color:#198754; }
-    .module-tab-nav .nav-link[data-tab="lab"]:not(.active):hover { background:#fff3e0; color:#fd7e14; }
-    .module-tab-nav .nav-link[data-tab="med"]:not(.active):hover { background:#f1ecff; color:#6f42c1; }
-
-    .module-tab-pane { background:#fff; border:1px solid #e2e8f0; border-radius:0 14px 14px 14px; padding:1.5rem; min-height:260px; box-shadow:0 2px 6px rgba(0,0,0,.03); }
-    .param-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1rem 1.2rem; height:100%; }
-    .param-card .param-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#64748b; font-weight:700; margin-bottom:.35rem; }
-    .param-card .param-value { font-size:.95rem; font-weight:600; color:#1e293b; }
-    .param-soon { opacity:.55; }
-
-    /* LAB tab: grouped, evenly sized parameter cards */
-    .lab-section-title { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; font-weight:700; display:flex; align-items:center; gap:.6rem; margin:0 0 .85rem; }
-    .lab-section-title::after { content:""; flex:1; height:1px; background:#e2e8f0; }
-    .lab-param { --lp:#2563eb; --lp-bg:#dbeafe; display:flex; gap:.9rem; align-items:flex-start; background:#fff; border:1px solid #e2e8f0; border-left:4px solid var(--lp); border-radius:12px; padding:1rem 1.1rem; height:100%; box-shadow:0 1px 2px rgba(15,23,42,.04); }
-    .lab-param .lp-icon { width:42px; height:42px; border-radius:10px; background:var(--lp-bg); color:var(--lp); display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
-    .lab-param .lp-label { font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:#475569; font-weight:700; line-height:1.25; }
-    .lab-param .lp-desc { font-size:.74rem; color:#94a3b8; margin-top:.2rem; line-height:1.3; }
-    .lp-pill { display:inline-flex; align-items:center; gap:.3rem; font-weight:700; font-size:.78rem; border-radius:2rem; padding:.15rem .75rem; margin-top:.5rem; }
-    .lp-pill.yes { background:#dcfce7; color:#166534; }
-    .lp-pill.no  { background:#fee2e2; color:#b91c1c; }
-    .lp-pill.val { background:#dbeafe; color:#1d4ed8; }
-    .lp-pill.na  { background:#f1f5f9; color:#64748b; }
-    .lab-soon-row { display:flex; flex-wrap:wrap; gap:.5rem; }
-    .lab-soon-chip { border:1px dashed #cbd5e1; border-radius:2rem; padding:.3rem .85rem; font-size:.76rem; color:#94a3b8; background:#f8fafc; }
-
-    /* compact parameter cards: smaller padding and icon, the YES / NO pill beside the title, the description clamped to
-       two lines (full text on hover), tighter gaps between cards and sections */
-    .tab-pane .row.g-3:has(> div > .lab-param) { --bs-gutter-x:.75rem; --bs-gutter-y:.75rem; margin-bottom:1rem !important; }
-    .tab-pane .lab-section-title { margin-bottom:.55rem; }
-    .lab-param { gap:.65rem; padding:.6rem .75rem; border-radius:10px; border-left-width:3px; }
-    .lab-param .lp-icon { width:32px; height:32px; border-radius:8px; font-size:.95rem; }
-    .lab-param > div:last-child { flex:1; min-width:0; display:grid; grid-template-columns:minmax(0, 1fr) auto; column-gap:.5rem; align-items:start; }
-    .lab-param .lp-label { grid-column:1; grid-row:1; font-size:.68rem; letter-spacing:.05em; }
-    .lab-param .lp-desc { grid-column:1 / -1; font-size:.7rem; margin-top:.15rem; line-height:1.3;
-                          display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
-    .lab-param:hover .lp-desc { -webkit-line-clamp:unset; overflow:visible; }
-    .lab-param .lp-pill { grid-column:2; grid-row:1; margin-top:0; font-size:.68rem; padding:.08rem .55rem; white-space:nowrap; }
-    .lab-param .lp-pill + .lp-pill { grid-column:1 / -1; grid-row:auto; justify-self:start; margin-top:.35rem; }
-    .coming-soon-badge { font-size:.65rem; background:#f1f5f9; color:#64748b; padding:2px 8px; border-radius:20px; font-weight:600; vertical-align:middle; margin-left:6px; border:1px solid #e2e8f0; }
-</style>
+<link rel="stylesheet" href="~/css/views/HospitalSettings/Index.css" asp-append-version="true" />
 }
 
 @* ── Page header ── *@
@@ -71,9 +16,21 @@
             <small class="text-muted">Branch: <strong class="text-primary">@Model.BranchName</strong></small>
         </div>
     </div>
-    <a asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="Edit" class="btn btn-primary btn-sm px-3 shadow-sm">
-        <i class="bi bi-pencil-square me-1"></i> Edit Settings
-    </a>
+    <div class="d-flex gap-2 flex-wrap">
+        @if (ViewBag.IsHeadOffice is false && ViewBag.HeadOfficeName is string hoName)
+        {
+            @* Copy from Head Office (SQLScripts/2318): only on a branch, never on the head office *@
+            <form asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="CopyFromHeadOffice" method="post" id="frmCopyHo" class="m-0">
+                @Html.AntiForgeryToken()
+                <button type="button" class="btn btn-outline-primary btn-sm px-3 shadow-sm" id="btnCopyHo" data-ho="@hoName" data-branch="@Model.BranchName">
+                    <i class="bi bi-files me-1"></i> Copy from @hoName
+                </button>
+            </form>
+        }
+        <a asp-permission="SETTINGS.HOSPITALSETTINGS:EDIT" asp-action="Edit" class="btn btn-primary btn-sm px-3 shadow-sm">
+            <i class="bi bi-pencil-square me-1"></i> Edit Settings
+        </a>
+    </div>
 </div>
 
 @if (Model.Id == 0)
@@ -234,7 +191,7 @@ else
         <div class="tab-pane fade show active module-tab-pane" id="tabOpd" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#0d6efd"><i class="bi bi-person-plus-fill me-1"></i>OPD Module Settings</span>
-                <span class="coming-soon-badge">4 active parameters</span>
+                <span class="coming-soon-badge">7 active parameters</span>
             </div>
 
             <div class="lab-section-title">Registration &amp; Notifications</div>
@@ -257,12 +214,42 @@ else
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-receipt-cutoff"></i></div>
+                        <div>
+                            <div class="lp-label">Registration Charges Not Required</div>
+                            <div class="lp-desc">@(Model.OpdRegistrationChargesNotRequired ? "OPD consultation can be billed without the registration charge." : "Registration charge is mandatory with consultation once the validity has lapsed.")</div>
+                            <span class="lp-pill @(Model.OpdRegistrationChargesNotRequired ? "yes" : "no")"><i class="bi @(Model.OpdRegistrationChargesNotRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.OpdRegistrationChargesNotRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
                         <div class="lp-icon"><i class="bi bi-search"></i></div>
                         <div>
                             <div class="lp-label">Global Patient Search Required</div>
                             <div class="lp-desc">Require global search in patient workflows.</div>
                             <span class="lp-pill @(Model.GlobalPatientSearchRequired ? "yes" : "no")"><i class="bi @(Model.GlobalPatientSearchRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.GlobalPatientSearchRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-person-vcard"></i></div>
+                        <div>
+                            <div class="lp-label">ABHA</div>
+                            <div class="lp-desc">Optional ABHA fields on OPD and LAB forms. Applies to all branches.</div>
+                            <span class="lp-pill @(Model.EnableAbha ? "yes" : "no")"><i class="bi @(Model.EnableAbha ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAbha ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-shield-plus"></i></div>
+                        <div>
+                            <div class="lp-label">Ayushman Bharat</div>
+                            <div class="lp-desc">Optional Ayushman Card No. on OPD registration. Applies to all branches.</div>
+                            <span class="lp-pill @(Model.EnableAyushmanBharat ? "yes" : "no")"><i class="bi @(Model.EnableAyushmanBharat ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAyushmanBharat ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>
@@ -286,6 +273,76 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-patch-check-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Notification Required for Issue Certificate</div>
+                            <div class="lp-desc">Issued certificate sent to the patient as a PDF by WhatsApp and e-mail.</div>
+                            <span class="lp-pill @(Model.OpdCertificateNotificationRequired ? "yes" : "no")"><i class="bi @(Model.OpdCertificateNotificationRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.OpdCertificateNotificationRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#4f46e5;--lp-bg:#e0e7ff;">
+                        <div class="lp-icon"><i class="bi bi-qr-code"></i></div>
+                        <div>
+                            <div class="lp-label">Show QR on B2B Invoice</div>
+                            <div class="lp-desc">B2B tax invoice shows the branch's UPI payment QR while a balance is due.</div>
+                            <span class="lp-pill @(Model.ShowQrOnB2BInvoice ? "yes" : "no")"><i class="bi @(Model.ShowQrOnB2BInvoice ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.ShowQrOnB2BInvoice ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
+                        <div>
+                            <div class="lp-label">Block Billing Until Day Closed</div>
+                            <div class="lp-desc">OPD / LAB Day Closing: Yes blocks payments while earlier days are open; No only warns at login.</div>
+                            <span class="lp-pill @(Model.DayClosingBlockBilling ? "yes" : "no")"><i class="bi @(Model.DayClosingBlockBilling ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DayClosingBlockBilling ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0f766e;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-person-check-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Allow Verifying Own Day Closing</div>
+                            <div class="lp-desc">OPD / LAB Day Closing: Yes lets a verifier verify their own closing; No needs a second person.</div>
+                            <span class="lp-pill @(Model.DayClosingAllowSelfVerify ? "yes" : "no")"><i class="bi @(Model.DayClosingAllowSelfVerify ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DayClosingAllowSelfVerify ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-alarm"></i></div>
+                        <div>
+                            <div class="lp-label">Remind Day Closing Notification</div>
+                            <div class="lp-desc">OPD / LAB Day Closing: Yes shows a pop-up after login when earlier days are not closed; No shows none.</div>
+                            <span class="lp-pill @(Model.DayClosingLoginReminder ? "yes" : "no")"><i class="bi @(Model.DayClosingLoginReminder ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DayClosingLoginReminder ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#dc2626;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-shield-lock"></i></div>
+                        <div>
+                            <div class="lp-label">Login Retry Count</div>
+                            <div class="lp-desc">Wrong passwords allowed before a 10-minute lock. 0 means no lock.</div>
+                            <span class="lp-pill @(Model.LoginRetryCount > 0 ? "yes" : "no")"><i class="bi @(Model.LoginRetryCount > 0 ? "bi-lock-fill" : "bi-unlock")"></i>@(Model.LoginRetryCount > 0 ? Model.LoginRetryCount + " ATTEMPTS" : "OFF (0)")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#16a34a;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-whatsapp"></i></div>
+                        <div>
+                            <div class="lp-label">Login Alert After Wrong Attempts</div>
+                            <div class="lp-desc">WhatsApp alert to the user after this many wrong passwords. 0 means no alert.</div>
+                            <span class="lp-pill @(Model.LoginAlertCount > 0 ? "yes" : "no")"><i class="bi @(Model.LoginAlertCount > 0 ? "bi-bell-fill" : "bi-bell-slash")"></i>@(Model.LoginAlertCount > 0 ? "AFTER " + Model.LoginAlertCount : "OFF (0)")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>
@@ -299,59 +356,37 @@ else
 
         @* ── IPD Tab ── *@
         <div class="tab-pane fade module-tab-pane" id="tabIpd" role="tabpanel">
+            @{
+                var ipdItems = new (string Label, string Value)[]
+                {
+                    ("IP Number", $"{Model.IpdNumberPrefix}/<branch>/" + (Model.IpdNumberResetYearly ? "<FY>/" : "") + "000001"),
+                    ("Bed Charge Cycle", Model.IpdBedChargeMode switch { "HOURLY24" => $"Every 24 hours (grace {Model.IpdHourlyGraceHours} h)", "CHECKINOUT" => $"Check-out {(string.IsNullOrWhiteSpace(Model.CheckOutTime) ? "time not set: calendar day used" : Model.CheckOutTime)} to check-out (grace {Model.IpdHourlyGraceHours} h)", _ => $"Calendar day (discharge before {Model.IpdDischargeGraceHour}:00 not charged)" }),
+                    ("Room Rent GST", Model.IpdRoomGstThreshold > 0 ? $"Above ₹{Model.IpdRoomGstThreshold:N0} / day (not ICU)" : "Tariff GST % always"),
+                    ("Fallback Tariff", Model.IpdDefaultTariffCategoryId.HasValue ? "Set" : "None"),
+                    ("Minimum Advance", Model.IpdMinAdvanceDays > 0 ? $"{Model.IpdMinAdvanceDays} day(s) of bed charge (cash)" : "Not required"),
+                    ("Deposit Alert", $"At {Model.IpdDepositAlertPercent}% of advance used"),
+                    ("Pre-admission Estimate", $"Valid {Model.IpdEstimateValidityDays} days"),
+                    ("Expected Discharge Hour", $"{Model.IpdDefaultDischargeHour}:00"),
+                    ("Ward Gender Check", Model.IpdBlockWardGenderMismatch ? "Blocked" : "Allowed"),
+                    ("Consent at Admission", Model.IpdConsentRequired ? "Required" : "Optional"),
+                    ("Vacated Bed", Model.IpdReleaseBedTo == "AVAILABLE" ? "Available straight away" : "Housekeeping first"),
+                    ("Bed Reservation Hold", $"{Model.IpdReservationHoldHours} h after expected admission")
+                };
+            }
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#198754"><i class="bi bi-hospital me-1"></i>IPD Configuration</span>
-                <span class="coming-soon-badge">Parameters coming soon</span>
+                <span class="coming-soon-badge">@ipdItems.Length parameters</span>
             </div>
             <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Admission Prefix</div>
-                        <div class="param-value text-muted">—</div>
+                @foreach (var p in ipdItems)
+                {
+                    <div class="col-6 col-md-3">
+                        <div class="param-card">
+                            <div class="param-label">@p.Label</div>
+                            <div class="param-value">@p.Value</div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Default Ward</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Bed Booking Advance (Days)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Auto Discharge Reminder</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Diet Plan Enabled</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Nursing Notes</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">OT Module</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Print Discharge Summary</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
+                }
             </div>
         </div>
 
@@ -359,7 +394,7 @@ else
         <div class="tab-pane fade module-tab-pane" id="tabLab" role="tabpanel">
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#fd7e14"><i class="bi bi-eyedropper me-1"></i>LAB Configuration</span>
-                <span class="coming-soon-badge">11 active parameters</span>
+                <span class="coming-soon-badge">14 active parameters</span>
             </div>
 
             <div class="lab-section-title">Billing &amp; Sample Collection</div>
@@ -395,12 +430,46 @@ else
                     </div>
                 </div>
                 <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c9232e;--lp-bg:#fee2e2;">
+                        <div class="lp-icon"><i class="bi bi-check2-square"></i></div>
+                        <div>
+                            <div class="lp-label">Bill Change Approval Required</div>
+                            <div class="lp-desc">Yes: the office approves every change from the phlebotomist app. No: test changes apply at once; discounts still need approval.</div>
+                            <span class="lp-pill @(Model.BillChangeApprovalRequired ? "yes" : "no")"><i class="bi @(Model.BillChangeApprovalRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.BillChangeApprovalRequired ? "Yes" : "No")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
                     <div class="lab-param" style="--lp:#d97706;--lp-bg:#fef3c7;">
                         <div class="lp-icon"><i class="bi bi-eyedropper"></i></div>
                         <div>
                             <div class="lp-label">Is Sample Collection Mandatory</div>
                             <div class="lp-desc">No: samples are collected automatically at billing / payment.</div>
                             <span class="lp-pill @(Model.IsSampleCollectionMandatory ? "yes" : "no")"><i class="bi @(Model.IsSampleCollectionMandatory ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.IsSampleCollectionMandatory ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lab-section-title">AI Assist</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#9333ea;--lp-bg:#f3e8ff;">
+                        <div class="lp-icon"><i class="bi bi-stars"></i></div>
+                        <div>
+                            <div class="lp-label">Enable AI Features at Billing</div>
+                            <div class="lp-desc">Yes: AI prescription assist and Smart ID Scan on B2C / B2B booking. No: billing works as before, without AI.</div>
+                            <span class="lp-pill @(Model.EnableAiBillingFeatures ? "yes" : "no")"><i class="bi @(Model.EnableAiBillingFeatures ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAiBillingFeatures ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#c026d3;--lp-bg:#fae8ff;">
+                        <div class="lp-icon"><i class="bi bi-chat-square-heart"></i></div>
+                        <div>
+                            <div class="lp-label">Enable Ask AI Features</div>
+                            <div class="lp-desc">Yes: the AI Help Assistant (Ask eMedi) on the Home dashboard and in the Help Center. No: not shown; the Help Center guides stay.</div>
+                            <span class="lp-pill @(Model.EnableAskAiFeatures ? "yes" : "no")"><i class="bi @(Model.EnableAskAiFeatures ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.EnableAskAiFeatures ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>
@@ -476,6 +545,16 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#7c3aed;--lp-bg:#ede9fe;">
+                        <div class="lp-icon"><i class="bi bi-aspect-ratio"></i></div>
+                        <div>
+                            <div class="lp-label">LAB Bill Print Page Size</div>
+                            <div class="lp-desc">A4: the LAB bill prints on a full A4 page (as before). A5 Landscape: a compact bill on half an A4 sheet.</div>
+                            <span class="lp-pill yes"><i class="bi bi-file-earmark"></i>@(Model.LabBillPrintPageSize == "A5L" ? "A5 LANDSCAPE" : "A4")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Doctor IP Commission</div>
@@ -525,8 +604,49 @@ else
                         <div class="lp-icon"><i class="bi bi-person-badge-fill"></i></div>
                         <div>
                             <div class="lp-label">Required Patient Portal</div>
-                            <div class="lp-desc">Yes: a B2C lab booking creates the patient's Patient Portal login and e-mails the credentials. No: lab bookings do not create portal logins. B2B is not affected.</div>
+                            <div class="lp-desc">Yes: OPD registration / booking and B2C lab booking create the patient's Patient Portal login and send the credentials by e-mail and WhatsApp. No: no automatic logins. B2B is not affected.</div>
                             <span class="lp-pill @(Model.LabPatientPortalRequired ? "yes" : "no")"><i class="bi @(Model.LabPatientPortalRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.LabPatientPortalRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* SQLScripts/2395 *@
+            <div class="lab-section-title">Phlebotomist App</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-phone-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Is Phlebotomist App Required</div>
+                            <div class="lp-desc">Yes: this branch uses the Phlebotomist App for home collection (visits, sample collection and hand-over on the phone). No: home collection is handled from the desk only.</div>
+                            <span class="lp-pill @(Model.IsPhlebotomistAppRequired ? "yes" : "no")"><i class="bi @(Model.IsPhlebotomistAppRequired ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.IsPhlebotomistAppRequired ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* SQLScripts/2464 *@
+            <div class="lab-section-title">Report Printing</div>
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#b45309;--lp-bg:#fef3c7;">
+                        <div class="lp-icon"><i class="bi bi-printer-fill"></i></div>
+                        <div>
+                            <div class="lp-label">Allow Print Lab Report in Due</div>
+                            <div class="lp-desc">Yes: the Lab / Microbiology report prints even when the bill still has a balance due. No: a bill with a due cannot be printed until it is paid. B2B bills always print.</div>
+                            <span class="lp-pill @(Model.AllowPrintLabReportInDue ? "yes" : "no")"><i class="bi @(Model.AllowPrintLabReportInDue ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.AllowPrintLabReportInDue ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                @* SQLScripts/2513 *@
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0e7490;--lp-bg:#cffafe;">
+                        <div class="lp-icon"><i class="bi bi-123"></i></div>
+                        <div>
+                            <div class="lp-label">Is Lab Serial No Req</div>
+                            <div class="lp-desc">Yes: this branch requires a Lab Serial No. No: the Lab Serial No is not required.</div>
+                            <span class="lp-pill @(Model.IsLabSerialNoReq ? "yes" : "no")"><i class="bi @(Model.IsLabSerialNoReq ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.IsLabSerialNoReq ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>
@@ -541,63 +661,106 @@ else
             </div>
         </div>
 
-        @* ── MED Tab ── *@
+        @* ── MED Tab (SQLScripts/2343) ── *@
         <div class="tab-pane fade module-tab-pane" id="tabMed" role="tabpanel">
+            @{
+                string D(DateTime? d) => d?.ToString("dd-MMM-yyyy") ?? "—";
+                string V(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+                bool Expired(DateTime? to) => to.HasValue && to.Value < DateTime.Today;
+                string Lic(string? no, DateTime? to) => string.IsNullOrWhiteSpace(no) ? "—" : no + (to.HasValue ? " · to " + D(to) : "");
+                // (label, description, icon, colour, pill kind: yes / no / val / na, pill text)
+                (string, string, string, string, string, string) B(string l, string d, string i, string c, bool on, string? yes = null, string? no = null) => (l, d, i, c, on ? "yes" : "no", on ? (yes ?? "YES") : (no ?? "NO"));
+                (string, string, string, string, string, string) T(string l, string d, string i, string c, string v, bool bad = false) => (l, d, i, c, v == "—" ? "na" : bad ? "no" : "val", v);
+                var medSections = new (string Title, (string Label, string Desc, string Icon, string Color, string Kind, string Text)[] Items)[]
+                {
+                    ("Pharmacy & Drug Licence", new[]
+                    {
+                        T("Pharmacy Name", "Printed on the pharmacy bill.", "bi-shop", "#6f42c1", V(Model.PharmacyName ?? Model.HospitalName)),
+                        T("Pharmacy GSTIN", "GSTIN on sale bills and GST returns.", "bi-receipt", "#2563eb", V(Model.PharmacyGstin ?? Model.GSTCode)),
+                        T("Drug Licence 20B", Expired(Model.PharmacyDrugLicence20BValidTo) ? "Expired: sales are stopped until renewed." : "Retail sale licence; sales stop when it expires.", "bi-patch-check-fill", "#16a34a", Lic(Model.PharmacyDrugLicence20B, Model.PharmacyDrugLicence20BValidTo), Expired(Model.PharmacyDrugLicence20BValidTo)),
+                        T("Drug Licence 21B", "Retail licence for Schedule C / C1 drugs.", "bi-patch-check", "#0d9488", Lic(Model.PharmacyDrugLicence21B, Model.PharmacyDrugLicence21BValidTo), Expired(Model.PharmacyDrugLicence21BValidTo)),
+                        T("Pharmacist In-charge", "Registered pharmacist named on the bill.", "bi-person-badge", "#0891b2", V(Model.PharmacistName) + (string.IsNullOrWhiteSpace(Model.PharmacistRegNo) ? "" : " · Reg. " + Model.PharmacistRegNo)),
+                        T("NDPS / Schedule X Licence", "Needed to sell Schedule X / NDPS drugs.", "bi-shield-lock", "#c9232e", V(Model.PharmacyNdpsLicenceNo)),
+                        T("Pharmacy Contact", "Phone on bills and refill reminders.", "bi-telephone", "#475569", V(Model.PharmacyContactNo))
+                    }),
+                    ("Purchase", new[]
+                    {
+                        B("GRN Not Required", "Yes: PO approval with the bill details adds the stock. No: stock comes in on the GRN.", "bi-box-arrow-in-down", "#2563eb", Model.PharmacyGrnNotRequired),
+                        B("Auto Reorder", Model.PharmacyAutoReorderEnabled ? $"Average of {Model.PharmacyReorderSalesDays} days · safety {Model.PharmacyReorderSafetyDays} · cover {Model.PharmacyReorderCoverDays} days." : "Sales-based order suggestions and draft POs per supplier.", "bi-arrow-repeat", "#7c3aed", Model.PharmacyAutoReorderEnabled),
+                        B("Supplier Schemes at PO / GRN", "Free quantity of a running scheme (e.g. 10 + 1) fills in automatically.", "bi-gift", "#d97706", Model.PharmacySchemeAutoApply),
+                        B("GS1 DataMatrix Scanning", "2D pack code gives GTIN, batch and expiry at GRN, sale and return.", "bi-qr-code-scan", "#0891b2", Model.PharmacyGs1ScanEnabled)
+                    }),
+                    ("Stock & Expiry", new[]
+                    {
+                        B("Negative Stock", "Sell more than the stock shown.", "bi-dash-circle", "#c9232e", Model.PharmacyAllowNegativeStock, "ALLOWED", "NOT ALLOWED"),
+                        T("Min. Shelf Life - Sale", "A batch expiring sooner is not sold.", "bi-calendar-x", "#d97706", Model.PharmacyMinShelfLifeSaleDays + " days"),
+                        T("Min. Shelf Life - IPD", "For ward issue.", "bi-hospital", "#0d9488", Model.PharmacyMinShelfLifeIpdDays == 0 ? "Until expiry" : Model.PharmacyMinShelfLifeIpdDays + " days"),
+                        T("Min. Shelf Life - GRN", "Short-expiry supplies are warned at receipt.", "bi-box-seam", "#2563eb", Model.PharmacyMinShelfLifeGrnDays + " days"),
+                        T("Near-Expiry Alert", "Batches expiring within this are flagged.", "bi-alarm", "#c9232e", Model.PharmacyNearExpiryAlertDays + " days")
+                    }),
+                    ("Stock Audit & Analysis", new[]
+                    {
+                        B("Blind Stock Count", "Counters do not see the system stock until the count is submitted.", "bi-eye-slash", "#475569", Model.PharmacyCountBlind),
+                        T("Recount Above", "Bigger differences must be counted again before submit.", "bi-arrow-counterclockwise", "#d97706", Model.PharmacyCountRecountPercent > 0 ? Model.PharmacyCountRecountPercent.ToString("0.##") + "%" : "Off"),
+                        T("Cycle Count", "Each rack is due for a count after this.", "bi-calendar2-check", "#16a34a", "Every " + Model.PharmacyCycleCountDays + " days"),
+                        T("ABC Classes", "Share of consumption value for class A and B.", "bi-bar-chart-steps", "#7c3aed", $"A ≤ {Model.PharmacyAbcAPercent:0.##}% · B ≤ {Model.PharmacyAbcBPercent:0.##}%"),
+                        T("Slow / Dead Stock", "Days without a sale.", "bi-hourglass-bottom", "#64748b", $"Slow {Model.PharmacySlowMovingDays} · dead {Model.PharmacyDeadStockDays} days")
+                    }),
+                    ("Counter Sale & Returns", new[]
+                    {
+                        B("Split Payment", "One bill paid by cash + UPI + card.", "bi-wallet2", "#16a34a", Model.PharmacySplitPaymentEnabled),
+                        B("Suggest Substitute Brands", "In-stock brands of the same generic when an item is out of stock.", "bi-arrow-left-right", "#0891b2", Model.PharmacySubstituteSuggest),
+                        B("Pull OPD Prescription", "Load the patient's OPD prescription and check dispensed vs prescribed.", "bi-file-medical", "#2563eb", Model.PharmacyRxLinkEnabled),
+                        T("Max. Manual Discount", "Above this needs the Discount permission.", "bi-percent", "#d97706", Model.PharmacyMaxManualDiscountPercent.ToString("0.##") + "%"),
+                        T("Sale Return Within", Model.PharmacyLooseReturnAllowed ? "Loose / cut strips taken back." : "Full packs only.", "bi-arrow-return-left", "#c9232e", Model.PharmacySaleReturnDays + " days"),
+                        T("Bill Print", Model.PharmacyRoundOffBill ? "Rounded off to the rupee." : "Not rounded off.", "bi-printer", "#475569", Model.PharmacyBillPrintFormat),
+                        B("Send Bill by WhatsApp / E-mail", "Bill sent to the buyer after saving.", "bi-whatsapp", "#16a34a", Model.PharmacyBillNotificationRequired)
+                    }),
+                    ("Clinical Safety", new[]
+                    {
+                        B("Clinical Safety Checks", "Drug interaction, allergy and duplicate-therapy warnings at sale.", "bi-heart-pulse", "#c9232e", Model.PharmacyClinicalChecksEnabled),
+                        B("Block Sale on Major Interaction", "No: the pharmacist may continue with a reason.", "bi-sign-stop", "#b91c1c", Model.PharmacyMajorInteractionBlock)
+                    }),
+                    ("Customer & Loyalty", new[]
+                    {
+                        B("Refill Reminders by WhatsApp", Model.PharmacyRefillReminderEnabled ? $"Sent {Model.PharmacyRefillReminderDaysBefore} days before the medicine runs out." : "Remind buyers before their medicines run out.", "bi-bell", "#0891b2", Model.PharmacyRefillReminderEnabled),
+                        B("Loyalty", !Model.PharmacyLoyaltyEnabled ? "Patients and pharmacy customers get a loyalty benefit." : Model.PharmacyLoyaltyType == "DISCOUNT" ? $"Instant discount {Model.PharmacyLoyaltyDiscountPercent:0.##}% on every member bill" + (Model.PharmacyLoyaltyWalkinByMobile ? " (walk-ins by mobile too)." : ".") : $"Wallet: {Model.PharmacyLoyaltyEarnPercent:0.##}% of the bill as points (1 pt = ₹{Model.PharmacyLoyaltyPointValue:0.##}), usable after {Model.PharmacyLoyaltyLockInDays} days, on a later bill up to {Model.PharmacyLoyaltyMaxRedeemPercent:0.##}%" + (Model.PharmacyLoyaltyExpiryDays > 0 ? $"; expire in {Model.PharmacyLoyaltyExpiryDays} days" : "") + (Model.PharmacyLoyaltyRedeemOtp ? "; OTP to use" : "") + (Model.PharmacyLoyaltyWalkinByMobile ? "; walk-ins by mobile" : "") + ".", "bi-star-fill", "#d97706", Model.PharmacyLoyaltyEnabled, Model.PharmacyLoyaltyType == "DISCOUNT" ? "DISCOUNT" : "WALLET", "OFF"),
+                    }),
+                    ("IPD Issue", new[]
+                    {
+                        B("IPD Issue GST Exempt", "Part of the healthcare service - confirm with your CA.", "bi-receipt-cutoff", "#16a34a", Model.PharmacyIpdGstExempt),
+                        T("Discharge Medicines (TTO)", "Where discharge medicines are billed.", "bi-bag-plus", "#2563eb", Model.PharmacyTtoBillingMode == "SALE" ? "Separate pharmacy bill" : "On IPD bill"),
+                        B("Block Discharge on Pending Indent", "Pending pharmacy indent / return stops discharge.", "bi-door-closed", "#c9232e", Model.PharmacyBlockDischargeOnPendingIndent)
+                    })
+                };
+            }
             <div class="d-flex align-items-center mb-3 gap-2">
                 <span class="fw-bold" style="color:#6f42c1"><i class="bi bi-capsule me-1"></i>MED / Pharmacy Configuration</span>
-                <span class="coming-soon-badge">Parameters coming soon</span>
+                <span class="coming-soon-badge">@medSections.Sum(x => x.Items.Length) parameters</span>
+                @if (Model.PharmacyEnabled) { <span class="lp-pill yes mt-0"><i class="bi bi-check-circle-fill"></i>Pharmacy enabled</span> } else { <span class="lp-pill no mt-0"><i class="bi bi-x-circle-fill"></i>Pharmacy not enabled</span> }
             </div>
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Invoice Prefix</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
+            @foreach (var sec in medSections)
+            {
+                <div class="lab-section-title">@sec.Title</div>
+                <div class="row g-3 mb-4">
+                    @foreach (var p in sec.Items)
+                    {
+                        var pillIcon = p.Kind switch { "yes" => "bi-check-circle-fill", "no" => "bi-x-circle-fill", "na" => "bi-dash-circle", _ => "bi-info-circle-fill" };
+                        <div class="col-12 col-md-6 col-xl-3">
+                            <div class="lab-param" style="--lp:@p.Color;--lp-bg:@(p.Color)22;">
+                                <div class="lp-icon"><i class="bi @p.Icon"></i></div>
+                                <div>
+                                    <div class="lp-label">@p.Label</div>
+                                    <div class="lp-desc" title="@p.Desc">@p.Desc</div>
+                                    <span class="lp-pill @p.Kind"><i class="bi @pillIcon"></i>@p.Text</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
                 </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">GST Registration No.</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Drug License No.</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Low Stock Alert (Qty)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Expiry Alert (Days)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Return Policy (Days)</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Auto Reorder</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="param-card param-soon">
-                        <div class="param-label">Print Prescription</div>
-                        <div class="param-value text-muted">—</div>
-                    </div>
-                </div>
-            </div>
+            }
         </div>
-
     </div>
 }
+
+<script src="~/js/views/HospitalSettings/Index.js" asp-append-version="true"></script>

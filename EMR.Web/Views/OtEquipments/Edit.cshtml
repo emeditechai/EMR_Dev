@@ -17,7 +17,7 @@
                 <h5 class="card-title mb-0 fw-bold"><i class="bi bi-pencil-square me-2 text-primary"></i>Edit OT Equipment</h5>
             </div>
             <div class="card-body p-4">
-                <form asp-action="Edit" asp-route-id="@Model.EquipmentId" method="post">
+                <form asp-action="Edit" asp-encrypted-route-id="@Model.EquipmentId" method="post">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="EquipmentId" />
                     <input type="hidden" asp-for="CompanyId" />

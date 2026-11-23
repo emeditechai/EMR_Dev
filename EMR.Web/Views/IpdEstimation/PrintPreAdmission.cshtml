@@ -1,0 +1,24 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPrintView
+@{
+    Layout = "_IpdPrintLayout";
+    var e = Model.Doc;
+    ViewData["DocTitle"] = Model.Title;
+    ViewData["Watermark"] = "ESTIMATE";
+    string Payer(string p) => p switch { "CASH" => "Cash / Self", "CORPORATE" => "Corporate", "INSURANCE" => "Insurance / TPA", "SCHEME" => "Government scheme", _ => p };
+}
+<table class="info">
+    <tr><td class="k">Estimate No.</td><td class="mono b">@e.S("EstimateNo")</td><td class="k">Date</td><td>@e.Dt("EstimateDate")</td><td class="k">Valid to</td><td>@e.Dt("ValidTo", "dd-MMM-yyyy")</td></tr>
+    <tr><td class="k">Patient</td><td class="b">@e.S("PatientName")</td><td class="k">UHID</td><td>@e.S("PatientCode")</td><td class="k">Age / Sex</td><td>@e.S("AgeText") / @e.S("Gender")</td></tr>
+    <tr><td class="k">Mobile</td><td>@e.S("Phone")</td><td class="k">Payer</td><td>@Payer(e.S("PayerType"))</td><td class="k">Tariff</td><td>@e.S("TariffCategoryName")</td></tr>
+    <tr><td class="k">Doctor</td><td>@e.S("DoctorName")</td><td class="k">Stay</td><td>@(e.I("WardDays") > 0 ? $"{e.I("WardDays")} day(s) {e.S("BedCategoryName")}" : "") @(e.I("IcuDays") > 0 ? $" + {e.I("IcuDays")} day(s) {e.S("IcuBedCategoryName")}" : "")</td><td class="k">Package</td><td>@e.S("PackageName")</td></tr>
+    <tr><td class="k">Procedure / treatment</td><td colspan="5">@e.S("ProcedureNote")</td></tr>
+</table>
+<div class="sec-h">Estimated charges</div>
+<table class="grid"><thead><tr><th>#</th><th>Head</th><th>Item</th><th class="r">Qty / days</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead><tbody>
+@foreach (var l in Model.Rows) { <tr><td>@l.I("Seq")</td><td>@(string.IsNullOrWhiteSpace(l.S("HeadName")) ? l.S("Head") : l.S("HeadName"))</td><td>@l.S("ItemName") <span style="color:#6b7280">@l.S("Remarks")</span></td><td class="r">@l.M("Qty").ToString("0.##")</td><td class="r">@l.M("Rate").ToString("N2")</td><td class="r">@l.M("Amount").ToString("N2")</td></tr> }
+</tbody><tfoot><tr><td colspan="5" class="r b">Estimated total</td><td class="r b">@e.M("TotalAmount").Rs()</td></tr></tfoot></table>
+@if (!string.IsNullOrWhiteSpace(e.S("Remarks"))) { <div class="note">@e.S("Remarks")</div> }
+<div class="note">This is an estimate of the expected cost based on the information available today and the hospital's current tariff. The actual bill depends on the treatment given, the length of stay, investigations, medicines and any complication, and may be higher or lower. Medicines, consumables and investigations not listed are charged as used.</div>
+<div class="note">I have read and understood this estimate.</div>
+<div class="sign"><div>Patient / attendant</div><div>Prepared by (@e.S("CreatedByName"))</div></div>

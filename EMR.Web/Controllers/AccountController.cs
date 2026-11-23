@@ -21,10 +21,14 @@ public class AccountController(
     IPasswordHasherService passwordHasherService,
     IAuditLogService auditLogService,
     ILoginSecurity loginSecurity,
-    IHomeDashboardService home) : Controller
+    IHomeDashboardService home,
+    ILoginAlertNotifier loginAlert) : Controller
 {
     /// <summary>Sign-in attempts per client address per minute (clinics share one address, so this is generous).</summary>
     public const string SignInRateLimit = "signin";
+
+    /// <summary>"Forgot password?" requests and reset submits per client address per 15 minutes.</summary>
+    public const string PasswordResetRateLimit = "pwreset";
 
     [HttpGet]
     [Authorize]
@@ -47,6 +51,13 @@ public class AccountController(
             return RedirectToAction("Index", "Dashboard");
         }
 
+        // SQLScripts/2472: a session ended because the company's validity is over says why
+        if (Request.Cookies[CompanyValidity.ReasonCookie] == CompanyValidity.ReasonCode)
+        {
+            Response.Cookies.Delete(CompanyValidity.ReasonCookie);
+            ModelState.AddModelError(string.Empty, "You were signed out: your organisation's access period has ended (or not started yet). Contact your administrator.");
+        }
+
         return View(new LoginViewModel());
     }
 
@@ -61,29 +72,57 @@ public class AccountController(
             return View(model);
         }
 
-        var user = await dbContext.Users
+        // Sign-in by e-mail (SQLScripts/2307). An e-mail is unique for new and changed users; a few older records may
+        // still share one - then the account whose password matches is the one signing in.
+        var email = model.Email.Trim().ToLower();
+        var candidates = await dbContext.Users
             .Include(x => x.UserBranches.Where(b => b.IsActive))
                 .ThenInclude(x => x.Branch)
-            .FirstOrDefaultAsync(x => x.Username == model.Username);
+            .Where(x => x.Email != null && x.Email.Trim().ToLower() == email)
+            .ToListAsync();
+        var user = candidates.Count == 1 ? candidates[0]
+                 : candidates.FirstOrDefault(x => passwordHasherService.VerifyPassword(model.Password, x.PasswordHash));
 
         // Too many wrong passwords lock the account for a while (Users.Lockout_Until), whatever is typed next.
         if (user is not null && await loginSecurity.LockedUntilAsync(user.Id) is { } lockedUntil)
         {
             await auditLogService.LogAsync("AuthFailure", "Login", $"Sign-in refused, account temporarily locked: {user.Username}", user.Id);
-            ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {lockedUntil:hh:mm tt}.");
+            ModelState.AddModelError(string.Empty, $"Your account is locked after too many wrong passwords. Try again after {lockedUntil:hh:mm tt}, or ask the administrator to unlock it.");
             return View(model);
         }
 
         if (user is null || !passwordHasherService.VerifyPassword(model.Password, user.PasswordHash))
         {
-            await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for username: {model.Username}");
-            if (user is not null && await loginSecurity.RecordFailureAsync(user.Id) is { } nowLocked)
+            await auditLogService.LogAsync("AuthFailure", "Login", $"Failed login attempt for e-mail: {model.Email}", user?.Id);
+            // the wrong password counts against the account - or, when older accounts share the e-mail and none matched,
+            // against each of them that is not locked already (each owner gets the lock and the alert)
+            var targets = user is not null ? new List<User> { user } : candidates;
+            (DateTime? LockedUntil, int? AttemptsLeft) failure = default;
+            foreach (var t in targets)
             {
-                await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {user.Username}", user.Id);
-                ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Try again after {nowLocked:hh:mm tt}.");
+                if (user is null && await loginSecurity.LockedUntilAsync(t.Id) is not null) continue;
+                var f = await loginSecurity.RecordFailureDetailAsync(t.Id);
+                // Hospital Settings > Login Alert After Wrong Attempts (SQLScripts/2383): WhatsApp alert to the account's owner
+                await loginAlert.NotifyFailureAsync(t.Id, f.LockedUntil is not null, HttpContext);
+                if (f.LockedUntil is not null) await auditLogService.LogAsync("AuthFailure", "Login", $"Account temporarily locked after repeated wrong passwords: {t.Username}", t.Id);
+                if (failure.LockedUntil is null) failure = f.LockedUntil is not null ? f : (failure.AttemptsLeft is null || f.AttemptsLeft < failure.AttemptsLeft ? f : failure);
+            }
+            // every account of the e-mail is locked now
+            if (user is null && candidates.Count > 0 && failure.LockedUntil is null)
+            {
+                var locks = new List<DateTime>();
+                foreach (var c in candidates) if (await loginSecurity.LockedUntilAsync(c.Id) is { } l) locks.Add(l);
+                if (locks.Count == candidates.Count) failure = (locks.Max(), 0);
+            }
+            if (failure.LockedUntil is { } nowLocked)
+            {
+                ModelState.AddModelError(string.Empty, $"Too many wrong passwords. Your account is locked for 10 minutes - try again after {nowLocked:hh:mm tt}, or ask the administrator to unlock it.");
                 return View(model);
             }
-            ModelState.AddModelError(string.Empty, "Invalid username or password.");
+            // Hospital Settings > Login Retry Count above 0: say how many tries are left before the lock
+            ModelState.AddModelError(string.Empty, failure.AttemptsLeft is { } left
+                ? $"Invalid e-mail or password. {left} attempt{(left == 1 ? "" : "s")} left before the account is locked for 10 minutes."
+                : "Invalid e-mail or password.");
             return View(model);
         }
 
@@ -92,6 +131,22 @@ public class AccountController(
             await auditLogService.LogAsync("AuthFailure", "Login", $"Inactive/locked user attempted login: {user.Username}", user.Id);
             ModelState.AddModelError(string.Empty, "User is inactive or locked out. Contact administrator.");
             return View(model);
+        }
+
+        // SQLScripts/2472: the user's company may use the application only from Valid From to Valid To (Super Admin exempt)
+        if (!IsSuperAdminUser(user))
+        {
+            var validityCompanyId = user.CompanyId ?? user.UserBranches.Select(b => (int?)b.Branch.CompanyId).FirstOrDefault(c => c > 0);
+            if (validityCompanyId is > 0
+                && await dbContext.CompanyMasters.AsNoTracking().Where(c => c.CompanyId == validityCompanyId)
+                       .Select(c => new { c.CompanyName, c.ValidFrom, c.ValidTo }).FirstOrDefaultAsync() is { } validity
+                && CompanyValidity.RefusalFor(validity.CompanyName, validity.ValidFrom, validity.ValidTo, DateTime.Today) is string refusal)
+            {
+                await auditLogService.LogAsync("AuthFailure", "Login",
+                    $"Company validity ({validity.ValidFrom:dd MMM yyyy} - {validity.ValidTo:dd MMM yyyy}) refused sign-in of {user.Username}", user.Id);
+                ModelState.AddModelError(string.Empty, refusal);
+                return View(model);
+            }
         }
 
         await loginSecurity.RecordSuccessAsync(user.Id);
@@ -239,14 +294,22 @@ public class AccountController(
     public async Task<IActionResult> Logout()
     {
         await auditLogService.LogAsync("Auth", "Logout", "User logged out.");
+        EMR.Web.ApiClients.EmrApiTokenHandler.Forget(HttpContext.Session);
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return RedirectToAction(nameof(Login));
     }
 
     [HttpGet]
     [Authorize]
+    /// <summary>Idle sign-out (IdleSessionPolicy): the page calls this every few minutes while the user is actually
+    /// working (typing a long form sends no other request), so the server's idle clock moves; signedIn = false tells the
+    /// page the server already ended the session.</summary>
+    [HttpGet, AllowAnonymous]   // answers signedIn = false after the server ended the session (instead of a login redirect)
+    public IActionResult KeepAlive() => Json(new { signedIn = User.Identity?.IsAuthenticated == true });
+
     public async Task<IActionResult> SessionTimeoutLogout()
     {
+        EMR.Web.ApiClients.EmrApiTokenHandler.Forget(HttpContext.Session);
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         TempData["Warning"] = "Session expired due to inactivity. Please login again.";
         return RedirectToAction(nameof(Login));
@@ -554,6 +617,89 @@ public class AccountController(
         return RedirectToAction("Index", "Dashboard");
     }
 
+    // ---- Forgot password (Login page; SQLScripts/2293) ------------------------------------------------------------------
+    // The answer is the same whether or not the account exists, and the mail is sent after the response, so neither the
+    // message nor the response time tells anyone which user names are real.
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult ForgotPassword()
+    {
+        if (User.Identity?.IsAuthenticated == true) return RedirectToAction("Index", "Dashboard");
+        return View(new ForgotPasswordViewModel());
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(PasswordResetRateLimit)]
+    public IActionResult ForgotPassword(ForgotPasswordViewModel model, [FromServices] IServiceScopeFactory scopes, [FromServices] ILogger<AccountController> logger)
+    {
+        if (!ModelState.IsValid) return View(model);
+
+        var key = model.UserNameOrEmail.Trim();
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = scopes.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<IPasswordResetService>().RequestAsync(key, ip, baseUrl);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Password reset request failed");
+            }
+        });
+
+        TempData["ResetRequested"] = key;
+        return RedirectToAction(nameof(ForgotPasswordSent));
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult ForgotPasswordSent()
+    {
+        if (TempData["ResetRequested"] is not string key) return RedirectToAction(nameof(ForgotPassword));
+        ViewData["Requested"] = key;
+        return View();
+    }
+
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword(string? token, [FromServices] IPasswordResetService resets)
+    {
+        // the token is in the address: keep it out of the Referer of anything this page loads
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
+        var userName = await resets.ValidateAsync(token);
+        if (userName is null) return View("ResetPasswordInvalid");
+        return View(new ResetPasswordViewModel { Token = token!, UserName = userName });
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(PasswordResetRateLimit)]
+    public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model, [FromServices] IPasswordResetService resets)
+    {
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        var userName = await resets.ValidateAsync(model.Token);
+        if (userName is null) return View("ResetPasswordInvalid");
+        model.UserName = userName;
+        if (!ModelState.IsValid) return View(model);
+
+        if (!await resets.ResetAsync(model.Token, model.NewPassword, HttpContext.Connection.RemoteIpAddress?.ToString()))
+            return View("ResetPasswordInvalid");
+
+        TempData["AuthMessage"] = "Your password has been reset. Sign in with your new password.";
+        return RedirectToAction(nameof(Login));
+    }
+
     // ---- Last branch / role (UserBranchLastLogin, script 2187) --------------------------------------------------------
     // A convenience only: a failure here never blocks or changes a sign-in.
 
@@ -638,6 +784,13 @@ public class AccountController(
             claims.Add(new Claim("ProfilePicturePath", user.ProfilePicturePath));
         }
 
+        // what the login is and, for a franchise / doctor / corporate login, the record it belongs to
+        claims.Add(new Claim("UserType", user.UserType ?? UserTypes.General));
+        if (user.ReferenceUserId is > 0)
+        {
+            claims.Add(new Claim("ReferenceUserId", user.ReferenceUserId.Value.ToString()));
+        }
+
         if (branch is not null)
         {
             claims.Add(new Claim("BranchId", branch.BranchId.ToString()));
@@ -692,6 +845,61 @@ public class AccountController(
             SameSite = SameSiteMode.Strict,
             Path = "/"
         });
+
+        await WarnOpenDayClosingsAsync(user.Id, branch?.BranchId);
+    }
+
+    /// <summary>OPD / LAB Day Closing (SQLScripts/2275): earlier days the user has not closed - a warning at login and one bell
+    /// notification a day. Never stops a login.</summary>
+    private async Task WarnOpenDayClosingsAsync(int userId, int? branchId)
+    {
+        try
+        {
+            var svc = HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.IDayClosingService>();
+            var pending = (await svc.GetPendingAsync(userId, branchId)).Where(p => p.BusinessDate < DateTime.Today).ToList();
+            if (pending.Count == 0) { await svc.ClearPendingNoticesIfDoneAsync(userId); return; }
+            // per branch: a day closing belongs to the branch the cash was taken at, so the branch is always named
+            var text = string.Join("; ", pending.GroupBy(p => p.BranchName ?? $"Branch {p.BranchId}").Select(b =>
+                $"{b.Key} - " + string.Join(", ", b.GroupBy(p => p.Module == "PETTY" ? "petty cash (close in OPD or LAB)" : p.Module == "PHR" ? "Pharmacy" : p.Module)
+                    .Select(g => $"{g.Key} {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"))));
+            // Hospital Settings "Remind Day Closing Notification" (SQLScripts/2313), per branch: the pop-up lists only the days of
+            // branches set to Yes (a day closing belongs to the branch the cash was taken at, and a Super Admin signs in
+            // without a branch). Nothing left = no pop-up. The bell notification below is unchanged.
+            var pendingBranchIds = pending.Select(p => p.BranchId).Distinct().ToArray();
+            HashSet<int> reminderOff;
+            using (var rc = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection())
+                reminderOff = (await Dapper.SqlMapper.QueryAsync<int>(rc, @"
+                    SELECT x.BranchId FROM (
+                        SELECT hs.BranchId, hs.DayClosingLoginReminder,
+                               ROW_NUMBER() OVER (PARTITION BY hs.BranchId ORDER BY hs.IsActive DESC, hs.Id DESC) AS rn
+                        FROM dbo.HospitalSettings hs WHERE hs.BranchId IN @ids) x
+                    WHERE x.rn = 1 AND x.DayClosingLoginReminder = 0", new { ids = pendingBranchIds })).ToHashSet();
+            var remind = pending.Where(p => !reminderOff.Contains(p.BranchId)).ToList();
+            if (remind.Count > 0)
+            {
+                var remindText = string.Join("; ", remind.GroupBy(p => p.BranchName ?? $"Branch {p.BranchId}").Select(b =>
+                    $"{b.Key} - " + string.Join(", ", b.GroupBy(p => p.Module == "PETTY" ? "petty cash (close in OPD or LAB)" : p.Module)
+                        .Select(g => $"{g.Key} {string.Join(", ", g.Select(p => p.BusinessDate.ToString("dd-MMM")).Distinct().Take(4))}"))));
+                var otherBranch = remind.Any(p => p.BranchId != branchId);
+                TempData["Warning"] = $"Cash not closed for earlier days: {remindText}." +
+                    (otherBranch ? " Switch to that branch and use OPD / LAB / Pharmacy Day Closing there." : " Use OPD / LAB / Pharmacy Day Closing.");
+            }
+            // one current reminder: the older days' reminders are replaced by today's
+            using (var con = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection())
+                await Dapper.SqlMapper.ExecuteAsync(con, @"UPDATE dbo.UserNotification SET IsDismissed = 1, DismissedOn = SYSDATETIME()
+                    WHERE UserId = @userId AND Category = 'DAY_CLOSING' AND EventKey LIKE 'DAY_CLOSING_PENDING:%' AND EventKey <> @today AND IsDismissed = 0",
+                    new { userId, today = $"DAY_CLOSING_PENDING:{userId}:{DateTime.Today:yyyyMMdd}" });
+            var notes = HttpContext.RequestServices.GetRequiredService<EMR.Web.Services.Notifications.INotificationService>();
+            var opd = pending.Any(p => p.Module is "OPD" or "PETTY");
+            var link = opd ? "/OpdDayClosing/Index" : pending.Any(p => p.Module == "LAB") ? "/LabDayClosing/Index" : "/PhDayClosing/Index";   // PHR: SQLScripts/2348
+            await notes.NotifyUsersAsync([userId], "DAY_CLOSING", "WARNING", "Day closing pending",
+                $"Your cash is not closed for earlier days - {text}.", link, "CASH", null,
+                $"DAY_CLOSING_PENDING:{userId}:{DateTime.Today:yyyyMMdd}", branchId, null);
+        }
+        catch (Exception ex)
+        {
+            HttpContext.RequestServices.GetService<ILogger<AccountController>>()?.LogWarning(ex, "Day closing login check failed for user {UserId}", userId);
+        }
     }
 
     // Super admin is a flag on the account, set only in the database (Users.IsSuperAdmin), never from a screen.

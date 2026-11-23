@@ -1,0 +1,128 @@
+@model EMR.Web.Models.ViewModels.DoctorCommissionConfigFormViewModel
+@{
+    // SQLScripts/2518: one commission profile - scope, a table of share lines (Consultation, Service - all or picked
+    // services -, ...), overrides, dates and status - saved together. Each line is one DoctorCommissionConfig row.
+    var isNew = Model.ProfileId <= 0;
+    var formData = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        lines = Model.Lines,
+        revenueTypes = Model.RevenueTypeOptions.Select(o => o.Value),
+        calcTypes = Model.CalculationTypeOptions.Select(o => o.Value),
+        bases = Model.CommissionBasisOptions.Select(o => o.Value),
+        services = Model.ServiceRuleOptions.Select(o => new { id = o.Value, text = o.Text })
+    }, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+}
+<form asp-action="@(isNew ? "Create" : "Edit")" method="post" id="commissionForm" novalidate>
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="CompanyId" />
+    <input type="hidden" asp-for="ProfileId" />
+    <input type="hidden" asp-for="LinesJson" id="linesJson" />
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-4" role="alert"></div>
+
+    <!-- 1. Scope -->
+    <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-person-badge-fill me-2 text-primary"></i>1. Doctor &amp; Organizational Scope</h6>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="DoctorId" class="form-label fw-semibold">Doctor (Optional)</label>
+                <select asp-for="DoctorId" asp-items="Model.DoctorOptions" class="form-select"></select>
+                <small class="text-muted">Leave empty to apply to all doctors in the specialty</small>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="SpecialityId" class="form-label fw-semibold">Specialty (Optional)</label>
+                <select asp-for="SpecialityId" asp-items="Model.SpecialityOptions" class="form-select"></select>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="BranchId" class="form-label fw-semibold">Branch (Optional)</label>
+                <select asp-for="BranchId" asp-items="Model.BranchOptions" class="form-select"></select>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Share lines -->
+    <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <h6 class="fw-bold text-dark mb-0"><i class="bi bi-calculator me-2 text-primary"></i>2. Commission Shares</h6>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddConsult"><i class="bi bi-plus-lg me-1"></i>Consultation share</button>
+                <button type="button" class="btn btn-sm btn-outline-warning text-dark" id="btnAddService"><i class="bi bi-plus-lg me-1"></i>Service share</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAddOther"><i class="bi bi-plus-lg me-1"></i>Other</button>
+            </div>
+        </div>
+        <div class="small text-muted mb-2">
+            Each line pays its own share: <b>Consultation</b> on the consulting fee; <b>Service</b> on OPD services (Service Type = Service; registration is
+            never included) - all services, or only the ones picked (a line with picked services is used before the all-services line; Fixed Amount = per
+            service line). An <b>All Services</b> line shares the whole bill and cannot be combined with Consultation / Service lines.
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle bg-white mb-0 dc-lines">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:15%">Applies to</th>
+                        <th>Services</th>
+                        <th style="width:15%">Calculation</th>
+                        <th style="width:19%">Basis</th>
+                        <th style="width:13%">Share</th>
+                        <th style="width:44px"></th>
+                    </tr>
+                </thead>
+                <tbody id="dcLines"></tbody>
+            </table>
+        </div>
+        <div id="dcLinesEmpty" class="text-center text-muted small py-3 d-none">No share line yet - add a Consultation or Service share.</div>
+    </div>
+
+    <!-- 3. Overrides -->
+    <div class="card bg-light border-0 p-3 rounded-3 mb-4">
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-funnel me-2 text-primary"></i>3. Procedure / Corporate / Insurance Overrides (Optional)</h6>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label asp-for="ProcedureId" class="form-label fw-semibold">Specific Procedure</label>
+                <select asp-for="ProcedureId" asp-items="Model.ProcedureOptions" class="form-select"></select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="ServiceId" class="form-label fw-semibold">Specific Service</label>
+                <select asp-for="ServiceId" asp-items="Model.ServiceOptions" class="form-select"></select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="CorporateId" class="form-label fw-semibold">Corporate Override</label>
+                <select asp-for="CorporateId" asp-items="Model.CorporateOptions" class="form-select"></select>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="InsuranceTPAId" class="form-label fw-semibold">Insurance / TPA Override</label>
+                <select asp-for="InsuranceTPAId" asp-items="Model.InsuranceOptions" class="form-select"></select>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Schedule & policy -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label asp-for="EffectiveFrom" class="form-label fw-semibold">Effective From <span class="text-danger">*</span></label>
+            <input asp-for="EffectiveFrom" type="date" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label asp-for="EffectiveTo" class="form-label fw-semibold">Effective To</label>
+            <input asp-for="EffectiveTo" type="date" class="form-control" />
+        </div>
+        <div class="col-md-4 d-flex align-items-center pt-4">
+            <div class="form-check form-switch fs-6 mb-0">
+                <input asp-for="ApprovalRequired" class="form-check-input" type="checkbox" role="switch" id="approvalSwitch" />
+                <label class="form-check-label fw-semibold" for="approvalSwitch">Finance Approval Required</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+        <div class="form-check form-switch fs-6 mb-0">
+            <input asp-for="IsActive" class="form-check-input" type="checkbox" role="switch" id="statusSwitch" />
+            <label class="form-check-label fw-semibold" for="statusSwitch">Active Status</label>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Index" class="btn btn-outline-secondary px-4">Cancel</a>
+            <button type="submit" class="btn btn-primary px-4 shadow-sm"><i class="bi bi-check-lg me-1"></i>Save Commission Profile</button>
+        </div>
+    </div>
+</form>
+<script type="application/json" id="dcFormData">@Html.Raw(formData)</script>

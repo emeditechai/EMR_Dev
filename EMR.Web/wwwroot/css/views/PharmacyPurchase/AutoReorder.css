@@ -1,0 +1,13 @@
+/* moved from Views/PharmacyPurchase/AutoReorder.cshtml (inline <style>) - EMR.Web string-literal limit (CS8103) */
+    .ar-kpi { border:1px solid #e2e8f0; border-radius:10px; background:#fff; padding:.6rem .9rem; height:100%; }
+    .ar-kpi .l { font-size:.66rem; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#64748b; }
+    .ar-kpi .v { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; }
+    #arTable td, #arTable th { font-size:.8rem; vertical-align:middle; }
+    #arTable td.num, #arTable th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    #arTable tr.ar-sup td { background:#f1f5f9; font-weight:700; font-size:.78rem; }
+    #arTable tr.ar-off td { color:#94a3b8; }
+    #arTable input.form-control-sm, #arTable select.form-select-sm { font-size:.78rem; padding:.15rem .4rem; }
+    .ar-qty { width:78px; text-align:right; } .ar-rate { width:92px; text-align:right; } .ar-sel { min-width:170px; max-width:220px; }
+    .ar-free { font-size:.7rem; }
+    .ar-why { font-size:.7rem; color:#64748b; }
+    .ar-bar { position:sticky; bottom:0; z-index:5; background:#fff; border-top:1px solid #e2e8f0; box-shadow:0 -4px 12px rgba(15,23,42,.06); }

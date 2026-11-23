@@ -1,0 +1,10 @@
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@* IPD Patient > OT (Phase 8, SQLScripts/2492): bookings with checklists, times, anaesthesia record, surgery note, implants and charges; js/ipd/ot.js *@
+<div class="tab-pane fade @(Model.Tab == "ot" ? "show active" : "")" id="tab-ot" role="tabpanel">
+    <div class="reg-section">
+        <div class="reg-section-header"><div class="sec-icon red"><i class="bi bi-heart-pulse"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Operation Theatre</h6><small class="text-muted">OT booking, pre-op and WHO safety checklists, anaesthesia record, surgery note, implants and OT charges</small></div>
+            <button type="button" class="btn btn-sm btn-danger d-none" id="otBookBtn"><i class="bi bi-calendar-plus me-1"></i>Book OT</button></div>
+    </div>
+    <div id="otList"><div class="text-muted small p-3">Loading…</div></div>
+</div>

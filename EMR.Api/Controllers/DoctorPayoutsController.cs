@@ -22,6 +22,11 @@ public class DoctorPayoutsController(IReportService reportService) : ControllerB
             ["CompanyId"] = companyId, ["BranchId"] = branchId, ["Date"] = date.Date, ["UserId"] = userId, ["IsSuperAdmin"] = isSuperAdmin
         }, "summary", "doctors", "lines", "noShare");
 
+    /// <summary>SQLScripts/2519: the item-wise breakdown of one bill's doctor share (consultation / service / registration lines).</summary>
+    [HttpGet("visit-items")]
+    public Task<IActionResult> VisitItems([FromQuery] int branchId, [FromQuery] int visitId) =>
+        Sections("dbo.usp_DoctorPayout_VisitItems", new() { ["BranchId"] = branchId, ["VisitId"] = visitId }, "bill", "items");
+
     [HttpGet("settlements")]
     public Task<IActionResult> Settlements([FromQuery] int branchId, [FromQuery] DateTime fromDate, [FromQuery] DateTime toDate,
         [FromQuery] string? status = null, [FromQuery] int? doctorId = null, [FromQuery] int userId = 0, [FromQuery] bool isSuperAdmin = false) =>
@@ -86,8 +91,14 @@ public class DoctorPayoutsController(IReportService reportService) : ControllerB
         {
             ["BranchId"] = req.BranchId, ["SettlementId"] = req.SettlementId, ["Action"] = req.Action, ["Remarks"] = req.Remarks,
             ["PaymentDate"] = req.PaymentDate?.Date, ["PaymentMode"] = req.PaymentMode, ["PaymentReference"] = req.PaymentReference,
+            ["FundId"] = req.FundId is > 0 ? req.FundId : null,   // 2525: paid from this fund
             ["UserId"] = req.UserId, ["IsSuperAdmin"] = req.IsSuperAdmin
         });
+
+    /// <summary>SQLScripts/2525: the active funds a settlement can be paid from, with balance.</summary>
+    [HttpGet("pay-funds")]
+    public Task<IActionResult> PayFunds([FromQuery] int companyId) =>
+        Sections("dbo.usp_DoctorPayout_PayFunds", new() { ["CompanyId"] = companyId }, "rows");
 
     private async Task<IActionResult> Sections(string procedure, Dictionary<string, object?> parameters, params string[] sections)
     {
@@ -158,6 +169,7 @@ public sealed class DoctorPayoutActionRequest
     public int SettlementId { get; set; }
     public string Action { get; set; } = string.Empty;
     public string? Remarks { get; set; }
+    public int? FundId { get; set; }   // 2525
     public DateTime? PaymentDate { get; set; }
     public string? PaymentMode { get; set; }
     public string? PaymentReference { get; set; }

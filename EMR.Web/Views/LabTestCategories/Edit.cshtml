@@ -151,15 +151,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script>
-        document.getElementById('statusSwitch')?.addEventListener('change', function() {
-            document.getElementById('statusLabel').textContent = this.checked ? 'Active' : 'Inactive';
-        });
-        document.getElementById('barcodeSwitch')?.addEventListener('change', function() {
-            document.getElementById('barcodeLabel').textContent = this.checked ? 'Yes' : 'No';
-        });
-        document.getElementById('sampleSwitch')?.addEventListener('change', function() {
-            document.getElementById('sampleLabel').textContent = this.checked ? 'Yes' : 'No';
-        });
-    </script>
+    <script src="~/js/views/LabTestCategories/Edit.js" asp-append-version="true"></script>
 }

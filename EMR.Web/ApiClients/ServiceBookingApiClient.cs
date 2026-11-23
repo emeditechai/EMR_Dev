@@ -10,7 +10,7 @@ public class ServiceBookingApiClient(IHttpClientFactory factory) : IServiceBooki
 
     public async Task<ServiceBookingPagedResult> GetPagedAsync(
         int? branchId, DateOnly? fromDate, DateOnly? toDate,
-        int page, int pageSize, string? search)
+        int page, int pageSize, string? search, string? paymentFilter = null)
     {
         var qs = HttpUtility.ParseQueryString(string.Empty);
         if (branchId.HasValue)  qs["branchId"]  = branchId.ToString();
@@ -19,6 +19,7 @@ public class ServiceBookingApiClient(IHttpClientFactory factory) : IServiceBooki
         qs["page"]     = page.ToString();
         qs["pageSize"] = pageSize.ToString();
         if (!string.IsNullOrWhiteSpace(search)) qs["search"] = search;
+        if (!string.IsNullOrWhiteSpace(paymentFilter)) qs["paymentStatus"] = paymentFilter;
 
         var url = "api/servicebookings?" + qs;
         var response = await _http.GetFromJsonAsync<ApiResponse<ServiceBookingPagedResult>>(url);
@@ -29,6 +30,16 @@ public class ServiceBookingApiClient(IHttpClientFactory factory) : IServiceBooki
     {
         var response = await _http
             .GetFromJsonAsync<ApiResponse<ServiceBookingDetail>>($"api/servicebookings/{opdServiceId}");
+        return response?.Data;
+    }
+
+    public async Task<PrescriptionPadInfo?> GetPrescriptionPadAsync(int opdServiceId, int? branchId)
+    {
+        var url = $"api/servicebookings/{opdServiceId}/prescription-pad" + (branchId.HasValue ? $"?branchId={branchId.Value}" : "");
+        using var res = await _http.GetAsync(url);
+        if (res.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        res.EnsureSuccessStatusCode();
+        var response = await res.Content.ReadFromJsonAsync<ApiResponse<PrescriptionPadInfo>>();
         return response?.Data;
     }
 

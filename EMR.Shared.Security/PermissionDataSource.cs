@@ -104,7 +104,7 @@ public sealed class SqlPermissionDataSource(string connectionString) : IPermissi
     {
         using var con = Open();
         var rows = await con.QueryAsync<(int Id, string Name)>(
-            "SELECT Id, Name FROM dbo.roles WHERE CompanyId = @CompanyId OR CompanyId IS NULL", new { CompanyId = companyId });
+            "SELECT Id, Name FROM dbo.roles");   // roles are global for every company (script 2334)
         var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var (id, name) in rows) map.TryAdd(name, id);
         return map;

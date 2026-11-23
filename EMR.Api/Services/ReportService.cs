@@ -38,7 +38,7 @@ public class ReportService : IReportService
     }
 
     public async Task<B2CCollectionRegisterResult> GetLabB2CCollectionRegisterAsync(int branchId, DateTime fromDate, DateTime toDate,
-        int? paymentMethodId, int? collectedBy, string? search, int userId, bool isAdmin, bool isSuperAdmin)
+        int? paymentMethodId, int? collectedBy, string? search, int userId, bool isAdmin, bool isSuperAdmin, string? billingType = null)
     {
         using var connection = new SqlConnection(_connectionString);
         using var multi = await connection.QueryMultipleAsync(
@@ -53,12 +53,14 @@ public class ReportService : IReportService
                 Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim(),
                 UserId = userId,
                 IsAdmin = isAdmin,
-                IsSuperAdmin = isSuperAdmin
+                IsSuperAdmin = isSuperAdmin,
+                // 2255: B2C | B2B | all
+                BillingType = billingType is "B2C" or "B2B" ? billingType : null
             },
             commandType: CommandType.StoredProcedure,
             commandTimeout: 60);
 
-        return new B2CCollectionRegisterResult
+        var result = new B2CCollectionRegisterResult
         {
             Summary = await multi.ReadFirstOrDefaultAsync<B2CCollectionSummary>() ?? new B2CCollectionSummary(),
             ByMode = (await multi.ReadAsync<B2CCollectionModeRow>()).ToList(),
@@ -67,6 +69,15 @@ public class ReportService : IReportService
             Receipts = (await multi.ReadAsync<B2CCollectionReceiptRow>()).ToList(),
             PaymentMethods = (await multi.ReadAsync<B2CCollectionPaymentMethod>()).ToList()
         };
+        // 2269: cash hand-over with petty cash (absent on a database without the script)
+        if (!multi.IsConsumed)
+        {
+            result.CashHandover = (await multi.ReadAsync<B2CCollectionCashHandoverRow>()).ToList();
+            result.PettyMovements = (await multi.ReadAsync<B2CCollectionPettyMovementRow>()).ToList();
+            result.PettyCounters = (await multi.ReadAsync<B2CCollectionPettyCounterRow>()).ToList();
+            if (!multi.IsConsumed) result.Refunds = (await multi.ReadAsync<B2CCollectionRefundRow>()).ToList();   // 2270
+        }
+        return result;
     }
 
     public async Task<DiscountRegisterResult> GetLabDiscountRegisterAsync(int branchId, DateTime fromDate, DateTime toDate, string? billingType,

@@ -3,523 +3,581 @@
     var specialities = ViewBag.Specialities as IEnumerable<dynamic> ?? new List<dynamic>();
     var doctors = ViewBag.Doctors as IEnumerable<(int DoctorId, string FullName, int? PrimarySpecialityId, string Gender)> ?? new List<(int, string, int?, string)>();
     var doctorRoomMapRazor = ViewBag.DoctorRoomMap as Dictionary<string, string> ?? new Dictionary<string, string>();
+    var hospitalName = ViewBag.HospitalName as string ?? "OPD";
+    var logoPath = ViewBag.LogoPath as string;
+    var branchName = ViewBag.BranchName as string;
 }
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OPD Token Monitor</title>
-    <link href="~/lib/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <title>OPD Queue Display</title>
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
     <link rel="stylesheet" href="~/css/fonts.css" />
     <style>
+        /* ── Themes: dark TV board by default, light on request ─────────────────────────────── */
+        :root {
+            --bg: #0b1220; --bg2: #0f1a2e; --panel: #131f36; --panel2: #18273f; --line: #22324d;
+            --text: #e8eef8; --muted: #8fa1bd; --dim: #5d6f8c;
+            --brand: #2563eb; --brand2: #38bdf8;
+            --serve: #22c55e; --serve-bg: rgba(34,197,94,.10); --serve-line: rgba(34,197,94,.45);
+            --next: #f59e0b; --next-bg: rgba(245,158,11,.10);
+            --head1: #0f2a5f; --head2: #1d4ed8;
+        }
+        body.light {
+            --bg: #eef2f7; --bg2: #e6ecf4; --panel: #ffffff; --panel2: #f6f8fc; --line: #dbe3ee;
+            --text: #0f172a; --muted: #55657d; --dim: #8a99ae;
+            --serve: #15803d; --serve-bg: #ecfdf3; --serve-line: #86efac;
+            --next: #b45309; --next-bg: #fff7e6;
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
         body {
-            background-color: #f0f4f8; /* Soft light blue/grey background */
-            color: #1e293b;
-            font-family: 'Inter', sans-serif;
-            overflow: hidden;
-            margin: 0;
-            padding: 0;
-            transition: background-color 0.3s, color 0.3s;
-        }
-        body.dark-mode {
-            background-color: #0f172a;
-            color: #f8fafc;
-        }
-        .header-bar {
-            background: #ffffff;
-            padding: 1rem 2.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 3px solid #2563eb;
-            height: 80px;
-            transition: background-color 0.3s, border-color 0.3s;
-        }
-        body.dark-mode .header-bar {
-            background: #1e293b;
-            border-bottom: 3px solid #3b82f6;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);
-        }
-        .header-title {
-            font-weight: 800;
-            font-size: 2.2rem;
-            color: #1e293b;
-            margin: 0;
-            letter-spacing: -1px;
-        }
-        body.dark-mode .header-title {
-            color: #f8fafc;
-        }
-        .clock {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: #2563eb;
-            font-variant-numeric: tabular-nums;
-            letter-spacing: -1px;
-            display: flex;
-            align-items: center;
-        }
-        body.dark-mode .clock {
-            color: #60a5fa;
-        }
-        .theme-toggle {
-            background: none;
-            border: none;
-            color: #64748b;
-            font-size: 1.8rem;
-            cursor: pointer;
-            margin-right: 20px;
-            transition: color 0.2s;
-        }
-        .theme-toggle:hover {
-            color: #2563eb;
-        }
-        body.dark-mode .theme-toggle {
-            color: #cbd5e1;
-        }
-        body.dark-mode .theme-toggle:hover {
-            color: #60a5fa;
-        }
-        .container-fluid {
-            padding: 2rem;
-            height: calc(100vh - 80px - 60px); /* subtract header and footer */
-            overflow-y: auto;
-        }
-        
-        /* Grid Layout for Doctors */
-        .board-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
-            gap: 2rem;
+            margin: 0; overflow: hidden; background: var(--bg); color: var(--text);
+            font-family: 'Inter', system-ui, sans-serif; font-variant-numeric: tabular-nums;
+            display: grid; grid-template-rows: auto 1fr auto;
         }
 
-        .doc-card {
-            background: #ffffff;
-            border-radius: 16px;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.025);
-            border: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            transition: background-color 0.3s, border-color 0.3s;
+        /* ── Header ──────────────────────────────────────────────────────────────────────────── */
+        .top {
+            display: flex; align-items: center; gap: 1.5rem; padding: .85rem 2rem;
+            background: linear-gradient(100deg, var(--head1), var(--head2)); color: #fff;
+            box-shadow: 0 4px 18px rgba(0,0,0,.25);
         }
-        body.dark-mode .doc-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+        .brand { display: flex; align-items: center; gap: 1rem; min-width: 0; flex: 1; }
+        .brand-logo {
+            width: 58px; height: 58px; border-radius: 12px; background: #fff; display: grid; place-items: center;
+            flex-shrink: 0; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.2);
         }
+        .brand-logo img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .brand-logo i { color: #dc2626; font-size: 1.9rem; }
+        .brand-name { font-size: 1.75rem; font-weight: 800; letter-spacing: -.5px; line-height: 1.1;
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .brand-sub { font-size: .95rem; font-weight: 600; opacity: .85; letter-spacing: .3px; margin-top: 2px; }
+        .brand-sub b { font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; }
+        .top-right { display: flex; align-items: center; gap: 1.25rem; flex-shrink: 0; }
+        .live { display: inline-flex; align-items: center; gap: .45rem; font-weight: 700; font-size: .85rem;
+                letter-spacing: 1.5px; text-transform: uppercase; background: rgba(255,255,255,.12);
+                padding: .35rem .75rem; border-radius: 999px; }
+        .live .dot { width: 9px; height: 9px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 0 rgba(74,222,128,.7);
+                     animation: livepulse 1.8s infinite; }
+        .live.off .dot { background: #f87171; animation: none; }
+        .clock-wrap { text-align: right; line-height: 1.05; }
+        .clock { font-size: 2.4rem; font-weight: 800; letter-spacing: -1px; }
+        .date { font-size: .95rem; font-weight: 600; opacity: .85; }
+        .tool { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); color: #fff;
+                width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; cursor: pointer; font-size: 1.1rem; }
+        .tool:hover { background: rgba(255,255,255,.22); }
+        .tool.on { background: #fff; color: var(--head2); }
 
-        .doc-header {
-            background: linear-gradient(90deg, #1e40af, #3b82f6);
-            color: #ffffff;
-            padding: 0.9rem 1.4rem;
-            font-size: 1.4rem;
-            font-weight: 800;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            overflow: hidden;
-        }
-        .doc-header > i {
-            flex-shrink: 0;
-            font-size: 1.4rem;
-            margin-right: 4px;
-            opacity: 0.8;
-        }
-        .doc-name {
-            flex: 1;
-            min-width: 0;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-size: 1.35rem;
-            font-weight: 800;
-        }
-        .doc-speciality {
-            flex-shrink: 0;
-            font-size: 0.75rem;
-            font-weight: 600;
-            opacity: 0.95;
-            background: rgba(255,255,255,0.2);
-            padding: 2px 9px;
-            border-radius: 20px;
-            white-space: nowrap;
-        }
+        /* ── Body: doctor boards + now-calling column ──────────────────────────────────────────── */
+        .main { display: grid; grid-template-columns: 1fr 360px; gap: 1.25rem; padding: 1.25rem 1.5rem; min-height: 0; }
+        .boards { min-height: 0; display: flex; flex-direction: column; }
+        .board-grid { flex: 1; min-height: 0; display: grid; gap: 1.1rem;
+                      grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+                      grid-auto-rows: minmax(0, 1fr); align-content: start; }
+        .pager { display: flex; justify-content: center; gap: .45rem; padding-top: .7rem; min-height: 1.4rem; }
+        .pager span { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+        .pager span.on { background: var(--brand2); width: 26px; border-radius: 6px; transition: width .3s; }
 
-        .doc-body {
-            display: flex;
-            flex-direction: row;
-            background: #ffffff;
-            transition: background-color 0.3s;
-        }
-        body.dark-mode .doc-body {
-            background: #1e293b;
-        }
+        .doc { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden;
+               display: flex; flex-direction: column; min-height: 0; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+        body.light .doc { box-shadow: 0 6px 18px rgba(15,23,42,.06); }
+        .doc.flash { animation: flash 1.2s ease 3; }
+        .doc-head { display: flex; align-items: center; gap: .8rem; padding: .85rem 1.2rem;
+                    background: var(--panel2); border-bottom: 1px solid var(--line); }
+        .doc-avatar { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+                      background: linear-gradient(135deg, var(--brand), var(--brand2)); color: #fff; font-weight: 800; font-size: 1rem; }
+        .doc-title { min-width: 0; flex: 1; }
+        .doc-name { font-size: 1.35rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .doc-spec { font-size: .82rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .room { flex-shrink: 0; display: inline-flex; align-items: center; gap: .4rem; font-weight: 800; font-size: 1rem;
+                padding: .4rem .8rem; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); }
+        .room i { color: var(--brand2); }
 
-        .consulting-section {
-            flex: 1;
-            padding: 2rem;
-            text-align: center;
-            border-right: 2px dashed #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            background: #f8fafc;
-            transition: background-color 0.3s, border-color 0.3s;
-        }
-        body.dark-mode .consulting-section {
-            background: #0f172a;
-            border-right: 2px dashed #334155;
-        }
+        .doc-body { flex: 1; display: grid; grid-template-columns: 1.15fr 1fr; min-height: 0; }
+        .serve { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+                 padding: 1rem; border-right: 1px solid var(--line); background: var(--serve-bg); min-width: 0;
+                 container-type: inline-size; }
+        .lbl { font-size: .8rem; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--muted);
+               display: inline-flex; align-items: center; gap: .45rem; }
+        .serve .lbl { color: var(--serve); }
+        .serve-token { white-space: nowrap; font-size: clamp(1.8rem, 19cqw, 5.2rem); font-weight: 900; letter-spacing: -1.5px; line-height: 1.05;
+                       color: var(--serve); margin: .35rem 0 .15rem; text-shadow: 0 0 28px rgba(34,197,94,.25); }
+        body.light .serve-token { text-shadow: none; }
+        .serve-name { font-size: 1.15rem; font-weight: 700; color: var(--text); max-width: 100%;
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .serve-since { margin-top: .35rem; font-size: .85rem; font-weight: 600; color: var(--muted); }
+        .serve-idle { font-size: 1.4rem; font-weight: 800; color: var(--dim); margin-top: .6rem; letter-spacing: 1px; }
 
-        .status-label {
-            font-size: 1.3rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: #64748b;
-            margin-bottom: 1rem;
-        }
+        .queue { padding: .9rem 1rem; display: flex; flex-direction: column; gap: .5rem; min-width: 0; min-height: 0; overflow: hidden; }
+        .q-item { display: flex; flex-direction: column; gap: .15rem; padding: .55rem .85rem;
+                  border-radius: 10px; background: var(--panel2); border: 1px solid var(--line); }
+        .q-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+        .q-sub { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; min-width: 0; }
+        .q-item.first { background: var(--next-bg); border-color: var(--next); border-left-width: 5px; }
+        .q-token { font-size: 1.35rem; font-weight: 800; letter-spacing: -.3px; white-space: nowrap; }
 
-        .consulting-label {
-            color: #10b981;
-        }
+        .q-item.first .q-token { color: var(--next); font-size: 1.55rem; }
 
-        .token-number {
-            font-size: 5.5rem;
-            font-weight: 900;
-            color: #0f172a;
-            line-height: 1;
-            margin-bottom: 0.5rem;
-            letter-spacing: -2px;
-        }
-        body.dark-mode .token-number {
-            color: #f8fafc;
-        }
+        .q-name { font-size: .9rem; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .q-wait { font-size: .8rem; font-weight: 700; color: var(--dim); white-space: nowrap; flex-shrink: 0; }
+        .q-tag { font-size: .68rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #1f1300;
+                 background: var(--next); padding: .15rem .5rem; border-radius: 6px; }
+        body.light .q-tag { color: #fff; }
+        .q-empty { color: var(--dim); font-weight: 700; text-align: center; margin: auto 0; font-size: 1rem; }
+        .q-more { font-size: .85rem; font-weight: 700; color: var(--muted); text-align: center; }
 
-        .token-number.active {
-            color: #10b981;
-            text-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
-            animation: pulse-color 2s infinite;
-        }
+        .doc-foot { display: flex; justify-content: space-between; padding: .55rem 1.2rem; border-top: 1px solid var(--line);
+                    font-size: .85rem; font-weight: 700; color: var(--muted); background: var(--panel2); }
+        .doc-foot b { color: var(--text); }
 
-        .patient-name {
-            font-size: 1.8rem;
-            font-weight: 600;
-            color: #475569;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        body.dark-mode .patient-name {
-            color: #94a3b8;
-        }
+        /* ── Now calling column ────────────────────────────────────────────────────────────────── */
+        .side { display: flex; flex-direction: column; gap: 1.1rem; min-height: 0; }
+        .calling { background: linear-gradient(160deg, #052e1a, #0a4d2c); border: 1px solid rgba(74,222,128,.35);
+                   border-radius: 18px; padding: 1.3rem; text-align: center; color: #fff; }
+        body.light .calling { background: linear-gradient(160deg, #15803d, #16a34a); }
+        .calling .lbl { color: #bbf7d0; justify-content: center; }
+        .call-token { font-size: 4.2rem; font-weight: 900; letter-spacing: -1.5px; line-height: 1.05; margin: .4rem 0; }
+        .call-room { font-size: 1.35rem; font-weight: 800; }
+        .call-doc { font-size: 1rem; font-weight: 600; opacity: .85; margin-top: .15rem; }
+        .call-none { font-size: 1.3rem; font-weight: 700; opacity: .7; padding: 1.2rem 0; }
+        .recent { flex: 1; min-height: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+                  padding: 1rem 1.1rem; display: flex; flex-direction: column; overflow: hidden; }
+        .recent .lbl { margin-bottom: .6rem; }
+        .r-item { display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: center; padding: .55rem 0;
+                  border-bottom: 1px dashed var(--line); }
+        .r-item:last-child { border-bottom: 0; }
+        .r-token { font-size: 1.25rem; font-weight: 800; }
+        .r-where { font-size: .82rem; font-weight: 600; color: var(--muted); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .r-time { font-size: .82rem; font-weight: 700; color: var(--dim); }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+        .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: .75rem .9rem; }
+        .stat .v { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+        .stat .k { font-size: .72rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-top: .3rem; }
 
-        .waiting-section {
-            width: 300px;
-            padding: 1.5rem;
-            background: #ffffff;
-            display: flex;
-            flex-direction: column;
-            transition: background-color 0.3s;
-        }
-        body.dark-mode .waiting-section {
-            background: #1e293b;
-        }
+        /* ── Ticker ────────────────────────────────────────────────────────────────────────────── */
+        .ticker { background: #020817; color: #e2e8f0; height: 52px; display: flex; align-items: center; overflow: hidden;
+                  border-top: 2px solid var(--brand); }
+        body.light .ticker { background: #0f172a; }
+        .ticker-tag { flex-shrink: 0; height: 100%; display: flex; align-items: center; gap: .5rem; padding: 0 1.2rem;
+                      background: var(--brand); color: #fff; font-weight: 800; letter-spacing: 1.5px; font-size: .9rem; text-transform: uppercase; }
+        .ticker-track { flex: 1; overflow: hidden; white-space: nowrap; }
+        .ticker-text { display: inline-block; padding-left: 100%; font-size: 1.25rem; font-weight: 600; animation: ticker 38s linear infinite; }
 
-        .waiting-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.8rem 1rem;
-            background: #f1f5f9;
-            border-radius: 8px;
-            margin-bottom: 0.8rem;
-            border-left: 5px solid #f59e0b;
-            transition: background-color 0.3s, border-color 0.3s;
-        }
-        body.dark-mode .waiting-item {
-            background: #334155;
-            border-left: 5px solid #d97706;
-        }
+        /* ── Call alert overlay ────────────────────────────────────────────────────────────────── */
+        .overlay { position: fixed; inset: 0; background: rgba(2,8,23,.78); display: none; place-items: center; z-index: 50;
+                   backdrop-filter: blur(4px); }
+        .overlay.show { display: grid; animation: fadein .25s ease; }
+        .call-card { width: min(780px, 90vw); border-radius: 28px; padding: 2.6rem 2rem; text-align: center; color: #fff;
+                     background: linear-gradient(160deg, #064e3b, #15803d); box-shadow: 0 30px 80px rgba(0,0,0,.5);
+                     border: 2px solid rgba(187,247,208,.5); animation: pop .45s cubic-bezier(.2,.9,.3,1.3); }
+        .call-card .lbl { color: #bbf7d0; justify-content: center; font-size: 1.05rem; }
+        .call-card .big { font-size: clamp(5rem, 11vw, 9rem); font-weight: 900; letter-spacing: -3px; line-height: 1; margin: .8rem 0 .6rem; }
+        .call-card .to { font-size: 2rem; font-weight: 800; }
+        .call-card .who { font-size: 1.25rem; font-weight: 600; opacity: .9; margin-top: .3rem; }
 
-        /* Highly highlighted next item */
-        .waiting-item.up-next-first {
-            background: #fffbeb;
-            border-left: 6px solid #f59e0b;
-            box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.2);
-            transform: scale(1.02);
-            padding: 1rem;
-        }
-        body.dark-mode .waiting-item.up-next-first {
-            background: rgba(245, 158, 11, 0.15);
-            border-left: 6px solid #fbbf24;
-            box-shadow: 0 4px 6px -1px rgba(251, 191, 36, 0.1);
-        }
+        .offline { position: fixed; top: 92px; left: 50%; transform: translateX(-50%); z-index: 40; display: none;
+                   background: #7f1d1d; color: #fff; font-weight: 700; padding: .5rem 1.1rem; border-radius: 999px;
+                   box-shadow: 0 6px 18px rgba(0,0,0,.3); }
+        .offline.show { display: block; }
+        .empty-board { grid-column: 1 / -1; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 4rem 1rem; }
+        .empty-board i { font-size: 4rem; color: var(--dim); }
+        .empty-board h2 { font-size: 2rem; font-weight: 800; color: var(--text); margin: 1rem 0 .3rem; }
 
-        .up-next-first .waiting-token {
-            font-size: 1.8rem;
-            color: #d97706;
-        }
-        body.dark-mode .up-next-first .waiting-token {
-            color: #fbbf24;
-        }
-        
-        .up-next-first-name {
-            display: block;
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: #92400e;
-            margin-top: 0.2rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 150px;
-        }
-        body.dark-mode .up-next-first-name {
-            color: #fcd34d;
-        }
+        @@keyframes livepulse { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,.7); } 70% { box-shadow: 0 0 0 10px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
+        @@keyframes flash { 0%,100% { box-shadow: 0 8px 24px rgba(0,0,0,.18); border-color: var(--line); } 50% { box-shadow: 0 0 0 4px var(--serve-line), 0 0 40px rgba(34,197,94,.35); border-color: var(--serve); } }
+        @@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+        @@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+        @@keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        .waiting-token {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #1e293b;
+        @@media (max-width: 1200px) {
+            .main { grid-template-columns: 1fr; }
+            .side { display: none; }
         }
-        body.dark-mode .waiting-token {
-            color: #f8fafc;
-        }
-
-        .waiting-time {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #64748b;
-        }
-
-        .marquee-container {
-            background: #1e293b;
-            color: #f8fafc;
-            padding: 0.75rem;
-            font-size: 1.5rem;
-            font-weight: 600;
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            height: 60px;
-            display: flex;
-            align-items: center;
-        }
-
-        @@keyframes pulse-color {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        
-        .empty-state {
-            color: #cbd5e1;
-            font-size: 2rem;
-            font-weight: 800;
-            margin-top: 1rem;
-        }
-        /* Room badge on monitor display */
-        .doc-room-badge {
-            flex-shrink: 0;
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.28);
-            color: #fff;
-            font-size: 0.7rem;
-            font-weight: 600;
-            padding: 2px 7px;
-            border-radius: 20px;
-            white-space: nowrap;
-        }
-        .doc-room-badge i {
-            font-size: 0.65rem;
-            opacity: 0.9;
+        @@media (max-width: 760px) {
+            body { overflow: auto; }
+            .top { flex-wrap: wrap; padding: .75rem 1rem; }
+            .brand-name { font-size: 1.25rem; }
+            .clock { font-size: 1.7rem; }
+            .doc-body { grid-template-columns: 1fr; }
+            .serve { border-right: 0; border-bottom: 1px solid var(--line); }
         }
     </style>
 </head>
 <body>
-    <div class="header-bar">
-        <h1 class="header-title"><i class="bi bi-heart-pulse-fill text-danger me-3"></i>Clinic Live Display</h1>
-        <div class="clock">
-            <button class="theme-toggle" id="theme-toggle" title="Toggle Dark Mode">
-                <i class="bi bi-moon-fill" id="theme-icon"></i>
-            </button>
-            <span id="live-clock">00:00:00</span>
-        </div>
-    </div>
-
-    <div class="container-fluid">
-        <div class="board-container" id="board-container">
-            <!-- Dynamic Content -->
-            <div class="col-12 text-center mt-5 w-100" style="grid-column: 1 / -1;">
-                <div class="spinner-border text-primary" style="width: 4rem; height: 4rem;" role="status"></div>
-                <h3 class="mt-4 fw-bold text-secondary">Loading Live Queue...</h3>
+    <header class="top">
+        <div class="brand">
+            <div class="brand-logo">
+                @if (!string.IsNullOrWhiteSpace(logoPath))
+                {
+                    <img src="@logoPath" alt="" />
+                }
+                else
+                {
+                    <i class="bi bi-heart-pulse-fill"></i>
+                }
+            </div>
+            <div style="min-width:0">
+                <div class="brand-name">@hospitalName</div>
+                <div class="brand-sub"><b>OPD Queue</b>@(string.IsNullOrWhiteSpace(branchName) ? "" : " · " + branchName)</div>
             </div>
         </div>
-    </div>
+        <div class="top-right">
+            <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Live</span></span>
+            <div class="clock-wrap">
+                <div class="clock" id="clock">--:--</div>
+                <div class="date" id="date"></div>
+            </div>
+            <button class="tool" id="btnSound" title="Call announcements: sound on / off"><i class="bi bi-volume-mute-fill"></i></button>
+            <button class="tool" id="btnTheme" title="Light / dark display"><i class="bi bi-sun-fill"></i></button>
+            <button class="tool" id="btnFull" title="Full screen"><i class="bi bi-arrows-fullscreen"></i></button>
+        </div>
+    </header>
 
-    <div class="marquee-container">
-        <marquee behavior="scroll" direction="left" scrollamount="10">
-            Welcome to the Clinic. Please wait for your token number to be displayed on the screen. Maintain silence in the waiting area.
-        </marquee>
+    <main class="main">
+        <section class="boards">
+            <div class="board-grid" id="board">
+                <div class="empty-board"><div><i class="bi bi-hourglass-split"></i><h2>Loading the live queue…</h2></div></div>
+            </div>
+            <div class="pager" id="pager"></div>
+        </section>
+        <aside class="side">
+            <div class="calling" id="nowCalling">
+                <div class="lbl"><i class="bi bi-megaphone-fill"></i>Now calling</div>
+                <div class="call-none">—</div>
+            </div>
+            <div class="stats">
+                <div class="stat"><div class="v" id="stWaiting">0</div><div class="k">Waiting</div></div>
+                <div class="stat"><div class="v" id="stSeen">0</div><div class="k">Seen today</div></div>
+            </div>
+            <div class="recent">
+                <div class="lbl"><i class="bi bi-clock-history"></i>Recently called</div>
+                <div id="recentList"><div class="q-empty">No calls yet</div></div>
+            </div>
+        </aside>
+    </main>
+
+    <footer class="ticker">
+        <div class="ticker-tag"><i class="bi bi-info-circle-fill"></i>Notice</div>
+        <div class="ticker-track"><span class="ticker-text">Welcome to @hospitalName. Please wait for your token number to be called and proceed to the room shown on the screen. &nbsp;•&nbsp; Keep your token slip and documents ready. &nbsp;•&nbsp; Please maintain silence in the waiting area. &nbsp;•&nbsp; For any help, please contact the reception desk.</span></div>
+    </footer>
+
+    <div class="overlay" id="callOverlay">
+        <div class="call-card">
+            <div class="lbl"><i class="bi bi-megaphone-fill"></i>Token called</div>
+            <div class="big" id="ovToken">—</div>
+            <div class="to" id="ovRoom"></div>
+            <div class="who" id="ovDoc"></div>
+        </div>
     </div>
+    <div class="offline" id="offline"><i class="bi bi-wifi-off me-2"></i>Reconnecting to the queue…</div>
 
     <script>
-        // Update Clock
-        setInterval(() => {
-            document.getElementById('live-clock').innerText = new Date().toLocaleTimeString([], { hour12: true });
-        }, 1000);
+        // ── Reference data from the server ────────────────────────────────────────────────────────────
+        const specMap = {};
+        @foreach (var spec in specialities)
+        {
+            <text>specMap[@spec.SpecialityId] = '@Html.Raw(((string)spec.SpecialityName).Replace("\\", "\\\\").Replace("'", "\\'"))';</text>
+        }
+        const docSpecMap = {};
+        @foreach (var doc in doctors)
+        {
+            if (doc.PrimarySpecialityId.HasValue)
+            {
+                <text>docSpecMap['@Html.Raw(doc.FullName.Replace("\\", "\\\\").Replace("'", "\\'"))'] = specMap[@doc.PrimarySpecialityId.Value] || '';</text>
+            }
+        }
+        const doctorRoomMap = {
+            @foreach (var kv in doctorRoomMapRazor)
+            {
+                <text>'@Html.Raw(kv.Key.Replace("\\", "\\\\").Replace("'", "\\'"))': '@Html.Raw(kv.Value.Replace("\\", "\\\\").Replace("'", "\\'"))',</text>
+            }
+        };
 
-        // Fetch Data
+        const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { } } };
+
+        // privacy on a public screen: first name + initial of the last name ("Mr. Prakash S.")
+        function maskName(name) {
+            const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+            if (!parts.length) return '';
+            const titles = /^(mr|mrs|ms|miss|dr|master|baby|smt|shri|sri)\.?$/i;
+            const out = [];
+            let i = 0;
+            if (titles.test(parts[0])) out.push(parts[i++]);
+            if (parts[i]) out.push(parts[i++]);
+            if (i < parts.length) out.push(parts[parts.length - 1].charAt(0).toUpperCase() + '.');
+            return out.join(' ');
+        }
+        function doctorTitle(name) {
+            const n = String(name || '').trim() || 'General OPD';
+            return /^dr\.?\s/i.test(n) || /general opd/i.test(n) ? n : 'Dr. ' + n;
+        }
+        function initials(name) {
+            return String(name || '').replace(/^dr\.?\s*/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'OP';
+        }
+        function roomLabel(docName) { return doctorRoomMap[docName] || ''; }
+
+        // ── Clock (server time, so every screen shows the same) ──────────────────────────────────────
+        let skewMs = 0;
+        function now() { return new Date(Date.now() + skewMs); }
+        function tickClock() {
+            const d = now();
+            document.getElementById('clock').textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+            document.getElementById('date').textContent = d.toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        tickClock(); setInterval(tickClock, 1000);
+        const parseLocal = s => s ? new Date(String(s).replace(' ', 'T')) : null;
+        function minsSince(t) {
+            if (!t) return null;
+            const m = Math.max(0, Math.floor((now() - t) / 60000));
+            return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min';
+        }
+        const hhmm = t => t ? t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+
+        // ── Data ──────────────────────────────────────────────────────────────────────────────────────
+        let boards = [], timing = {}, page = 0, pageTimer = null, failures = 0;
+        let knownConsulting = null;     // tokens already in consulting (null until the first load - no alert on first load)
+        let lastCall = null;            // { token, room, doc, at }
+
         async function fetchTokens() {
             try {
-                const res = await fetch('/OPD/GetTodayTokens');
-                if (res.ok) {
-                    const json = await res.json();
-                    if (json.isSuccess) {
-                        renderBoards(json.data.items || []);
-                    }
-                }
+                const res = await fetch('/OPD/GetTodayTokens', { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const json = await res.json();
+                if (!json.isSuccess) throw new Error('feed');
+                if (json.serverNow) { const s = parseLocal(json.serverNow); if (s) skewMs = s - Date.now(); }
+                timing = json.timing || {};
+                build(json.data && json.data.items ? json.data.items : []);
+                setOnline(true);
             } catch (err) {
-                console.error("Monitor fetch error", err);
+                failures++;
+                if (failures >= 2) setOnline(false);
             }
         }
+        function setOnline(ok) {
+            if (ok) failures = 0;
+            document.getElementById('liveBadge').classList.toggle('off', !ok);
+            document.getElementById('liveText').textContent = ok ? 'Live' : 'Offline';
+            document.getElementById('offline').classList.toggle('show', !ok);
+        }
 
-        function renderBoards(items) {
-            const container = document.getElementById('board-container');
-            
-            if (!items.length) {
-                container.innerHTML = `<div class="text-center mt-5 w-100" style="grid-column: 1 / -1;"><h1 class="text-muted fw-bold">No Active Tokens Today</h1></div>`;
+        function build(items) {
+            // same rules as before: group by doctor; waiting = Registered with a token (or paid)
+            const grouped = {};
+            items.forEach(it => { const d = it.consultingDoctorName || 'General OPD'; (grouped[d] = grouped[d] || []).push(it); });
+
+            let totalWaiting = 0, totalSeen = 0;
+            const calls = [];
+            const consultingNow = new Map();
+
+            boards = Object.entries(grouped).map(([docName, tokens]) => {
+                const consulting = tokens.filter(t => (t.status || '').toLowerCase() === 'consulting');
+                const waiting = tokens.filter(t => {
+                    if ((t.status || '').toLowerCase() !== 'registered') return false;
+                    const py = (t.paymentStatus || 'U').toUpperCase();
+                    const hasDue = py === 'U' || py === 'R';
+                    const hasToken = t.tokenNo && t.tokenNo.trim() !== '' && t.tokenNo.trim() !== 'N/A';
+                    return !(hasDue && !hasToken);
+                }).sort((a, b) => a.opdServiceId - b.opdServiceId);
+                const seen = tokens.filter(t => (t.status || '').toLowerCase() === 'completed').length;
+                totalWaiting += waiting.length; totalSeen += seen;
+
+                tokens.forEach(t => {
+                    const tm = timing[t.opdServiceId];
+                    const at = tm && tm.consultingAt ? parseLocal(tm.consultingAt) : null;
+                    if (at && t.tokenNo) calls.push({ token: t.tokenNo, room: roomLabel(docName), doc: doctorTitle(docName), at, id: t.opdServiceId });
+                });
+                consulting.forEach(t => consultingNow.set(t.opdServiceId, { token: t.tokenNo || 'N/A', room: roomLabel(docName), doc: doctorTitle(docName), docName }));
+
+                return { docName, consulting, waiting, seen };
+            }).sort((a, b) => a.docName.localeCompare(b.docName));
+
+            document.getElementById('stWaiting').textContent = totalWaiting;
+            document.getElementById('stSeen').textContent = totalSeen;
+
+            // a token newly called in -> alert (never on the first load)
+            if (knownConsulting) {
+                const fresh = [...consultingNow.entries()].filter(([id]) => !knownConsulting.has(id));
+                if (fresh.length) {
+                    // several called at once: announce the latest call (by its call time)
+                    const calledAt = id => { const tm = timing[id]; return tm && tm.consultingAt ? parseLocal(tm.consultingAt) : now(); };
+                    fresh.sort((x, y) => calledAt(x[0]) - calledAt(y[0]));
+                    const [freshId, c] = fresh[fresh.length - 1];
+                    lastCall = { token: c.token, room: c.room, doc: c.doc, at: calledAt(freshId) };
+                    announce(c);
+                    fresh.forEach(([, f]) => flashBoard(f.docName));
+                }
+            }
+            knownConsulting = new Set(consultingNow.keys());
+
+            calls.sort((a, b) => b.at - a.at);
+            if (!lastCall && calls.length) lastCall = calls[0];
+            else if (lastCall && calls.length && calls[0].at > lastCall.at) lastCall = calls[0];
+            renderSide(calls.slice(0, 6));
+            renderBoards();
+        }
+
+        // ── Boards with automatic pages when they do not fit ─────────────────────────────────────────
+        function layout() {
+            const grid = document.getElementById('board');
+            const w = grid.clientWidth, h = grid.clientHeight || (window.innerHeight - 200);
+            // as many columns / rows as fit, but no more than the doctors need, so a few doctors get big cards
+            const cols = Math.max(1, Math.min(3, Math.floor(w / 520), boards.length || 1));
+            const rows = Math.max(1, Math.min(Math.floor((h + 18) / 300), Math.ceil((boards.length || 1) / cols)));
+            grid.style.setProperty('--cols', cols);
+            grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+            return cols * rows;
+        }
+        function renderBoards() {
+            const grid = document.getElementById('board');
+            if (!boards.length) {
+                grid.style.gridTemplateRows = '';
+                grid.innerHTML = `<div class="empty-board"><div><i class="bi bi-calendar2-check"></i><h2>No patients in the queue right now</h2><div>Tokens will appear here as soon as they are issued.</div></div></div>`;
+                document.getElementById('pager').innerHTML = '';
                 return;
             }
+            const perPage = layout();
+            const pages = Math.max(1, Math.ceil(boards.length / perPage));
+            if (page >= pages) page = 0;
+            const slice = boards.slice(page * perPage, page * perPage + perPage);
+            grid.innerHTML = slice.map(boardHtml).join('');
+            document.getElementById('pager').innerHTML = pages > 1 ? Array.from({ length: pages }, (_, i) => `<span class="${i === page ? 'on' : ''}"></span>`).join('') : '';
+            clearTimeout(pageTimer);
+            if (pages > 1) pageTimer = setTimeout(() => { page = (page + 1) % pages; renderBoards(); }, 12000);
+        }
+        function boardHtml(b) {
+            const active = b.consulting[0];
+            const tm = active ? timing[active.opdServiceId] : null;
+            const since = tm && tm.consultingAt ? minsSince(parseLocal(tm.consultingAt)) : null;
+            const room = roomLabel(b.docName);
+            const spec = docSpecMap[b.docName] || 'Out-patient';
+            const show = b.waiting.slice(0, 4);
+            const more = b.waiting.length - show.length;
+            return `
+            <div class="doc" data-doc="${esc(b.docName)}">
+                <div class="doc-head">
+                    <div class="doc-avatar">${esc(initials(b.docName))}</div>
+                    <div class="doc-title">
+                        <div class="doc-name">${esc(doctorTitle(b.docName))}</div>
+                        <div class="doc-spec">${esc(spec)}</div>
+                    </div>
+                    ${room ? `<div class="room"><i class="bi bi-door-open-fill"></i>${esc(room)}</div>` : ''}
+                </div>
+                <div class="doc-body">
+                    <div class="serve">
+                        <div class="lbl"><i class="bi bi-broadcast"></i>Now serving</div>
+                        ${active
+                            ? `<div class="serve-token">${esc(active.tokenNo || 'N/A')}</div>
+                               <div class="serve-name">${esc(maskName(active.patientName))}</div>
+                               ${since ? `<div class="serve-since">In consultation · ${esc(since)}</div>` : ''}`
+                            : `<div class="serve-idle">${b.waiting.length ? 'Please wait' : 'Available'}</div>`}
+                    </div>
+                    <div class="queue">
+                        <div class="lbl"><i class="bi bi-list-ol"></i>Up next</div>
+                        ${show.length ? show.map((w, i) => {
+                            const t = timing[w.opdServiceId];
+                            const wait = t && t.issuedAt ? minsSince(parseLocal(t.issuedAt)) : null;
+                            return `<div class="q-item ${i === 0 ? 'first' : ''}">
+                                <div class="q-top"><span class="q-token">${esc(w.tokenNo || 'N/A')}</span>${i === 0 ? '<span class="q-tag">Next</span>' : ''}</div>
+                                <div class="q-sub"><span class="q-name">${esc(maskName(w.patientName))}</span>${wait ? `<span class="q-wait"><i class="bi bi-hourglass-split"></i> ${esc(wait)}</span>` : ''}</div>
+                            </div>`; }).join('')
+                            : '<div class="q-empty">No one waiting</div>'}
+                        ${more > 0 ? `<div class="q-more">+ ${more} more waiting</div>` : ''}
+                    </div>
+                </div>
+                <div class="doc-foot"><span>Waiting <b>${b.waiting.length}</b></span><span>Seen today <b>${b.seen}</b></span></div>
+            </div>`;
+        }
+        function flashBoard(docName) {
+            const el = [...document.querySelectorAll('.doc')].find(d => d.dataset.doc === docName);
+            if (el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+        }
 
-            // Group by Doctor Name
-            const grouped = {};
-            items.forEach(item => {
-                const docName = item.consultingDoctorName || 'General OPD';
-                if (!grouped[docName]) grouped[docName] = [];
-                grouped[docName].push(item);
-            });
+        function renderSide(calls) {
+            const box = document.getElementById('nowCalling');
+            box.innerHTML = `<div class="lbl"><i class="bi bi-megaphone-fill"></i>Now calling</div>` + (lastCall
+                ? `<div class="call-token">${esc(lastCall.token)}</div>
+                   ${lastCall.room ? `<div class="call-room"><i class="bi bi-door-open-fill me-1"></i>${esc(lastCall.room)}</div>` : ''}
+                   <div class="call-doc">${esc(lastCall.doc)}</div>`
+                : `<div class="call-none">Waiting for the first call</div>`);
+            document.getElementById('recentList').innerHTML = calls.length
+                ? calls.map(c => `<div class="r-item"><span class="r-token">${esc(c.token)}</span><span class="r-where">${esc(c.room || c.doc)}</span><span class="r-time">${esc(hhmm(c.at))}</span></div>`).join('')
+                : '<div class="q-empty">No calls yet</div>';
+        }
 
-            // Map Specialities
-            const specMap = {};
-            @foreach(var spec in specialities) {
-                <text>specMap[@spec.SpecialityId] = '@Html.Raw(spec.SpecialityName.Replace("'", "\\'"))';</text>
-            }
-
-            // Map Doctors
-            const docSpecMap = {};
-            @foreach(var doc in doctors) {
-                if (doc.PrimarySpecialityId.HasValue) {
-                    <text>docSpecMap['@Html.Raw(doc.FullName.Replace("'", "\\'"))'] = specMap[@doc.PrimarySpecialityId.Value] || '';</text>
-                }
-            }
-
-            // Doctor → Room map
-            const doctorRoomMap = {
-                @foreach(var kv in doctorRoomMapRazor) {
-                    <text>'@Html.Raw(kv.Key.Replace("'", "\\'"))': '@Html.Raw(kv.Value.Replace("'", "\\'"))',</text>
-                }
-            };
-
-            let html = '';
-
-            for (const [docName, tokens] of Object.entries(grouped)) {
-                let consulting = tokens.filter(t => (t.status || '').toLowerCase() === 'consulting');
-                let waiting = tokens.filter(t => {
-                    const st = (t.status || '').toLowerCase();
-                    if (st !== 'registered') return false;
-                    const pyStatus = (t.paymentStatus || 'U').toUpperCase();
-                    const hasDue   = pyStatus === 'U' || pyStatus === 'R';
-                    const hasToken = t.tokenNo && t.tokenNo.trim() !== '' && t.tokenNo.trim() !== 'N/A';
-                    // Hide from monitor: payment not cleared AND no token yet generated
-                    if (hasDue && !hasToken) return false;
-                    return true;
+        // ── Call alert: overlay + chime + spoken announcement (sound only after it is switched on) ────
+        let soundOn = store.get('opdMonitorSound') === '1';
+        let audioCtx = null;
+        let overlayTimer = null;
+        function chime() {
+            try {
+                audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+                [[880, 0], [660, .32], [990, .64]].forEach(([f, t]) => {
+                    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+                    o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(audioCtx.destination);
+                    const s = audioCtx.currentTime + t;
+                    g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.35, s + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.5);
+                    o.start(s); o.stop(s + 0.55);
                 });
-
-                // Sort waiting by OPDServiceId (arrival order)
-                waiting.sort((a, b) => a.opdServiceId - b.opdServiceId);
-
-                const activeToken = consulting.length > 0 ? consulting[0] : null;
-                const specName = docSpecMap[docName] || 'OPD';
-
-                html += `
-                <div class="doc-card">
-                    <div class="doc-header">
-                        <i class="bi bi-person-circle"></i>
-                        <span class="doc-name">Dr. ${docName}</span>
-                        ${doctorRoomMap[docName] ? `<span class="doc-room-badge"><i class="bi bi-door-open"></i>${doctorRoomMap[docName]}</span>` : ''}
-                        <span class="doc-speciality">${specName}</span>
-                    </div>
-                    <div class="doc-body">
-                        
-                        <!-- Consulting Section -->
-                        <div class="consulting-section">
-                            <div class="status-label consulting-label"><i class="bi bi-broadcast me-2"></i>Now Consulting</div>
-                            ${activeToken 
-                                ? `<div class="token-number active">${activeToken.tokenNo || 'N/A'}</div>
-                                   <div class="patient-name">${activeToken.patientName}</div>`
-                                : `<div class="empty-state">WAITING...</div>`
-                            }
-                        </div>
-
-                        <!-- Waiting Section -->
-                        <div class="waiting-section">
-                            <div class="status-label"><i class="bi bi-list-ol me-2"></i>Up Next</div>
-                            ${waiting.length > 0 
-                                ? waiting.slice(0, 4).map((w, index) => `
-                                    <div class="waiting-item ${index === 0 ? 'up-next-first' : ''}">
-                                        <div>
-                                            <span class="waiting-token">${w.tokenNo || 'N/A'}</span>
-                                            ${index === 0 ? `<span class="up-next-first-name">${w.patientName}</span>` : ''}
-                                        </div>
-                                        <span class="waiting-time">${w.visitDate ? new Date(w.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}</span>
-                                    </div>
-                                `).join('') 
-                                : '<div class="text-center text-muted fw-bold mt-4">Empty Queue</div>'
-                            }
-                        </div>
-
-                    </div>
-                </div>`;
-            }
-
-            container.innerHTML = html;
+            } catch { }
         }
-
-        // Init and Poll every 5 seconds for snappier TV response
-        fetchTokens();
-        setInterval(fetchTokens, 5000);
-
-        // Dark Mode Toggle Logic
-        const themeToggleBtn = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
-        
-        // Check local storage for preference
-        if (localStorage.getItem('theme') === 'dark') {
-            document.body.classList.add('dark-mode');
-            themeIcon.classList.replace('bi-moon-fill', 'bi-sun-fill');
+        function speak(c) {
+            try {
+                if (!('speechSynthesis' in window)) return;
+                const spelled = String(c.token).replace(/-/g, ' ').split('').join(' ').replace(/\s+/g, ' ');
+                const msg = new SpeechSynthesisUtterance(`Token number ${spelled}. Please proceed to ${c.room ? c.room : c.doc}.`);
+                msg.rate = 0.9; window.speechSynthesis.cancel(); window.speechSynthesis.speak(msg);
+            } catch { }
         }
+        function announce(c) {
+            document.getElementById('ovToken').textContent = c.token;
+            document.getElementById('ovRoom').textContent = c.room ? 'Please proceed to ' + c.room : 'Please proceed for consultation';
+            document.getElementById('ovDoc').textContent = c.doc;
+            const ov = document.getElementById('callOverlay');
+            ov.classList.add('show');
+            clearTimeout(overlayTimer);
+            overlayTimer = setTimeout(() => ov.classList.remove('show'), 9000);
+            if (soundOn) { chime(); setTimeout(() => speak(c), 1200); }
+        }
+        document.getElementById('callOverlay').addEventListener('click', () => document.getElementById('callOverlay').classList.remove('show'));
 
-        themeToggleBtn.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            if (document.body.classList.contains('dark-mode')) {
-                localStorage.setItem('theme', 'dark');
-                themeIcon.classList.replace('bi-moon-fill', 'bi-sun-fill');
-            } else {
-                localStorage.setItem('theme', 'light');
-                themeIcon.classList.replace('bi-sun-fill', 'bi-moon-fill');
-            }
+        // ── Controls ──────────────────────────────────────────────────────────────────────────────────
+        const btnSound = document.getElementById('btnSound');
+        function paintSound() {
+            btnSound.classList.toggle('on', soundOn);
+            btnSound.innerHTML = `<i class="bi ${soundOn ? 'bi-volume-up-fill' : 'bi-volume-mute-fill'}"></i>`;
+        }
+        btnSound.addEventListener('click', () => {
+            soundOn = !soundOn; store.set('opdMonitorSound', soundOn ? '1' : '0'); paintSound();
+            if (soundOn) chime();      // a click is needed before the browser lets the screen play sound
+        });
+        paintSound();
+
+        const btnTheme = document.getElementById('btnTheme');
+        function applyTheme(light) {
+            document.body.classList.toggle('light', light);
+            btnTheme.innerHTML = `<i class="bi ${light ? 'bi-moon-stars-fill' : 'bi-sun-fill'}"></i>`;
+        }
+        applyTheme(store.get('opdMonitorTheme') === 'light');
+        btnTheme.addEventListener('click', () => {
+            const light = !document.body.classList.contains('light');
+            store.set('opdMonitorTheme', light ? 'light' : 'dark'); applyTheme(light);
         });
 
+        document.getElementById('btnFull').addEventListener('click', () => {
+            try {
+                const p = !document.fullscreenElement ? document.documentElement.requestFullscreen?.() : document.exitFullscreen?.();
+                if (p && p.catch) p.catch(() => { });
+            } catch { }
+        });
+        window.addEventListener('resize', () => { if (boards.length) renderBoards(); });
+
+        // refresh every 5 seconds, as before
+        fetchTokens();
+        setInterval(fetchTokens, 5000);
     </script>
 </body>
 </html>

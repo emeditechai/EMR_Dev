@@ -66,11 +66,35 @@ namespace EMR.Api.Services
             p.Add("@BillNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
             p.Add("@TokenNo", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
 
+            // 2453: the LMP date is checked before the bill exists, so a wrong date never leaves a half-saved bill
+            if (request.LmpDate.HasValue)
+                await connection.ExecuteAsync("dbo.usp_LabOrder_SetLmp",
+                    new { PatientId = request.PatientId, Gender = request.PatientGender, LmpDate = request.LmpDate.Value.Date, ValidateOnly = true },
+                    commandType: CommandType.StoredProcedure);
+
             await connection.ExecuteAsync("dbo.usp_CreateLabOrder", p, commandType: CommandType.StoredProcedure);
 
             int labOrderId = p.Get<int>("@LabOrderId");
             string billNo = p.Get<string>("@BillNo");
             string? tokenNo = p.Get<string?>("@TokenNo");
+
+            // 2384: "Is Booking Req" - the order is marked and gets its booking number (usp_CreateLabOrder is unchanged)
+            string? bookingNo = null;
+            if (request.IsBookingRequired)
+            {
+                var bp = new DynamicParameters();
+                bp.Add("@LabOrderId", labOrderId);
+                bp.Add("@IsBookingRequired", true);
+                bp.Add("@BookingNo", dbType: DbType.String, size: 30, direction: ParameterDirection.Output);
+                await connection.ExecuteAsync("dbo.usp_LabOrder_SetBooking", bp, commandType: CommandType.StoredProcedure);
+                bookingNo = bp.Get<string?>("@BookingNo");
+            }
+
+            // 2453: LMP date of a female patient's bill (the procedure stores nothing for anyone else)
+            if (request.LmpDate.HasValue)
+                await connection.ExecuteAsync("dbo.usp_LabOrder_SetLmp",
+                    new { LabOrderId = labOrderId, Gender = request.PatientGender, LmpDate = request.LmpDate.Value.Date, ValidateOnly = false, UserId = userId },
+                    commandType: CommandType.StoredProcedure);
 
             if (request.DueDate.HasValue)
             {
@@ -81,7 +105,8 @@ namespace EMR.Api.Services
             {
                 LabOrderId = labOrderId,
                 BillNo = billNo,
-                TokenNo = tokenNo
+                TokenNo = tokenNo,
+                BookingNo = bookingNo
             };
         }
 
@@ -125,7 +150,7 @@ namespace EMR.Api.Services
             return await connection.QueryAsync<SubCategoryDto>("dbo.usp_GetLabSubCategories", new { CategoryId = categoryId }, commandType: CommandType.StoredProcedure);
         }
 
-        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null)
+        public async Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null, int? createdBy = null)
         {
             using var connection = db.CreateConnection();
             using var multi = await connection.QueryMultipleAsync(
@@ -142,7 +167,8 @@ namespace EMR.Api.Services
                     DateType = dateType is "B" or "C" ? dateType : null,  // script 2220; anything else = order date
                     PaymentFilter = paymentFilter is "DUE" or "PARTIAL" or "PAID" or "PCAN" or "FCAN" ? paymentFilter : null,  // script 2233
                     AgentType = agentType is "F" or "C" ? agentType : null,                                                 // script 2234
-                    AgentId = agentId is > 0 ? agentId : null
+                    AgentId = agentId is > 0 ? agentId : null,
+                    CreatedBy = createdBy is > 0 ? createdBy : null                                                        // script 2258
                 },
                 commandType: CommandType.StoredProcedure
             );

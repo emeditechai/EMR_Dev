@@ -11,13 +11,13 @@
                 <ol class="breadcrumb mb-1">
                     <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
                     <li class="breadcrumb-item text-muted">IPD Master</li>
-                    <li class="breadcrumb-item"><a asp-action="Index" asp-route-tab="computed">Doctor IP Commission</a></li>
+                    <li class="breadcrumb-item"><a asp-action="Index" asp-encrypted-route-tab="computed">Doctor IP Commission</a></li>
                     <li class="breadcrumb-item active">Details</li>
                 </ol>
             </nav>
             <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-eye me-2"></i>Commission #@h.Commission_Hdr_ID - @h.Doctor_Name</h4>
         </div>
-        <a asp-action="Index" asp-route-tab="computed" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back</a>
+        <a asp-action="Index" asp-encrypted-route-tab="computed" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Back</a>
     </div>
 
     <div class="card border-0 shadow-sm mb-4">

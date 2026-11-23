@@ -6,152 +6,7 @@
 @section HeadStyles {
     <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
-    <style>
-        .select2-container--bootstrap-5 .select2-selection {
-            min-height: calc(1.5em + 0.75rem + 2px);
-            font-size: 0.9rem;
-        }
-        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
-            line-height: 1.5;
-            padding-top: 0.375rem;
-        }
-        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
-            height: calc(1.5em + 0.75rem + 2px);
-        }
-        .select2-container { width: 100% !important; }
-
-        .reg-section {
-            background: #fff;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            margin-bottom: 1.5rem;
-            overflow: hidden;
-            box-shadow: 0 1px 4px rgba(0,0,0,.06);
-        }
-        .reg-section-header {
-            display: flex;
-            align-items: center;
-            gap: .75rem;
-            padding: 1rem 1.4rem;
-            border-bottom: 1px solid #e9ecef;
-            background: #f8f9fc;
-        }
-        .reg-section-header .sec-icon {
-            width: 42px; height: 42px;
-            border-radius: 10px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1.2rem;
-        }
-        .reg-section-header .sec-icon.blue  { background: #e8f0fe; color: #1967d2; }
-        .reg-section-header .sec-icon.green { background: #e6f4ea; color: #137333; }
-        .reg-section-body { padding: 1.4rem; }
-
-        .service-block {
-            background: #f8f9fc;
-            border: 1px solid #e0e7ef;
-            border-radius: 8px;
-            padding: 1rem 1.2rem;
-            margin-top: .25rem;
-        }
-        .charges-display {
-            background: #e8f5e9;
-            border: 1px solid #a5d6a7;
-            color: #2e7d32;
-            font-size: 1.1rem;
-            font-weight: 700;
-            letter-spacing: .5px;
-        }
-
-        /* Search panel */
-        .search-panel {
-            background: #fff;
-            border: 2px solid #0d6efd;
-            border-radius: 12px;
-            padding: 1.1rem 1.4rem;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 1px 4px rgba(13,110,253,.15);
-        }
-        .search-panel .search-label-strip {
-            display: inline-flex;
-            align-items: center;
-            gap: .5rem;
-            font-size: .7rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            text-transform: uppercase;
-            color: #0d6efd;
-            margin-bottom: .75rem;
-        }
-
-        /* Patient info card shown after load */
-        #patientInfoCard {
-            background: linear-gradient(135deg, #e8f0fe 0%, #f0fff4 100%);
-            border: 1px solid #0d6efd;
-            border-radius: 12px;
-            padding: 1rem 1.4rem;
-            margin-bottom: 1.5rem;
-        }
-
-        #phoneSearchDropdown .list-group-item:hover { background: #e8f0fe; }
-
-        /* Auto-suggest dropdown on search input */
-        #searchAutoDropdown {
-            position: absolute;
-            top: calc(100% + 2px);
-            left: 0;
-            right: 0;
-            z-index: 1060;
-            background: #fff;
-            border: 1px solid #c6d4f5;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 6px 20px rgba(13,110,253,.13);
-            max-height: 300px;
-            overflow-y: auto;
-            display: none;
-        }
-        #searchAutoDropdown .suggest-item {
-            padding: .55rem 1rem;
-            cursor: pointer;
-            border-bottom: 1px solid #f3f3f3;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: .5rem;
-            transition: background .12s;
-        }
-        #searchAutoDropdown .suggest-item:last-child { border-bottom: none; }
-        #searchAutoDropdown .suggest-item:hover,
-        #searchAutoDropdown .suggest-item.active { background: #e8f0fe; }
-        #searchAutoDropdown .suggest-no-result {
-            padding: .7rem 1rem;
-            color: #888;
-            font-size: .84rem;
-            text-align: center;
-        }
-
-        .action-bar {
-            background: #fff;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 1rem 1.4rem;
-            display: flex;
-            justify-content: flex-end;
-            gap: .75rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 1px 4px rgba(0,0,0,.06);
-        }
-
-        /* Guard overlay when patient not loaded */
-        #formGuard {
-            pointer-events: none;
-            opacity: .4;
-            transition: opacity .3s;
-        }
-        #formGuard.unlocked {
-            pointer-events: auto;
-            opacity: 1;
-        }
-    </style>
+    <link rel="stylesheet" href="~/css/views/OPD/NewServiceBooking.css" asp-append-version="true" />
 }
 
 @* ── Page header ── *@
@@ -218,6 +73,7 @@
                 <span class="badge text-bg-danger" id="infoPatientBloodGroup" style="display:none">—</span>
                 <span class="text-muted small" id="infoPatientAge"></span>
                 <span id="regValidityBadge" class="badge text-bg-warning text-dark d-none" style="font-size:.72em"></span>
+                    <span id="lastVisitBadge" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-2 d-none" style="font-size:.72em"></span>
             </div>
             <div class="row g-2 text-muted small mt-0">
                 <div class="col-auto"><i class="bi bi-telephone me-1"></i><span id="infoPatientPhone">—</span></div>
@@ -260,6 +116,7 @@
 ══════════════════════════════════════════════════════════════ *@
 <form asp-action="NewServiceBooking" method="post" enctype="multipart/form-data"
       id="bookingForm" novalidate>
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3"></div>
     @Html.AntiForgeryToken()
     <input asp-for="PatientId"              type="hidden" id="hdnPatientId" />
     <input asp-for="PatientCode"            type="hidden" id="hdnPatientCode" />
@@ -770,8 +627,28 @@
             if (el) { el.textContent = ''; el.classList.add('d-none'); }
         }
 
+        // last OPD visit beside the registration badge (SQLScripts/2323)
+        async function showLastVisit(patientId) {
+            const el = document.getElementById('lastVisitBadge');
+            if (!el) return;
+            el.classList.add('d-none'); el.innerHTML = '';
+            if (!patientId || patientId === '0') return;
+            const v = await fetchJson(opdBase + 'GetLastVisit?patientId=' + patientId);
+            if (!v || !v.found) return;
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const ago = v.daysAgo === 0 ? 'today' : v.daysAgo === 1 ? '1d ago' : v.daysAgo + 'd ago';
+            const doc = v.doctorName ? esc(v.doctorName)
+                      : v.lastConsultant ? esc(v.lastConsultant) + ' <span class="opacity-75">(' + esc(v.lastConsultantDate) + ')</span>' : '';
+            el.innerHTML = '<i class="bi bi-clock-history me-1"></i>' + esc(v.visitDate) + ' <span class="opacity-75">' + ago + '</span>'
+                + (doc ? ' · <i class="bi bi-person-badge me-1"></i>' + doc : '')
+                + (v.otherBranch && v.branchName ? ' · ' + esc(v.branchName) : '');
+            el.title = 'Last visit ' + (v.visitDate || '') + ' - bill ' + (v.billNo || '') + (v.doctorName ? '' : v.lastConsultant ? ' (service only; last consultant on ' + v.lastConsultantDate + ')' : '');
+            el.classList.remove('d-none');
+        }
+
         async function checkRegistrationValidity(patientId) {
             clearRegValidityBadge();
+            showLastVisit(patientId);
             const rv = await fetchJson(opdBase + 'GetRegistrationValidity?patientId=' + patientId);
             if (!rv || !rv.validityConfigured) return;  // no validity set — always allow registration
 
@@ -782,8 +659,15 @@
                 const days = rv.remainingDays;
                 el.className = 'badge text-bg-warning text-dark d-none';
                 el.innerHTML =
-                    '<i class="bi bi-shield-check me-1"></i>Registration Charges Not Applied' +
-                    (days != null ? ` &nbsp;·&nbsp; <strong>${days}</strong> day${days === 1 ? '' : 's'} remaining` : '');
+                    '<i class="bi bi-shield-check me-1"></i>No reg. charge' +
+                    (days != null ? ` · <strong>${days}</strong>d left` : '');
+                el.title = 'Registration Charges Not Applied' + (days != null ? ` - ${days} day${days === 1 ? '' : 's'} remaining` : '');
+                el.classList.remove('d-none');
+            } else if (rv.registrationNotRequired) {
+                // Expired or never registered, but the branch does not require the charge (Hospital Settings > OPD, SQLScripts/2501)
+                el.className = 'badge text-bg-info text-dark d-none';
+                el.innerHTML = '<i class="bi bi-receipt me-1"></i>Registration Charge Optional';
+                el.title = 'Registration has lapsed; Hospital Settings allow consultation without the registration charge.';
                 el.classList.remove('d-none');
             } else {
                 // Expired or never registered — registration charge will be applied
@@ -1081,4 +965,5 @@
 
     })();
     </script>
+    <script src="~/js/doctor-suspension.js" asp-append-version="true" data-url="@Url.Action("SuspensionStatus", "Doctors")"></script>   @* SQLScripts/2484 *@
 }

@@ -69,8 +69,7 @@ public class BranchesController(
 
         if (branch is null) return NotFound();
 
-        var companyRoles = await dbContext.Roles
-            .Where(r => r.CompanyId == branch.CompanyId)
+        var companyRoles = await dbContext.Roles   // roles are global (script 2334)
             .OrderBy(r => r.Name)
             .Select(r => r.Name)
             .ToListAsync();

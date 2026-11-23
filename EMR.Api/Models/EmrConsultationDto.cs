@@ -24,6 +24,8 @@ public class EmrTemplateInfo
 {
     public int TemplateId { get; set; }
     public string TemplateName { get; set; } = string.Empty;
+    /// <summary>Why this template: SAVED (the consultation's own), DOCTOR (the doctor's template), SPECIALITY (the default).</summary>
+    public string? Source { get; set; }
     public List<EmrSectionInfo> Sections { get; set; } = new();
 }
 

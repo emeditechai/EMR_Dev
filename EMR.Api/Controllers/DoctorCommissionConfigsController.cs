@@ -41,8 +41,15 @@ public class DoctorCommissionConfigsController(IDoctorCommissionService service)
     public async Task<IActionResult> Save([FromBody] DoctorCommissionConfigSaveRequest request)
     {
         var id = await service.SaveCommissionConfigAsync(request);
+        // SQLScripts/2517: a 'Service' rule's selected services (other types: cleared)
+        if (id > 0) await service.SetCommissionConfigServicesAsync(id, request.RevenueType == "Service" ? request.ServiceIds : null);
         return CreatedAtAction(nameof(GetById), new { id }, ApiResponse<int>.Ok(id, "Doctor Commission Configuration saved successfully."));
     }
+
+    /// <summary>SQLScripts/2517: the services a 'Service' rule can name.</summary>
+    [HttpGet("service-options")]
+    public async Task<IActionResult> ServiceOptions([FromQuery] int companyId = 1, [FromQuery] int? branchId = null) =>
+        Ok(ApiResponse<IEnumerable<DoctorCommissionServiceOptionDto>>.Ok(await service.GetCommissionServiceOptionsAsync(companyId, branchId)));
 
     [HttpDelete("{id:int}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), 200)]

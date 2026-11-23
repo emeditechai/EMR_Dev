@@ -1,0 +1,305 @@
+@{
+    ViewData["Title"] = "EQAS Programmes & Results";
+    var lookupsJson = System.Text.Json.JsonSerializer.Serialize(ViewBag.Lookups);
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+}
+@* Quality & Compliance > Equipment & EQAS > EQAS Programmes & Results (SQLScripts/2253, LF-06; ISO 15189 7.3.7.3):
+   enrolment per programme and the tests it covers; per cycle: sample received -> our results submitted -> the provider's
+   evaluation entered -> z-score and performance; an unacceptable result opens a CAPA. *@
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-controller="Home" asp-action="Index">Home</a></li>
+                <li class="breadcrumb-item text-muted">Quality &amp; Compliance</li>
+                <li class="breadcrumb-item active">EQAS Programmes &amp; Results</li></ol></nav>
+            <h4 class="fw-bold mb-0 text-primary"><i class="bi bi-award me-2"></i>EQAS Programmes &amp; Results</h4>
+            <div class="text-muted small">External quality assessment / proficiency testing: enrolment, cycles, z-scores and corrective action</div>
+        </div>
+        <span id="canResult" class="d-none" asp-permission="QC.EQAS:RESULT"></span>
+        <button type="button" class="btn btn-primary px-3 shadow-sm" id="btnAdd" asp-permission="QC.EQAS:ADD"><i class="bi bi-plus-lg me-1"></i>Add Programme</button>
+    </div>
+    <div class="row g-2 mb-3" id="kpis"></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-3"><div class="row g-2 align-items-end">
+        <div class="col-md-3"><label class="form-label small fw-semibold text-muted">Branch</label><select id="fBranch" class="form-select"></select></div>
+        <div class="col-md-2"><label class="form-label small fw-semibold text-muted">Status</label><select id="fStatus" class="form-select"><option value="">All</option><option value="true" selected>Active</option><option value="false">Inactive</option></select></div>
+        <div class="col-md-5"><label class="form-label small fw-semibold text-muted">Search</label><input id="fSearch" class="form-control" placeholder="Programme, provider or enrolment no..." /></div>
+    </div></div></div>
+    <div class="card border-0 shadow-sm mb-3"><div class="card-body p-0"><div class="table-responsive">
+        <table class="table table-hover align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Programme</th><th>Provider / enrolment</th><th>Department</th><th class="text-center">Tests</th><th class="text-center">Cycles</th>
+            <th class="text-center">Awaiting submission</th><th class="text-center">Acceptable</th><th>Enrolled up to</th><th class="text-end pe-3">Actions</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="9" class="text-center text-muted py-4">Loading...</td></tr></tbody></table>
+    </div></div></div>
+
+    <div class="card border-0 shadow-sm d-none" id="cyclePanel">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <div><span class="fw-bold" id="cpTitle"></span><div class="small text-muted" id="cpSub"></div></div>
+            <button type="button" class="btn btn-sm btn-primary" id="btnCycle"><i class="bi bi-plus-lg me-1"></i>Sample received (new cycle)</button>
+        </div>
+        <div class="card-body p-0"><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr>
+            <th class="ps-3">Cycle</th><th>Sample code</th><th>Received</th><th>Result due</th><th>Submitted</th><th>Evaluated</th><th class="text-center">Status</th>
+            <th class="text-center">Acceptable / warning / unacceptable</th><th class="text-end pe-3"></th></tr></thead><tbody id="cRows"></tbody></table></div></div>
+    </div>
+</div>
+
+<!-- programme -->
+<div class="modal fade" id="mProg" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="pgTitle">Programme</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><form id="pgForm" autocomplete="off"><input type="hidden" name="ProgramId" data-type="number" />
+        <div class="row g-3">
+            <div class="col-md-5"><label class="form-label fw-semibold">Programme name <span class="text-danger">*</span></label><input name="ProgramName" class="form-control" maxlength="200" placeholder="e.g. Clinical Biochemistry EQAS" /></div>
+            <div class="col-md-4"><label class="form-label fw-semibold">Provider <span class="text-danger">*</span></label><input name="Provider" class="form-control" maxlength="200" list="providers" />
+                <datalist id="providers"><option>CMC Vellore (Clinical Biochemistry / Haematology EQAS)</option><option>AIIMS New Delhi EQAS</option><option>Bio-Rad EQAS</option>
+                    <option>Randox RIQAS</option><option>PGIMER Chandigarh EQAS</option><option>CAP Proficiency Testing</option><option>ACBI EQAS</option></datalist></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Our enrolment / lab no.</label><input name="EnrolmentNo" class="form-control" maxlength="100" /></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Branch <span class="text-danger">*</span></label><select name="BranchId" data-type="number" class="form-select" id="pgBranch"></select></div>
+            <div class="col-md-3"><label class="form-label fw-semibold">Department</label><select name="DepartmentId" data-type="number" class="form-select" id="pgDept"></select></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Cycles a year</label><input name="CyclesPerYear" data-type="number" type="number" min="1" max="52" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Enrolled from</label><input name="EnrolledFrom" type="date" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Enrolled up to</label><input name="EnrolledUpto" type="date" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Fee (₹)</label><input name="Fee" data-type="number" type="number" min="0" step="0.01" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Acceptable |z| ≤</label><input name="AcceptZ" data-type="number" type="number" min="0.5" max="10" step="0.1" class="form-control" /></div>
+            <div class="col-md-2"><label class="form-label fw-semibold">Unacceptable |z| &gt;</label><input name="ActionZ" data-type="number" type="number" min="0.5" max="10" step="0.1" class="form-control" /></div>
+            <div class="col-md-4 form-check form-switch mt-4 ms-2"><input class="form-check-input" type="checkbox" name="Status" id="pgStatus" /><label class="form-check-label" for="pgStatus">Active</label></div>
+            <div class="col-12"><label class="form-label fw-semibold">Remarks</label><input name="Remarks" class="form-control" maxlength="500" /></div>
+        </div></form>
+        <hr />
+        <div class="d-flex align-items-center gap-2 mb-2"><div class="fw-semibold">Tests (analytes) in the programme</div><div class="flex-grow-1"><select id="pgPick"></select></div></div>
+        <table class="table table-sm align-middle mb-0"><thead class="bg-light"><tr><th>Test</th><th style="width:180px">Result type</th><th style="width:160px">Unit</th><th></th></tr></thead><tbody id="pgTests"></tbody></table>
+    </div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="pgSave"><i class="bi bi-save me-1"></i>Save Programme</button></div>
+</div></div></div>
+
+<!-- cycle -->
+<div class="modal fade" id="mCycle" tabindex="-1" aria-hidden="true"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header py-2"><h6 class="modal-title fw-bold">EQAS sample received</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body"><div class="row g-3"><input type="hidden" id="cyId" />
+        <div class="col-md-7"><label class="form-label fw-semibold">Cycle <span class="text-danger">*</span></label><input id="cyName" class="form-control" maxlength="100" placeholder="e.g. 2026 / Cycle 3" /></div>
+        <div class="col-md-5"><label class="form-label fw-semibold">Sample code</label><input id="cySample" class="form-control" maxlength="100" /></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Received on <span class="text-danger">*</span></label><input type="date" id="cyRec" class="form-control" /></div>
+        <div class="col-md-6"><label class="form-label fw-semibold">Results due by</label><input type="date" id="cyDue" class="form-control" /></div>
+        <div class="col-12"><label class="form-label fw-semibold">Remarks</label><input id="cyRemarks" class="form-control" maxlength="500" placeholder="Storage, reconstitution..." /></div>
+    </div></div>
+    <div class="modal-footer py-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="cySave">Save</button></div>
+</div></div></div>
+
+<!-- results -->
+<div class="modal fade" id="mRes" tabindex="-1" aria-hidden="true" data-bs-backdrop="static"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header py-2"><div><h6 class="modal-title fw-bold mb-0" id="rsTitle">Results</h6><div class="small text-muted" id="rsSub"></div></div><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div class="table-responsive"><table class="table table-sm align-middle mb-2"><thead class="bg-light"><tr>
+            <th>Test</th><th style="width:130px">Our result</th><th style="width:120px">Target / mean</th><th style="width:100px">SD</th><th style="width:100px">z from report</th>
+            <th style="width:130px">Expected (qual.)</th><th class="text-end">z-score</th><th class="text-center">Performance</th><th>CAPA</th></tr></thead><tbody id="rsRows"></tbody></table></div>
+        <div class="small text-muted"><i class="bi bi-info-circle me-1"></i>z = (our result − target) ÷ SD, or the z / SDI printed on the provider's report. |z| ≤ <span id="rsA"></span> acceptable, ≤ <span id="rsX"></span> warning, above = unacceptable (a CAPA is opened).</div>
+        <div class="row g-2 mt-2" id="rsStage"></div>
+    </div>
+    <div class="modal-footer py-2 justify-content-between">
+        <div class="small text-muted" id="rsHint"></div>
+        <div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="rsSubmit"><i class="bi bi-send me-1"></i>Save &amp; mark submitted</button>
+            <button type="button" class="btn btn-success" id="rsEval"><i class="bi bi-clipboard2-data me-1"></i>Save evaluation</button></div>
+    </div>
+</div></div></div>
+
+@section Scripts {
+<script src="~/lib/select2/dist/js/select2.min.js"></script>
+<script src="~/js/qc-common.js" asp-append-version="true"></script>
+<script>
+(function () {
+    const L = @Html.Raw(lookupsJson), myBranch = @(ViewBag.BranchId ?? 0);
+    const canAdd = !!document.getElementById('btnAdd'), canResult = !!document.getElementById('canResult');
+    const $ = x => document.getElementById(x);
+    const mProg = new bootstrap.Modal($('mProg')), mCycle = new bootstrap.Modal($('mCycle')), mRes = new bootstrap.Modal($('mRes'));
+    const pgForm = $('pgForm');
+    let programs = [], tests = [], current = null, pgTests = [], cycle = null, results = [];
+    $('fBranch').innerHTML = QC.options(L.branches.filter(b => b.Id === myBranch), myBranch); $('fBranch').disabled = true;   // EQAS enrolment is branch-wise
+    $('pgBranch').innerHTML = QC.options(L.branches.filter(b => b.Id === myBranch), myBranch); $('pgBranch').disabled = true;
+    $('pgDept').innerHTML = QC.options(L.departments, '', '-- Not set --');
+    $('btnCycle').classList.toggle('d-none', !canResult);
+
+    const perf = p => ({ ACCEPTABLE: '<span class="badge bg-success">Acceptable</span>', WARNING: '<span class="badge bg-warning text-dark">Warning</span>',
+        UNACCEPTABLE: '<span class="badge bg-danger">Unacceptable</span>' })[p] || '<span class="badge bg-light text-muted border">Not evaluated</span>';
+    const cyStatus = s => ({ RECEIVED: '<span class="badge bg-info text-dark">Sample received</span>', SUBMITTED: '<span class="badge bg-primary">Submitted</span>',
+        EVALUATED: '<span class="badge bg-success">Evaluated</span>' })[s];
+
+    async function load() {
+        const r = await QC.get('@Url.Action("List", "QcEqas")', { status: $('fStatus').value, search: $('fSearch').value });
+        if (!r.success) { $('rows').innerHTML = `<tr><td colspan="9" class="text-danger text-center py-4">${QC.esc(r.message)}</td></tr>`; return; }
+        programs = r.data.programs || []; tests = r.data.tests || [];
+        const sum = k => programs.reduce((s, p) => s + (p[k] || 0), 0);
+        const ev = sum('Evaluated'), acc = sum('Acceptable');
+        const tile = (label, v, cls, icon) => `<div class="col-6 col-md-3"><div class="card border-0 shadow-sm h-100"><div class="card-body py-2"><div class="small text-muted"><i class="bi ${icon} me-1"></i>${label}</div><div class="fs-4 fw-bold ${cls}">${v}</div></div></div></div>`;
+        $('kpis').innerHTML = tile('Programmes', programs.filter(p => p.Status).length, '', 'bi-award')
+            + tile('Cycles awaiting submission', sum('PendingCycles'), sum('PendingCycles') ? 'text-warning-emphasis' : '', 'bi-hourglass-split')
+            + tile('Acceptable results', ev ? QC.num(acc * 100 / ev, 1) + '%' : '—', ev && acc / ev < 0.8 ? 'text-danger' : 'text-success', 'bi-check2-circle')
+            + tile('Unacceptable results', sum('Unacceptable'), sum('Unacceptable') ? 'text-danger' : '', 'bi-x-octagon');
+        $('rows').innerHTML = programs.length ? programs.map(p => {
+            const expired = p.EnrolledUpto && new Date(p.EnrolledUpto) < new Date();
+            return `<tr class="${current && current.ProgramId === p.ProgramId ? 'table-primary' : ''}">
+            <td class="ps-3"><div class="fw-semibold">${QC.esc(p.ProgramName)}</div>${p.Status ? '' : '<span class="badge bg-secondary">Inactive</span>'}</td>
+            <td class="small">${QC.esc(p.Provider)}<div class="text-muted">${QC.esc(p.EnrolmentNo || '')}</div></td>
+            <td class="small">${QC.esc(p.DepartmentName || '—')}</td><td class="text-center">${p.Tests}</td><td class="text-center">${p.Cycles}</td>
+            <td class="text-center">${p.PendingCycles ? `<span class="badge bg-warning text-dark">${p.PendingCycles}</span>` : '0'}</td>
+            <td class="text-center">${p.Evaluated ? `${QC.num(p.Acceptable * 100 / p.Evaluated, 0)}%` : '—'}${p.Unacceptable ? `<div class="small text-danger">${p.Unacceptable} unacceptable</div>` : ''}</td>
+            <td class="small ${expired ? 'text-danger fw-bold' : ''}">${p.EnrolledUpto ? QC.date(p.EnrolledUpto) + (expired ? ' · renew' : '') : '—'}</td>
+            <td class="text-end pe-3 text-nowrap"><button class="btn btn-sm btn-outline-primary act-cyc" data-id="${p.ProgramId}"><i class="bi bi-list-check me-1"></i>Cycles</button>
+                ${canAdd ? `<button class="btn btn-sm btn-outline-secondary act-edit" data-id="${p.ProgramId}"><i class="bi bi-pencil"></i></button>` : ''}</td></tr>`;
+        }).join('') : '<tr><td colspan="9" class="text-center text-muted py-4">No EQAS programme. Add each programme the lab is enrolled in.</td></tr>';
+        if (current) { current = programs.find(p => p.ProgramId === current.ProgramId) || null; if (current) loadCycles(); }
+    }
+
+    // programme modal
+    function renderPgTests() {
+        $('pgTests').innerHTML = pgTests.length ? pgTests.map((t, i) => `<tr><td>${QC.esc(t.name)}</td>
+            <td><select class="form-select form-select-sm pt-type" data-i="${i}"><option value="QUANT" ${t.resultType === 'QUANT' ? 'selected' : ''}>Quantitative (z-score)</option>
+                <option value="QUAL" ${t.resultType === 'QUAL' ? 'selected' : ''}>Qualitative (match)</option></select></td>
+            <td><input class="form-control form-control-sm pt-unit" data-i="${i}" value="${QC.esc(t.unit || '')}" maxlength="50" /></td>
+            <td class="text-end"><button class="btn btn-sm btn-link text-danger pt-del" data-i="${i}"><i class="bi bi-trash"></i></button></td></tr>`).join('')
+            : '<tr><td colspan="4" class="text-center text-muted py-2">Add the tests the programme covers.</td></tr>';
+    }
+    $('pgTests').addEventListener('change', e => { const i = +e.target.dataset.i; if (e.target.classList.contains('pt-type')) pgTests[i].resultType = e.target.value; });
+    $('pgTests').addEventListener('input', e => { const i = +e.target.dataset.i; if (e.target.classList.contains('pt-unit')) pgTests[i].unit = e.target.value; });
+    $('pgTests').addEventListener('click', e => { const b = e.target.closest('.pt-del'); if (b) { pgTests.splice(+b.dataset.i, 1); renderPgTests(); } });
+    function openProgram(p) {
+        pgForm.reset();
+        QC.fill(pgForm, p || { BranchId: myBranch, AcceptZ: 2, ActionZ: 3, Status: true });
+        ['EnrolledFrom', 'EnrolledUpto'].forEach(k => { if (p && p[k]) pgForm[k].value = String(p[k]).slice(0, 10); });
+        pgTests = p ? tests.filter(t => t.ProgramId === p.ProgramId).map(t => ({ testId: t.TestId, name: `${t.TestName}${t.TestCode ? ' (' + t.TestCode + ')' : ''}`, resultType: t.ResultType, unit: t.Unit })) : [];
+        renderPgTests();
+        $('pgPick').innerHTML = '<option value=""></option>' + L.tests.map(t => `<option value="${t.Id}">${QC.esc(t.Name)}</option>`).join('');
+        if (window.jQuery && jQuery.fn.select2) {
+            const $s = jQuery('#pgPick'); if ($s.data('select2')) $s.select2('destroy');
+            $s.select2({ theme: 'bootstrap-5', width: '100%', placeholder: 'Search a test to add...', dropdownParent: jQuery('#mProg') })
+              .off('select2:select').on('select2:select', function () { addTest(+this.value); jQuery(this).val('').trigger('change'); });
+        } else $('pgPick').onchange = function () { addTest(+this.value); this.value = ''; };
+        $('pgTitle').textContent = p ? `Edit ${p.ProgramName}` : 'Add EQAS programme';
+        mProg.show();
+    }
+    function addTest(id) {
+        if (!id || pgTests.some(t => t.testId === id)) return;
+        const t = L.tests.find(x => x.Id === id); pgTests.push({ testId: id, name: t.Name, resultType: 'QUANT', unit: '' }); renderPgTests();
+    }
+    $('btnAdd')?.addEventListener('click', () => openProgram(null));
+    $('pgSave').addEventListener('click', async function () {
+        const body = QC.formData(pgForm);
+        body.Tests = pgTests.map(t => ({ testId: t.testId, resultType: t.resultType, unit: t.unit || null }));
+        if (!body.Tests.length) return QC.fail('Add the tests the programme covers.');
+        this.disabled = true; const r = await QC.post('@Url.Action("Save", "QcEqas")', body); this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mProg.hide(); QC.ok('Programme saved'); load();
+    });
+
+    // cycles
+    async function loadCycles() {
+        $('cyclePanel').classList.remove('d-none');
+        $('cpTitle').textContent = current.ProgramName; $('cpSub').textContent = `${current.Provider}${current.EnrolmentNo ? ' · ' + current.EnrolmentNo : ''} · ${current.Tests} test(s)`;
+        const r = await QC.get('@Url.Action("Cycles", "QcEqas")', { programId: current.ProgramId });
+        if (!r.success) { $('cRows').innerHTML = `<tr><td colspan="9" class="text-danger text-center">${QC.esc(r.message)}</td></tr>`; return; }
+        const today = new Date().toISOString().slice(0, 10);
+        $('cRows').innerHTML = r.data.length ? r.data.map(c => {
+            const late = c.Status === 'RECEIVED' && c.ReportDueOn && String(c.ReportDueOn).slice(0, 10) < today;
+            return `<tr class="${late ? 'table-warning' : ''}"><td class="ps-3 fw-semibold">${QC.esc(c.CycleName)}</td><td class="small">${QC.esc(c.SampleCode || '')}</td>
+            <td>${QC.date(c.ReceivedOn)}</td><td class="${late ? 'text-danger fw-bold' : ''}">${c.ReportDueOn ? QC.date(c.ReportDueOn) + (late ? ' · overdue' : '') : '—'}</td>
+            <td>${c.SubmittedOn ? QC.date(c.SubmittedOn) : '—'}</td><td>${c.EvaluatedOn ? QC.date(c.EvaluatedOn) : '—'}${c.ReportPath ? ` <a href="${QC.esc(c.ReportPath)}" target="_blank"><i class="bi bi-paperclip"></i></a>` : ''}</td>
+            <td class="text-center">${cyStatus(c.Status)}</td>
+            <td class="text-center"><span class="text-success fw-semibold">${c.Acceptable}</span> / <span class="text-warning-emphasis fw-semibold">${c.Warning}</span> / <span class="text-danger fw-semibold">${c.Unacceptable}</span></td>
+            <td class="text-end pe-3"><button class="btn btn-sm btn-outline-primary act-res" data-id="${c.CycleId}"><i class="bi bi-clipboard2-data me-1"></i>${c.Status === 'EVALUATED' || !canResult ? 'View' : 'Results'}</button></td></tr>`;
+        }).join('') : '<tr><td colspan="9" class="text-center text-muted py-3">No cycle yet. Record each EQAS sample when it arrives.</td></tr>';
+    }
+    $('rows').addEventListener('click', e => {
+        const c = e.target.closest('.act-cyc'), ed = e.target.closest('.act-edit');
+        if (c) { current = programs.find(p => p.ProgramId === +c.dataset.id); load(); }
+        if (ed) openProgram(programs.find(p => p.ProgramId === +ed.dataset.id));
+    });
+    $('btnCycle').addEventListener('click', () => {
+        $('cyId').value = ''; ['cyName', 'cySample', 'cyDue', 'cyRemarks'].forEach(k => $(k).value = '');
+        $('cyRec').value = new Date().toISOString().slice(0, 10); mCycle.show();
+    });
+    $('cySave').addEventListener('click', async function () {
+        this.disabled = true;
+        const r = await QC.post('@Url.Action("SaveCycle", "QcEqas")', { cycleId: $('cyId').value ? +$('cyId').value : null, programId: current.ProgramId,
+            cycleName: $('cyName').value, sampleCode: $('cySample').value, receivedOn: $('cyRec').value, reportDueOn: $('cyDue').value || null, remarks: $('cyRemarks').value });
+        this.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        mCycle.hide(); QC.ok('Cycle recorded'); load();
+    });
+
+    // results
+    const zOf = r => {
+        if (r.ResultType === 'QUAL') return null;
+        const rep = r.ReportedZ !== '' && r.ReportedZ != null ? Number(r.ReportedZ) : null;
+        if (rep != null && !isNaN(rep)) return rep;
+        const our = Number(r.OurValue), t = Number(r.TargetValue), sd = Number(r.Sd);
+        return (r.OurValue !== '' && r.OurValue != null && !isNaN(our) && r.TargetValue !== '' && r.TargetValue != null && sd > 0) ? Math.round((our - t) / sd * 100) / 100 : null;
+    };
+    const perfOf = r => {
+        if (r.ResultType === 'QUAL') return (r.OurValue && r.ExpectedValue) ? (String(r.OurValue).trim().toUpperCase() === String(r.ExpectedValue).trim().toUpperCase() ? 'ACCEPTABLE' : 'UNACCEPTABLE') : 'NOT_EVALUATED';
+        const z = zOf(r); if (z == null) return 'NOT_EVALUATED';
+        return Math.abs(z) <= cycle.AcceptZ ? 'ACCEPTABLE' : Math.abs(z) <= cycle.ActionZ ? 'WARNING' : 'UNACCEPTABLE';
+    };
+    function renderResults() {
+        const st = cycle.Status, final = st === 'EVALUATED' || !canResult;
+        const ourOk = !final, evalOk = !final && st !== 'RECEIVED';
+        const val = v => v == null ? '' : QC.esc(v);
+        $('rsRows').innerHTML = results.map((r, i) => {
+            const q = r.ResultType === 'QUAL', z = zOf(r), p = st === 'EVALUATED' ? r.Performance : perfOf(r);
+            return `<tr><td><div class="fw-semibold">${QC.esc(r.TestName)}</div><div class="small text-muted">${q ? 'Qualitative' : 'Quantitative'}${r.Unit ? ' · ' + QC.esc(r.Unit) : ''}</div></td>
+            <td><input class="form-control form-control-sm rv" data-i="${i}" data-k="OurValue" value="${val(r.OurValue)}" ${ourOk ? '' : 'disabled'} /></td>
+            <td><input class="form-control form-control-sm rv" data-i="${i}" data-k="TargetValue" type="number" step="any" value="${val(r.TargetValue)}" ${evalOk && !q ? '' : 'disabled'} /></td>
+            <td><input class="form-control form-control-sm rv" data-i="${i}" data-k="Sd" type="number" step="any" min="0" value="${val(r.Sd)}" ${evalOk && !q ? '' : 'disabled'} /></td>
+            <td><input class="form-control form-control-sm rv" data-i="${i}" data-k="ReportedZ" type="number" step="0.01" value="${val(r.ReportedZ)}" ${evalOk && !q ? '' : 'disabled'} /></td>
+            <td><input class="form-control form-control-sm rv" data-i="${i}" data-k="ExpectedValue" value="${val(r.ExpectedValue)}" ${evalOk && q ? '' : 'disabled'} /></td>
+            <td class="text-end fw-semibold z-cell">${(st === 'EVALUATED' ? r.ZScore : z) == null ? '—' : QC.num(st === 'EVALUATED' ? r.ZScore : z, 2)}</td>
+            <td class="text-center p-cell">${perf(p)}</td><td>${r.CapaNo ? QC.esc(r.CapaNo) : ''}</td></tr>`;
+        }).join('');
+        $('rsSubmit').classList.toggle('d-none', final);
+        $('rsEval').classList.toggle('d-none', !evalOk);
+        $('rsStage').innerHTML = final ? '' : `
+            <div class="col-md-3"><label class="form-label small fw-semibold">Submitted to provider on</label><input type="date" id="rsSubOn" class="form-control form-control-sm" value="${(cycle.SubmittedOn ? String(cycle.SubmittedOn) : new Date().toISOString()).slice(0, 10)}" /></div>
+            ${evalOk ? `<div class="col-md-3"><label class="form-label small fw-semibold">Evaluation received on</label><input type="date" id="rsEvOn" class="form-control form-control-sm" value="${new Date().toISOString().slice(0, 10)}" /></div>
+            <div class="col-md-6"><label class="form-label small fw-semibold">Provider's evaluation report (PDF / image)</label><input type="file" id="rsFile" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.webp" /></div>` : ''}`;
+        $('rsHint').textContent = st === 'RECEIVED' ? 'Step 1: enter our results and mark them submitted.' : st === 'SUBMITTED' ? 'Step 2: enter the provider\'s target and SD (or z), then save the evaluation.' : 'Evaluated: results are final.';
+    }
+    $('rsRows').addEventListener('input', e => {
+        const el = e.target.closest('.rv'); if (!el) return;
+        const r = results[+el.dataset.i]; r[el.dataset.k] = el.value;
+        if (cycle.Status === 'EVALUATED') return;
+        const tr = el.closest('tr'), z = zOf(r);
+        tr.querySelector('.z-cell').textContent = z == null ? '—' : QC.num(z, 2); tr.querySelector('.p-cell').innerHTML = perf(perfOf(r));
+    });
+    async function openResults(cycleId) {
+        const r = await QC.get('@Url.Action("Results", "QcEqas")', { cycleId });
+        if (!r.success) return QC.fail(r.message);
+        cycle = r.data.cycle; results = r.data.results;
+        $('rsTitle').textContent = `${cycle.ProgramName} · ${cycle.CycleName}`;
+        $('rsSub').textContent = `${cycle.Provider} · sample ${cycle.SampleCode || '—'} received ${QC.date(cycle.ReceivedOn)}${cycle.ReportDueOn ? ' · due ' + QC.date(cycle.ReportDueOn) : ''}`;
+        $('rsA').textContent = cycle.AcceptZ; $('rsX').textContent = cycle.ActionZ;
+        renderResults(); mRes.show();
+    }
+    $('cRows').addEventListener('click', e => { const b = e.target.closest('.act-res'); if (b) openResults(+b.dataset.id); });
+    const payload = () => JSON.stringify(results.map(r => ({ resultId: r.ResultId, ourValue: r.OurValue ?? null,
+        targetValue: r.TargetValue === '' || r.TargetValue == null ? null : Number(r.TargetValue), sd: r.Sd === '' || r.Sd == null ? null : Number(r.Sd),
+        reportedZ: r.ReportedZ === '' || r.ReportedZ == null ? null : Number(r.ReportedZ), expectedValue: r.ExpectedValue ?? null })));
+    async function saveResults(stage, btn) {
+        btn.disabled = true;
+        const r = await QC.postForm('@Url.Action("SaveResults", "QcEqas")', { CycleId: cycle.CycleId, Stage: stage, SubmittedOn: $('rsSubOn')?.value || '',
+            EvaluatedOn: stage === 'EVALUATE' ? ($('rsEvOn')?.value || '') : '', ResultsJson: payload() }, { Report: stage === 'EVALUATE' ? $('rsFile')?.files[0] : null });
+        btn.disabled = false;
+        if (!r.success) return QC.fail(r.message);
+        QC.ok(stage === 'SUBMIT' ? 'Results marked submitted' : 'Evaluation saved'); await load(); openResults(cycle.CycleId);
+    }
+    $('rsSubmit').addEventListener('click', function () { saveResults('SUBMIT', this); });
+    $('rsEval').addEventListener('click', async function () {
+        if (!await QC.confirm('Save the evaluation?', 'Results become final; unacceptable results open a CAPA.', 'Save evaluation')) return;
+        saveResults('EVALUATE', this);
+    });
+    ['fStatus'].forEach(k => $(k).addEventListener('change', () => { current = null; $('cyclePanel').classList.add('d-none'); load(); }));
+    $('fSearch').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+    load();
+})();
+</script>
+}

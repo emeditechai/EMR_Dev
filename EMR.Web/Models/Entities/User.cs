@@ -13,6 +13,9 @@ public class User
     [MaxLength(200)]
     public string? Email { get; set; }
 
+    /// <summary>The user's row in the central user register (Central_Lic_DB.dbo.Central_Users.ID, SQLScripts/2470 / 2471).</summary>
+    public long? CentralUserID { get; set; }
+
     [Required]
     public string PasswordHash { get; set; } = string.Empty;
 
@@ -118,6 +121,9 @@ public class User
     /// login, the franchise / corporate id for 'F' / 'C'; null for a general user.
     /// </summary>
     public int? ReferenceUserId { get; set; }
+
+    /// <summary>The user this user reports to - any user of the same company (SQLScripts/2305); null = nobody.</summary>
+    public int? ReportsToUserId { get; set; }
 
     public ICollection<UserBranch> UserBranches { get; set; } = new List<UserBranch>();
     public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
