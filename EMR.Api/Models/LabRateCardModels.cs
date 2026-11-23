@@ -13,6 +13,9 @@ public class LabRateCardHeaderModel
     public string Rate_Type { get; set; } = string.Empty;
     public DateTime Effective_From { get; set; }
     public DateTime Effective_To { get; set; }
+    /// <summary>Government scheme rate list (e.g. WBHS): each line carries the scheme's own code.</summary>
+    public bool Is_Govt_Scheme { get; set; }
+    public string? Scheme_Name { get; set; }
     public bool Status { get; set; }
     public int ItemCount { get; set; }
     public int? CreatedBy { get; set; }
@@ -36,6 +39,8 @@ public class LabRateCardDetailModel
     public int? SubCategory_ID { get; set; }
     public bool Is_Profile_Test { get; set; }
     public decimal Rate { get; set; }
+    /// <summary>The government scheme's code for this item (e.g. WBHS 01003044).</summary>
+    public string? Scheme_Code { get; set; }
     public bool Is_Discount_Allowed { get; set; } = true;
     public bool Status { get; set; }
 }
@@ -55,6 +60,9 @@ public class LabRateCardSaveRequest
     public string Rate_Type { get; set; } = string.Empty;
     public DateTime Effective_From { get; set; }
     public DateTime Effective_To { get; set; }
+    /// <summary>Government scheme rate list (e.g. WBHS): each line carries the scheme's own code.</summary>
+    public bool Is_Govt_Scheme { get; set; }
+    public string? Scheme_Name { get; set; }
     public bool Status { get; set; }
     public int? UserId { get; set; }
     public List<LabRateCardDetailModel> Details { get; set; } = [];

@@ -193,6 +193,8 @@ builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.B2C));
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.Franchise));
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
+    sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.Corporate));
 builder.Services.AddScoped<ILabBulkUploadService,             LabBulkUploadService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────

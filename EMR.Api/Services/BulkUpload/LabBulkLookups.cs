@@ -10,6 +10,7 @@ public class RefMethod { public int Id { get; set; } public string Code { get; s
 public class RefSampleType { public int Id { get; set; } public string Code { get; set; } = ""; public string Name { get; set; } = ""; public string? Container { get; set; } }
 public class RefUnit { public int Id { get; set; } public string Code { get; set; } = ""; public string Name { get; set; } = ""; public string? Symbol { get; set; } }
 public class RefBranch { public int Id { get; set; } public string Code { get; set; } = ""; public string Name { get; set; } = ""; public bool IsHO { get; set; } }
+public class RefCorporate { public int Id { get; set; } public string Code { get; set; } = ""; public string Name { get; set; } = ""; }
 public class RefFranchise { public int Id { get; set; } public string Code { get; set; } = ""; public string Name { get; set; } = ""; public int ParentBranchId { get; set; } public string? ParentBranchName { get; set; } }
 
 /// <summary>Active dependent masters used for dropdowns and for resolving uploaded values.</summary>
@@ -116,5 +117,16 @@ public class LabBulkLookups(IDbConnectionFactory db)
             LEFT JOIN dbo.BranchMaster b ON b.BranchID = f.Parent_Branch_ID
             WHERE f.IsDeleted = 0 AND f.IsActive = 1 AND f.CompanyId = @CompanyId
             ORDER BY f.Franchise_Name
+            """, companyId), x => x.Id, x => x.Code, x => x.Name);
+
+    /// <summary>Active corporates (payers) in their validity period: the Corporate rate list upload.</summary>
+    public async Task<BulkLookup<RefCorporate>> CorporatesAsync(int companyId) => new(
+        await QueryAsync<RefCorporate>("""
+            SELECT c.Corporate_ID AS Id, ISNULL(c.Corporate_Code, '') AS Code, c.Corporate_Name AS Name
+            FROM dbo.CorporateMaster c
+            WHERE c.Status = 1 AND c.CompanyId = @CompanyId
+              AND (c.Effective_From IS NULL OR c.Effective_From <= GETDATE())
+              AND (c.Effective_To IS NULL OR c.Effective_To >= CAST(GETDATE() AS DATE))
+            ORDER BY c.Corporate_Name
             """, companyId), x => x.Id, x => x.Code, x => x.Name);
 }

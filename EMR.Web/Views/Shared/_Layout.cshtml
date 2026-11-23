@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lib/sweetalert2/dist/sweetalert2.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/toastr/css/toastr.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/help.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/EMR.Web.styles.css" asp-append-version="true" />
@@ -150,6 +151,8 @@
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/lib/sweetalert2/dist/sweetalert2.all.min.js" asp-append-version="true"></script>
+    @* toastr: small pop-up messages used by many pages (rate lists, reflex rules, settings ...) *@
+    <script src="~/lib/toastr/js/toastr.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/emr-authz.js" asp-append-version="true"></script>
     @if (User.Identity?.IsAuthenticated == true)

@@ -31,6 +31,18 @@ public class LabRateCardService(IDbConnectionFactory db) : ILabRateCardService
 
         var details = (await multi.ReadAsync<LabRateCardDetailModel>()).ToList();
 
+        // government scheme flag and the scheme's code of each item (SQLScripts/2532)
+        using (var scheme = await con.QueryMultipleAsync("usp_Api_LabRateCard_GetScheme", new { RateCard_ID = id }, commandType: CommandType.StoredProcedure))
+        {
+            var flag = await scheme.ReadFirstOrDefaultAsync<(bool Is_Govt_Scheme, string? Scheme_Name)>();
+            header.Is_Govt_Scheme = flag.Is_Govt_Scheme;
+            header.Scheme_Name = flag.Scheme_Name;
+            var codes = (await scheme.ReadAsync<(string Item_Type, int Item_ID, string Scheme_Code)>())
+                .ToDictionary(c => (c.Item_Type, c.Item_ID), c => c.Scheme_Code);
+            foreach (var d in details)
+                if (codes.TryGetValue((d.Item_Type, d.Item_ID), out var code)) d.Scheme_Code = code;
+        }
+
         return new LabRateCardFullModel
         {
             Header = header,
@@ -76,7 +88,20 @@ public class LabRateCardService(IDbConnectionFactory db) : ILabRateCardService
         p.Add("@Details", dt.AsTableValuedParameter("dbo.udt_LabRateCardDetail"));
 
         await con.ExecuteAsync("usp_Api_LabRateCardMaster_Save", p, commandType: CommandType.StoredProcedure);
-        return p.Get<int>("@RateCard_ID");
+        var rateCardId = p.Get<int>("@RateCard_ID");
+
+        // government scheme (e.g. WBHS): flag, name and the scheme code of each item (SQLScripts/2532)
+        await con.ExecuteAsync("usp_Api_LabRateCard_SaveScheme", new
+        {
+            RateCard_ID = rateCardId,
+            req.Is_Govt_Scheme,
+            req.Scheme_Name,
+            CodesJson = req.Is_Govt_Scheme
+                ? System.Text.Json.JsonSerializer.Serialize(req.Details.Select(d => new { d.Item_Type, d.Item_ID, d.Scheme_Code }))
+                : null,
+            req.UserId
+        }, commandType: CommandType.StoredProcedure);
+        return rateCardId;
     }
 
     public async Task ToggleStatusAsync(LabRateCardToggleStatusRequest req)
