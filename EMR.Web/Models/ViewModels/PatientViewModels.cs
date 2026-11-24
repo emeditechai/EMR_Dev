@@ -187,6 +187,10 @@ public class PatientRegistrationViewModel
     [Display(Name = "ABHA Address")]
     public string? AbhaAddress { get; set; }
 
+    [System.ComponentModel.DataAnnotations.Display(Name = "Beneficiary ID")]
+    [System.ComponentModel.DataAnnotations.StringLength(50, ErrorMessage = "Beneficiary ID can be at most 50 characters.")]
+    public string? BeneficiaryId { get; set; }   // SQLScripts/2534
+
     [DisplayFormat(ConvertEmptyStringToNull = false)]
     [MaxLength(30)]
     [Display(Name = "Ayushman Card No.")]
@@ -375,6 +379,7 @@ public class ServiceBookingDetailViewModel
     public string? OPDBillNo { get; set; }
     public string? TokenNo { get; set; }
     public string PatientCode { get; set; } = string.Empty;
+    public string? BeneficiaryId { get; set; }   // PatientMaster.BeneficiaryId (SQLScripts/2534)
     public string PatientName { get; set; } = string.Empty;
     public string? PhoneNumber { get; set; }
     public string? Gender { get; set; }

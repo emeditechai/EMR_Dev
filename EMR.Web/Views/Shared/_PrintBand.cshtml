@@ -31,7 +31,7 @@
         var row = band.Rows[ri];
         var rowPath = $"{Model.PathPrefix}.r{ri}";
         if (!Model.DesignMode && row.Cols.All(c => c.Blocks.All(Empty))) { continue; }
-        <div class="ptpl-row @(Model.DesignMode && Model.SelectedPath == rowPath ? "ptpl-sel" : "")" @(Model.DesignMode ? Html.Raw($"data-path=\"{rowPath}\"") : Html.Raw(""))>
+        <div class="ptpl-row @(Model.DesignMode && Model.SelectedPath == rowPath ? "ptpl-sel" : "")" style="@(row.MinHeightMm > 0 ? $"min-height:{Css(row.MinHeightMm)}mm;" : "")" @(Model.DesignMode ? Html.Raw($"data-path=\"{rowPath}\"") : Html.Raw(""))>
             @for (var ci = 0; ci < row.Cols.Count; ci++)
             {
                 var col = row.Cols[ci];
@@ -55,7 +55,10 @@
                                     + (b.Upper ? "text-transform:uppercase;" : "") + (deco.Length > 0 ? $"text-decoration:{deco};" : "")
                                     + (b.LetterSpacing > 0 ? $"letter-spacing:{Css(b.LetterSpacing)}em;" : "")
                                     // placed by drag / arrow keys in the designer: moved without pushing the other blocks
-                                    + (b.OffsetXMm != 0 || b.OffsetYMm != 0 ? $"position:relative;left:{Css(b.OffsetXMm)}mm;top:{Css(b.OffsetYMm)}mm;" : "");
+                                    + (b.OffsetXMm != 0 || b.OffsetYMm != 0 ? $"position:relative;left:{Css(b.OffsetXMm)}mm;top:{Css(b.OffsetYMm)}mm;" : "")
+                                    // its own width inside the column (Width %), placed by its alignment
+                                    + (PrintLayout.SizedBox(b.Type) && b.WidthPct is > 0 and < 100
+                                        ? $"width:{Css(b.WidthPct)}%;align-self:{(b.Align == "right" ? "flex-end" : b.Align == "center" ? "center" : "flex-start")};" : "");
                         <div class="ptpl-block @(Model.DesignMode && Model.SelectedPath == path ? "ptpl-sel" : "") @(empty ? "ptpl-novalue" : "")" style="@style"
                              @(Model.DesignMode ? Html.Raw($"data-path=\"{path}\"") : Html.Raw(""))>
                             @switch (b.Type)

@@ -133,6 +133,7 @@ namespace EMR.Web.Controllers
                     model.IdentificationFilePath = patient.IdentificationFilePath;
                     model.AbhaNumber = patient.AbhaNumber;
                     model.AbhaAddress = patient.AbhaAddress;
+                    model.BeneficiaryId = patient.BeneficiaryId;
                     model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
                     model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
@@ -357,6 +358,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
+                BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -867,6 +869,7 @@ namespace EMR.Web.Controllers
                     model.IdentificationFilePath = patient.IdentificationFilePath;
                     model.AbhaNumber = patient.AbhaNumber;
                     model.AbhaAddress = patient.AbhaAddress;
+                    model.BeneficiaryId = patient.BeneficiaryId;
                     model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
                     model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
@@ -1061,6 +1064,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
+                BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -1422,6 +1426,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
+                BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -3120,6 +3125,7 @@ namespace EMR.Web.Controllers
                 // Patient
                 PatientName  = detail.PatientName,
                 PatientCode  = detail.PatientCode,
+                BeneficiaryId = detail.BeneficiaryId,
                 PhoneNumber  = detail.PhoneNumber,
                 EmailId      = detail.EmailId,
                 Gender       = detail.Gender,

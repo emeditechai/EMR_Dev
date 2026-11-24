@@ -310,23 +310,25 @@ public class PatientService(IDbConnectionFactory db, IHttpContextAccessor http) 
             : con.ExecuteAsync("UPDATE dbo.PatientMaster SET Pincode = @Pin WHERE PatientId = @Id",
                 new { Pin = string.IsNullOrWhiteSpace(pincode) ? null : pincode.Trim(), Id = patientId });
 
-    // ABHA and Ayushman card (SQLScripts/2355), both optional: null = the form did not show the field, keep the value; "" = cleared
+    // ABHA and Ayushman card (SQLScripts/2355) and Beneficiary ID (2534), all optional: null = the form did not show the field, keep the value; "" = cleared
     private static Task SaveGovernmentIdsAsync(IDbConnection con, int patientId, PatientMaster patient)
     {
-        if (patientId <= 0 || (patient.AbhaNumber is null && patient.AbhaAddress is null && patient.AyushmanCardNo is null))
+        if (patientId <= 0 || (patient.AbhaNumber is null && patient.AbhaAddress is null && patient.AyushmanCardNo is null && patient.BeneficiaryId is null))
             return Task.CompletedTask;
         var digits = new string((patient.AbhaNumber ?? "").Where(char.IsDigit).ToArray());
         return con.ExecuteAsync(@"
             UPDATE dbo.PatientMaster SET
                 AbhaNumber     = CASE WHEN @AbhaNumber IS NULL THEN AbhaNumber ELSE NULLIF(@AbhaNumber, '') END,
                 AbhaAddress    = CASE WHEN @AbhaAddress IS NULL THEN AbhaAddress ELSE NULLIF(@AbhaAddress, '') END,
-                AyushmanCardNo = CASE WHEN @AyushmanCardNo IS NULL THEN AyushmanCardNo ELSE NULLIF(@AyushmanCardNo, '') END
+                AyushmanCardNo = CASE WHEN @AyushmanCardNo IS NULL THEN AyushmanCardNo ELSE NULLIF(@AyushmanCardNo, '') END,
+                BeneficiaryId  = CASE WHEN @BeneficiaryId IS NULL THEN BeneficiaryId ELSE NULLIF(@BeneficiaryId, '') END
             WHERE PatientId = @PatientId",
             new
             {
                 AbhaNumber = digits.Length == 14 ? $"{digits[..2]}-{digits[2..6]}-{digits[6..10]}-{digits[10..]}" : patient.AbhaNumber?.Trim(),
                 AbhaAddress = patient.AbhaAddress?.Trim(),
                 AyushmanCardNo = patient.AyushmanCardNo?.Trim(),
+                BeneficiaryId = patient.BeneficiaryId is null ? null : (patient.BeneficiaryId.Trim() is var bid && bid.Length > 50 ? bid[..50] : patient.BeneficiaryId.Trim()),
                 PatientId = patientId
             });
     }

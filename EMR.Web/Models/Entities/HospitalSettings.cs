@@ -195,6 +195,9 @@ public class HospitalSettings
     /// <summary>SQLScripts/2383: wrong passwords after which the user gets a WhatsApp security alert; 0 (default) = no alert.</summary>
     public int LoginAlertCount { get; set; }
 
+    /// <summary>SQLScripts/2533: the branch's WBHS (West Bengal Health Scheme) empanelment code; null = not set.</summary>
+    public string? WbhsEmpanelmentCode { get; set; }
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;

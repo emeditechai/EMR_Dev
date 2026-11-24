@@ -129,6 +129,10 @@ namespace EMR.Web.Models.ViewModels
         [Display(Name = "ABHA Address")]
         public string? AbhaAddress { get; set; }
 
+        [System.ComponentModel.DataAnnotations.Display(Name = "Beneficiary ID")]
+        [System.ComponentModel.DataAnnotations.StringLength(50, ErrorMessage = "Beneficiary ID can be at most 50 characters.")]
+        public string? BeneficiaryId { get; set; }   // SQLScripts/2534
+
         // ── Section 2: Other Info ─────────────────────────────────────────────────
 
         [Display(Name = "Occupation")]

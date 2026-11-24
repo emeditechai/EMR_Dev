@@ -192,6 +192,7 @@ public class HospitalSettings
 
     /// <summary>SQLScripts/2383: wrong passwords after which the user gets a WhatsApp security alert; 0 (default) = no alert.</summary>
     public int LoginAlertCount { get; set; }
+    public string? WbhsEmpanelmentCode { get; set; }   // SQLScripts/2533
 
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;

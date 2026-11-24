@@ -378,6 +378,7 @@ public class LabOrderDetailDto
     public string? CreatedByName { get; set; }
     public string? CreatedByUsername { get; set; }
     public string? PatientCode { get; set; }
+    public string? BeneficiaryId { get; set; }   // PatientMaster.BeneficiaryId (SQLScripts/2534)
     public string? PatientName { get; set; }
     public string? PhoneNumber { get; set; }
     public string? EmailId { get; set; }
@@ -457,6 +458,7 @@ public class PrintBillViewModel
     // ── Patient Info ──────────────────────────────────────────────────────────
     public string? PatientName { get; set; }
     public string? PatientCode { get; set; }
+    public string? BeneficiaryId { get; set; }   // PatientMaster.BeneficiaryId (SQLScripts/2534)
     public string? PhoneNumber { get; set; }
     public string? EmailId { get; set; }
     public string? Gender { get; set; }
@@ -779,6 +781,7 @@ public class ServiceBookingDetail
     public string?  OPDBillNo             { get; set; }
     public string?  TokenNo               { get; set; }
     public string   PatientCode           { get; set; } = string.Empty;
+    public string? BeneficiaryId { get; set; }   // PatientMaster.BeneficiaryId (SQLScripts/2534)
     public string   PatientName           { get; set; } = string.Empty;
     public string?  PhoneNumber           { get; set; }
     public string?  Gender                { get; set; }

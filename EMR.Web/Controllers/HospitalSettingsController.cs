@@ -696,6 +696,7 @@ public class HospitalSettingsController(
             existing.PharmacyLoyaltyExpiryReminderDays = Math.Clamp(model.PharmacyLoyaltyExpiryReminderDays, 0, 60);
             existing.LoginRetryCount = model.LoginRetryCount;
             existing.LoginAlertCount = model.LoginAlertCount;
+            existing.WbhsEmpanelmentCode = CleanCode(model.WbhsEmpanelmentCode);
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -887,6 +888,7 @@ public class HospitalSettingsController(
             PharmacyLoyaltyExpiryReminderDays = s.PharmacyLoyaltyExpiryReminderDays,
             LoginRetryCount = s.LoginRetryCount,
             LoginAlertCount = s.LoginAlertCount,
+            WbhsEmpanelmentCode = s.WbhsEmpanelmentCode,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -1035,12 +1037,20 @@ public class HospitalSettingsController(
             PharmacyLoyaltyExpiryReminderDays = Math.Clamp(m.PharmacyLoyaltyExpiryReminderDays, 0, 60),
             LoginRetryCount = m.LoginRetryCount,
             LoginAlertCount = m.LoginAlertCount,
+            WbhsEmpanelmentCode = CleanCode(m.WbhsEmpanelmentCode),
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId
         };
 
 
+
+    // free-text code: trimmed, blank stored as NULL, never longer than the column (NVARCHAR(50), SQLScripts/2533)
+    private static string? CleanCode(string? code)
+    {
+        code = code?.Trim();
+        return string.IsNullOrEmpty(code) ? null : code.Length > 50 ? code[..50] : code;
+    }
 
     private void ValidateLogoFile(HospitalSettingsViewModel model)
     {

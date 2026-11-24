@@ -210,6 +210,7 @@ namespace EMR.Web.Models.DTOs
         public string? CreatedByName { get; set; }
         public string? CreatedByUsername { get; set; }
         public string? PatientCode { get; set; }
+        public string? BeneficiaryId { get; set; }   // PatientMaster.BeneficiaryId (SQLScripts/2534)
         public string? PatientName { get; set; }
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }

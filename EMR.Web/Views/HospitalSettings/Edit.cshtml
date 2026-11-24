@@ -500,6 +500,17 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-hospital"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">WBHS Empanelment Code</div>
+                            <div class="lp-desc">This branch's empanelment code under the West Bengal Health Scheme (WBHS). Optional, up to 50 characters; leave blank if the branch is not empanelled.</div>
+                            <input asp-for="WbhsEmpanelmentCode" type="text" maxlength="50" autocomplete="off" class="form-control form-control-sm mt-2" placeholder="e.g. WBHS/KOL/1234" />
+                            <span asp-validation-for="WbhsEmpanelmentCode" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

@@ -86,6 +86,7 @@ public static class LabBillPrintBuilder
 
             PatientName  = detail.PatientName,
             PatientCode  = detail.PatientCode,
+            BeneficiaryId = detail.BeneficiaryId,
             PhoneNumber  = detail.PhoneNumber,
             EmailId      = detail.EmailId,
             Gender       = detail.Gender,

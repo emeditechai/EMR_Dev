@@ -171,7 +171,7 @@ public class IpdAdmissionController(
         return Json(new
         {
             p.PatientId, p.PatientCode, p.PhoneNumber, p.SecondaryPhoneNumber, p.Salutation, p.FirstName, p.MiddleName, p.LastName, p.Gender,
-            p.EmailId, p.GuardianName, p.IdentificationTypeId, p.IdentificationNumber, p.IdentificationFilePath, p.AbhaNumber, p.AbhaAddress,
+            p.EmailId, p.GuardianName, p.IdentificationTypeId, p.IdentificationNumber, p.IdentificationFilePath, p.AbhaNumber, p.AbhaAddress, p.BeneficiaryId,
             p.PhotoPath, p.BloodGroup, p.KnownAllergies, p.Remarks, p.DateOfBirth,
             AgeYears = p.DateOfBirth.HasValue ? y : (int?)null, AgeMonths = p.DateOfBirth.HasValue ? m : (int?)null, AgeDays = p.DateOfBirth.HasValue ? d : (int?)null,
             p.ReligionId, p.MaritalStatusId, p.OccupationId, p.LanguageId, p.CountryId, p.StateId, p.DistrictId, p.CityId, p.AreaId,
@@ -288,6 +288,7 @@ public class IpdAdmissionController(
             IdentificationFilePath = string.IsNullOrWhiteSpace(model.IdentificationFilePath) ? existing?.IdentificationFilePath : model.IdentificationFilePath,
             IdentificationTypeId = model.IdentificationTypeId, IdentificationNumber = model.IdentificationNumber,
             AbhaNumber = string.IsNullOrWhiteSpace(model.AbhaNumber) ? null : Regex.Replace(model.AbhaNumber, "\\D", ""), AbhaAddress = model.AbhaAddress,
+            BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
             ReligionId = model.ReligionId, GuardianName = model.GuardianName, CountryId = model.CountryId, StateId = model.StateId,
             DistrictId = model.DistrictId, CityId = model.CityId, AreaId = model.AreaId, Address = model.Address,
             Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),

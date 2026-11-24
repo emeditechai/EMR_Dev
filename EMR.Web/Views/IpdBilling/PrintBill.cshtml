@@ -31,6 +31,7 @@
     <tr><td class="k">Patient</td><td class="b">@h.S("PatientName")</td><td class="k">UHID / IP No.</td><td class="mono">@h.S("PatientCode") / @h.S("IpNo")</td><td class="k">Age / Sex</td><td>@h.S("AgeText") / @h.S("Gender")</td></tr>
     <tr><td class="k">Admitted</td><td>@h.Dt("AdmissionAt")</td><td class="k">Ward / bed</td><td>@h.S("WardName") / @h.S("BedNumber")</td><td class="k">Mobile</td><td>@h.S("PhoneNumber")</td></tr>
     <tr><td class="k">Consultant</td><td>@h.S("ConsultantDoctorName")</td><td class="k">Payer</td><td>@Payer(h.S("PayerType")) @h.S("PayerName")</td><td class="k">Tariff</td><td>@h.S("TariffCategoryName")</td></tr>
+    @if (!string.IsNullOrWhiteSpace(h.S("BeneficiaryId"))) { <tr><td class="k">Beneficiary ID</td><td class="mono b" colspan="5">@h.S("BeneficiaryId")</td></tr> }
     @if (!string.IsNullOrWhiteSpace(h.S("PackageName"))) { <tr><td class="k">Package</td><td colspan="5">@h.S("PackageName")</td></tr> }
 </table>
 

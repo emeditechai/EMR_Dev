@@ -37,6 +37,10 @@ public class IpdAdmissionForm
     public string? PhotoPath { get; set; }
     public string? AbhaNumber { get; set; }
     public string? AbhaAddress { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Display(Name = "Beneficiary ID")]
+    [System.ComponentModel.DataAnnotations.StringLength(50, ErrorMessage = "Beneficiary ID can be at most 50 characters.")]
+    public string? BeneficiaryId { get; set; }   // SQLScripts/2534
     public int? OccupationId { get; set; }
     public int? MaritalStatusId { get; set; }
     public int? LanguageId { get; set; }

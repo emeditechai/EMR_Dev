@@ -343,6 +343,23 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-hospital"></i></div>
+                        <div>
+                            <div class="lp-label">WBHS Empanelment Code</div>
+                            <div class="lp-desc">The branch's empanelment code under the West Bengal Health Scheme.</div>
+                            @if (string.IsNullOrWhiteSpace(Model.WbhsEmpanelmentCode))
+                            {
+                                <span class="lp-pill na"><i class="bi bi-dash-circle"></i>NOT SET</span>
+                            }
+                            else
+                            {
+                                <span class="lp-pill val" title="@Model.WbhsEmpanelmentCode"><i class="bi bi-upc-scan"></i><span style="max-width:11rem;overflow:hidden;text-overflow:ellipsis">@Model.WbhsEmpanelmentCode</span></span>
+                            }
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

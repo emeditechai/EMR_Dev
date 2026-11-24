@@ -502,6 +502,10 @@ public class HospitalSettingsViewModel
     [Range(0, 20, ErrorMessage = "Login Alert After Wrong Attempts must be between 0 and 20 (0 = no alert).")]
     public int LoginAlertCount { get; set; }
 
+    [Display(Name = "WBHS Empanelment Code")]
+    [StringLength(50, ErrorMessage = "WBHS Empanelment Code can be at most 50 characters.")]
+    public string? WbhsEmpanelmentCode { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

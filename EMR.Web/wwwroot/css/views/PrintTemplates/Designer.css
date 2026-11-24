@@ -1,0 +1,9 @@
+/* Print Templates designer: block width and row height handles (wwwroot/js/views/PrintTemplates/designer-resize.js) */
+.pd-h-w { top: 50%; transform: translateY(-50%); height: max(60%, 10px); min-height: 10px; width: 7px; cursor: ew-resize; z-index: 6;
+          border-radius: 3px; background: #7c3aed; box-shadow: 0 0 0 1.5px #fff; }
+.pd-h-w-right { right: -4px; }
+.pd-h-w-left { left: -4px; }
+.pd-h-rowh { left: 0; width: 16%; bottom: -4px; height: 8px; cursor: ns-resize; z-index: 6;
+             background: linear-gradient(transparent 3px, #0ea5e9 3px, #0ea5e9 5px, transparent 5px); }
+#pdCanvas .ptpl-block:hover > .pd-h-w, #pdCanvas .ptpl-block.ptpl-sel > .pd-h-w,
+#pdCanvas .ptpl-row:hover > .pd-h-rowh, #pdCanvas .ptpl-row.ptpl-sel > .pd-h-rowh { opacity: 1; }

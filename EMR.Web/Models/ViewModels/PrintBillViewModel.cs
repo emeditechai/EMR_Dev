@@ -25,6 +25,7 @@ public class PrintBillViewModel
     // ── Patient Info ──────────────────────────────────────────────────────────
     public string? PatientName { get; set; }
     public string? PatientCode { get; set; }
+    public string? BeneficiaryId { get; set; }   // PatientMaster.BeneficiaryId (SQLScripts/2534)
     public string? PhoneNumber { get; set; }
     public string? EmailId { get; set; }
     public string? Gender { get; set; }

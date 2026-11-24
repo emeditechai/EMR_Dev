@@ -351,7 +351,7 @@ $('#AdmittingDoctorId').on('change', function () {
         if (!p) { Ipd.error('The patient could not be loaded.'); return; }
         const set = (k, val) => { const el = document.getElementById(k); if (el) el.value = val ?? ''; };
         set('PatientId', p.patientId); set('PatientCode', p.patientCode);
-        ['PhoneNumber', 'SecondaryPhoneNumber', 'FirstName', 'MiddleName', 'LastName', 'EmailId', 'GuardianName', 'IdentificationNumber', 'KnownAllergies', 'AbhaNumber', 'AbhaAddress', 'Address', 'Pincode']
+        ['PhoneNumber', 'SecondaryPhoneNumber', 'FirstName', 'MiddleName', 'LastName', 'EmailId', 'GuardianName', 'IdentificationNumber', 'KnownAllergies', 'AbhaNumber', 'AbhaAddress', 'BeneficiaryId', 'Address', 'Pincode']
             .forEach(k => set(k, p[k.charAt(0).toLowerCase() + k.slice(1)]));
         set('PatientRemarks', p.remarks);
         ['Salutation', 'Gender', 'BloodGroup', 'RelationId', 'ReligionId', 'OccupationId', 'MaritalStatusId', 'LanguageId', 'IdentificationTypeId']
