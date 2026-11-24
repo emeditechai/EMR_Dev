@@ -61427,7 +61427,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-24T14:19:12",
+ "extracted_on": "2026-11-24T15:11:37",
  "fk": [
   {
    "col": "LedgerId",
@@ -62718,6 +62718,41 @@
    "tbl": "IpdCharge"
   },
   {
+   "col": "AdmissionId",
+   "fk": "FK_IpdClaim_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdClaim"
+  },
+  {
+   "col": "BillId",
+   "fk": "FK_IpdClaim_Bill",
+   "rcol": "BillId",
+   "rtbl": "IpdBill",
+   "tbl": "IpdClaim"
+  },
+  {
+   "col": "ClaimId",
+   "fk": "FK_IpdClaimEvent_Claim",
+   "rcol": "ClaimId",
+   "rtbl": "IpdClaim",
+   "tbl": "IpdClaimEvent"
+  },
+  {
+   "col": "ClaimId",
+   "fk": "FK_IpdClaimSettlement_Claim",
+   "rcol": "ClaimId",
+   "rtbl": "IpdClaim",
+   "tbl": "IpdClaimSettlement"
+  },
+  {
+   "col": "ClaimId",
+   "fk": "FK_IpdClaimWriteOff_Claim",
+   "rcol": "ClaimId",
+   "rtbl": "IpdClaim",
+   "tbl": "IpdClaimWriteOff"
+  },
+  {
    "col": "DoctorId",
    "fk": "FK_IpdDoctorVisitFee_Doctor",
    "rcol": "DoctorId",
@@ -62865,6 +62900,20 @@
    "tbl": "IpdPhIssueLine"
   },
   {
+   "col": "AdmissionId",
+   "fk": "FK_IpdPreAuth_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdPreAuth"
+  },
+  {
+   "col": "PreAuthId",
+   "fk": "FK_IpdPreAuthEvent_PA",
+   "rcol": "PreAuthId",
+   "rtbl": "IpdPreAuth",
+   "tbl": "IpdPreAuthEvent"
+  },
+  {
    "col": "OtBookingId",
    "fk": "FK_IpdSurgeryNote_Booking",
    "rcol": "OtBookingId",
@@ -62877,6 +62926,13 @@
    "rcol": "OtBookingId",
    "rtbl": "IpdOtBooking",
    "tbl": "IpdSurgeryNoteVersion"
+  },
+  {
+   "col": "DocTypeId",
+   "fk": "FK_IpdTpaChecklist_Type",
+   "rcol": "DocTypeId",
+   "rtbl": "IpdTpaDocType",
+   "tbl": "IpdTpaChecklist"
   },
   {
    "col": "MaterialId",
@@ -64972,6 +65028,11 @@
   ],
   "ApprovalModule": [
    {
+    "Module_Code": "IPD.TPAWRITEOFF",
+    "Module_Name": "IPD TPA Claim Write-off",
+    "Sort_Order": 110
+   },
+   {
     "Module_Code": "LAB.DUEREPORTPRINT",
     "Module_Name": "Due Report Print",
     "Sort_Order": 40
@@ -66352,6 +66413,26 @@
    "tbl": "IpdCharge"
   },
   {
+   "col": "ClaimId",
+   "k": 1,
+   "tbl": "IpdClaim"
+  },
+  {
+   "col": "EventId",
+   "k": 1,
+   "tbl": "IpdClaimEvent"
+  },
+  {
+   "col": "SettlementId",
+   "k": 1,
+   "tbl": "IpdClaimSettlement"
+  },
+  {
+   "col": "WriteOffId",
+   "k": 1,
+   "tbl": "IpdClaimWriteOff"
+  },
+  {
    "col": "FeeId",
    "k": 1,
    "tbl": "IpdDoctorVisitFee"
@@ -66447,6 +66528,16 @@
    "tbl": "IpdPhIssueLine"
   },
   {
+   "col": "PreAuthId",
+   "k": 1,
+   "tbl": "IpdPreAuth"
+  },
+  {
+   "col": "EventId",
+   "k": 1,
+   "tbl": "IpdPreAuthEvent"
+  },
+  {
    "col": "LogId",
    "k": 1,
    "tbl": "IpdStatusLog"
@@ -66460,6 +66551,16 @@
    "col": "NoteVersionId",
    "k": 1,
    "tbl": "IpdSurgeryNoteVersion"
+  },
+  {
+   "col": "ChecklistId",
+   "k": 1,
+   "tbl": "IpdTpaChecklist"
+  },
+  {
+   "col": "DocTypeId",
+   "k": 1,
+   "tbl": "IpdTpaDocType"
   },
   {
    "col": "LotId",
@@ -68070,6 +68171,10 @@
   "IpdBill",
   "IpdBillLine",
   "IpdCharge",
+  "IpdClaim",
+  "IpdClaimEvent",
+  "IpdClaimSettlement",
+  "IpdClaimWriteOff",
   "IpdDoctorVisitFee",
   "IpdDocument",
   "IpdEstimate",
@@ -68087,9 +68192,13 @@
   "IpdPhIndentLine",
   "IpdPhIssue",
   "IpdPhIssueLine",
+  "IpdPreAuth",
+  "IpdPreAuthEvent",
   "IpdStatusLog",
   "IpdSurgeryNote",
   "IpdSurgeryNoteVersion",
+  "IpdTpaChecklist",
+  "IpdTpaDocType",
   "IqcLot",
   "IqcMaterial",
   "IqcResult",
@@ -68864,6 +68973,11 @@
    "tbl": "IpdBill"
   },
   {
+   "cols": "BillId",
+   "idx": "UX_IpdClaim_Bill",
+   "tbl": "IpdClaim"
+  },
+  {
    "cols": "CompanyId, EstimateNo",
    "idx": "UX_IpdEstimate_No",
    "tbl": "IpdEstimate"
@@ -68872,6 +68986,26 @@
    "cols": "OtBookingId, Phase",
    "idx": "UQ_IpdOtChecklist",
    "tbl": "IpdOtChecklist"
+  },
+  {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdPreAuth_Live",
+   "tbl": "IpdPreAuth"
+  },
+  {
+   "cols": "ClaimId, DocTypeId",
+   "idx": "UX_IpdTpaChecklist_Claim",
+   "tbl": "IpdTpaChecklist"
+  },
+  {
+   "cols": "PreAuthId, DocTypeId",
+   "idx": "UX_IpdTpaChecklist_PA",
+   "tbl": "IpdTpaChecklist"
+  },
+  {
+   "cols": "CompanyId, Name",
+   "idx": "UQ_IpdTpaDocType_Name",
+   "tbl": "IpdTpaDocType"
   },
   {
    "cols": "MaterialId, LotNo",

@@ -441,5 +441,13 @@
   ],
   "date": "24 Nov 2026",
   "version": "1.35"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "Lookup values changed: ApprovalModule"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.36"
  }
 ]
