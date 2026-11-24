@@ -406,5 +406,16 @@
   ],
   "date": "24 Nov 2026",
   "version": "1.32"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "Doctor_IP_Commission_Dtl: new column(s) Is_Paid, Paid_Date, Paid_Reference, Paid_Remarks, Paid_By, Paid_On",
+   "HospitalSettings: new column(s) DoctorIpIncludeUnpaidBills, WbhsEmpanelmentCode",
+   "PatientMaster: new column(s) BeneficiaryId",
+   "MS_Description changed on PatientMaster"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.33"
  }
 ]

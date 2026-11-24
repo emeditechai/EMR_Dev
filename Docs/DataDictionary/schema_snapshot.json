@@ -8698,6 +8698,84 @@
    "type": "varchar"
   },
   {
+   "col": "Is_Paid",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 12,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "bit"
+  },
+  {
+   "col": "Paid_Date",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 3,
+   "nullable": true,
+   "ord": 13,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "date"
+  },
+  {
+   "col": "Paid_Reference",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 14,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Paid_Remarks",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 500,
+   "nullable": true,
+   "ord": 15,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Paid_By",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 16,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "int"
+  },
+  {
+   "col": "Paid_On",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 17,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "datetime"
+  },
+  {
    "col": "Commission_Hdr_ID",
    "def": null,
    "descr": null,
@@ -17419,6 +17497,32 @@
    "scale": 0,
    "tbl": "HospitalSettings",
    "type": "bit"
+  },
+  {
+   "col": "DoctorIpIncludeUnpaidBills",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 162,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "WbhsEmpanelmentCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 100,
+   "nullable": true,
+   "ord": 163,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "nvarchar"
   },
   {
    "col": "IdentificationTypeId",
@@ -38622,6 +38726,19 @@
    "scale": 3,
    "tbl": "PatientMaster",
    "type": "datetime"
+  },
+  {
+   "col": "BeneficiaryId",
+   "def": null,
+   "descr": "Beneficiary ID (e.g. WBHS / health-scheme beneficiary number), optional; typed by the desk, printed on the bills.",
+   "ident": false,
+   "len": 100,
+   "nullable": true,
+   "ord": 61,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PatientMaster",
+   "type": "nvarchar"
   },
   {
    "col": "OPDServiceId",
@@ -60816,7 +60933,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-24T00:09:35",
+ "extracted_on": "2026-11-24T07:40:42",
  "fk": [
   {
    "col": "LedgerId",
