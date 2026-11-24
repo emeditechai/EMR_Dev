@@ -35335,6 +35335,19 @@
    "type": "datetime"
   },
   {
+   "col": "LanguageCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": true,
+   "ord": 5,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LanguageMaster",
+   "type": "varchar"
+  },
+  {
    "col": "LoincCode",
    "def": null,
    "descr": null,
@@ -61427,7 +61440,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-24T15:11:37",
+ "extracted_on": "2026-11-24T18:00:23",
  "fk": [
   {
    "col": "LedgerId",
@@ -63493,6 +63506,20 @@
    "rcol": "Menu_ID",
    "rtbl": "MenuMaster",
    "tbl": "MenuMaster"
+  },
+  {
+   "col": "EventCode",
+   "fk": "FK_NotifyTemplate_Event",
+   "rcol": "EventCode",
+   "rtbl": "NotifyEvent",
+   "tbl": "NotifyTemplate"
+  },
+  {
+   "col": "LanguageId",
+   "fk": "FK_NotifyTemplate_Lang",
+   "rcol": "LanguageId",
+   "rtbl": "LanguageMaster",
+   "tbl": "NotifyTemplate"
   },
   {
    "col": "CompanyId",
@@ -67043,6 +67070,16 @@
    "tbl": "MenuMaster"
   },
   {
+   "col": "EventCode",
+   "k": 1,
+   "tbl": "NotifyEvent"
+  },
+  {
+   "col": "TemplateId",
+   "k": 1,
+   "tbl": "NotifyTemplate"
+  },
+  {
    "col": "NursingStationId",
    "k": 1,
    "tbl": "NursingStationMaster"
@@ -68289,6 +68326,8 @@
   "MembershipPointsWhatsAppLog",
   "MembershipRedeemOtp",
   "MenuMaster",
+  "NotifyEvent",
+  "NotifyTemplate",
   "NursingStationMaster",
   "OPDBillSequence",
   "OPDTokenSequence",
@@ -69236,6 +69275,16 @@
    "cols": "Menu_Code, CompanyId",
    "idx": "UX_MenuMaster_Code",
    "tbl": "MenuMaster"
+  },
+  {
+   "cols": "CompanyId, BranchId, EventCode, Channel, LanguageId",
+   "idx": "UX_NotifyTemplate_Branch",
+   "tbl": "NotifyTemplate"
+  },
+  {
+   "cols": "CompanyId, EventCode, Channel, LanguageId",
+   "idx": "UX_NotifyTemplate_Company",
+   "tbl": "NotifyTemplate"
   },
   {
    "cols": "CompanyId, StationCode",

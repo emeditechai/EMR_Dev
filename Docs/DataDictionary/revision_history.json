@@ -449,5 +449,13 @@
   ],
   "date": "24 Nov 2026",
   "version": "1.36"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "LanguageMaster: new column(s) LanguageCode"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.37"
  }
 ]
