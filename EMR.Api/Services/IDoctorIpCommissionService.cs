@@ -8,6 +8,7 @@ public interface IDoctorIpCommissionService
     Task<IEnumerable<DoctorIpCommissionCalculateResult>> CalculateAsync(DoctorIpCommissionCalculateRequest req);
     Task<IEnumerable<DoctorIpCommissionPendingTest>> GetPendingTestsAsync(int branchId, int doctorId, DateTime fromDate, DateTime toDate, int? companyId);
     Task<DoctorIpCommissionOmitResult> SetOmittedAsync(DoctorIpCommissionOmitRequest req);
+    Task<DoctorIpCommissionSetPaidResult> SetPaidAsync(DoctorIpCommissionSetPaidRequest req);
     Task<IEnumerable<DoctorIpCommissionListItem>> GetListAsync(int? branchId, int? doctorId, DateTime? fromDate, DateTime? toDate, int? companyId);
     Task<DoctorIpCommissionDetail?> GetDetailAsync(long commissionHdrId);
     Task<IEnumerable<DoctorIpCommissionDueSchedule>> GetDueSchedulesAsync(DateTime today, int? branchId = null);

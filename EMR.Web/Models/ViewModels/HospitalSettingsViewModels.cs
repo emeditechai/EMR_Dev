@@ -197,7 +197,10 @@ public class HospitalSettingsViewModel
     public string? MembershipCardMessageTemplate { get; set; }
 
     [Display(Name = "Doctor IP Scheduled Time")]
-    public string? DoctorIpAutoRunTime { get; set; }   // "HH:mm" string for HTML time input
+    public string? DoctorIpAutoRunTime { get; set; }
+
+    [Display(Name = "Doctor IP: Include Bills Not Fully Paid")]
+    public bool DoctorIpIncludeUnpaidBills { get; set; } = false;   // "HH:mm" string for HTML time input
     [Display(Name = "Required Patient Portal")]
     public bool LabPatientPortalRequired { get; set; }
 

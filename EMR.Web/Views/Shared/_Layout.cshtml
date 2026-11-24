@@ -365,7 +365,7 @@
             document.addEventListener('keydown', function (e) {
                 if (!e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return;
                 var url = e.code === 'KeyD' ? '@Url.Action("Index", "DoctorIp")'
-                        : e.code === 'KeyC' ? '@Url.Action("Index", "DoctorIpCommission")?manual=true' : null;
+                        : e.code === 'KeyC' ? '@Html.Raw(Url.ActionEncrypted("Index", "DoctorIpCommission", new { manual = true }))' : null;
                 if (!url) return;
                 e.preventDefault();
                 window.location.href = url;

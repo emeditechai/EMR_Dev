@@ -51,6 +51,13 @@ public class DoctorIpCommissionApiClient(IHttpClientFactory factory) : IDoctorIp
         return (await res.Content.ReadFromJsonAsync<ApiResponse<DoctorIpCommissionOmitResultModel>>())?.Data ?? new();
     }
 
+    public async Task<DoctorIpCommissionSetPaidResultModel> SetPaidAsync(DoctorIpCommissionSetPaidRequestModel req)
+    {
+        var res = await Client.PostAsJsonAsync("api/doctor-ip-commission/paid", req);
+        await EnsureOk(res, "Failed to save the commission payment.");
+        return (await res.Content.ReadFromJsonAsync<ApiResponse<DoctorIpCommissionSetPaidResultModel>>())?.Data ?? new();
+    }
+
     public async Task<IEnumerable<DoctorIpCommissionListModel>> GetListAsync(int? branchId, int? doctorId, DateTime? fromDate, DateTime? toDate, int? companyId)
     {
         var res = await Client.GetFromJsonAsync<ApiResponse<IEnumerable<DoctorIpCommissionListModel>>>(

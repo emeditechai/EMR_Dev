@@ -12,6 +12,9 @@ public class DoctorIpCommissionPendingModel
     public int Omitted_Items { get; set; }
     public decimal Omitted_Amount { get; set; }
     public decimal Omitted_Commission { get; set; }
+    public int Waiting_Items { get; set; }
+    public int Waiting_Orders { get; set; }
+    public decimal Waiting_Commission { get; set; }
     public DateTime First_Order_Date { get; set; }
     public DateTime Last_Order_Date { get; set; }
 }
@@ -54,6 +57,10 @@ public class DoctorIpCommissionListModel
     public DateTime Computed_Date { get; set; }
     public string Source { get; set; } = string.Empty;
     public string Computed_By_Name { get; set; } = string.Empty;
+    public int Paid_Bills { get; set; }
+    public int Unpaid_Bills { get; set; }
+    public decimal Paid_Commission { get; set; }
+    public decimal Unpaid_Commission { get; set; }
 }
 
 public class DoctorIpCommissionHeaderModel
@@ -90,6 +97,11 @@ public class DoctorIpCommissionDetailItemModel
     public decimal Commission_Rate { get; set; }
     public decimal Commission_Amount { get; set; }
     public DateTime Order_Date { get; set; }
+    public bool Is_Paid { get; set; }
+    public DateTime? Paid_Date { get; set; }
+    public string? Paid_Reference { get; set; }
+    public string? Paid_Remarks { get; set; }
+    public string? Paid_By_Name { get; set; }
 }
 
 public class DoctorIpCommissionDetailModel
@@ -115,6 +127,9 @@ public class DoctorIpCommissionPendingTestModel
     public decimal Commission_Amount { get; set; }
     public bool Is_Omitted { get; set; }
     public string? Omit_Reason { get; set; }
+    public bool Is_Bill_Paid { get; set; }
+    public decimal Bill_Balance_Due { get; set; }
+    public bool Is_Waiting_Payment { get; set; }
     public DateTime? Omitted_On { get; set; }
     public string? Omitted_By_Name { get; set; }
 }
@@ -137,4 +152,21 @@ public class DoctorIpCommissionOmitResultModel
 {
     public int Omitted_Count { get; set; }
     public int Restored_Count { get; set; }
+}
+
+public class DoctorIpCommissionSetPaidRequestModel
+{
+    public long Commission_Hdr_ID { get; set; }
+    public List<int> LabOrderIds { get; set; } = [];
+    public bool IsPaid { get; set; }
+    public DateTime? PaidDate { get; set; }
+    public string? Reference { get; set; }
+    public string? Remarks { get; set; }
+    public int? UserId { get; set; }
+}
+
+public class DoctorIpCommissionSetPaidResultModel
+{
+    public int Updated_Bills { get; set; }
+    public decimal Updated_Commission { get; set; }
 }

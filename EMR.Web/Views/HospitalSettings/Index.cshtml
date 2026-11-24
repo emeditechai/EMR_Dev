@@ -573,6 +573,16 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
+                        <div>
+                            <div class="lp-label">Include Bills Not Fully Paid</div>
+                            <div class="lp-desc">No: a bill with any balance due waits until it is fully paid and is computed in the next cycle.</div>
+                            <span class="lp-pill @(Model.DoctorIpIncludeUnpaidBills ? "yes" : "no")"><i class="bi @(Model.DoctorIpIncludeUnpaidBills ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.DoctorIpIncludeUnpaidBills ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Membership Card</div>

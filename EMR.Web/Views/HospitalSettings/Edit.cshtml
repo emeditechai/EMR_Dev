@@ -868,6 +868,19 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="lab-param" style="--lp:#15803d;--lp-bg:#dcfce7;">
+                        <div class="lp-icon"><i class="bi bi-cash-coin"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">Include Bills Not Fully Paid</div>
+                            <div class="lp-desc">No: a bill with any balance due earns no Doctor IP commission until it is fully paid; it is then computed in the next cycle.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="DoctorIpIncludeUnpaidBills">
+                                <label class="form-check-label" asp-for="DoctorIpIncludeUnpaidBills">Include bills not fully paid</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Patient Access</div>

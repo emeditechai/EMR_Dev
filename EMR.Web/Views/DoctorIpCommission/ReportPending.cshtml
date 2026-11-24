@@ -36,14 +36,16 @@
         branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
         searchPlaceholder: 'Bill No, patient or test...',
         filters: [DOCTOR, { id: 'itemType', label: 'Type', allLabel: 'All types', options: TYPES },
-                  { id: 'frequency', label: 'Disbursal', allLabel: 'Any frequency', options: [['Daily', 'Daily'], ['Weekly', 'Weekly'], ['Monthly', 'Monthly'], ['Quarterly', 'Quarterly'], ['Annually', 'Annually']] }],
+                  { id: 'frequency', label: 'Disbursal', allLabel: 'Any frequency', options: [['Daily', 'Daily'], ['Weekly', 'Weekly'], ['Monthly', 'Monthly'], ['Quarterly', 'Quarterly'], ['Annually', 'Annually']] },
+                  { id: 'billPayment', label: 'Bill payment', allLabel: 'Any', options: [['READY', 'Ready to calculate'], ['WAITING', 'Waiting for bill payment']] }],
         kpis: [
             { label: 'Commission pending', color: '#b45309', value: (s, h) => h.money(s.CommissionAmount), sub: (s, h) => `${h.num(s.DoctorCount)} doctor(s)` },
             { label: 'Billed amount', color: '#1d4ed8', value: (s, h) => h.money(s.BilledAmount), sub: () => 'waiting for computation' },
             { label: 'Bills', color: '#475569', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.ItemCount)} test(s) / package(s)` },
-            { label: 'Oldest pending', color: '#b91c1c', value: (s, h) => h.num(s.OldestDays) + ' day(s)', sub: () => 'since the order date' }
+            { label: 'Oldest pending', color: '#b91c1c', value: (s, h) => h.num(s.OldestDays) + ' day(s)', sub: () => 'since the order date' },
+            { label: 'Waiting for bill payment', color: '#0369a1', value: (s, h) => h.money(s.WaitingCommission), sub: (s, h) => `${h.num(s.WaitingBills)} bill(s) not fully paid` }
         ],
-        groups: [G_DOCTOR, { key: 'byFrequency', label: 'Disbursal frequency', rowField: 'Frequency' }, { key: 'byItemType', label: 'Type', rowField: 'ItemType' }, G_DATE],
+        groups: [G_DOCTOR, { key: 'byFrequency', label: 'Disbursal frequency', rowField: 'Frequency' }, { key: 'byItemType', label: 'Type', rowField: 'ItemType' }, { key: 'byPayment', label: 'Bill payment', rowField: 'PaymentLabel' }, G_DATE],
         groupCols: [
             { field: 'BillCount', label: 'Bills', num: true }, { field: 'ItemCount', label: 'Items', num: true },
             { field: 'BilledAmount', label: 'Billed', money: true }, { field: 'CommissionAmount', label: 'Estimated commission', money: true },
@@ -56,7 +58,10 @@
             C_BILL, C_PATIENT, C_DOCTOR,
             { label: 'Disbursal', html: (r, h) => h.esc(r.Frequency || '-'), text: r => r.Frequency || '' },
             C_TYPE, C_ITEM, C_BILLED, C_RATE,
-            { label: 'Estimated commission', cls: 'text-end amt fw-bold', html: (r, h) => h.money(r.CommissionAmount), text: r => r.CommissionAmount, sum: 'CommissionAmount' }
+            { label: 'Estimated commission', cls: 'text-end amt fw-bold', html: (r, h) => h.money(r.CommissionAmount), text: r => r.CommissionAmount, sum: 'CommissionAmount' },
+            { label: 'Bill payment', html: (r, h) => r.PaymentCode === 'WAITING'
+                ? h.pill('Waiting for payment', 'bg-info-subtle text-info-emphasis border-info-subtle') + `<div class="text-muted fs-9">due ${h.money(r.BillBalanceDue)}</div>`
+                : h.pill('Ready', 'bg-success-subtle text-success border-success-subtle'), text: r => r.PaymentLabel }
         ]
     });
 })();

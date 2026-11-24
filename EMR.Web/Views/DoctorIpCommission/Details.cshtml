@@ -2,6 +2,12 @@
 @{
     ViewData["Title"] = "Doctor IP Commission Details";
     var h = Model.Header;
+    var bills = Model.Details.GroupBy(d => d.LabOrderId).Select(g => new
+    {
+        LabOrderId = g.Key, Lines = g.ToList(), First = g.First(), Paid = g.All(x => x.Is_Paid),
+        Billed = g.Sum(x => x.Billed_Amount), Commission = g.Sum(x => x.Commission_Amount)
+    }).OrderBy(b => b.First.Order_Date).ThenBy(b => b.LabOrderId).ToList();
+    var paidAmt = Model.Details.Where(d => d.Is_Paid).Sum(d => d.Commission_Amount);
 }
 
 <div class="container-fluid px-4 py-3">
@@ -34,50 +40,166 @@
                 <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Orders / Tests</div><div class="fw-semibold">@h.Total_Orders / @h.Total_Items</div></div>
                 <div class="col-md-2"><div class="text-muted small text-uppercase fw-semibold">Billed (₹)</div><div class="fw-semibold">@h.Total_Billed_Amount.ToString("N2")</div></div>
                 <div class="col-md-3"><div class="text-muted small text-uppercase fw-semibold">Commission (₹)</div><div class="fw-bold fs-5 text-primary">@h.Total_Commission.ToString("N2")</div></div>
+                <div class="col-md-4"><div class="text-muted small text-uppercase fw-semibold">Commission paid (₹)</div>
+                    <div class="fw-semibold"><span class="text-success">@paidAmt.ToString("N2") paid</span> <span class="text-muted">·</span> <span class="text-warning-emphasis">@((h.Total_Commission - paidAmt).ToString("N2")) not paid</span></div>
+                    <div class="small text-muted">@bills.Count(b => b.Paid) of @bills.Count bill(s) paid</div>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h6 class="mb-0 fw-bold"><i class="bi bi-list-check me-1"></i>Order-wise Commission</h6>
-            <span class="badge bg-secondary">@Model.Details.Count tests</span>
+        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h6 class="mb-0 fw-bold"><i class="bi bi-list-check me-1"></i>Bill-wise Commission</h6>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="badge bg-secondary">@bills.Count bills · @Model.Details.Count tests</span>
+                <button type="button" class="btn btn-sm btn-success" id="btnPaid" asp-permission="MASTER.DOCTORIP_COMMISSION:PAY" disabled><i class="bi bi-cash-coin me-1"></i>Mark selected paid</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnUnpaid" asp-permission="MASTER.DOCTORIP_COMMISSION:PAY" disabled><i class="bi bi-arrow-counterclockwise me-1"></i>Mark selected not paid</button>
+            </div>
         </div>
         <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle mb-0">
+            <table class="table table-sm align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-3">#</th><th>Order ID</th><th>Bill No</th><th>Order Date</th><th>Patient</th><th>Type</th><th>Code</th><th>Test / Profile / Package</th>
-                        <th class="text-end">Billed (₹)</th><th class="text-end">Commission %</th><th class="text-end pe-3">Commission (₹)</th>
+                        <th class="ps-3" style="width:36px"><input type="checkbox" class="form-check-input" id="chkAll" title="Select all bills" /></th>
+                        <th>Bill No</th><th>Order Date</th><th>Patient</th><th>Type</th><th>Test / Profile / Package</th>
+                        <th class="text-end">Billed (₹)</th><th class="text-end">Commission %</th><th class="text-end">Commission (₹)</th><th class="pe-3">Commission paid</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @{ var i = 0; }
-                    @foreach (var d in Model.Details)
+                    @foreach (var b in bills)
                     {
-                        i++;
-                        <tr>
-                            <td class="ps-3 text-muted">@i</td>
-                            <td class="font-monospace small">@d.LabOrderId</td>
-                            <td class="font-monospace small">@(d.BillNo ?? "-")</td>
-                            <td>@d.Order_Date.ToString("dd-MMM-yyyy")</td>
-                            <td>@(string.IsNullOrWhiteSpace(d.Patient_Name) ? "-" : d.Patient_Name)</td>
-                            <td>@d.Item_Type</td>
-                            <td class="font-monospace small">@d.Test_Code</td>
-                            <td>@d.Test_Name</td>
-                            <td class="text-end">@d.Billed_Amount.ToString("N2")</td>
-                            <td class="text-end">@d.Commission_Rate.ToString("0.##")</td>
-                            <td class="text-end pe-3 fw-semibold">@d.Commission_Amount.ToString("N2")</td>
-                        </tr>
+                        var span = b.Lines.Count;
+                        for (var k = 0; k < span; k++)
+                        {
+                            var d = b.Lines[k];
+                            <tr class="@(k == 0 ? "border-top" : "")">
+                                @if (k == 0)
+                                {
+                                    <td class="ps-3" rowspan="@span"><input type="checkbox" class="form-check-input chk-bill" value="@b.LabOrderId" data-paid="@(b.Paid ? "1" : "0")" /></td>
+                                    <td rowspan="@span" class="font-monospace small">@(b.First.BillNo ?? "-")<div class="text-muted">Order @b.LabOrderId</div></td>
+                                    <td rowspan="@span">@b.First.Order_Date.ToString("dd-MMM-yyyy")</td>
+                                    <td rowspan="@span">@(string.IsNullOrWhiteSpace(b.First.Patient_Name) ? "-" : b.First.Patient_Name)</td>
+                                }
+                                <td>@d.Item_Type</td>
+                                <td><span class="font-monospace small text-muted me-1">@d.Test_Code</span>@d.Test_Name</td>
+                                <td class="text-end">@d.Billed_Amount.ToString("N2")</td>
+                                <td class="text-end">@d.Commission_Rate.ToString("0.##")</td>
+                                <td class="text-end fw-semibold">@d.Commission_Amount.ToString("N2")</td>
+                                @if (k == 0)
+                                {
+                                    <td rowspan="@span" class="pe-3">
+                                        @if (b.Paid)
+                                        {
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle">Paid</span>
+                                            <div class="small">@b.First.Paid_Date?.ToString("dd-MMM-yyyy")@(string.IsNullOrWhiteSpace(b.First.Paid_Reference) ? "" : " · " + b.First.Paid_Reference)</div>
+                                            <div class="small text-muted">@b.First.Paid_By_Name@(string.IsNullOrWhiteSpace(b.First.Paid_Remarks) ? "" : " - " + b.First.Paid_Remarks)</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Not paid</span>
+                                            <div class="small text-muted">₹@b.Commission.ToString("N2")</div>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                        }
                     }
                     <tr class="table-light fw-bold">
-                        <td colspan="8" class="ps-3">Total</td>
+                        <td colspan="6" class="ps-3">Total</td>
                         <td class="text-end">@Model.Details.Sum(d => d.Billed_Amount).ToString("N2")</td>
                         <td></td>
-                        <td class="text-end pe-3">@Model.Details.Sum(d => d.Commission_Amount).ToString("N2")</td>
+                        <td class="text-end">@Model.Details.Sum(d => d.Commission_Amount).ToString("N2")</td>
+                        <td class="pe-3 small">₹@paidAmt.ToString("N2") paid</td>
                     </tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="paidModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-cash-coin me-2 text-success"></i>Mark commission paid</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small mb-3" id="paidSummary"></p>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="paidDate">Paid on <span class="text-danger">*</span></label>
+                    <input type="date" id="paidDate" class="form-control" max="@DateTime.Today.ToString("yyyy-MM-dd")" value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold" for="paidRef">Payment reference</label>
+                    <input type="text" id="paidRef" class="form-control" maxlength="100" placeholder="Cheque / NEFT / UPI reference" />
+                </div>
+                <div>
+                    <label class="form-label fw-semibold" for="paidRemarks">Remarks</label>
+                    <input type="text" id="paidRemarks" class="form-control" maxlength="250" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="btnPaidSave"><i class="bi bi-check2 me-1"></i>Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+@Html.AntiForgeryToken()
+
+@section Scripts {
+<script>
+(function () {
+    const url = '@Html.Raw(Url.ActionEncrypted("MarkPaid", new { id = h.Commission_Hdr_ID }))';
+    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+    const chks = () => [...document.querySelectorAll('.chk-bill')];
+    const picked = () => chks().filter(c => c.checked);
+    const btnPaid = document.getElementById('btnPaid'), btnUnpaid = document.getElementById('btnUnpaid');
+    function refresh() {
+        const p = picked();
+        if (btnPaid) btnPaid.disabled = !p.some(c => c.dataset.paid === '0');
+        if (btnUnpaid) btnUnpaid.disabled = !p.some(c => c.dataset.paid === '1');
+        const all = document.getElementById('chkAll');
+        all.checked = p.length > 0 && p.length === chks().length;
+        all.indeterminate = p.length > 0 && !all.checked;
+    }
+    document.getElementById('chkAll').addEventListener('change', e => { chks().forEach(c => c.checked = e.target.checked); refresh(); });
+    document.addEventListener('change', e => { if (e.target.classList.contains('chk-bill')) refresh(); });
+
+    async function save(isPaid, ids) {
+        const fd = new FormData();
+        fd.append('__RequestVerificationToken', token);
+        fd.append('orderIds', ids.join(','));
+        fd.append('isPaid', isPaid);
+        if (isPaid) {
+            fd.append('paidDate', document.getElementById('paidDate').value);
+            fd.append('reference', document.getElementById('paidRef').value);
+            fd.append('remarks', document.getElementById('paidRemarks').value);
+        }
+        const res = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const r = await res.json().catch(() => ({ success: false, message: 'Could not save. Reload the page and try again.' }));
+        if (!r.success) { Swal.fire({ icon: 'error', text: r.message || 'Could not save.' }); return; }
+        await Swal.fire({ icon: 'success', text: `${r.bills} bill(s) marked ${isPaid ? 'paid' : 'not paid'}.`, timer: 1800, showConfirmButton: false });
+        location.reload();
+    }
+    btnPaid?.addEventListener('click', () => {
+        const ids = picked().filter(c => c.dataset.paid === '0').map(c => c.value);
+        document.getElementById('paidSummary').textContent = `${ids.length} bill(s) will be marked paid. Each bill is recorded separately.`;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('paidModal')).show();
+    });
+    document.getElementById('btnPaidSave').addEventListener('click', () => {
+        if (!document.getElementById('paidDate').value) { Swal.fire({ icon: 'warning', text: 'Enter the date the commission was paid.' }); return; }
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('paidModal')).hide();
+        save(true, picked().filter(c => c.dataset.paid === '0').map(c => c.value));
+    });
+    btnUnpaid?.addEventListener('click', async () => {
+        const ids = picked().filter(c => c.dataset.paid === '1').map(c => c.value);
+        const ok = await Swal.fire({ icon: 'question', text: `Mark ${ids.length} bill(s) as not paid? Their payment details will be cleared.`, showCancelButton: true, confirmButtonText: 'Yes, mark not paid' });
+        if (ok.isConfirmed) save(false, ids);
+    });
+    refresh();
+})();
+</script>
+}

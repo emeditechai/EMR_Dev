@@ -133,13 +133,14 @@
                                 <th class="text-end">Billed (₹)</th>
                                 <th class="text-end">Estimated Commission (₹)</th>
                                 <th class="text-center">Omitted</th>
+                                <th class="text-center" title="Bills not fully paid: they wait and are computed after full payment">Waiting payment</th>
                                 <th class="text-end pe-4"></th>
                             </tr>
                         </thead>
                         <tbody>
                             @if (!Model.PendingItems.Any())
                             {
-                                <tr><td colspan="10" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>Nothing pending for this period.</td></tr>
+                                <tr><td colspan="11" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>Nothing pending for this period.</td></tr>
                             }
                             else
                             {
@@ -163,6 +164,13 @@
                                             }
                                             else { <span class="text-muted">-</span> }
                                         </td>
+                                        <td class="text-center">
+                                            @if (p.Waiting_Items > 0)
+                                            {
+                                                <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle rounded-pill px-3" title="@p.Waiting_Orders bill(s) not fully paid, commission ₹@p.Waiting_Commission.ToString("N2") waits for payment">@p.Waiting_Orders bill(s)</span>
+                                            }
+                                            else { <span class="text-muted">-</span> }
+                                        </td>
                                         <td class="text-end pe-4">
                                             <button type="button" class="btn btn-sm btn-outline-primary ip-select" data-doctor="@p.Doctor_ID" data-name="@p.Doctor_Name">
                                                 <i class="bi bi-list-check me-1"></i>Select tests
@@ -177,6 +185,7 @@
                                     <td class="text-end">@Model.PendingItems.Sum(p => p.Pending_Amount).ToString("N2")</td>
                                     <td class="text-end">@Model.PendingItems.Sum(p => p.Estimated_Commission).ToString("N2")</td>
                                     <td class="text-center">@Model.PendingItems.Sum(p => p.Omitted_Items)</td>
+                                    <td class="text-center">@Model.PendingItems.Sum(p => p.Waiting_Orders)</td>
                                     <td class="pe-4"></td>
                                 </tr>
                             }
@@ -202,13 +211,14 @@
                                 <th class="text-end">Commission (₹)</th>
                                 <th>Computed On</th>
                                 <th>By</th>
+                                <th class="text-center">Commission paid</th>
                                 <th class="text-end pe-4"></th>
                             </tr>
                         </thead>
                         <tbody>
                             @if (!Model.ComputedItems.Any())
                             {
-                                <tr><td colspan="11" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>No commission computed for this period.</td></tr>
+                                <tr><td colspan="12" class="text-center text-muted py-5"><i class="bi bi-inbox display-6 d-block mb-2"></i>No commission computed for this period.</td></tr>
                             }
                             else
                             {
@@ -228,6 +238,14 @@
                                             @c.Computed_By_Name
                                             @if (c.Source == "AUTO") { <span class="badge bg-info-subtle text-info border border-info-subtle ms-1">Auto</span> }
                                         </td>
+                                        <td class="text-center">
+                                            @if (c.Unpaid_Bills == 0)
+                                            { <span class="badge bg-success-subtle text-success border border-success-subtle">Paid</span> }
+                                            else if (c.Paid_Bills == 0)
+                                            { <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">Not paid</span> }
+                                            else
+                                            { <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="₹@c.Paid_Commission.ToString("N2") paid, ₹@c.Unpaid_Commission.ToString("N2") not paid">@c.Paid_Bills of @(c.Paid_Bills + c.Unpaid_Bills) bills paid</span> }
+                                        </td>
                                         <td class="text-end pe-4">
                                             <a asp-action="Details" asp-encrypted-id="@c.Commission_Hdr_ID" asp-permission="MASTER.DOCTORIP_COMMISSION:DETAILS" class="btn btn-sm btn-outline-info" title="Details"><i class="bi bi-eye"></i></a>
                                         </td>
@@ -239,7 +257,9 @@
                                     <td class="text-center">@Model.ComputedItems.Sum(c => c.Total_Items)</td>
                                     <td class="text-end">@Model.ComputedItems.Sum(c => c.Total_Billed_Amount).ToString("N2")</td>
                                     <td class="text-end">@Model.ComputedItems.Sum(c => c.Total_Commission).ToString("N2")</td>
-                                    <td colspan="3"></td>
+                                    <td colspan="2"></td>
+                                    <td class="text-center small">₹@Model.ComputedItems.Sum(c => c.Paid_Commission).ToString("N2") paid</td>
+                                    <td></td>
                                 </tr>
                             }
                         </tbody>
@@ -352,14 +372,15 @@
                 <td class="small">${day(t.Order_Date)}</td>
                 <td>${esc(t.Patient_Name)}</td>
                 <td><div class="${t.include ? 'fw-semibold' : 'text-decoration-line-through'}">${esc(t.Test_Name)}</div>
-                    <div class="small text-muted">${esc(t.Test_Code || '')} · ${esc(t.Item_Type)}${t.Is_Omitted ? ' · <span class="text-secondary"><i class="bi bi-slash-circle me-1"></i>omitted' + (t.Omitted_By_Name ? ' by ' + esc(t.Omitted_By_Name) : '') + (t.Omit_Reason ? ': ' + esc(t.Omit_Reason) : '') + '</span>' : ''}</div></td>
+                    <div class="small text-muted">${esc(t.Test_Code || '')} · ${esc(t.Item_Type)}${t.Is_Omitted ? ' · <span class="text-secondary"><i class="bi bi-slash-circle me-1"></i>omitted' + (t.Omitted_By_Name ? ' by ' + esc(t.Omitted_By_Name) : '') + (t.Omit_Reason ? ': ' + esc(t.Omit_Reason) : '') + '</span>' : ''}${t.Is_Waiting_Payment ? ' · <span class="text-info-emphasis"><i class="bi bi-hourglass me-1"></i>bill not fully paid (due ₹' + money(t.Bill_Balance_Due) + '), waits for payment</span>' : ''}</div></td>
                 <td class="text-end">${money(t.Billed_Amount)}</td>
                 <td class="text-end">${money(t.Commission_Rate)}</td>
                 <td class="text-end pe-3 fw-semibold">${t.include ? money(t.Commission_Amount) : '<span class="text-muted">0.00</span>'}</td>
             </tr>`).join('') : '<tr><td colspan="8" class="text-center text-muted py-4">No pending tests.</td></tr>';
-        const inc = tests.filter(t => t.include), om = tests.filter(t => !t.include);
+        const inc = tests.filter(t => t.include && !t.Is_Waiting_Payment), om = tests.filter(t => !t.include), wt = tests.filter(t => t.include && t.Is_Waiting_Payment);
         document.getElementById('ipTotals').innerHTML =
             `<span class="me-3">Included <strong>${inc.length}</strong> · commission <strong>₹${money(inc.reduce((a, t) => a + t.Commission_Amount, 0))}</strong></span>` +
+            (wt.length ? `<span class="me-3 text-info-emphasis">Waiting payment <strong>${wt.length}</strong> · ₹${money(wt.reduce((a, t) => a + t.Commission_Amount, 0))}</span>` : '') +
             `<span class="text-muted">Omitted <strong>${om.length}</strong> · ₹${money(om.reduce((a, t) => a + t.Commission_Amount, 0))}</span>`;
         const all = document.getElementById('ipAll');
         all.disabled = !canOmit || !rows.length;
@@ -398,8 +419,8 @@
             if (!r) return;
             if (!r.success) { Swal.fire({ icon: 'error', text: r.message }); return; }
             if (thenCalculate) {
-                const included = tests.filter(t => t.include).length;
-                if (!included) { Swal.fire({ icon: 'warning', text: 'All tests are omitted, so there is nothing to calculate. The selection is saved.' }).then(() => location.reload()); return; }
+                const included = tests.filter(t => t.include && !t.Is_Waiting_Payment).length;
+                if (!included) { Swal.fire({ icon: 'warning', text: 'Nothing can be calculated: the remaining tests are omitted or their bills are not fully paid yet. The selection is saved.' }).then(() => location.reload()); return; }
                 const ok = await Swal.fire({ icon: 'question', title: 'Calculate commission?', html: `${included} test(s) will be calculated for this doctor. Computed tests are locked and will not be calculated again.`, showCancelButton: true, confirmButtonText: 'Calculate' });
                 if (!ok.isConfirmed) { if (r.omitted || r.restored) location.reload(); return; }
                 document.getElementById('ipCalcDoctor').value = doctorId;

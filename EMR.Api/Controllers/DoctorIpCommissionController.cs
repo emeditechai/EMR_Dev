@@ -49,6 +49,19 @@ public class DoctorIpCommissionController(IDoctorIpCommissionService service) : 
         }
     }
 
+    [HttpPost("paid")]
+    public async Task<IActionResult> SetPaid([FromBody] DoctorIpCommissionSetPaidRequest req)
+    {
+        try
+        {
+            return Ok(ApiResponse<DoctorIpCommissionSetPaidResult>.Ok(await service.SetPaidAsync(req), "Commission payment saved."));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
     [HttpPost("calculate")]
     public async Task<IActionResult> Calculate([FromBody] DoctorIpCommissionCalculateRequest req)
     {

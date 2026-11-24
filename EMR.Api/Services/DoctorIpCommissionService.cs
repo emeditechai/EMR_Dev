@@ -43,6 +43,18 @@ public class DoctorIpCommissionService(IDbConnectionFactory db) : IDoctorIpCommi
             commandType: CommandType.StoredProcedure);
     }
 
+    public async Task<DoctorIpCommissionSetPaidResult> SetPaidAsync(DoctorIpCommissionSetPaidRequest req)
+    {
+        using var con = db.CreateConnection();
+        return await con.QueryFirstAsync<DoctorIpCommissionSetPaidResult>("usp_DoctorIpCommission_SetPaid",
+            new
+            {
+                CommissionHdrId = req.Commission_Hdr_ID, LabOrderIdsJson = System.Text.Json.JsonSerializer.Serialize(req.LabOrderIds),
+                req.IsPaid, PaidDate = req.PaidDate?.Date, req.Reference, req.Remarks, req.UserId
+            },
+            commandType: CommandType.StoredProcedure);
+    }
+
     public async Task<IEnumerable<DoctorIpCommissionListItem>> GetListAsync(int? branchId, int? doctorId, DateTime? fromDate, DateTime? toDate, int? companyId)
     {
         using var con = db.CreateConnection();

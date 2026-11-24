@@ -146,10 +146,10 @@ public class ReportsController : ControllerBase
             ["patient-analytics"]   = ("dbo.usp_Api_LabReport_PatientAnalytics",  new[] { "PatientType", "AgeBand", "Gender" },     new[] { "CreatedBy" }),
             ["staff-productivity"]  = ("dbo.usp_Api_LabReport_StaffProductivity", new[] { "Activity" },                             new[] { "StaffId" }),
             // Doctor IP (referral doctor commission) reports: branch-wide (SQLScripts/2222)
-            ["doctorip-statement"]    = ("dbo.usp_Api_LabReport_DoctorIpStatement",    new[] { "ItemType" },              new[] { "DoctorId" }),
+            ["doctorip-statement"]    = ("dbo.usp_Api_LabReport_DoctorIpStatement",    new[] { "ItemType", "PaidStatus" },              new[] { "DoctorId" }),
             ["doctorip-itemwise"]     = ("dbo.usp_Api_LabReport_DoctorIpStatement",    new[] { "ItemType" },              new[] { "DoctorId" }),
             ["doctorip-business"]     = ("dbo.usp_Api_LabReport_DoctorIpBusiness",     new[] { "CommissionStatus" },      new[] { "DoctorId" }),
-            ["doctorip-pending"]      = ("dbo.usp_Api_LabReport_DoctorIpPending",      new[] { "ItemType", "Frequency" }, new[] { "DoctorId" }),
+            ["doctorip-pending"]      = ("dbo.usp_Api_LabReport_DoctorIpPending",      new[] { "ItemType", "Frequency", "BillPayment" }, new[] { "DoctorId" }),
             ["doctorip-unconfigured"] = ("dbo.usp_Api_LabReport_DoctorIpUnconfigured", new[] { "Reason" },                new[] { "DoctorId" }),
             // Quality & Compliance: BOM & costing, company masters against the branch's B2C rates (SQLScripts/2248)
             // LF-06 equipment and EQAS register (SQLScripts/2253)

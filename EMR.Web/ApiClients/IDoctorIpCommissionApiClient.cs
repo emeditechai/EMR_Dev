@@ -8,6 +8,7 @@ public interface IDoctorIpCommissionApiClient
     Task<IEnumerable<DoctorIpCommissionCalculateResultModel>> CalculateAsync(DoctorIpCommissionCalculateRequestModel req);
     Task<IEnumerable<DoctorIpCommissionPendingTestModel>> GetPendingTestsAsync(int branchId, int doctorId, DateTime fromDate, DateTime toDate, int? companyId);
     Task<DoctorIpCommissionOmitResultModel> SetOmittedAsync(DoctorIpCommissionOmitRequestModel req);
+    Task<DoctorIpCommissionSetPaidResultModel> SetPaidAsync(DoctorIpCommissionSetPaidRequestModel req);
     Task<IEnumerable<DoctorIpCommissionListModel>> GetListAsync(int? branchId, int? doctorId, DateTime? fromDate, DateTime? toDate, int? companyId);
     Task<DoctorIpCommissionDetailModel?> GetDetailAsync(long id);
 }

@@ -35,12 +35,13 @@
         dataUrl: '@Url.Action("GetReportData", "DoctorIpCommission")',
         branchName: '@Html.Raw(System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(User.FindFirst("BranchName")?.Value ?? ""))',
         searchPlaceholder: 'Bill No, patient or test...',
-        filters: [DOCTOR, { id: 'itemType', label: 'Type', allLabel: 'All types', options: TYPES }],
+        filters: [DOCTOR, { id: 'itemType', label: 'Type', allLabel: 'All types', options: TYPES }, { id: 'paidStatus', label: 'Commission paid', allLabel: 'Paid & not paid', options: [['PAID', 'Paid'], ['UNPAID', 'Not paid']] }],
         kpis: [
             { label: 'Commission', color: '#0f766e', value: (s, h) => h.money(s.CommissionAmount), sub: (s, h) => `${h.num(s.DoctorCount)} doctor(s)` },
             { label: 'Billed amount', color: '#1d4ed8', value: (s, h) => h.money(s.BilledAmount), sub: () => 'on which commission was computed' },
             { label: 'Effective rate', color: '#b45309', value: s => pct(s.EffectiveRate), sub: () => 'commission / billed' },
-            { label: 'Bills', color: '#475569', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.ItemCount)} test(s) / package(s)` }
+            { label: 'Bills', color: '#475569', value: (s, h) => h.num(s.BillCount), sub: (s, h) => `${h.num(s.ItemCount)} test(s) / package(s)` },
+            { label: 'Commission paid', color: '#15803d', value: (s, h) => h.money(s.PaidAmount), sub: (s, h) => `${h.money(s.UnpaidAmount)} not paid` }
         ],
         groupCols: [
             { field: 'BillCount', label: 'Bills', num: true }, { field: 'ItemCount', label: 'Items', num: true },
@@ -48,11 +49,15 @@
             { field: 'EffectiveRate', label: 'Rate %', num: true, total: 'none', fmt: v => pct(v) }
         ],
         shareOf: 'CommissionAmount',
-        groups: [G_DOCTOR, G_MONTH, G_DATE, { key: 'byItemType', label: 'Type', rowField: 'ItemType' }],
+        groups: [G_DOCTOR, G_MONTH, G_DATE, { key: 'byItemType', label: 'Type', rowField: 'ItemType' }, { key: 'byPaid', label: 'Commission paid', rowField: 'PaidLabel' }],
         cols: [
             C_DATE, C_BILL, C_PATIENT, C_DOCTOR, C_TYPE, C_ITEM, C_BILLED, C_RATE,
             { label: 'Commission', cls: 'text-end amt fw-bold', html: (r, h) => h.money(r.CommissionAmount), text: r => r.CommissionAmount, sum: 'CommissionAmount' },
-            { label: 'Computed', cls: 'text-nowrap', html: (r, h) => `${h.fmtD(r.ComputedDate)}<div class="text-muted fs-9">Ref #${h.esc(r.RunNo)} &middot; ${h.esc(r.Source)}</div>`, text: (r, h) => h.fmtD(r.ComputedDate) + ' #' + r.RunNo + ' ' + r.Source }
+            { label: 'Computed', cls: 'text-nowrap', html: (r, h) => `${h.fmtD(r.ComputedDate)}<div class="text-muted fs-9">Ref #${h.esc(r.RunNo)} &middot; ${h.esc(r.Source)}</div>`, text: (r, h) => h.fmtD(r.ComputedDate) + ' #' + r.RunNo + ' ' + r.Source },
+            { label: 'Commission paid', html: (r, h) => r.PaidLabel === 'Paid'
+                ? h.pill('Paid', 'bg-success-subtle text-success border-success-subtle') + `<div class="text-muted fs-9">${h.fmtD(r.PaidDate)}${r.PaidReference ? ' · ' + h.esc(r.PaidReference) : ''}</div>`
+                : h.pill('Not paid', 'bg-warning-subtle text-warning-emphasis border-warning-subtle'),
+              text: (r, h) => r.PaidLabel + (r.PaidDate ? ' ' + h.fmtD(r.PaidDate) : '') + (r.PaidReference ? ' ' + r.PaidReference : '') }
         ]
     });
 })();

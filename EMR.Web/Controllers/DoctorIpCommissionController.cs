@@ -235,6 +235,47 @@ public class DoctorIpCommissionController(
         }
     }
 
+    /// <summary>Marks the commission of the selected bills of a run as paid (or not paid). Each bill is marked separately.</summary>
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> MarkPaid(long id, string? orderIds, bool isPaid, DateTime? paidDate, string? reference, string? remarks)
+    {
+        var branchId = User.GetCurrentBranchId();
+        if (!branchId.HasValue) return Json(new { success = false, message = "Select a branch first." });
+        var ids = (orderIds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out var n) ? n : 0).Where(n => n > 0).Distinct().ToList();
+        if (ids.Count == 0) return Json(new { success = false, message = "Select at least one bill." });
+        if (isPaid && paidDate == null) return Json(new { success = false, message = "Enter the date the commission was paid." });
+        if (reference is { Length: > 100 }) reference = reference[..100];
+        if (remarks is { Length: > 250 }) remarks = remarks[..250];
+
+        try
+        {
+            var run = await apiClient.GetDetailAsync(id);
+            if (run == null || run.Header.Branch_ID != branchId.Value)
+                return Json(new { success = false, message = "Commission record not found for this branch." });
+            var result = await apiClient.SetPaidAsync(new DoctorIpCommissionSetPaidRequestModel
+            {
+                Commission_Hdr_ID = id, LabOrderIds = ids, IsPaid = isPaid, PaidDate = paidDate?.Date,
+                Reference = reference, Remarks = remarks, UserId = User.GetUserId()
+            });
+            if (result.Updated_Bills > 0)
+                await auditLogService.LogAsync("Doctor IP Commission Payment", "Update",
+                    $"Commission #{id} ({run.Header.Doctor_Name}): {result.Updated_Bills} bill(s), {result.Updated_Commission:N2} marked " +
+                    (isPaid ? $"paid on {paidDate:dd-MMM-yyyy}" + (string.IsNullOrWhiteSpace(reference) ? "" : $", ref {reference.Trim()}") : "not paid"),
+                    User.GetUserId(), branchId.Value);
+            return Json(new { success = true, bills = result.Updated_Bills, amount = result.Updated_Commission });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Json(new { success = false, message = ex.Message });
+        }
+        catch (HttpRequestException)
+        {
+            return Json(new { success = false, message = "The API is not reachable. Try again." });
+        }
+    }
+
     [HttpGet]
     public async Task<IActionResult> Details(long id)
     {
@@ -271,9 +312,9 @@ public class DoctorIpCommissionController(
     private static readonly Dictionary<string, string[]> ReportFilters = new(StringComparer.OrdinalIgnoreCase)
     {
         ["doctorip-business"]     = ["doctorId", "commissionStatus"],
-        ["doctorip-statement"]    = ["doctorId", "itemType"],
+        ["doctorip-statement"]    = ["doctorId", "itemType", "paidStatus"],
         ["doctorip-itemwise"]     = ["doctorId", "itemType"],
-        ["doctorip-pending"]      = ["doctorId", "itemType", "frequency"],
+        ["doctorip-pending"]      = ["doctorId", "itemType", "frequency", "billPayment"],
         ["doctorip-unconfigured"] = ["doctorId", "reason"],
     };
 

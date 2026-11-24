@@ -589,6 +589,7 @@ public class HospitalSettingsController(
             existing.LabBillPrintPageSize = model.LabBillPrintPageSize == "A5L" ? "A5L" : "A4";
             existing.LabB2CReportPrintHeaderRequired = model.LabB2CReportPrintHeaderRequired;
             existing.DoctorIpComputeMode = model.DoctorIpComputeMode;
+            existing.DoctorIpIncludeUnpaidBills = model.DoctorIpIncludeUnpaidBills;
             existing.MembershipCardNoPrefix = string.IsNullOrWhiteSpace(model.MembershipCardNoPrefix) ? "MC" : model.MembershipCardNoPrefix.Trim().ToUpperInvariant();
             existing.MembershipCardWhatsAppRequired = model.MembershipCardWhatsAppRequired;
             existing.MembershipCardEmailRequired = model.MembershipCardEmailRequired;
@@ -790,6 +791,7 @@ public class HospitalSettingsController(
             LabBillPrintPageSize = s.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
             LabB2CReportPrintHeaderRequired = s.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = string.IsNullOrWhiteSpace(s.DoctorIpComputeMode) ? "Manual" : s.DoctorIpComputeMode,
+            DoctorIpIncludeUnpaidBills = s.DoctorIpIncludeUnpaidBills,
             MembershipCardNoPrefix = string.IsNullOrWhiteSpace(s.MembershipCardNoPrefix) ? "MC" : s.MembershipCardNoPrefix,
             MembershipCardWhatsAppRequired = s.MembershipCardWhatsAppRequired,
             MembershipCardEmailRequired = s.MembershipCardEmailRequired,
@@ -936,6 +938,7 @@ public class HospitalSettingsController(
             LabBillPrintPageSize = m.LabBillPrintPageSize == "A5L" ? "A5L" : "A4",
             LabB2CReportPrintHeaderRequired = m.LabB2CReportPrintHeaderRequired,
             DoctorIpComputeMode = m.DoctorIpComputeMode,
+            DoctorIpIncludeUnpaidBills = m.DoctorIpIncludeUnpaidBills,
             MembershipCardNoPrefix = string.IsNullOrWhiteSpace(m.MembershipCardNoPrefix) ? "MC" : m.MembershipCardNoPrefix.Trim().ToUpperInvariant(),
             MembershipCardWhatsAppRequired = m.MembershipCardWhatsAppRequired,
             MembershipCardEmailRequired = m.MembershipCardEmailRequired,
