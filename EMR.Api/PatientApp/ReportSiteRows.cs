@@ -197,6 +197,7 @@ public class HospitalSettings
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;
+    public bool B2BBarcodeSeparateSequence { get; set; }   // SQLScripts/2536
     /// <summary>LAB billing AI features (AI prescription assist, Smart ID Scan) for this branch (SQLScripts/2286). Off = billing as before.</summary>
     public bool EnableAiBillingFeatures { get; set; } = false;
     /// <summary>The AI Help Assistant (Ask AI on the Home dashboard and in the Help Center) for this branch (SQLScripts/2302).</summary>

@@ -288,7 +288,6 @@ public class IpdAdmissionController(
             IdentificationFilePath = string.IsNullOrWhiteSpace(model.IdentificationFilePath) ? existing?.IdentificationFilePath : model.IdentificationFilePath,
             IdentificationTypeId = model.IdentificationTypeId, IdentificationNumber = model.IdentificationNumber,
             AbhaNumber = string.IsNullOrWhiteSpace(model.AbhaNumber) ? null : Regex.Replace(model.AbhaNumber, "\\D", ""), AbhaAddress = model.AbhaAddress,
-            BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
             ReligionId = model.ReligionId, GuardianName = model.GuardianName, CountryId = model.CountryId, StateId = model.StateId,
             DistrictId = model.DistrictId, CityId = model.CityId, AreaId = model.AreaId, Address = model.Address,
             Pincode = string.IsNullOrWhiteSpace(model.Pincode) ? null : model.Pincode.Trim(),

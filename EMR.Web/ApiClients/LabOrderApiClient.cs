@@ -106,6 +106,19 @@ namespace EMR.Web.ApiClients
             return await response.Content.ReadFromJsonAsync<LabOrderDetailDto>();
         }
 
+        public async Task<LabB2BSchemeDto> GetB2BSchemeAsync(int branchId, string agentType, int agentId)
+        {
+            var response = await httpClient.GetAsync($"api/LabOrders/b2b-scheme?branchId={branchId}&agentType={System.Uri.EscapeDataString(agentType)}&agentId={agentId}");
+            response.EnsureSuccessStatusCode();   // the caller decides: a failed check must not let a scheme bill through
+            return await response.Content.ReadFromJsonAsync<LabB2BSchemeDto>() ?? new LabB2BSchemeDto();
+        }
+
+        public async Task SetOrderSchemeAsync(int labOrderId, string? beneficiaryId)
+        {
+            var response = await httpClient.PostAsJsonAsync($"api/LabOrders/{labOrderId}/scheme", new { BeneficiaryId = beneficiaryId });
+            response.EnsureSuccessStatusCode();
+        }
+
         public async Task<bool> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId, int? userId = null)
         {
             try

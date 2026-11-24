@@ -575,6 +575,7 @@ public class HospitalSettingsController(
             existing.LabEmailNotificationRequired = model.LabEmailNotificationRequired;
             existing.IsSampleCollectionMandatory = model.IsSampleCollectionMandatory;
             existing.BarcodeGenerateAtBilling = model.BarcodeGenerateAtBilling;
+            existing.B2BBarcodeSeparateSequence = model.B2BBarcodeSeparateSequence;
             existing.EnableAiBillingFeatures = model.EnableAiBillingFeatures;
             EMR.Web.Services.AiBillingFeatures.Invalidate(HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), existing.BranchId);
             existing.EnableAskAiFeatures = model.EnableAskAiFeatures;
@@ -779,6 +780,7 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = s.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = s.BarcodeGenerateAtBilling,
+            B2BBarcodeSeparateSequence = s.B2BBarcodeSeparateSequence,
             EnableAiBillingFeatures = s.EnableAiBillingFeatures,
             EnableAskAiFeatures = s.EnableAskAiFeatures,
             TokenGenerateOnDuePayment = s.TokenGenerateOnDuePayment,
@@ -926,6 +928,7 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = m.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = m.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = m.BarcodeGenerateAtBilling,
+            B2BBarcodeSeparateSequence = m.B2BBarcodeSeparateSequence,
             EnableAiBillingFeatures = m.EnableAiBillingFeatures,
             EnableAskAiFeatures = m.EnableAskAiFeatures,
             TokenGenerateOnDuePayment = m.TokenGenerateOnDuePayment,

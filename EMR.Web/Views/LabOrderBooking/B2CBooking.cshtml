@@ -456,12 +456,6 @@
                             <input asp-for="AbhaAddress" class="form-control" maxlength="100" placeholder="name@abdm" />
                         </div>
                     }
-                    @* Beneficiary ID (SQLScripts/2534): saved on the patient, printed on the bills *@
-                    <div class="col-12 col-sm-6 col-lg-3">
-                        <label asp-for="BeneficiaryId" class="form-label fw-semibold small">Beneficiary ID <span class="text-muted fw-normal">(optional)</span></label>
-                        <input asp-for="BeneficiaryId" class="form-control" maxlength="50" autocomplete="off" placeholder="e.g. scheme beneficiary no." />
-                        <span asp-validation-for="BeneficiaryId" class="text-danger small"></span>
-                    </div>
                 </div>
             </div>
 
@@ -3028,7 +3022,6 @@
             ].forEach(f => setVal(f, p[f.charAt(0).toLowerCase() + f.slice(1)]));
             setVal('AbhaNumber', p.abhaNumber || '');
             setVal('AbhaAddress', p.abhaAddress || '');
-            setVal('BeneficiaryId', p.beneficiaryId || '');
             // the ID document already on record: Preview under "Upload ID Document"
             window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');
 

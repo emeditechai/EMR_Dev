@@ -184,6 +184,21 @@ namespace EMR.Web.Controllers
                     var partnerTypeLabel = model.AgentType == "C" ? "Company" : "Franchise";
                     ModelState.AddModelError(nameof(model.B2BAgentId), $"Please select a {partnerTypeLabel}.");
                 }
+                // SQLScripts/2535: a company whose rate list is a government scheme (e.g. WBHS) needs the Beneficiary ID
+                else
+                {
+                    try
+                    {
+                        var scheme = await labOrderApiClient.GetB2BSchemeAsync(branchId.Value, model.AgentType ?? "F", model.B2BAgentId.Value);
+                        if (scheme.IsGovtScheme && string.IsNullOrWhiteSpace(model.BeneficiaryId))
+                            ModelState.AddModelError(nameof(model.BeneficiaryId), $"Beneficiary ID is required for {scheme.SchemeName ?? "the government scheme"} bills.");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "B2B booking: government scheme check failed");
+                        ModelState.AddModelError(string.Empty, "The company's rate list could not be checked. Please try again.");
+                    }
+                }
             }
 
             List<LabOrderItemRequestDto>? lineItems = null;
@@ -358,7 +373,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
-                BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
+                BeneficiaryId = model.BeneficiaryId,   // SQLScripts/2534/2535: posted only for a government scheme company; null keeps the stored value
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -554,6 +569,9 @@ namespace EMR.Web.Controllers
                 return View(model);
             }
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
+            // SQLScripts/2535: government scheme and Beneficiary ID on the order (printed on the B2B bill)
+            try { await labOrderApiClient.SetOrderSchemeAsync(labOrderRes.LabOrderId, model.BeneficiaryId); }
+            catch (Exception ex) { logger.LogError(ex, "B2B booking: scheme snapshot failed for order {LabOrderId}", labOrderRes.LabOrderId); }
             await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
                 prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
 
@@ -1064,7 +1082,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
-                BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
+                BeneficiaryId = model.IsB2B ? (model.BeneficiaryId ?? "") : null,   // SQLScripts/2534: B2B booking only; B2C keeps the stored value
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -1426,7 +1444,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
-                BeneficiaryId = model.BeneficiaryId ?? "",   // SQLScripts/2534: blank clears it
+                BeneficiaryId = model.IsB2B ? (model.BeneficiaryId ?? "") : null,   // SQLScripts/2534: B2B booking only; B2C keeps the stored value
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -3126,6 +3144,7 @@ namespace EMR.Web.Controllers
                 PatientName  = detail.PatientName,
                 PatientCode  = detail.PatientCode,
                 BeneficiaryId = detail.BeneficiaryId,
+                GovtSchemeName = detail.GovtSchemeName,
                 PhoneNumber  = detail.PhoneNumber,
                 EmailId      = detail.EmailId,
                 Gender       = detail.Gender,
@@ -3420,6 +3439,23 @@ namespace EMR.Web.Controllers
         }
 
         #region ── B2B Billing, Credit Policy, Invoicing & Multi-Bill Settlement ──
+
+        [HttpGet]
+        public async Task<IActionResult> GetB2BScheme(string agentType, int agentId)
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (branchId is null || agentId <= 0 || string.IsNullOrWhiteSpace(agentType)) return Json(new { success = false });
+            try
+            {
+                var s = await labOrderApiClient.GetB2BSchemeAsync(branchId.Value, agentType, agentId);
+                return Json(new { success = true, isGovtScheme = s.IsGovtScheme, schemeName = s.SchemeName });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "GetB2BScheme failed");
+                return Json(new { success = false });
+            }
+        }
 
         [HttpGet]
         public async Task<IActionResult> GetPartnerCreditStatus(string agentType, int agentId)

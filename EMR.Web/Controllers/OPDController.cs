@@ -2580,7 +2580,6 @@ public class OPDController(
         IdentificationNumber  = m.IdentificationNumber?.Trim(),
         AbhaNumber            = m.AbhaNumber,
         AbhaAddress           = m.AbhaAddress,
-        BeneficiaryId         = m.BeneficiaryId ?? "",   // shown on every registration form: blank clears it
         AyushmanCardNo        = m.AyushmanCardNo,
         IdentificationFilePath= m.IdentificationFilePath,
         PhotoPath             = m.PhotoPath,

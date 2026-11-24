@@ -466,6 +466,16 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-upc"></i></div>
+                        <div>
+                            <div class="lp-label">B2B Barcode Generate Separate Sequence Required</div>
+                            <div class="lp-desc">Yes: B2B (franchise / company) bills get their sample barcodes from a sequence of their own. No: one sequence for B2C and B2B.</div>
+                            <span class="lp-pill @(Model.B2BBarcodeSeparateSequence ? "yes" : "no")"><i class="bi @(Model.B2BBarcodeSeparateSequence ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.B2BBarcodeSeparateSequence ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">AI Assist</div>

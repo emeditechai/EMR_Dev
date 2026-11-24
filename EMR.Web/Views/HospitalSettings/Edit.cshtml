@@ -703,6 +703,20 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-upc"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">B2B Barcode Generate Separate Sequence Required</div>
+                            <div class="lp-desc">Yes: B2B (franchise / company) bills get their sample barcodes from a sequence of their own. No: one sequence for B2C and B2B. Default No.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="B2BBarcodeSeparateSequence">
+                                <label class="form-check-label" asp-for="B2BBarcodeSeparateSequence">Separate B2B barcode sequence</label>
+                            </div>
+                            <span asp-validation-for="B2BBarcodeSeparateSequence" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">AI Assist</div>

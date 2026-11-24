@@ -521,15 +521,6 @@
                 <td class="lbl">Billed By</td>
                 <td>@(string.IsNullOrWhiteSpace(branchName) ? "—" : branchName)</td>
             </tr>
-            @if (!string.IsNullOrWhiteSpace(Model.BeneficiaryId))
-            {
-                <tr>
-                    <td class="lbl">Beneficiary ID</td>
-                    <td><strong>@Model.BeneficiaryId</strong></td>
-                    <td class="lbl"></td>
-                    <td></td>
-                </tr>
-            }
             <tr>
                 <td class="lbl">Bill Date</td>
                 <td>@billDate</td>

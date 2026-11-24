@@ -111,6 +111,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Barcode Generate at Billing")]
     public bool BarcodeGenerateAtBilling { get; set; } = false;
 
+    [Display(Name = "B2B Barcode Generate Separate Sequence Required")]
+    public bool B2BBarcodeSeparateSequence { get; set; } = false;
+
     [Display(Name = "Enable AI Features at Billing")]
     public bool EnableAiBillingFeatures { get; set; } = false;
 

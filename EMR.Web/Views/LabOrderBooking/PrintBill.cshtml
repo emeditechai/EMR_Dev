@@ -545,10 +545,10 @@
                 <td class="lbl">Token No</td>
                 <td>@(Model.TokenNo ?? "—")</td>
             </tr>
-            @if (!string.IsNullOrWhiteSpace(Model.BeneficiaryId))
+            @if (Model.IsB2B && !string.IsNullOrWhiteSpace(Model.GovtSchemeName) && !string.IsNullOrWhiteSpace(Model.BeneficiaryId))   @* B2B government scheme bills only (SQLScripts/2535) *@
             {
                 <tr>
-                    <td class="lbl">Beneficiary ID</td>
+                    <td class="lbl">Beneficiary ID (@Model.GovtSchemeName)</td>
                     <td><strong>@Model.BeneficiaryId</strong></td>
                     <td class="lbl"></td>
                     <td></td>
