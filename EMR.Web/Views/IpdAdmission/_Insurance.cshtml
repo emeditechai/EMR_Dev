@@ -1,0 +1,21 @@
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@{
+    // IPD Patient > Insurance / TPA (Phase 6, SQLScripts/2539-2542): payer, pre-authorisation with the IRDAI clock,
+    // patient share (co-pay / deductible / non-payables), documents, claims. js/ipd/insurance.js fills #tpaBody.
+    string Payer(string p) => p switch { "CASH" => "Cash", "CORPORATE" => "Corporate", "INSURANCE" => "Insurance / TPA", "SCHEME" => "Govt. scheme", _ => p };
+}
+<div class="tab-pane fade @(Model.Tab == "insurance" ? "show active" : "")" id="tab-insurance" role="tabpanel">
+    <div class="reg-section"><div class="reg-section-header"><div class="sec-icon violet"><i class="bi bi-shield-plus"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Payer</h6><small class="text-muted">Policy and card as given at admission (change them with Edit admission)</small></div></div>
+        <div class="reg-section-body p-0">
+            <table class="table ipd-table mb-0"><thead><tr><th>#</th><th>Type</th><th>Payer</th><th>Policy / card</th><th>Member</th><th>Holder</th><th>Valid to</th><th>Card</th></tr></thead><tbody>
+            @foreach (var p in Model.Payers)
+            {
+                <tr><td>@p.I("Seq")</td><td>@Payer(p.S("PayerType"))</td><td class="fw-semibold">@p.S("PayerName")</td><td>@p.S("PolicyNo")</td><td>@p.S("MemberId") @p.S("EmployeeId")</td>
+                    <td>@p.S("CardHolderName") @(string.IsNullOrWhiteSpace(p.S("RelationToHolder")) ? "" : "(" + p.S("RelationToHolder") + ")")</td><td>@p.Dt("PolicyValidTo", "dd-MMM-yyyy")</td>
+                    <td>@if (!string.IsNullOrWhiteSpace(p.S("CardFilePath"))) {<a href="@p.S("CardFilePath")" target="_blank">View</a>}</td></tr>
+            }
+            @if (Model.Payers.Count == 0) { <tr><td colspan="8" class="text-center text-muted py-3">Cash / self-paying patient.</td></tr> }
+            </tbody></table>
+        </div></div>
+    <div id="tpaBody"><div class="text-muted small p-3">Loading…</div></div>
+</div>

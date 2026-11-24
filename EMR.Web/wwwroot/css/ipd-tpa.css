@@ -1,0 +1,42 @@
+/* IPD Phase 6 - Insurance / TPA (SQLScripts/2539-2542): pre-auth and claim statuses, IRDAI clock, timeline */
+.tpa-pill { display:inline-flex; align-items:center; gap:.3rem; font-size:.72rem; font-weight:600; padding:.15rem .55rem; border-radius:20px; border:1px solid transparent; white-space:nowrap; }
+.tpa-pill.s-DRAFT, .tpa-pill.s-OPEN { background:#f1f5f9; color:#334155; border-color:#cbd5e1; }
+.tpa-pill.s-REQUESTED, .tpa-pill.s-ENHANCE_REQUESTED, .tpa-pill.s-FINAL_REQUESTED, .tpa-pill.s-SUBMITTED { background:#e0f2fe; color:#075985; border-color:#7dd3fc; }
+.tpa-pill.s-QUERY { background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+.tpa-pill.s-APPROVED, .tpa-pill.s-PART_SETTLED { background:#dcfce7; color:#166534; border-color:#86efac; }
+.tpa-pill.s-FINAL_APPROVED, .tpa-pill.s-SETTLED { background:#e0e7ff; color:#3730a3; border-color:#a5b4fc; }
+.tpa-pill.s-REJECTED, .tpa-pill.s-CANCELLED { background:#fee2e2; color:#991b1b; border-color:#fca5a5; }
+.tpa-pill.s-PENDING { background:#fef3c7; color:#92400e; border-color:#fcd34d; }
+.tpa-pill.s-POSTED { background:#dcfce7; color:#166534; border-color:#86efac; }
+
+/* the IRDAI clock: waiting for the TPA against 60 min (decision) / 180 min (final authorisation) */
+.tpa-clock { display:inline-flex; align-items:center; gap:.3rem; font-size:.74rem; font-weight:700; padding:.15rem .55rem; border-radius:6px; font-variant-numeric:tabular-nums; }
+.tpa-clock.ok { background:#dcfce7; color:#166534; }
+.tpa-clock.near { background:#fef3c7; color:#92400e; }
+.tpa-clock.late { background:#fee2e2; color:#b91c1c; }
+
+.tpa-amounts { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:.5rem; }
+.tpa-amounts > div { border:1px solid #e2e8f0; border-radius:10px; padding:.5rem .7rem; background:#f8fafc; }
+.tpa-amounts small { display:block; font-size:.66rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:600; }
+.tpa-amounts b { font-size:1.02rem; font-variant-numeric:tabular-nums; color:#0f172a; }
+.tpa-amounts .hl { background:#eef2ff; border-color:#c7d2fe; }
+.tpa-amounts .pt { background:#fff7ed; border-color:#fed7aa; }
+
+.tpa-steps { display:flex; flex-wrap:wrap; gap:.4rem; }
+.tpa-timeline { list-style:none; margin:0; padding:0; }
+.tpa-timeline li { position:relative; padding:.35rem 0 .55rem 1.2rem; border-left:2px solid #e2e8f0; margin-left:.35rem; font-size:.82rem; }
+.tpa-timeline li::before { content:""; position:absolute; left:-.42rem; top:.55rem; width:.7rem; height:.7rem; border-radius:50%; background:#94a3b8; border:2px solid #fff; }
+.tpa-timeline li.e-APPROVAL::before, .tpa-timeline li.e-FINAL_APPROVAL::before, .tpa-timeline li.e-SETTLEMENT::before, .tpa-timeline li.e-WRITEOFF_APPROVED::before { background:#16a34a; }
+.tpa-timeline li.e-QUERY::before, .tpa-timeline li.e-WRITEOFF_REQUEST::before { background:#d97706; }
+.tpa-timeline li.e-REJECTION::before, .tpa-timeline li.e-CANCEL::before, .tpa-timeline li.e-CANCELLED::before, .tpa-timeline li.e-SETTLEMENT_CANCEL::before, .tpa-timeline li.e-WRITEOFF_REJECTED::before { background:#dc2626; }
+.tpa-timeline li.e-REQUEST::before, .tpa-timeline li.e-ENHANCE_REQUEST::before, .tpa-timeline li.e-FINAL_REQUEST::before, .tpa-timeline li.e-SUBMITTED::before { background:#2563eb; }
+.tpa-timeline .t { color:#64748b; font-size:.74rem; }
+
+.tpa-check { font-size:.82rem; }
+.tpa-check tr.done td:first-child { color:#16a34a; }
+.tpa-check tr.missing td { background:#fff7ed; }
+.tpa-split .form-control { max-width:140px; }
+.tpa-row-click { cursor:pointer; }
+.tpa-age-30 { color:#166534; } .tpa-age-60 { color:#92400e; } .tpa-age-90 { color:#c2410c; } .tpa-age-old { color:#b91c1c; font-weight:700; }
+@media print { .no-print { display:none !important; } }
+.reg-section-header .sec-icon.slate { background:#f1f5f9; color:#475569; }

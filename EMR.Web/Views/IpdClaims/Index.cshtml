@@ -1,0 +1,47 @@
+@{
+    // IPD > TPA Claims (Phase 6, SQLScripts/2539-2542): claims made by final bills with a TPA share - documents, submission,
+    // TPA queries, settlements (amount, TDS, disallowance -> patient / write-off), write-off approval. js/ipd/claims.js
+    ViewData["Title"] = "TPA Claims";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-tpa.css" asp-append-version="true" />
+}
+@Html.AntiForgeryToken()
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-file-earmark-medical me-2 text-primary"></i>TPA Claims</h2>
+        <p>One claim per final bill with a TPA / insurance share: send the documents, submit, answer queries and enter what the TPA pays.</p></div>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+        <select id="fStatus" class="form-select form-select-sm" style="width:auto">
+            <option value="ACTIVE">Open claims</option><option value="OPEN">To submit</option><option value="SUBMITTED">Submitted</option><option value="QUERY">TPA query</option>
+            <option value="PART_SETTLED">Part settled</option><option value="WRITEOFF">Write-off to approve</option><option value="SETTLED">Settled</option><option value="CANCELLED">Cancelled</option><option value="ALL">All</option>
+        </select>
+        <select id="fTpa" class="form-select form-select-sm" style="width:auto"><option value="">All insurers / TPAs</option></select>
+        <input type="date" id="fFrom" class="form-control form-control-sm" style="width:auto" title="Bill date from" />
+        <input type="date" id="fTo" class="form-control form-control-sm" style="width:auto" title="Bill date to" />
+        <input type="search" id="fQ" class="form-control form-control-sm" style="width:200px" placeholder="Claim, bill, IP, patient" />
+        <button type="button" class="btn btn-sm btn-light border" id="reload" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+</div>
+<div class="ipdx-kpis mb-3" id="kpis" style="grid-template-columns:repeat(6, minmax(0, 1fr))"></div>
+<div class="reg-section"><div class="reg-section-body p-0">
+    <div class="table-responsive"><table class="table ipd-table table-hover mb-0">
+        <thead><tr><th>Claim</th><th>Patient</th><th>Insurer / TPA</th><th>Bill</th><th>Status</th><th class="text-end">Claim</th><th class="text-end">Received</th><th class="text-end">TDS</th><th class="text-end">Disallowed</th><th class="text-end">Outstanding</th><th class="text-end">Age</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="11" class="text-muted small p-3">Loading…</td></tr></tbody>
+        <tfoot id="foot"></tfoot>
+    </table></div>
+</div></div>
+
+<div class="modal fade" id="claimModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header py-2"><h5 class="modal-title" id="cmTitle">Claim</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body bg-light" id="cmBody"><div class="text-muted small">Loading…</div></div>
+    </div></div>
+</div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.ClaimsPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdClaims/"), can = new { submit = Can("SUBMIT"), settle = Can("SETTLE"), settleCancel = Can("SETTLE_CANCEL"), approve = Can("WRITEOFF_APPROVE") } }));</script>
+    <script src="~/js/ipd/tpa-common.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/claims.js" asp-append-version="true"></script>
+}

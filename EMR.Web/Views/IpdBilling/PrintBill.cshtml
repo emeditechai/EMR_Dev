@@ -64,6 +64,17 @@ else
     @if (b.M("Gst") > 0) { <tr><td>Add: GST</td><td class="r">@b.M("Gst").Rs()</td></tr> }
     @if (b.M("RoundOff") != 0) { <tr><td>Round off</td><td class="r">@b.M("RoundOff").ToString("N2")</td></tr> }
     <tr><td class="b">Bill amount</td><td class="r b">@b.M("Net").Rs()</td></tr>
+    @if (b.M("PayerShare") > 0)
+    {
+        @* IPD Phase 6 (SQLScripts/2541): the insurance / TPA share of the bill *@
+        <tr><td colspan="2" style="color:#475569;font-size:11px">@b.S("PayerName")@(string.IsNullOrWhiteSpace(b.S("PreAuthNo")) ? "" : " · pre-auth " + b.S("PreAuthNo"))@(string.IsNullOrWhiteSpace(b.S("TpaRefNo")) ? "" : " · TPA ref " + b.S("TpaRefNo"))@(string.IsNullOrWhiteSpace(b.S("ClaimNo")) ? "" : " · claim " + b.S("ClaimNo")) · authorised @b.M("PayerAuthorised").Rs()</td></tr>
+        @if (b.M("NonPayable") > 0) { <tr><td style="padding-left:14px">Non-payable items (patient)</td><td class="r">@b.M("NonPayable").Rs()</td></tr> }
+        @if (b.M("Deductible") > 0) { <tr><td style="padding-left:14px">Deductible (patient)</td><td class="r">@b.M("Deductible").Rs()</td></tr> }
+        @if (b.M("CoPayAmount") > 0) { <tr><td style="padding-left:14px">Co-pay @b.M("CoPayPercent").ToString("0.##") % (patient)</td><td class="r">@b.M("CoPayAmount").Rs()</td></tr> }
+        <tr><td>Less: payable by the insurer / TPA</td><td class="r">- @b.M("PayerShareNow").Rs()</td></tr>
+        @if (b.M("PayerToPatient") > 0) { <tr><td style="padding-left:14px">(disallowed by the TPA, now payable by the patient: @b.M("PayerToPatient").Rs())</td><td></td></tr> }
+        <tr><td class="b">Patient's share</td><td class="r b">@b.M("PatientShare").Rs()</td></tr>
+    }
     <tr><td>Less: advance adjusted</td><td class="r">- @b.M("AdvanceAdjusted").Rs()</td></tr>
     @if (b.M("SettleTotal") > 0) { <tr><td>Less: paid against the bill</td><td class="r">- @b.M("SettleTotal").Rs()</td></tr> }
     @if (b.M("RefundDue") > 0) { <tr><td class="b">Refundable to patient</td><td class="r b">@b.M("RefundDue").Rs()</td></tr> }

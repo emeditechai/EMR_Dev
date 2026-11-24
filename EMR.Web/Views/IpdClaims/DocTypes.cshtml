@@ -1,0 +1,20 @@
+@{
+    // Master > IPD Master > TPA Document Checklist (Phase 6, SQLScripts/2539, 2542): documents asked at pre-auth / claim, mandatory or not.
+    ViewData["Title"] = "TPA Document Checklist";
+    bool canEdit = ViewData["CanEDIT"] as bool? ?? false;
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+@Html.AntiForgeryToken()
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-card-checklist me-2 text-primary"></i>TPA Document Checklist</h2>
+        <p>The documents sent to insurers / TPAs. They appear as a checklist on every pre-authorisation and claim; a claim cannot be submitted until its mandatory documents are ticked or uploaded.</p></div>
+    @if (canEdit) { <button type="button" class="btn btn-sm btn-primary" id="add"><i class="bi bi-plus-circle me-1"></i>Add document</button> }
+</div>
+<div class="reg-section"><div class="reg-section-body p-0"><table class="table ipd-table table-hover mb-0">
+    <thead><tr><th style="width:70px">Order</th><th>Document</th><th>Needed at</th><th>Mandatory</th><th>Status</th><th class="text-end">Used</th><th></th></tr></thead>
+    <tbody id="rows"><tr><td colspan="7" class="text-muted small p-3">Loading…</td></tr></tbody></table></div></div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.TpaDocPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdClaims/"), canEdit }));</script>
+    <script src="~/js/ipd/tpa-doctypes.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,38 @@
+@{
+    // IPD > Pre-Authorisations (Phase 6, SQLScripts/2539-2542): every pre-authorisation of the branch with the IRDAI clock
+    // (decision within 1 h of the request, final authorisation within 3 h); record the TPA's answer from here. js/ipd/preauths.js
+    ViewData["Title"] = "Pre-Authorisations";
+    bool Can(string c) => ViewData["Can" + c] as bool? ?? false;
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-tpa.css" asp-append-version="true" />
+}
+@Html.AntiForgeryToken()
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-shield-check me-2 text-primary"></i>Pre-Authorisations</h2>
+        <p>Cashless requests to insurers / TPAs. IRDAI: a decision within <b>1 hour</b> of the request, the final (discharge) authorisation within <b>3 hours</b>. <span id="asOf" class="text-muted"></span></p></div>
+    <div class="d-flex gap-2 flex-wrap align-items-center no-print">
+        <select id="fView" class="form-select form-select-sm" style="width:auto">
+            <option value="OPEN">In progress</option><option value="WAITING">Waiting for the TPA</option><option value="BREACHED">Past the time limit</option><option value="ALL">All (dates)</option>
+        </select>
+        <select id="fTpa" class="form-select form-select-sm" style="width:auto"><option value="">All insurers / TPAs</option></select>
+        <input type="date" id="fFrom" class="form-control form-control-sm d-none" style="width:auto" title="Started from" />
+        <input type="date" id="fTo" class="form-control form-control-sm d-none" style="width:auto" title="Started to" />
+        <input type="search" id="fQ" class="form-control form-control-sm" style="width:200px" placeholder="Patient, IP no., pre-auth no." />
+        <button type="button" class="btn btn-sm btn-light border" id="reload" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+</div>
+<div class="ipdx-kpis mb-3" id="kpis" style="grid-template-columns:repeat(6, minmax(0, 1fr))"></div>
+<div class="reg-section"><div class="reg-section-body p-0">
+    <div class="table-responsive"><table class="table ipd-table table-hover mb-0">
+        <thead><tr><th>Pre-auth</th><th>Patient</th><th>Insurer / TPA</th><th>Status</th><th>TPA clock</th><th class="text-end">Asked</th><th class="text-end">Approved</th><th>Last query</th><th class="no-print"></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="9" class="text-muted small p-3">Loading…</td></tr></tbody>
+    </table></div>
+</div></div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.PreAuthPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdInsurance/"), can = new { record = Can("Record"), patient = Can("Patient") } }));</script>
+    <script src="~/js/ipd/tpa-common.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/preauths.js" asp-append-version="true"></script>
+}
