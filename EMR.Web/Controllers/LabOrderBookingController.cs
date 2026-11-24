@@ -763,6 +763,12 @@ namespace EMR.Web.Controllers
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
                                     string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
+                                    // SQLScripts/2543-2544: the bill e-mail in the patient's language when a text exists for it
+                                    if (await NotifyLanguage.EmailAsync(db.Database.GetDbConnection(), bId, EMR.Common.NotifyText.LabBill,
+                                            await NotifyLanguage.OfLabOrderAsync(db.Database.GetDbConnection(), savedLabOrderId),
+                                            EMR.Common.NotifyText.LabBillValues(patientNameStr, hs.HospitalName, savedBillNo, null, 0m, DateTime.Now, hs.Address),
+                                            hs.HospitalName, hs.Address, logger) is { } lang)
+                                        (subj, body) = lang;
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -1682,6 +1688,8 @@ namespace EMR.Web.Controllers
             var safeBillNo = savedBillNo?.Replace("/", "_").Replace("\\", "_");
             var patientEmail = patient.EmailId;
             var patientNameStr = patientFullName;
+            var patientLanguageId = patient.LanguageId;            // SQLScripts/2543: notices in the patient's language
+            var savedTokenNo = labOrderRes.TokenNo;
             
             if (savedLabOrderId > 0)
             {
@@ -1760,6 +1768,11 @@ namespace EMR.Web.Controllers
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
                                     string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
+                                    // SQLScripts/2543-2544: the bill e-mail in the patient's language when a text exists for it
+                                    if (await NotifyLanguage.EmailAsync(db.Database.GetDbConnection(), bId, EMR.Common.NotifyText.LabBill, patientLanguageId,
+                                            EMR.Common.NotifyText.LabBillValues(patientNameStr, hs.HospitalName, savedBillNo, savedTokenNo, 0m, DateTime.Now, hs.Address),
+                                            hs.HospitalName, hs.Address, logger) is { } lang)
+                                        (subj, body) = lang;
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -2923,6 +2936,16 @@ namespace EMR.Web.Controllers
             decimal value = p.Get<decimal>("@ValueRs");
             var text = $"Dear {name}, your OTP to redeem {request.Points:0} membership points (Rs {value:0.00}) on card {cardNo} is {code}. " +
                        "It is valid for 10 minutes. Do not share it with anyone except the billing counter.";
+            // SQLScripts/2545: in the card holder's language when a text exists for it (else the English above / below)
+            var otpCon = dbContext.Database.GetDbConnection();
+            var otpLang = await NotifyLanguage.OfCardHolderAsync(otpCon, request.CardId);
+            var otpValues = new Dictionary<string, string?>
+            {
+                ["CardHolderName"] = name, ["Points"] = request.Points.ToString("0"), ["PointsValue"] = value.ToString("0.00"), ["CardNo"] = cardNo, ["Code"] = code
+            };
+            text = await NotifyLanguage.WhatsAppAsync(otpCon, branchId, EMR.Common.NotifyText.MemRedeemOtp, otpLang, otpValues, text, logger);
+            var otpMail = string.IsNullOrWhiteSpace(email) ? null
+                : await NotifyLanguage.EmailAsync(otpCon, branchId, EMR.Common.NotifyText.MemRedeemOtp, otpLang, otpValues, null, null, logger);
 
             var channels = new List<string>();
             try
@@ -2937,8 +2960,8 @@ namespace EMR.Web.Controllers
                 try
                 {
                     var (ok, _) = await HttpContext.RequestServices.GetRequiredService<IEmailService>()
-                        .SendEmailAsync(branchId, email!, $"OTP to redeem membership points - card {cardNo}",
-                            EmailLayout.Wrap(
+                        .SendEmailAsync(branchId, email!, otpMail?.Subject ?? $"OTP to redeem membership points - card {cardNo}",
+                            otpMail?.Html ?? EmailLayout.Wrap(
                                 EmailLayout.Greeting(name ?? "Member")
                                 + EmailLayout.P($"Your OTP to redeem <strong>{request.Points:0} points</strong> (Rs {value:0.00}) on membership card <strong>{System.Net.WebUtility.HtmlEncode(cardNo)}</strong> is:")
                                 + $"<p style=\"margin:20px 0;text-align:center;\"><span style=\"display:inline-block;font-size:28px;font-weight:800;letter-spacing:8px;color:{EmailLayout.Purple};background:#f5f1fa;border:1px dashed {EmailLayout.Purple};border-radius:8px;padding:10px 22px;\">{code}</span></p>"

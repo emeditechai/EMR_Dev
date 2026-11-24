@@ -71,10 +71,14 @@ public sealed class PatientAppNotices(IServiceScopeFactory scopeFactory, ILogger
             "SELECT BranchId, PatientId, BillNo, TokenNo, TotalAmount, CAST(ISNULL(IsB2B, 0) AS BIT) FROM dbo.LabOrder WHERE LabOrderId = @Id", new { Id = labOrderId });
         if (order.PatientId <= 0) return;
         if (order.BranchId > 0) branchId = order.BranchId;
-        var patient = await con.QueryFirstOrDefaultAsync<(string? FirstName, string? LastName, string? PhoneNumber, string? EmailId)>(
-            "SELECT FirstName, LastName, PhoneNumber, EmailId FROM dbo.PatientMaster WHERE PatientId = @Id", new { Id = order.PatientId });
+        var patient = await con.QueryFirstOrDefaultAsync<(string? FirstName, string? LastName, string? PhoneNumber, string? EmailId, int? LanguageId)>(
+            "SELECT FirstName, LastName, PhoneNumber, EmailId, LanguageId FROM dbo.PatientMaster WHERE PatientId = @Id", new { Id = order.PatientId });
         var name = $"{patient.FirstName} {patient.LastName}".Trim();
         var pdf = await BillPdfAsync(sp, p => p.LabBillAsync(labOrderId), $"LAB order {labOrderId}");
+        // SQLScripts/2543-2544: the bill goes in the patient's language when a text exists for it (else as before)
+        var companyId = await con.QueryFirstOrDefaultAsync<int?>("SELECT CompanyId FROM dbo.BranchMaster WHERE BranchID = @branchId", new { branchId }) ?? 1;
+        var texts = sp.GetRequiredService<INotifyTemplateService>();
+        async Task<NotifyTemplateText?> Lang(string channel) => await texts.ResolveAsync(companyId, branchId, NotifyText.LabBill, channel, patient.LanguageId);
 
         // 1. WhatsApp: the branch's LAB template, without test names, the bill attached
         var wa = await WaSettingsAsync(con, branchId);
@@ -87,6 +91,8 @@ public sealed class PatientAppNotices(IServiceScopeFactory scopeFactory, ILogger
             template = Regex.Replace(template, @"Investigations:\s*\{TestNames\}\.?\s*", "", RegexOptions.IgnoreCase).Replace("{TestNames}", "").Trim();
             var text = template.Replace("{PatientName}", name).Replace("{HospitalName}", hospital?.HospitalName ?? "Our Diagnostic Lab")
                 .Replace("{BillNo}", order.BillNo ?? "").Replace("{TokenNo}", order.TokenNo ?? "—").Replace("{Amount}", (order.TotalAmount ?? 0m).ToString("N2")).Trim();
+            if (await Lang(NotifyText.WhatsApp) is { } wl)
+                text = NotifyText.Fill(wl.Body, NotifyText.LabBillValues(name, hospital?.HospitalName ?? "Our Diagnostic Lab", order.BillNo, order.TokenNo, order.TotalAmount ?? 0m, DateTime.Now, hospital?.Address));
             await SendWhatsAppAsync(sp, branchId, patient.PhoneNumber, text, "LAB", labOrderId, pdf,
                 $"Lab_Bill_{Safe(order.BillNo ?? $"Bill_{labOrderId}")}.pdf");
         }
@@ -99,6 +105,12 @@ public sealed class PatientAppNotices(IServiceScopeFactory scopeFactory, ILogger
             {
                 var subject = $"Your Lab Order Bill [{order.BillNo}] - {hs.HospitalName}";
                 var body = LabBillEmail.Body(hs.HospitalName, name, order.BillNo, hs.Address);
+                if (await Lang(NotifyText.Email) is { } el)
+                {
+                    var v = NotifyText.LabBillValues(name, hs.HospitalName, order.BillNo, order.TokenNo, order.TotalAmount ?? 0m, DateTime.Now, hs.Address);
+                    subject = NotifyText.Fill(el.Subject, v);
+                    body = NotifyText.EmailHtml(el, v, hs.HospitalName, hs.Address);
+                }
                 await sp.GetRequiredService<ISmtpEmailSender>().SendAsync(branchId, patient.EmailId, subject, body,
                     pdf == null ? null : [new EmailAttachment($"Lab_Bill_{Safe(order.BillNo ?? "")}.pdf", "application/pdf", pdf.Bytes)]);
             }
@@ -131,6 +143,14 @@ public sealed class PatientAppNotices(IServiceScopeFactory scopeFactory, ILogger
                 .Replace("{HospitalName}", hospital?.HospitalName ?? "Our Clinic").Replace("{BillNo}", b.OPDBillNo ?? "")
                 .Replace("{TokenNo}", b.TokenNo ?? "—").Replace("{DoctorName}", string.IsNullOrWhiteSpace(doctor) ? "Attending Physician" : doctor)
                 .Replace("{Amount}", (b.TotalAmount ?? 0m).ToString("N2")).Trim();
+            // SQLScripts/2544: in the patient's language when a text exists for it (else the English above)
+            text = await sp.GetRequiredService<INotifyTemplateService>().WhatsAppForPatientAsync(branchId, NotifyText.OpdBill, b.PatientId,
+                new Dictionary<string, string?>
+                {
+                    ["PatientName"] = $"{patient.FirstName} {patient.LastName}".Trim(), ["HospitalName"] = hospital?.HospitalName ?? "Our Clinic",
+                    ["BillNo"] = b.OPDBillNo ?? "", ["TokenNo"] = b.TokenNo ?? "—", ["DoctorName"] = string.IsNullOrWhiteSpace(doctor) ? "Attending Physician" : doctor,
+                    ["Amount"] = (b.TotalAmount ?? 0m).ToString("N2")
+                }, text);
             await SendWhatsAppAsync(sp, branchId, patient.PhoneNumber, text, "OPD", opdServiceId, pdf,
                 $"OPD_Bill_{Safe(b.OPDBillNo ?? $"OPD_{opdServiceId}")}.pdf");
         }
@@ -149,7 +169,22 @@ public sealed class PatientAppNotices(IServiceScopeFactory scopeFactory, ILogger
                     .Replace("{{TokenNo}}", b.TokenNo ?? "Pending").Replace("{{TotalAmount}}", b.TotalAmount?.ToString("0.00") ?? "0.00")
                     .Replace("{{VisitDate}}", b.VisitDate.ToString("dd-MMM-yyyy")).Replace("{{SlotTime}}", slot)
                     .Replace("{{HospitalName}}", hospital.HospitalName ?? "Our Hospital");
-                await sp.GetRequiredService<ISmtpEmailSender>().SendAsync(branchId, patient.EmailId, Fill(t.Subject), Fill(t.HtmlBody),
+                var (subject, body) = (Fill(t.Subject), Fill(t.HtmlBody));
+                // SQLScripts/2544: in the patient's language when a text exists for it (else the template above)
+                var companyId = await con.QueryFirstOrDefaultAsync<int?>("SELECT CompanyId FROM dbo.BranchMaster WHERE BranchID = @branchId", new { branchId }) ?? 1;
+                var langId = await con.QueryFirstOrDefaultAsync<int?>("SELECT LanguageId FROM dbo.PatientMaster WHERE PatientId = @Id", new { Id = b.PatientId });
+                if (await sp.GetRequiredService<INotifyTemplateService>().ResolveAsync(companyId, branchId, NotifyText.OpdBooking, NotifyText.Email, langId) is { Subject.Length: > 0 } el
+                    && !string.IsNullOrWhiteSpace(el.Body))
+                {
+                    var v = new Dictionary<string, string?>
+                    {
+                        ["PatientName"] = $"{patient.FirstName} {patient.LastName}".Trim(), ["HospitalName"] = hospital.HospitalName ?? "Our Hospital", ["DoctorName"] = doctor ?? "",
+                        ["VisitDate"] = b.VisitDate.ToString("dd-MMM-yyyy"), ["SlotTime"] = slot, ["TokenNo"] = b.TokenNo ?? "Pending",
+                        ["TotalAmount"] = b.TotalAmount?.ToString("0.00") ?? "0.00"
+                    };
+                    (subject, body) = (NotifyText.Fill(el.Subject, v), NotifyText.EmailHtml(el, v, hospital.HospitalName, hospital.Address));
+                }
+                await sp.GetRequiredService<ISmtpEmailSender>().SendAsync(branchId, patient.EmailId, subject, body,
                     pdf == null ? null : [new EmailAttachment(pdf.FileName, "application/pdf", pdf.Bytes)]);
             }
         }

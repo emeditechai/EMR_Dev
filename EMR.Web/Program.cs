@@ -282,6 +282,7 @@ builder.Services.AddScoped<EMR.Web.Services.IPatientPortalLoginService, EMR.Web.
 builder.Services.AddScoped<EMR.Web.Services.IPatientProfileService, EMR.Web.Services.PatientProfileService>();   // Patient Master view + Patient Portal dashboard
 builder.Services.AddScoped<IIpdMasterApiClient,         IpdMasterApiClient>();
 builder.Services.AddScoped<IpdApiClient>();
+builder.Services.AddScoped<NotifyTemplateApiClient>();   // notification texts per language (SQLScripts/2543)
 builder.Services.AddScoped<QcStockApiClient>();   // Quality & Compliance > Stock Management api/qc/stock (SQLScripts/2498-2500)
 builder.Services.AddScoped<LabRxLearningApiClient>();
 builder.Services.AddScoped<PaymentQrApiClient>();   // Settings > Payment QR Configuration (SQLScripts/2452)

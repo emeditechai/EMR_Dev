@@ -1,4 +1,5 @@
 using EMR.Shared.Security;
+using EMR.Web.Data;
 using EMR.Web.Extensions;
 using EMR.Web.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -108,8 +109,12 @@ public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseServ
         var err = await sales.LoyaltyOtpAsync(CompanyId, key, code);
         if (err != null) return Json(new { success = false, message = err });
         var head = await purchase.BranchHeaderAsync(BranchId);
-        var res = await HttpContext.RequestServices.GetRequiredService<IWhatsAppService>().SendTextMessageAsync(phone!,
-            $"Your OTP to use loyalty points at {head.Name} is *{code}*. It is valid for 10 minutes. Do not share it with anyone else.", BranchId, "PHR");
+        var otpText = $"Your OTP to use loyalty points at {head.Name} is *{code}*. It is valid for 10 minutes. Do not share it with anyone else.";
+        using (var con = HttpContext.RequestServices.GetRequiredService<IDbConnectionFactory>().CreateConnection())   // SQLScripts/2545: in the member's language
+            otpText = await NotifyLanguage.WhatsAppAsync(con, BranchId, EMR.Common.NotifyText.PhLoyaltyOtp,
+                await NotifyLanguage.OfPatientAsync(con, b.PatientId) ?? await NotifyLanguage.OfMobileAsync(con, phone),
+                new Dictionary<string, string?> { ["PharmacyName"] = head.Name, ["Code"] = code }, otpText, logger);
+        var res = await HttpContext.RequestServices.GetRequiredService<IWhatsAppService>().SendTextMessageAsync(phone!, otpText, BranchId, "PHR");
         var masked = phone!.Length > 4 ? new string('x', phone.Length - 4) + phone[^4..] : phone;
         return Json(res.Success ? new { success = true, message = $"OTP sent to WhatsApp {masked}." } : new { success = false, message = res.ErrorMessage ?? "WhatsApp did not accept the message." });
     }
@@ -164,8 +169,16 @@ public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseServ
                 var head = await scope.ServiceProvider.GetRequiredService<IPharmacyPurchaseService>().BranchHeaderAsync(br);
                 var name = string.IsNullOrWhiteSpace(bill.CustomerName) ? "" : " " + bill.CustomerName.Trim();
                 var sb = new System.Text.StringBuilder($"Hello{name},\n\nThank you for your purchase (bill {bill.SaleNo}, ₹{bill.NetAmount:N2}).\n");
+                // SQLScripts/2544: the same message in the customer's language (PH_LOYALTY), when a text exists for it
+                var lv = new Dictionary<string, string?>
+                {
+                    ["CustomerName"] = bill.CustomerName?.Trim(), ["BillNo"] = bill.SaleNo, ["Amount"] = bill.NetAmount.ToString("N2"), ["PharmacyName"] = head.Name
+                };
                 if (loyaltyType == "DISCOUNT")
+                {
                     sb.Append($"⭐ As a loyalty member you saved *₹{discount:N2}* on this bill.\n");
+                    lv["Discount"] = discount.ToString("N2");
+                }
                 else
                 {
                     var bal = await svc.LoyaltyAsync(co, br, bill.PatientId, bill.CustomerId, bill.PatientId is null && bill.CustomerId is null ? bill.Mobile : null);
@@ -175,9 +188,21 @@ public class PhSalesController(IPharmacySaleService sales, IPharmacyPurchaseServ
                     var pending = bal is { } b3 && b3.TryGetProperty("Pending", out var pp) ? pp.GetDecimal() : 0m;
                     if (earned > 0) sb.Append($"⭐ *{earned:0} points* (₹{earned * value:N2}) credited to your wallet" + (lockInDays > 0 ? $" - usable from {DateTime.Today.AddDays(lockInDays):dd-MMM-yyyy}" : "") + ".\n");
                     sb.Append($"Wallet balance: *{points:0} points* (₹{points * value:N2}) to use on your next bill" + (pending > 0 ? $"; {pending:0} more on the way" : "") + ".\n");
+                    if (redeemed > 0) lv["PointsUsed"] = redeemed.ToString("0");
+                    if (earned > 0)
+                    {
+                        lv["PointsEarned"] = earned.ToString("0"); lv["PointsEarnedValue"] = (earned * value).ToString("N2");
+                        if (lockInDays > 0) lv["UsableFrom"] = DateTime.Today.AddDays(lockInDays).ToString("dd-MMM-yyyy");
+                    }
+                    lv["Wallet"] = "1"; lv["WalletPoints"] = points.ToString("0"); lv["WalletValue"] = (points * value).ToString("N2");
+                    if (pending > 0) lv["Pending"] = pending.ToString("0");
                 }
                 sb.Append($"\n- {head.Name}");
-                var res = await scope.ServiceProvider.GetRequiredService<IWhatsAppService>().SendTextMessageAsync(bill.Mobile!, sb.ToString(), br, "PHR", saleId);
+                string text;
+                using (var con = scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>().CreateConnection())
+                    text = await NotifyLanguage.WhatsAppAsync(con, br, EMR.Common.NotifyText.PhLoyalty,
+                        await NotifyLanguage.OfPatientAsync(con, bill.PatientId) ?? await NotifyLanguage.OfMobileAsync(con, bill.Mobile), lv, sb.ToString(), logger);
+                var res = await scope.ServiceProvider.GetRequiredService<IWhatsAppService>().SendTextMessageAsync(bill.Mobile!, text, br, "PHR", saleId);
                 if (!res.Success) logger.LogWarning("[PH-LOYALTY] WhatsApp not sent for sale {Id}: {Err}", saleId, res.ErrorMessage);
             }
             catch (Exception ex) { logger.LogError(ex, "[PH-LOYALTY] WhatsApp failed for sale {Id}", saleId); }

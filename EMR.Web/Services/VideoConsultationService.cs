@@ -127,6 +127,16 @@ public class VideoConsultationService(
                 var patientBody = BuildPatientEmailBody(
                     patientName, doctorName, apptDateStr, slotStartStr, slotEndStr, graceTimeMinutes, result.RoomUrl);
 
+                // SQLScripts/2544: in the patient's language when a text exists for it (else the English above)
+                var langCon = dbContext.Database.GetDbConnection();
+                if (await NotifyLanguage.EmailAsync(langCon, branchId, NotifyText.OpdVideo, await NotifyLanguage.OfPatientAsync(langCon, patientId),
+                        new Dictionary<string, string?>
+                        {
+                            ["PatientName"] = patientName, ["DoctorName"] = doctorName, ["Date"] = apptDateStr, ["Time"] = slotStartStr,
+                            ["EndTime"] = slotEndStr, ["GraceMinutes"] = graceTimeMinutes.ToString(), ["Link"] = result.RoomUrl
+                        }, null, null) is { } lang)
+                    (patientSubject, patientBody) = lang;
+
                 await emailService.SendEmailAsync(branchId, patientEmail, patientSubject, patientBody);
                 consultation.PatientEmailSent = true;
                 Console.WriteLine($"[VIDEO] Patient email sent to {patientEmail}");

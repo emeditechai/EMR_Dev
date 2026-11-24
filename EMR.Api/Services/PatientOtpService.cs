@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Dapper;
 using EMR.Api.Data;
+using EMR.Common;
 
 namespace EMR.Api.Services;
 
@@ -25,6 +26,7 @@ public interface IPatientOtpService
 public sealed class PatientOtpService(
     IDbConnectionFactory db,
     IWhatsAppTextSender whatsApp,
+    INotifyTemplateService texts,
     ILogger<PatientOtpService> logger) : IPatientOtpService
 {
     private const int CodeMinutes = 10;
@@ -56,6 +58,11 @@ public sealed class PatientOtpService(
         var text = patient.IsVerified
             ? $"Dear {patient.FullName}, your eCare360Plus patient app password reset code is {code}. It is valid for {CodeMinutes} minutes. Do not share it with anyone."
             : $"Dear {patient.FullName}, your eCare360Plus patient app verification code is {code}. Enter it in the app to set your password. It is valid for {CodeMinutes} minutes. Do not share it with anyone.";
+        text = await texts.WhatsAppForPatientAsync(patient.BranchId.Value, NotifyText.PatientAppOtp, patient.PatientId,   // SQLScripts/2545
+            new Dictionary<string, string?>
+            {
+                ["PatientName"] = patient.FullName, ["Code"] = code, ["Minutes"] = CodeMinutes.ToString(), ["Reset"] = patient.IsVerified ? "1" : null
+            }, text);
         var result = await whatsApp.SendAsync(patient.BranchId.Value, patient.Mobile, text, "PATIENT_OTP", patient.PatientId,
             logText: text.Replace(code, "******"));
         if (result != WhatsAppSendResult.Sent) logger.LogWarning("[PATIENT-OTP] Code not sent to patient {PatientId}: {Result}", patient.PatientId, result);

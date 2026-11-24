@@ -1,5 +1,6 @@
 using System.Data;
 using Dapper;
+using EMR.Common;
 using EMR.Web.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -115,6 +116,18 @@ public class MembershipPointsWhatsAppService(
                     .Replace("{BalanceValue}", r.BalanceValue.ToString("N2"))
                     .Replace("{ExpiryDate}", r.ExpiresOn?.ToString("dd MMM yyyy") ?? "-")
                     .Trim();
+
+                // SQLScripts/2544: in the card holder's language when a text exists for it (else the English above)
+                using (var con = db.CreateConnection())
+                    message = await NotifyLanguage.WhatsAppAsync(con, r.BranchId, NotifyText.MemPoints, await NotifyLanguage.OfCardHolderAsync(con, r.CardId),
+                        new Dictionary<string, string?>
+                        {
+                            ["CardHolderName"] = r.CardHolderName ?? r.PatientName ?? string.Empty, ["PatientName"] = r.PatientName ?? string.Empty,
+                            ["HospitalName"] = hospitalName, ["CardNo"] = r.CardNo ?? string.Empty, ["PlanName"] = r.PlanName ?? string.Empty,
+                            ["BillNo"] = r.BillNo ?? string.Empty, ["PointsEarned"] = r.PointsEarned.ToString("0.##"), ["PointsValue"] = r.PointsValue.ToString("N2"),
+                            ["PointsBalance"] = r.PointsBalance.ToString("0.##"), ["BalanceValue"] = r.BalanceValue.ToString("N2"),
+                            ["ExpiryDate"] = r.ExpiresOn?.ToString("dd MMM yyyy") ?? "-"
+                        }, message, logger);
 
                 var result = await whatsAppService.SendTextMessageAsync(phone, message, r.BranchId, "MEM_POINTS", (int)r.LedgerId);
                 if (result.Success) { sent++; await CompleteAsync(logId.Value, "Sent", $"Sent to {phone}."); }

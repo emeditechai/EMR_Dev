@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Dapper;
+using EMR.Common;
 using EMR.Web.Data;
 using EMR.Web.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -328,7 +329,7 @@ public class WhatsAppService(
             }
 
             var patient = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<dynamic>(
-                "SELECT FirstName, LastName, PhoneNumber FROM dbo.PatientMaster WHERE PatientId = @Id",
+                "SELECT FirstName, LastName, PhoneNumber, LanguageId FROM dbo.PatientMaster WHERE PatientId = @Id",
                 new { Id = booking.PatientId });
 
             if (patient == null || string.IsNullOrWhiteSpace((string?)patient.PhoneNumber))
@@ -426,6 +427,14 @@ public class WhatsAppService(
                 .Replace("{Amount}", (booking.TotalAmount ?? 0m).ToString("N2"))
                 .Trim();
 
+            // SQLScripts/2544: in the patient's language when a text exists for it (else the English above)
+            message = await NotifyLanguage.WhatsAppAsync(db.Database.GetDbConnection(), branchId, NotifyText.OpdBill, (int?)patient.LanguageId,
+                new Dictionary<string, string?>
+                {
+                    ["PatientName"] = patientName, ["HospitalName"] = hospitalName, ["BillNo"] = booking.OPDBillNo ?? string.Empty,
+                    ["TokenNo"] = booking.TokenNo ?? "—", ["DoctorName"] = doctorName, ["Amount"] = (booking.TotalAmount ?? 0m).ToString("N2")
+                }, message, logger);
+
             await SendTextMessageAsync(patientPhone, message, branchId, "OPD", opdServiceId, documentUrl, fileName);
         }
         catch (Exception ex)
@@ -490,7 +499,7 @@ public class WhatsAppService(
 
             int patientId = (int)labOrder.PatientId;
             var patient = await db.Database.GetDbConnection().QueryFirstOrDefaultAsync<dynamic>(
-                "SELECT FirstName, LastName, PhoneNumber FROM dbo.PatientMaster WHERE PatientId = @Id",
+                "SELECT FirstName, LastName, PhoneNumber, LanguageId FROM dbo.PatientMaster WHERE PatientId = @Id",
                 new { Id = patientId });
 
             if (patient == null || string.IsNullOrWhiteSpace((string?)patient.PhoneNumber))
@@ -583,6 +592,10 @@ public class WhatsAppService(
                 .Replace("{Amount}", totalAmount.ToString("N2"))
                 .Trim();
 
+            // SQLScripts/2543-2544: the bill goes in the patient's language when a text exists for it (else the English above)
+            message = await NotifyLanguage.WhatsAppAsync(db.Database.GetDbConnection(), branchId, NotifyText.LabBill, (int?)patient.LanguageId,
+                NotifyText.LabBillValues(patientName, hospitalName, (string?)labOrder.BillNo, (string?)labOrder.TokenNo, totalAmount, DateTime.Now, hospital?.Address), message, logger);
+
             await SendTextMessageAsync(patientPhone, message, branchId, "LAB", labOrderId, documentUrl, fileName);
         }
         catch (Exception ex)
@@ -623,6 +636,17 @@ public class WhatsAppService(
                     .Replace("{Time}", time)
                     .Replace("{Link}", patientLink)
                     .Trim();
+
+                // SQLScripts/2544: the patient's message in the patient's language when a text exists (the doctor's stays English)
+                using (var langScope = scopeFactory.CreateScope())
+                {
+                    var con = langScope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.GetDbConnection();
+                    patientMessage = await NotifyLanguage.WhatsAppAsync(con, branchId, NotifyText.OpdVideo, await NotifyLanguage.OfOpdServiceAsync(con, opdServiceId),
+                        new Dictionary<string, string?>
+                        {
+                            ["PatientName"] = patientName, ["DoctorName"] = doctorName, ["Date"] = date, ["Time"] = time, ["Link"] = patientLink
+                        }, patientMessage, logger);
+                }
 
                 await SendTextMessageAsync(patientPhone, patientMessage, branchId, "VIDEO", opdServiceId);
             }

@@ -370,7 +370,8 @@
     }
     <link rel="stylesheet" href="~/css/fonts.css" />
 </head>
-<body onload="window.print()" class="@(Model.PageSize == "A5L" ? "a5l" : "")">
+@* no auto print when headless Chrome renders the bill to PDF for WhatsApp / e-mail: Chrome 158+ writes no PDF when the page opens its print dialog *@
+<body onload="@(Context.Request.Headers.UserAgent.ToString().Contains("HeadlessChrome") ? null : "window.print()")" class="@(Model.PageSize == "A5L" ? "a5l" : "")">
 
 <div class="print-actions">
     <button class="btn-print" onclick="window.print()">🖨 Print</button>

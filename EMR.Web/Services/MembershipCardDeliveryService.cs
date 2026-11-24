@@ -97,8 +97,25 @@ public class MembershipCardDeliveryService(
             .Trim();
         string fileName = $"Membership_Card_{card.CardNo}.pdf";
 
-        if (whatsApp) outcomes.Add(await SendWhatsAppAsync(card, branchId, pdf, message, fileName));
-        if (email) outcomes.Add(await SendEmailAsync(card, branchId, pdf, message, fileName, hospitalName));
+        // SQLScripts/2544: in the card holder's language when a text exists for it (else the English above)
+        var waMessage = message;
+        (string Subject, string Html)? mail = null;
+        try
+        {
+            var con = db.Database.GetDbConnection();
+            var langId = await NotifyLanguage.OfCardHolderAsync(con, card.CardId);
+            var values = new Dictionary<string, string?>
+            {
+                ["PatientName"] = card.PatientName, ["HospitalName"] = hospitalName, ["PlanName"] = card.PlanName, ["CardNo"] = card.CardNo,
+                ["ValidFrom"] = card.ValidFrom.ToString("dd MMM yyyy"), ["ValidTo"] = card.ValidToText
+            };
+            if (whatsApp) waMessage = await NotifyLanguage.WhatsAppAsync(con, branchId, EMR.Common.NotifyText.MemCard, langId, values, message, logger);
+            if (email) mail = await NotifyLanguage.EmailAsync(con, branchId, EMR.Common.NotifyText.MemCard, langId, values, hospitalName, null, logger);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "[Membership] language text not read for CardId {CardId} - sent in English", card.CardId); }
+
+        if (whatsApp) outcomes.Add(await SendWhatsAppAsync(card, branchId, pdf, waMessage, fileName));
+        if (email) outcomes.Add(await SendEmailAsync(card, branchId, pdf, message, fileName, hospitalName, mail));
         return outcomes;
     }
 
@@ -132,7 +149,8 @@ public class MembershipCardDeliveryService(
         }
     }
 
-    private async Task<MembershipCardSendOutcome> SendEmailAsync(MembershipCardDetailViewModel card, int branchId, byte[] pdf, string message, string fileName, string hospitalName)
+    private async Task<MembershipCardSendOutcome> SendEmailAsync(MembershipCardDetailViewModel card, int branchId, byte[] pdf, string message, string fileName, string hospitalName,
+        (string Subject, string Html)? mail = null)
     {
         const string channel = "Email";
         try
@@ -153,7 +171,7 @@ public class MembershipCardDeliveryService(
             using var stream = new MemoryStream(pdf);
             using var attachment = new Attachment(stream, fileName, "application/pdf");
             var (success, text) = await emailService.SendEmailAsync(branchId, card.EmailId.Trim(),
-                $"Your {card.PlanName} membership card - {hospitalName}", body, [attachment]);
+                mail?.Subject ?? $"Your {card.PlanName} membership card - {hospitalName}", mail?.Html ?? body, [attachment]);
             if (!success)
                 return new(channel, text.Contains("No active SMTP", StringComparison.OrdinalIgnoreCase) ? "Skipped" : "Failed", text);
 

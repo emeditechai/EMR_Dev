@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Dapper;
 using EMR.Api.Data;
+using EMR.Common;
 using EMR.Api.Models;
 
 namespace EMR.Api.Services;
@@ -16,6 +17,7 @@ public sealed class PhleboService(
     IWebHostEnvironment environment,
     IWhatsAppTextSender whatsApp,
     IHttpClientFactory httpClientFactory,
+    INotifyTemplateService texts,
     ILogger<PhleboService> logger) : IPhleboService
 {
     private static readonly HashSet<string> VisitDocTypes = new(StringComparer.OrdinalIgnoreCase) { "PRESCRIPTION", "CONSENT", "ID_PROOF", "SIGNATURE" };
@@ -176,6 +178,9 @@ public sealed class PhleboService(
         if (to is null) throw new PhleboRuleException("The patient has no mobile number.");
 
         var text = $"Dear {to.FirstName}, your home sample collection code is {code}. Share it with the phlebotomist at your door. It is valid for {OtpLife.TotalMinutes:0} minutes.";
+        var visitPatientId = await con.QueryFirstOrDefaultAsync<int?>("SELECT PatientId FROM dbo.LabHomeVisit WHERE VisitId = @visitId", new { visitId });
+        text = await texts.WhatsAppForPatientAsync(to.BranchId, NotifyText.HomeCollectionOtp, visitPatientId,   // SQLScripts/2545
+            new Dictionary<string, string?> { ["PatientName"] = to.FirstName, ["Code"] = code, ["Minutes"] = OtpLife.TotalMinutes.ToString("0") }, text);
         var result = await whatsApp.SendAsync(to.BranchId, to.PhoneNumber, text, "PHLEBO_OTP", visitId, logText: text.Replace(code, "****"));
         if (result != WhatsAppSendResult.Sent) logger.LogWarning("[PHLEBO] OTP not sent for visit {VisitId}: {Result}", visitId, result);
         // the phlebotomist sees why, and can verify by ID proof instead
