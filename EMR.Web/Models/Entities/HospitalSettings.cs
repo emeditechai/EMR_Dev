@@ -149,6 +149,8 @@ public class HospitalSettings
     public bool PharmacyGrnNotRequired { get; set; } = false;
     // Pharmacy round 2 (SQLScripts/2402)
     public bool PharmacyAutoReorderEnabled { get; set; } = false;
+    /// <summary>SQLScripts/2538: raise purchase indents by the Auto Indent Rules right after stock goes out.</summary>
+    public bool PharmacyAutoIndentEnabled { get; set; } = false;
     public int PharmacyReorderSalesDays { get; set; } = 30;
     public int PharmacyReorderSafetyDays { get; set; } = 3;
     public int PharmacyReorderCoverDays { get; set; } = 15;

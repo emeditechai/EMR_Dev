@@ -351,37 +351,74 @@
             flash(added ? `${added} item(s) at or below reorder level added.` : 'No other item is at or below its reorder level.');
         });
 
-        // ── GRN lines from the distributor's Excel / CSV ──
-        const COLS_IMPORT = ['Item Code / Barcode / Name', 'Batch', 'Expiry (MM/YYYY)', 'MRP', 'Qty', 'Free', 'Rate', 'Disc %', 'GST %'];
+        // ── lines from Excel / CSV. GRN / direct PO: the distributor's bill (batch, expiry, MRP); plain PO: items, qty and rates.
+        //    Columns are found by their heading, so either template works; without known headings the template's order is used ──
+        const COLS_IMPORT = grnLike
+            ? ['Item Code / Barcode / Name', 'Batch', 'Expiry (MM/YYYY)', 'MRP', 'Qty', 'Free', 'Rate', 'Disc %', 'GST %']
+            : ['Item Code / Barcode / Name', 'Qty', 'Free', 'Rate', 'Disc %', 'GST %'];
+        const COL_KEYS = grnLike ? ['item', 'batch', 'expiry', 'mrp', 'qty', 'free', 'rate', 'disc', 'gst'] : ['item', 'qty', 'free', 'rate', 'disc', 'gst'];
+        const headKey = h => {
+            const s = String(h ?? '').toLowerCase().replace(/[^a-z%]/g, '');
+            if (!s) return null;
+            if (/^(item|itemcode|code|barcode|name|product|itemname|itemcodebarcodename)/.test(s)) return 'item';
+            if (s.startsWith('batch')) return 'batch';
+            if (s.startsWith('exp')) return 'expiry';
+            if (s.startsWith('mrp')) return 'mrp';
+            if (s.startsWith('free')) return 'free';
+            if (s.startsWith('qty') || s.startsWith('quantity')) return 'qty';
+            if (s.startsWith('rate') || s.startsWith('price')) return 'rate';
+            if (s.startsWith('disc')) return 'disc';
+            if (s.startsWith('gst') || s.startsWith('tax')) return 'gst';
+            return null;
+        };
         const tpl = $('btnTemplate');
         tpl && tpl.addEventListener('click', () => {
-            const ws = XLSX.utils.aoa_to_sheet([COLS_IMPORT, ['PH00001', 'DL2401', '06/2027', 32.5, 10, 1, 21.5, 0, 5]]);
-            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'GRN lines'); XLSX.writeFile(wb, 'GRN_import_template.xlsx');
+            const sample = grnLike ? ['PH00001', 'DL2401', '06/2027', 32.5, 10, 1, 21.5, 0, 5] : ['PH00001', 10, 1, 21.5, 0, 5];
+            const ws = XLSX.utils.aoa_to_sheet([COLS_IMPORT, sample]);
+            const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, grnLike ? 'GRN lines' : 'PO lines');
+            XLSX.writeFile(wb, grnLike ? 'GRN_import_template.xlsx' : 'PO_import_template.xlsx');
         });
         const imp = $('importFile');
         imp && imp.addEventListener('change', async () => {
             const file = imp.files[0]; if (!file) return;
             const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
-            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true }).slice(1).filter(r => r && r.length && r[0] !== undefined && r[0] !== '');
-            const missed = []; let added = 0;
+            const all = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true });
+            // column positions from the heading row (else the template's order)
+            const head = (all[0] || []).map(headKey), at = {};
+            head.forEach((k, i) => { if (k && at[k] === undefined) at[k] = i; });
+            if (at.item === undefined) COL_KEYS.forEach((k, i) => at[k] = i);
+            const cell = (r, k) => at[k] === undefined ? undefined : r[at[k]];
+            const rows = all.slice(1).filter(r => r && r.length && cell(r, 'item') !== undefined && String(cell(r, 'item')).trim() !== '');
+            const missed = []; let added = 0, merged = 0;
             for (const r of rows) {
-                const key = String(r[0]).trim();
+                const key = String(cell(r, 'item')).trim();
                 const found = await fetch(cfg.urls.itemSearch + '?q=' + encodeURIComponent(key)).then(x => x.json()).catch(() => []);
                 const it = found.find(f => [f.itemCode, f.itemName].some(v => String(v || '').toLowerCase() === key.toLowerCase())) || (found.length === 1 ? found[0] : null);
                 if (!it) { missed.push(key); continue; }
-                let exp = r[2];
-                if (exp instanceof Date) exp = exp.toISOString().substring(0, 7) + '-01';
-                else { const m = String(exp || '').match(/^(\d{1,2})[\/\-](\d{2,4})$/); exp = m ? `${m[2].length === 2 ? '20' + m[2] : m[2]}-${m[1].padStart(2, '0')}-01` : null; }
                 const p = pascal(it);
-                lines.push({ ItemId: p.ItemId, ItemName: p.ItemName, ItemCode: p.ItemCode, FormShort: p.FormShort, PurchaseUom: p.PurchaseUom, SaleUom: p.SaleUom, ConversionQty: p.ConversionQty,
-                    Stock: p.Stock, LastMrp: p.LastMrp || 0, BatchNo: String(r[1] || '').toUpperCase(), ExpiryDate: exp, Mrp: num(r[3]), Qty: num(r[4]), FreeQty: num(r[5]), Rate: num(r[6]),
-                    DiscPercent: num(r[7]), GstPercent: r[8] === undefined || r[8] === '' ? p.GstPercent : num(r[8]) });
+                const gst = cell(r, 'gst'), rate = num(cell(r, 'rate'));
+                const line = { ItemId: p.ItemId, ItemName: p.ItemName, ItemCode: p.ItemCode, FormShort: p.FormShort, PurchaseUom: p.PurchaseUom, SaleUom: p.SaleUom, ConversionQty: p.ConversionQty,
+                    Stock: p.Stock, ReorderLevel: p.ReorderLevel, LastMrp: p.LastMrp || 0, Qty: num(cell(r, 'qty')), FreeQty: num(cell(r, 'free')),
+                    Rate: rate || num(p.LastRate), DiscPercent: num(cell(r, 'disc')), GstPercent: gst === undefined || gst === '' ? p.GstPercent : num(gst) };
+                if (grnLike) {
+                    let exp = cell(r, 'expiry');
+                    if (exp instanceof Date) exp = exp.toISOString().substring(0, 7) + '-01';
+                    else { const m = String(exp || '').match(/^(\d{1,2})[\/\-](\d{2,4})$/); exp = m ? `${m[2].length === 2 ? '20' + m[2] : m[2]}-${m[1].padStart(2, '0')}-01` : null; }
+                    line.BatchNo = String(cell(r, 'batch') || '').toUpperCase(); line.ExpiryDate = exp; line.Mrp = num(cell(r, 'mrp'));
+                    lines.push(line);
+                } else {
+                    // a plain order has one line per item: the same item again adds to its quantity
+                    const same = lines.find(l => l.ItemId === line.ItemId);
+                    if (same) { same.Qty = num(same.Qty) + line.Qty; same.FreeQty = num(same.FreeQty) + line.FreeQty; merged++; }
+                    else lines.push(line);
+                }
                 added++;
             }
             imp.value = '';
             render();
+            const note = grnLike ? 'Check batch, expiry and rates before saving.' : 'Check quantities and rates before saving' + (merged ? ` (${merged} repeated item(s) added to the existing line).` : '.');
             Swal.fire({ icon: missed.length ? 'warning' : 'success', title: `${added} line(s) imported`,
-                html: missed.length ? `Not found in the Item Master (add them by hand):<br><b>${missed.map(esc).join(', ')}</b>` : 'Check batch, expiry and rates before saving.' });
+                html: (missed.length ? `Not found in the Item Master (add them by hand):<br><b>${missed.map(esc).join(', ')}</b><br>` : '') + note });
         });
 
         // ── "Read bill": the supplier's bill (PDF / photo) read on the server; every value lands in the form for the user to check ──

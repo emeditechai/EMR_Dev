@@ -1,15 +1,103 @@
 @using EMR.Web.Services
 @{
     // Pharmacy > Purchase > Auto Reorder (SQLScripts/2403): sales-based suggestions, one draft PO per supplier.
+    // SQLScripts/2538: first tab "Auto Indent Rules" (wwwroot/js/views/PharmacyPurchase/auto-indent.js).
     ViewData["Title"] = "Auto Reorder";
     var suppliers = (List<PhOption>)ViewBag.Suppliers;
     var categories = (List<PhOption>)ViewBag.Categories;
 }
 <link rel="stylesheet" href="~/css/pharmacy-masters.css" asp-append-version="true" />
 <link rel="stylesheet" href="~/css/views/PharmacyPurchase/AutoReorder.css" asp-append-version="true" />
-<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Auto Reorder", "bi-arrow-repeat", "Order quantities worked out from average daily sales, lead time and safety stock (Hospital Settings > MED). Tick, adjust, and create one draft purchase order per supplier.", null, null, Section: "Pharmacy", Group: "Purchase"))" />
+<partial name="_PharmacyMasterHeader" model="@(new PhHeader("Auto Reorder", "bi-arrow-repeat", "Auto Indent Rules: which items are indented automatically, to which supplier and how much, as soon as stock falls to the reorder level. Sales-based Reorder: order quantities from average daily sales, turned into draft purchase orders by hand.", null, null, Section: "Pharmacy", Group: "Purchase"))" />
 
 @Html.AntiForgeryToken()
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation"><button class="nav-link active fw-semibold" data-bs-toggle="tab" data-bs-target="#tabAutoIndent" type="button" role="tab"><i class="bi bi-send-check me-1"></i>Auto Indent Rules</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tabSalesReorder" type="button" role="tab" id="tabSalesReorderBtn"><i class="bi bi-graph-up-arrow me-1"></i>Sales-based Reorder</button></li>
+</ul>
+<div class="tab-content">
+<div class="tab-pane fade show active" id="tabAutoIndent" role="tabpanel">
+    <div id="aiOff" class="alert alert-warning d-none py-2">
+        <i class="bi bi-toggle-off me-1"></i><b>Auto indent is off for this branch.</b> Rules can be set up now; indents are raised only once Hospital Settings &gt; MED &gt; <b>Auto Indent to Suppliers</b> is on.
+    </div>
+    <div class="row g-2 mb-3">
+        <div class="col-6 col-lg-3"><div class="ar-kpi"><div class="l">Active rules</div><div class="v" id="aiRules">–</div></div></div>
+        <div class="col-6 col-lg-3"><div class="ar-kpi"><div class="l">Due now</div><div class="v text-danger" id="aiDue">–</div></div></div>
+        <div class="col-6 col-lg-3"><div class="ar-kpi"><div class="l">Auto indents awaiting approval</div><div class="v text-primary" id="aiAwait">–</div></div></div>
+        <div class="col-6 col-lg-3"><div class="ar-kpi"><div class="l">Status</div><div class="small fw-semibold mt-1" id="aiStatus">–</div></div></div>
+    </div>
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body py-2 ph-toolbar border-bottom d-flex flex-wrap gap-2 align-items-center">
+            <div style="width:190px"><select id="aiFilter" class="form-select form-select-sm">
+                <option value="RULES">Items with a rule</option>
+                <option value="DUE">Due now</option>
+                <option value="NORULE">Items without a rule</option>
+                <option value="ALL">All stocked items</option>
+            </select></div>
+            <div style="width:210px"><select id="aiSup" class="form-select form-select-sm">
+                <option value="">All suppliers</option>
+                @foreach (var s in suppliers) { <option value="@s.Value">@s.Text</option> }
+            </select></div>
+            <div style="width:210px"><select id="aiCat" class="form-select form-select-sm">
+                <option value="">All categories</option>
+                @foreach (var c in categories) { <option value="@c.Value">@c.Text</option> }
+            </select></div>
+            <div class="input-group input-group-sm" style="width:220px">
+                <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                <input type="search" id="aiQ" class="form-control" placeholder="Item, generic, code" />
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="aiReload"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="aiLogBtn"><i class="bi bi-clock-history me-1"></i>Run log</button>
+            <button type="button" class="btn btn-sm btn-success ms-auto" id="aiRunNow" title="Check every rule now and raise the indents that are due"><i class="bi bi-lightning-charge me-1"></i>Run now</button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0" id="aiTable">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:28px"><input class="form-check-input" type="checkbox" id="aiChkAll" title="Tick all shown"></th>
+                        <th>Item</th>
+                        <th class="num" title="Stock now, in purchase packs">Stock</th>
+                        <th class="num" title="Open draft / approved / part-received purchase orders">On order</th>
+                        <th class="num" title="Open indents not yet ordered">Indented</th>
+                        <th class="num" title="Indent when stock + on order + indented falls to this (packs)">Reorder level</th>
+                        <th class="num" title="Max level (packs): 'Up to Max' brings the total up to this">Max level</th>
+                        <th title="How much to indent">Quantity</th>
+                        <th>Supplier</th>
+                        <th class="num" title="Quantity that would be indented now">Next indent</th>
+                        <th>Status</th>
+                        <th class="text-center" title="Rule on / off">On</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="aiBody"><tr><td colspan="13" class="text-muted small p-3">Loading…</td></tr></tbody>
+            </table>
+        </div>
+        <div class="ar-bar d-flex flex-wrap align-items-center gap-2 px-3 py-2">
+            <span class="small" id="aiSel">Nothing ticked.</span>
+            <div class="d-flex flex-wrap gap-2 align-items-center" id="aiBulk">
+                <select class="form-select form-select-sm" id="aiBulkSup" style="width:200px"><option value="">Set supplier…</option>
+                    @foreach (var s in suppliers) { <option value="@s.Value">@s.Text</option> }
+                </select>
+                <select class="form-select form-select-sm" id="aiBulkMode" style="width:150px"><option value="">Set quantity rule…</option><option value="MAX">Up to Max level</option><option value="FIXED">Fixed quantity</option></select>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="aiSuggest" title="Reorder level = average daily sale x (lead + safety days); Max = x (lead + safety + cover days)"><i class="bi bi-magic me-1"></i>Levels from sales</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="aiLastSup" title="Supplier of the last GRN of each item"><i class="bi bi-truck me-1"></i>Last supplier</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="aiRemove"><i class="bi bi-trash me-1"></i>Remove rules</button>
+            </div>
+            <span class="small text-warning fw-semibold ms-auto" id="aiDirty"></span>
+            <button type="button" class="btn btn-primary btn-sm" id="aiSave" disabled><i class="bi bi-save me-1"></i>Save rules</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="aiLog" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content border-0 shadow">
+        <div class="modal-header py-2"><h6 class="modal-title fw-bold"><i class="bi bi-clock-history me-1"></i>Auto indent run log (last 50)</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body p-0"><table class="table table-sm mb-0 small"><thead class="table-light"><tr><th>When</th><th>Run</th><th class="text-end">Checked</th><th class="text-end">Items</th><th>Result</th><th>By</th></tr></thead><tbody id="aiLogBody"></tbody></table></div>
+    </div></div>
+</div>
+
+<div class="tab-pane fade" id="tabSalesReorder" role="tabpanel">
 <div id="arOff" class="alert alert-warning d-none">
     <i class="bi bi-toggle-off me-1"></i><b>Auto Reorder is off for this branch.</b> Turn it on in Hospital Settings &gt; MED &gt; Auto reorder, and set the sales window, safety stock and cover days.
 </div>
@@ -78,11 +166,22 @@
             <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button></div>
     </div></div>
 </div>
+</div>@* /tabSalesReorder *@
+</div>@* /tab-content *@
 
 @section Scripts {
 <script>
+    // auto indent tab (SQLScripts/2538): server values for wwwroot/js/views/PharmacyPurchase/auto-indent.js
+    window.PhAutoIndentCfg = {
+        urls: { data: '@Url.Action("RulesData")', save: '@Url.Action("SaveRules")', run: '@Url.Action("RunNow")', log: '@Url.Action("RunLog")', settings: '@Url.Action("Edit", "HospitalSettings")' },
+        canManage: typeof emrCan !== 'function' || emrCan('PHARMACY.AUTOREORDER', 'AUTOINDENT'),
+        suppliers: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(suppliers.Select(s => new { id = s.Value, name = s.Text })))
+    };
+</script>
+<script src="~/js/views/PharmacyPurchase/auto-indent.js" asp-append-version="true"></script>
+<script>
 (function () {
-    const urls = { data: '@Url.Action("Data")', free: '@Url.Action("SchemeFree")', create: '@Url.Action("CreatePos")', po: '@Url.Action("Form", "PhPurchaseOrders")' };
+    const urls = { data: '@Url.Action("Data")', free: '@Url.Action("SchemeFree")', create: '@Url.Action("CreatePos")' };
     const canCreate = typeof emrCan !== 'function' || emrCan('PHARMACY.AUTOREORDER', 'CREATEPO');
     const suppliers = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(suppliers.Select(s => new { id = s.Value, name = s.Text })));
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -199,7 +298,7 @@
             if (!r.success) { toast('error', r.message); return; }
             $('#arDoneList').html('<ul class="list-group">' + r.created.map(c =>
                 `<li class="list-group-item d-flex justify-content-between align-items-center"><span><i class="bi bi-truck me-1"></i>${esc(c.supplierName)} <span class="text-muted small">· ${c.lines} item(s)</span></span>
-                 <span><b>₹${n2(c.netAmount)}</b> <a class="btn btn-sm btn-link" href="${urls.po}?id=${c.poId}">Open</a></span></li>`).join('') + '</ul>');
+                 <span><b>₹${n2(c.netAmount)}</b> <a class="btn btn-sm btn-link" href="${esc(c.url)}">Open</a></span></li>`).join('') + '</ul>');
             bootstrap.Modal.getOrCreateInstance(document.getElementById('arDone')).show();
             load();
         } catch { toast('error', 'Could not reach the server.'); }

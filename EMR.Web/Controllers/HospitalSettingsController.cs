@@ -657,6 +657,7 @@ public class HospitalSettingsController(
             existing.PharmacyBillNotificationRequired = model.PharmacyBillNotificationRequired;
             existing.PharmacyGrnNotRequired = model.PharmacyGrnNotRequired;
             existing.PharmacyAutoReorderEnabled = model.PharmacyAutoReorderEnabled;
+            existing.PharmacyAutoIndentEnabled = model.PharmacyAutoIndentEnabled;
             existing.PharmacyReorderSalesDays = Math.Clamp(model.PharmacyReorderSalesDays, 1, 180);
             existing.PharmacyReorderSafetyDays = Math.Clamp(model.PharmacyReorderSafetyDays, 0, 60);
             existing.PharmacyReorderCoverDays = Math.Clamp(model.PharmacyReorderCoverDays, 1, 120);
@@ -850,6 +851,7 @@ public class HospitalSettingsController(
             PharmacyBillNotificationRequired = s.PharmacyBillNotificationRequired,
             PharmacyGrnNotRequired = s.PharmacyGrnNotRequired,
             PharmacyAutoReorderEnabled = s.PharmacyAutoReorderEnabled,
+            PharmacyAutoIndentEnabled = s.PharmacyAutoIndentEnabled,
             PharmacyReorderSalesDays = s.PharmacyReorderSalesDays,
             PharmacyReorderSafetyDays = s.PharmacyReorderSafetyDays,
             PharmacyReorderCoverDays = s.PharmacyReorderCoverDays,
@@ -1000,6 +1002,7 @@ public class HospitalSettingsController(
             PharmacyBillNotificationRequired = m.PharmacyBillNotificationRequired,
             PharmacyGrnNotRequired = m.PharmacyGrnNotRequired,
             PharmacyAutoReorderEnabled = m.PharmacyAutoReorderEnabled,
+            PharmacyAutoIndentEnabled = m.PharmacyAutoIndentEnabled,
             PharmacyReorderSalesDays = Math.Clamp(m.PharmacyReorderSalesDays, 1, 180),
             PharmacyReorderSafetyDays = Math.Clamp(m.PharmacyReorderSafetyDays, 0, 60),
             PharmacyReorderCoverDays = Math.Clamp(m.PharmacyReorderCoverDays, 1, 120),

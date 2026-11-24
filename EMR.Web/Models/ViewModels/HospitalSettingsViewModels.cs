@@ -382,6 +382,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Auto Reorder")]
     public bool PharmacyAutoReorderEnabled { get; set; } = false;
 
+    [Display(Name = "Auto Indent to Suppliers")]
+    public bool PharmacyAutoIndentEnabled { get; set; } = false;
+
     [Display(Name = "Average Sales Over (Days)")]
     public int PharmacyReorderSalesDays { get; set; } = 30;
 

@@ -44,5 +44,8 @@ public class PhResult
 
 /// <summary>Auto Reorder: create one draft PO per supplier (SQLScripts/2403). Lines = JSON [{ItemId, SupplierId, Qty, Rate, DiscPercent}].</summary>
 public record PhAutoReorderCreateRequest(int CompanyId, int BranchId, int UserId, string Lines);
+// SQLScripts/2538: auto indent rules (JSON array) and a run (UserId null = the background check)
+public record PhAutoIndentRulesRequest(int CompanyId, int BranchId, int UserId, string Rules);
+public record PhAutoIndentRunRequest(int CompanyId, int BranchId, int? UserId, string RunType);
 
 public record PhIndentEmailedRequest(int IndentId, string Email);

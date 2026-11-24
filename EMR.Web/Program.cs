@@ -175,6 +175,8 @@ builder.Services.AddHostedService<FollowUpReminderService>();
 // membership points: expire points not used by their expiry date (SQLScripts/2236)
 builder.Services.AddHostedService<MembershipPointsExpiryService>();
 builder.Services.AddHostedService<PharmacyRefillReminderService>();   // SQLScripts/2406
+builder.Services.AddScoped<IPharmacyAutoIndentNotifier, PharmacyAutoIndentNotifier>();   // SQLScripts/2538
+builder.Services.AddHostedService<PharmacyAutoIndentWorker>();   // SQLScripts/2538: auto indent right after stock goes out
 
 // Video Consultation (Whereby)
 builder.Services.AddHttpClient("Whereby", client =>
