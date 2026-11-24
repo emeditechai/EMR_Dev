@@ -8698,6 +8698,84 @@
    "type": "varchar"
   },
   {
+   "col": "Is_Paid",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 12,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "bit"
+  },
+  {
+   "col": "Paid_Date",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 3,
+   "nullable": true,
+   "ord": 13,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "date"
+  },
+  {
+   "col": "Paid_Reference",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 14,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Paid_Remarks",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 500,
+   "nullable": true,
+   "ord": 15,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Paid_By",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 16,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "int"
+  },
+  {
+   "col": "Paid_On",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 17,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "Doctor_IP_Commission_Dtl",
+   "type": "datetime"
+  },
+  {
    "col": "Commission_Hdr_ID",
    "def": null,
    "descr": null,
@@ -17421,6 +17499,58 @@
    "type": "bit"
   },
   {
+   "col": "DoctorIpIncludeUnpaidBills",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 162,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "WbhsEmpanelmentCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 100,
+   "nullable": true,
+   "ord": 163,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "nvarchar"
+  },
+  {
+   "col": "B2BBarcodeSeparateSequence",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 164,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "PharmacyAutoIndentEnabled",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 165,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -23281,6 +23411,58 @@
    "prec": 10,
    "scale": 0,
    "tbl": "LabBarcodeSequence",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
+   "type": "int"
+  },
+  {
+   "col": "FinancialYear",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 40,
+   "nullable": false,
+   "ord": 2,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
+   "type": "nvarchar"
+  },
+  {
+   "col": "LastSeq",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 3,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
+   "type": "bigint"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
    "type": "int"
   },
   {
@@ -29758,6 +29940,32 @@
    "type": "date"
   },
   {
+   "col": "Govt_Scheme_Name",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 39,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Beneficiary_ID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 100,
+   "nullable": true,
+   "ord": 40,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "nvarchar"
+  },
+  {
    "col": "LabOrderItemId",
    "def": null,
    "descr": null,
@@ -35127,6 +35335,19 @@
    "type": "datetime"
   },
   {
+   "col": "LanguageCode",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": true,
+   "ord": 5,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LanguageMaster",
+   "type": "varchar"
+  },
+  {
    "col": "LoincCode",
    "def": null,
    "descr": null,
@@ -38624,6 +38845,19 @@
    "type": "datetime"
   },
   {
+   "col": "BeneficiaryId",
+   "def": null,
+   "descr": "Beneficiary ID (e.g. WBHS / health-scheme beneficiary number), optional; typed by the desk, printed on the bills.",
+   "ident": false,
+   "len": 100,
+   "nullable": true,
+   "ord": 61,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PatientMaster",
+   "type": "nvarchar"
+  },
+  {
    "col": "OPDServiceId",
    "def": null,
    "descr": null,
@@ -41339,6 +41573,383 @@
    "scale": 0,
    "tbl": "PhAdjustmentDtl",
    "type": "nvarchar"
+  },
+  {
+   "col": "LogId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "RunAt",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 4,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PhAutoIndentLog",
+   "type": "datetime"
+  },
+  {
+   "col": "RunType",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 10,
+   "nullable": false,
+   "ord": 5,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "varchar"
+  },
+  {
+   "col": "ItemsChecked",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 6,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "LinesRaised",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 7,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "IndentsNew",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 8,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "IndentsAdded",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 9,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "Message",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 2000,
+   "nullable": true,
+   "ord": 10,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "nvarchar"
+  },
+  {
+   "col": "IsError",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 11,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "bit"
+  },
+  {
+   "col": "UserId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 12,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentLog",
+   "type": "int"
+  },
+  {
+   "col": "RuleId",
+   "def": null,
+   "descr": null,
+   "ident": true,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 2,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 3,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "ItemId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "SupplierId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 5,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "QtyMode",
+   "def": "('MAX')",
+   "descr": null,
+   "ident": false,
+   "len": 5,
+   "nullable": false,
+   "ord": 6,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "varchar"
+  },
+  {
+   "col": "FixedQty",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 9,
+   "nullable": true,
+   "ord": 7,
+   "prec": 12,
+   "scale": 2,
+   "tbl": "PhAutoIndentRule",
+   "type": "decimal"
+  },
+  {
+   "col": "IsActive",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 8,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "bit"
+  },
+  {
+   "col": "LastIndentId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 9,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "LastIndentDate",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 10,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PhAutoIndentRule",
+   "type": "datetime"
+  },
+  {
+   "col": "CreatedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 11,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "CreatedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 12,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PhAutoIndentRule",
+   "type": "datetime"
+  },
+  {
+   "col": "ModifiedBy",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 13,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentRule",
+   "type": "int"
+  },
+  {
+   "col": "ModifiedDate",
+   "def": "(getdate())",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 14,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PhAutoIndentRule",
+   "type": "datetime"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "PhAutoIndentState",
+   "type": "int"
+  },
+  {
+   "col": "LastLedgerId",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 2,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "PhAutoIndentState",
+   "type": "bigint"
+  },
+  {
+   "col": "LastRunAt",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": true,
+   "ord": 3,
+   "prec": 23,
+   "scale": 3,
+   "tbl": "PhAutoIndentState",
+   "type": "datetime"
   },
   {
    "col": "BatchId",
@@ -47345,6 +47956,19 @@
    "scale": 3,
    "tbl": "PhPurchaseIndent",
    "type": "datetime"
+  },
+  {
+   "col": "IsAuto",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 21,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "PhPurchaseIndent",
+   "type": "bit"
   },
   {
    "col": "IndentDtlId",
@@ -60816,7 +61440,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-24T00:09:35",
+ "extracted_on": "2026-11-25T00:54:45",
  "fk": [
   {
    "col": "LedgerId",
@@ -62107,6 +62731,41 @@
    "tbl": "IpdCharge"
   },
   {
+   "col": "AdmissionId",
+   "fk": "FK_IpdClaim_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdClaim"
+  },
+  {
+   "col": "BillId",
+   "fk": "FK_IpdClaim_Bill",
+   "rcol": "BillId",
+   "rtbl": "IpdBill",
+   "tbl": "IpdClaim"
+  },
+  {
+   "col": "ClaimId",
+   "fk": "FK_IpdClaimEvent_Claim",
+   "rcol": "ClaimId",
+   "rtbl": "IpdClaim",
+   "tbl": "IpdClaimEvent"
+  },
+  {
+   "col": "ClaimId",
+   "fk": "FK_IpdClaimSettlement_Claim",
+   "rcol": "ClaimId",
+   "rtbl": "IpdClaim",
+   "tbl": "IpdClaimSettlement"
+  },
+  {
+   "col": "ClaimId",
+   "fk": "FK_IpdClaimWriteOff_Claim",
+   "rcol": "ClaimId",
+   "rtbl": "IpdClaim",
+   "tbl": "IpdClaimWriteOff"
+  },
+  {
    "col": "DoctorId",
    "fk": "FK_IpdDoctorVisitFee_Doctor",
    "rcol": "DoctorId",
@@ -62254,6 +62913,20 @@
    "tbl": "IpdPhIssueLine"
   },
   {
+   "col": "AdmissionId",
+   "fk": "FK_IpdPreAuth_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdPreAuth"
+  },
+  {
+   "col": "PreAuthId",
+   "fk": "FK_IpdPreAuthEvent_PA",
+   "rcol": "PreAuthId",
+   "rtbl": "IpdPreAuth",
+   "tbl": "IpdPreAuthEvent"
+  },
+  {
    "col": "OtBookingId",
    "fk": "FK_IpdSurgeryNote_Booking",
    "rcol": "OtBookingId",
@@ -62266,6 +62939,13 @@
    "rcol": "OtBookingId",
    "rtbl": "IpdOtBooking",
    "tbl": "IpdSurgeryNoteVersion"
+  },
+  {
+   "col": "DocTypeId",
+   "fk": "FK_IpdTpaChecklist_Type",
+   "rcol": "DocTypeId",
+   "rtbl": "IpdTpaDocType",
+   "tbl": "IpdTpaChecklist"
   },
   {
    "col": "MaterialId",
@@ -62828,6 +63508,20 @@
    "tbl": "MenuMaster"
   },
   {
+   "col": "EventCode",
+   "fk": "FK_NotifyTemplate_Event",
+   "rcol": "EventCode",
+   "rtbl": "NotifyEvent",
+   "tbl": "NotifyTemplate"
+  },
+  {
+   "col": "LanguageId",
+   "fk": "FK_NotifyTemplate_Lang",
+   "rcol": "LanguageId",
+   "rtbl": "LanguageMaster",
+   "tbl": "NotifyTemplate"
+  },
+  {
    "col": "CompanyId",
    "fk": "FK_NursingStationMaster_Company",
    "rcol": "CompanyId",
@@ -63078,6 +63772,20 @@
    "rcol": "BatchId",
    "rtbl": "PhBatch",
    "tbl": "PhAdjustmentDtl"
+  },
+  {
+   "col": "ItemId",
+   "fk": "FK_PhAutoIndentRule_Item",
+   "rcol": "ItemId",
+   "rtbl": "PhItem",
+   "tbl": "PhAutoIndentRule"
+  },
+  {
+   "col": "SupplierId",
+   "fk": "FK_PhAutoIndentRule_Supplier",
+   "rcol": "SupplierId",
+   "rtbl": "PhSupplier",
+   "tbl": "PhAutoIndentRule"
   },
   {
    "col": "ItemId",
@@ -64346,6 +65054,11 @@
    }
   ],
   "ApprovalModule": [
+   {
+    "Module_Code": "IPD.TPAWRITEOFF",
+    "Module_Name": "IPD TPA Claim Write-off",
+    "Sort_Order": 110
+   },
    {
     "Module_Code": "LAB.DUEREPORTPRINT",
     "Module_Name": "Due Report Print",
@@ -65727,6 +66440,26 @@
    "tbl": "IpdCharge"
   },
   {
+   "col": "ClaimId",
+   "k": 1,
+   "tbl": "IpdClaim"
+  },
+  {
+   "col": "EventId",
+   "k": 1,
+   "tbl": "IpdClaimEvent"
+  },
+  {
+   "col": "SettlementId",
+   "k": 1,
+   "tbl": "IpdClaimSettlement"
+  },
+  {
+   "col": "WriteOffId",
+   "k": 1,
+   "tbl": "IpdClaimWriteOff"
+  },
+  {
    "col": "FeeId",
    "k": 1,
    "tbl": "IpdDoctorVisitFee"
@@ -65822,6 +66555,16 @@
    "tbl": "IpdPhIssueLine"
   },
   {
+   "col": "PreAuthId",
+   "k": 1,
+   "tbl": "IpdPreAuth"
+  },
+  {
+   "col": "EventId",
+   "k": 1,
+   "tbl": "IpdPreAuthEvent"
+  },
+  {
    "col": "LogId",
    "k": 1,
    "tbl": "IpdStatusLog"
@@ -65835,6 +66578,16 @@
    "col": "NoteVersionId",
    "k": 1,
    "tbl": "IpdSurgeryNoteVersion"
+  },
+  {
+   "col": "ChecklistId",
+   "k": 1,
+   "tbl": "IpdTpaChecklist"
+  },
+  {
+   "col": "DocTypeId",
+   "k": 1,
+   "tbl": "IpdTpaDocType"
   },
   {
    "col": "LotId",
@@ -65910,6 +66663,16 @@
    "col": "FinancialYear",
    "k": 2,
    "tbl": "LabBarcodeSequence"
+  },
+  {
+   "col": "BranchId",
+   "k": 1,
+   "tbl": "LabBarcodeSequenceB2B"
+  },
+  {
+   "col": "FinancialYear",
+   "k": 2,
+   "tbl": "LabBarcodeSequenceB2B"
   },
   {
    "col": "BillChangeLineId",
@@ -66307,6 +67070,16 @@
    "tbl": "MenuMaster"
   },
   {
+   "col": "EventCode",
+   "k": 1,
+   "tbl": "NotifyEvent"
+  },
+  {
+   "col": "TemplateId",
+   "k": 1,
+   "tbl": "NotifyTemplate"
+  },
+  {
    "col": "NursingStationId",
    "k": 1,
    "tbl": "NursingStationMaster"
@@ -66480,6 +67253,21 @@
    "col": "AdjustmentDtlId",
    "k": 1,
    "tbl": "PhAdjustmentDtl"
+  },
+  {
+   "col": "LogId",
+   "k": 1,
+   "tbl": "PhAutoIndentLog"
+  },
+  {
+   "col": "RuleId",
+   "k": 1,
+   "tbl": "PhAutoIndentRule"
+  },
+  {
+   "col": "BranchId",
+   "k": 1,
+   "tbl": "PhAutoIndentState"
   },
   {
    "col": "BatchId",
@@ -67420,6 +68208,10 @@
   "IpdBill",
   "IpdBillLine",
   "IpdCharge",
+  "IpdClaim",
+  "IpdClaimEvent",
+  "IpdClaimSettlement",
+  "IpdClaimWriteOff",
   "IpdDoctorVisitFee",
   "IpdDocument",
   "IpdEstimate",
@@ -67437,9 +68229,13 @@
   "IpdPhIndentLine",
   "IpdPhIssue",
   "IpdPhIssueLine",
+  "IpdPreAuth",
+  "IpdPreAuthEvent",
   "IpdStatusLog",
   "IpdSurgeryNote",
   "IpdSurgeryNoteVersion",
+  "IpdTpaChecklist",
+  "IpdTpaDocType",
   "IqcLot",
   "IqcMaterial",
   "IqcResult",
@@ -67454,6 +68250,7 @@
   "LabApprovalFlowLevel",
   "LabBarcodeConfig",
   "LabBarcodeSequence",
+  "LabBarcodeSequenceB2B",
   "LabBillChangeLine",
   "LabBillChangeRequest",
   "LabBillRevision",
@@ -67529,6 +68326,8 @@
   "MembershipPointsWhatsAppLog",
   "MembershipRedeemOtp",
   "MenuMaster",
+  "NotifyEvent",
+  "NotifyTemplate",
   "NursingStationMaster",
   "OPDBillSequence",
   "OPDTokenSequence",
@@ -67560,6 +68359,9 @@
   "PermissionControlVocabulary",
   "PhAdjustment",
   "PhAdjustmentDtl",
+  "PhAutoIndentLog",
+  "PhAutoIndentRule",
+  "PhAutoIndentState",
   "PhBatch",
   "PhBatchCorrection",
   "PhBillItemAlias",
@@ -68210,6 +69012,11 @@
    "tbl": "IpdBill"
   },
   {
+   "cols": "BillId",
+   "idx": "UX_IpdClaim_Bill",
+   "tbl": "IpdClaim"
+  },
+  {
    "cols": "CompanyId, EstimateNo",
    "idx": "UX_IpdEstimate_No",
    "tbl": "IpdEstimate"
@@ -68218,6 +69025,26 @@
    "cols": "OtBookingId, Phase",
    "idx": "UQ_IpdOtChecklist",
    "tbl": "IpdOtChecklist"
+  },
+  {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdPreAuth_Live",
+   "tbl": "IpdPreAuth"
+  },
+  {
+   "cols": "ClaimId, DocTypeId",
+   "idx": "UX_IpdTpaChecklist_Claim",
+   "tbl": "IpdTpaChecklist"
+  },
+  {
+   "cols": "PreAuthId, DocTypeId",
+   "idx": "UX_IpdTpaChecklist_PA",
+   "tbl": "IpdTpaChecklist"
+  },
+  {
+   "cols": "CompanyId, Name",
+   "idx": "UQ_IpdTpaDocType_Name",
+   "tbl": "IpdTpaDocType"
   },
   {
    "cols": "MaterialId, LotNo",
@@ -68450,6 +69277,16 @@
    "tbl": "MenuMaster"
   },
   {
+   "cols": "CompanyId, BranchId, EventCode, Channel, LanguageId",
+   "idx": "UX_NotifyTemplate_Branch",
+   "tbl": "NotifyTemplate"
+  },
+  {
+   "cols": "CompanyId, EventCode, Channel, LanguageId",
+   "idx": "UX_NotifyTemplate_Company",
+   "tbl": "NotifyTemplate"
+  },
+  {
    "cols": "CompanyId, StationCode",
    "idx": "UQ_NursingStationMaster_Code",
    "tbl": "NursingStationMaster"
@@ -68513,6 +69350,11 @@
    "cols": "BranchId",
    "idx": "UX_PaymentQrConfig_Branch",
    "tbl": "PaymentQrConfig"
+  },
+  {
+   "cols": "BranchId, ItemId",
+   "idx": "UQ_PhAutoIndentRule_BranchItem",
+   "tbl": "PhAutoIndentRule"
   },
   {
    "cols": "ItemId, BatchNo, Mrp",
