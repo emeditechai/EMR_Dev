@@ -498,6 +498,7 @@ public class LabReportPdfService(
             ["hospitalType"] = s?.HospitalType,
             ["registrationNo"] = s?.RegistrationNumber,
             ["gstCode"] = s?.GSTCode,
+            ["wbhsCode"] = s?.WbhsEmpanelmentCode,   // SQLScripts/2533
             ["branchName"] = branchName,
             ["address"] = s?.Address,
             ["contact1"] = s?.ContactNumber1,

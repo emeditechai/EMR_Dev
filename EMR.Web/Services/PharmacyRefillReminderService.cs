@@ -61,7 +61,14 @@ public sealed class PharmacyRefillReminderService(IServiceScopeFactory scopeFact
             string status, detail;
             try
             {
-                var res = await whatsApp.SendTextMessageAsync(r.Mobile, Compose(r), r.BranchId, "PHR", r.SaleId);
+                // SQLScripts/2544: in the customer's language (by the mobile) when a text exists for it (else the English)
+                var text = await NotifyLanguage.WhatsAppAsync(con, r.BranchId, EMR.Common.NotifyText.PhRefill, await NotifyLanguage.OfMobileAsync(con, r.Mobile),
+                    new Dictionary<string, string?>
+                    {
+                        ["CustomerName"] = r.Name?.Trim(), ["ItemName"] = r.ItemName, ["BillNo"] = r.SaleNo,
+                        ["RunOutDate"] = r.RunOutDate.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture), ["PharmacyPhone"] = r.PharmacyPhone, ["PharmacyName"] = r.PharmacyName ?? "Pharmacy"
+                    }, Compose(r), logger);
+                var res = await whatsApp.SendTextMessageAsync(r.Mobile, text, r.BranchId, "PHR", r.SaleId);
                 status = res.Success ? "SENT" : "FAILED";
                 detail = res.Success ? $"Sent to {r.Mobile}" : (res.ErrorMessage ?? "WhatsApp did not accept the message.");
                 if (res.Success) sent++;
@@ -82,6 +89,13 @@ public sealed class PharmacyRefillReminderService(IServiceScopeFactory scopeFact
                 var pts = Math.Min(e.Expiring > 0 ? e.Expiring : e.Available, e.Available);
                 var msg = $"Hello{name},\n\n*{pts:0} loyalty points* (₹{pts * (e.PointValue ?? 1):N2}) in your wallet expire on {e.ExpiresOn.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture)}. " +
                           $"Use them on your next purchase.\nWallet balance: {e.Available:0} points.\n\n- {e.PharmacyName ?? "Pharmacy"}";
+                msg = await NotifyLanguage.WhatsAppAsync(con, e.BranchId, EMR.Common.NotifyText.PhWalletExpiry, await NotifyLanguage.OfMobileAsync(con, e.Phone),
+                    new Dictionary<string, string?>
+                    {
+                        ["CustomerName"] = e.Name?.Trim(), ["Points"] = pts.ToString("0"), ["PointsValue"] = (pts * (e.PointValue ?? 1)).ToString("N2"),
+                        ["ExpiresOn"] = e.ExpiresOn.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture), ["Available"] = e.Available.ToString("0"),
+                        ["PharmacyName"] = e.PharmacyName ?? "Pharmacy"
+                    }, msg, logger);
                 var res = await whatsApp.SendTextMessageAsync(e.Phone!, msg, e.BranchId, "PHR");
                 if (!res.Success) logger.LogWarning("[PH-LOYALTY] Expiry reminder not sent to {Phone}: {Err}", e.Phone, res.ErrorMessage);
             }

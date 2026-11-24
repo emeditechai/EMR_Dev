@@ -34,6 +34,7 @@ public sealed class FollowUpReminderService(IServiceScopeFactory scopeFactory, I
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
         public string? DoctorName { get; set; }
+        public int? LanguageId { get; set; }          // SQLScripts/2544: the reminder in the patient's language
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -64,7 +65,7 @@ public sealed class FollowUpReminderService(IServiceScopeFactory scopeFactory, I
                    CASE WHEN c.FollowUpReminder1SentOn IS NULL AND @Today = DATEADD(DAY, -1, c.FollowUpDate) THEN 1 ELSE 7 END AS Kind,
                    s.BranchId,
                    LTRIM(RTRIM(ISNULL(p.FirstName, '') + ' ' + ISNULL(p.LastName, ''))) AS PatientName,
-                   p.PatientCode, p.PhoneNumber, p.EmailId,
+                   p.PatientCode, p.PhoneNumber, p.EmailId, p.LanguageId,
                    LTRIM(RTRIM(ISNULL(d.NamePrefix + ' ', '') + d.FullName)) AS DoctorName
             FROM dbo.EmrPatientConsultation c
             INNER JOIN dbo.PatientOPDService s ON s.OPDServiceId = c.OPDServiceId AND ISNULL(s.IsActive, 0) = 1
@@ -104,13 +105,22 @@ public sealed class FollowUpReminderService(IServiceScopeFactory scopeFactory, I
             var name = string.IsNullOrWhiteSpace(r.PatientName) ? "Patient" : r.PatientName!.Trim();
             var doctor = string.IsNullOrWhiteSpace(r.DoctorName) ? "your doctor" : r.DoctorName!.Trim();
 
+            var langValues = new Dictionary<string, string?>
+            {
+                ["PatientName"] = name, ["HospitalName"] = hospital, ["DoctorName"] = doctor, ["FollowUpDate"] = dateText,
+                ["PatientCode"] = r.PatientCode, ["Contact"] = contact, ["Tomorrow"] = r.Kind == 1 ? "1" : null
+            };
+
             var channels = new List<string>();
             if (!string.IsNullOrWhiteSpace(r.EmailId) && r.EmailId!.Contains('@'))
             {
                 try
                 {
-                    var (ok, msg) = await email.SendEmailAsync(r.BranchId, r.EmailId.Trim(),
-                        $"Follow-up reminder: {dateText} - {hospital}", EmailBody(name, doctor, hospital, contact, when, dateText, r.PatientCode));
+                    var subject = $"Follow-up reminder: {dateText} - {hospital}";
+                    var body = EmailBody(name, doctor, hospital, contact, when, dateText, r.PatientCode);
+                    if (await NotifyLanguage.EmailAsync(con, r.BranchId, NotifyText.OpdFollowUp, r.LanguageId, langValues, hospital, null, logger) is { } lang)
+                        (subject, body) = lang;
+                    var (ok, msg) = await email.SendEmailAsync(r.BranchId, r.EmailId.Trim(), subject, body);
                     channels.Add(ok ? "e-mail" : $"e-mail failed ({msg})");
                 }
                 catch (Exception ex) { channels.Add("e-mail failed"); logger.LogWarning(ex, "[FollowUp] e-mail for consultation {Id}", r.ConsultationId); }
@@ -123,6 +133,7 @@ public sealed class FollowUpReminderService(IServiceScopeFactory scopeFactory, I
                              + (string.IsNullOrWhiteSpace(r.PatientCode) ? "" : $"\nPatient ID: {r.PatientCode}")
                              + (string.IsNullOrWhiteSpace(contact) ? "" : $"\nTo book or change the visit, please call {contact}.")
                              + "\n\nThank you.";
+                    text = await NotifyLanguage.WhatsAppAsync(con, r.BranchId, NotifyText.OpdFollowUp, r.LanguageId, langValues, text, logger);
                     var res = await whatsApp.SendTextMessageAsync(r.PhoneNumber!.Trim(), text, r.BranchId, "OPD_FOLLOWUP", r.ConsultationId);
                     channels.Add(res.Success ? "WhatsApp" : $"WhatsApp failed ({res.ErrorMessage})");
                 }

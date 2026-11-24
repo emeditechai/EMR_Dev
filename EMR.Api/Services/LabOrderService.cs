@@ -220,5 +220,22 @@ namespace EMR.Api.Services
                 commandType: CommandType.StoredProcedure
             );
         }
+    
+        // ── LAB B2B government scheme (SQLScripts/2535) ─────────────────────────────
+        public async Task<LabB2BSchemeDto> GetB2BSchemeAsync(int branchId, string agentType, int agentId)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryFirstOrDefaultAsync<LabB2BSchemeDto>("dbo.usp_Api_LabB2B_SchemeCard",
+                new { BranchId = branchId, AgentType = agentType, AgentId = agentId }, commandType: CommandType.StoredProcedure)
+                ?? new LabB2BSchemeDto();
+        }
+
+        public async Task<string?> SetOrderSchemeAsync(int labOrderId, string? beneficiaryId)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryFirstOrDefaultAsync<string?>("dbo.usp_Api_LabOrder_SetScheme",
+                new { LabOrderId = labOrderId, BeneficiaryId = string.IsNullOrWhiteSpace(beneficiaryId) ? null : beneficiaryId.Trim() },
+                commandType: CommandType.StoredProcedure);
+        }
     }
 }

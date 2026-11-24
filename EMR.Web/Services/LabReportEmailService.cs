@@ -157,6 +157,16 @@ public class LabReportEmailService(
 
             var subject = $"{(claim.IsRevised ? "Revised " : "")}Lab Report - {state.BillNo} | {hospital}";
             var body = BuildBody(state, hospital, settings, tests, claim.IsRevised);
+            // SQLScripts/2544: in the patient's language when a text exists for it (else the English above)
+            using (var langCon = db.CreateConnection())
+                if (await NotifyLanguage.EmailAsync(langCon, state.BranchId, EMR.Common.NotifyText.LabReport, await NotifyLanguage.OfLabOrderAsync(langCon, labOrderId),
+                        new Dictionary<string, string?>
+                        {
+                            ["PatientName"] = state.PatientName, ["HospitalName"] = hospital, ["BillNo"] = state.BillNo, ["TokenNo"] = state.TokenNo,
+                            ["ApprovedOn"] = state.FinalApprovedOn?.ToString("dd MMM yyyy, hh:mm tt") ?? "", ["TestCount"] = tests.Count.ToString(),
+                            ["TestList"] = string.Join("\n", tests.Select(t => "✓ " + t)), ["Revised"] = claim.IsRevised ? "1" : null
+                        }, hospital, settings?.Address, logger) is { } lang)
+                    (subject, body) = lang;
             var safeBill = new string((state.BillNo ?? $"Order{labOrderId}").Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray());
 
             var attachments = reports

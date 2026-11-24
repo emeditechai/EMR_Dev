@@ -149,6 +149,8 @@ public class HospitalSettings
     public bool PharmacyGrnNotRequired { get; set; } = false;
     // Pharmacy round 2 (SQLScripts/2402)
     public bool PharmacyAutoReorderEnabled { get; set; } = false;
+    /// <summary>SQLScripts/2538: raise purchase indents by the Auto Indent Rules right after stock goes out.</summary>
+    public bool PharmacyAutoIndentEnabled { get; set; } = false;
     public int PharmacyReorderSalesDays { get; set; } = 30;
     public int PharmacyReorderSafetyDays { get; set; } = 3;
     public int PharmacyReorderCoverDays { get; set; } = 15;
@@ -195,9 +197,14 @@ public class HospitalSettings
     /// <summary>SQLScripts/2383: wrong passwords after which the user gets a WhatsApp security alert; 0 (default) = no alert.</summary>
     public int LoginAlertCount { get; set; }
 
+    /// <summary>SQLScripts/2533: the branch's WBHS (West Bengal Health Scheme) empanelment code; null = not set.</summary>
+    public string? WbhsEmpanelmentCode { get; set; }
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;
+    /// <summary>SQLScripts/2536: B2B sample barcodes in a separate sequence (setting only for now).</summary>
+    public bool B2BBarcodeSeparateSequence { get; set; } = false;
     /// <summary>LAB billing AI features (AI prescription assist, Smart ID Scan) for this branch (SQLScripts/2286). Off = billing as before.</summary>
     public bool EnableAiBillingFeatures { get; set; } = false;
     /// <summary>The AI Help Assistant (Ask AI on the Home dashboard and in the Help Center) for this branch (SQLScripts/2302).</summary>

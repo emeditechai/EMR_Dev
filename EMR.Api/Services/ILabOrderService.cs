@@ -14,5 +14,9 @@ namespace EMR.Api.Services
         Task<LabOrderPagedResult> GetPagedOrdersAsync(int branchId, DateTime? fromDate, DateTime? toDate, string? search, int pageNumber, int pageSize, bool? isB2B = null, string? dateType = null, string? paymentFilter = null, string? agentType = null, int? agentId = null, int? createdBy = null);
         Task<LabOrderDetailDto?> GetOrderDetailAsync(int labOrderId);
         Task<int> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId, int userId);
+        /// <summary>The B2B partner's rate list in force and whether it is a government scheme (SQLScripts/2535).</summary>
+        Task<LabB2BSchemeDto> GetB2BSchemeAsync(int branchId, string agentType, int agentId);
+        /// <summary>Records the government scheme and Beneficiary ID on a saved B2B order; returns the scheme name or null.</summary>
+        Task<string?> SetOrderSchemeAsync(int labOrderId, string? beneficiaryId);
     }
 }

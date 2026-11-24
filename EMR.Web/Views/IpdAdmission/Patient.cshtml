@@ -30,6 +30,7 @@
     <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ipd-ot-icu.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-tpa.css" asp-append-version="true" />
     <style>.select2-container { width:100% !important; } .modal .select2-container { z-index:1060; }</style>
 }
 @Html.AntiForgeryToken()
@@ -291,21 +292,7 @@
     @await Html.PartialAsync("_Ot", Model)
     @await Html.PartialAsync("_Icu", Model)
 
-    @* insurance *@
-    <div class="tab-pane fade @(Model.Tab == "insurance" ? "show active" : "")" id="tab-insurance" role="tabpanel">
-        <div class="reg-section"><div class="reg-section-header"><div class="sec-icon violet"><i class="bi bi-shield-plus"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0">Payer</h6><small class="text-muted">Pre-authorisation, enhancement and claims come in Phase 6</small></div></div>
-            <div class="reg-section-body p-0">
-                <table class="table ipd-table mb-0"><thead><tr><th>#</th><th>Type</th><th>Payer</th><th>Policy / card</th><th>Member</th><th>Holder</th><th>Valid to</th><th>Card</th></tr></thead><tbody>
-                @foreach (var p in Model.Payers)
-                {
-                    <tr><td>@p.I("Seq")</td><td>@Payer(p.S("PayerType"))</td><td class="fw-semibold">@p.S("PayerName")</td><td>@p.S("PolicyNo")</td><td>@p.S("MemberId") @p.S("EmployeeId")</td>
-                        <td>@p.S("CardHolderName") @(string.IsNullOrWhiteSpace(p.S("RelationToHolder")) ? "" : "(" + p.S("RelationToHolder") + ")")</td><td>@p.Dt("PolicyValidTo", "dd-MMM-yyyy")</td>
-                        <td>@if (!string.IsNullOrWhiteSpace(p.S("CardFilePath"))) {<a href="@p.S("CardFilePath")" target="_blank">View</a>}</td></tr>
-                }
-                @if (Model.Payers.Count == 0) { <tr><td colspan="8" class="text-center text-muted py-3">Cash / self-paying patient.</td></tr> }
-                </tbody></table>
-            </div></div>
-    </div>
+    @await Html.PartialAsync("_Insurance", Model)
 
     @* documents & consents *@
     <div class="tab-pane fade @(Model.Tab == "documents" ? "show active" : "")" id="tab-documents" role="tabpanel">
@@ -474,4 +461,7 @@
     <script src="~/js/ipd/ot.js" asp-append-version="true"></script>
     <script>window.IpdIcu = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdIcu/"), open = open && status != "CANCELLED", billOpen = open && (status == "ADMITTED" || status == "DISCHARGE_ADVISED"), can = new { chart = Can("ICU_CHART"), correct = Can("ICU_CORRECT"), transfer = Can("TRANSFER") } }));</script>
     <script src="~/js/ipd/icu.js" asp-append-version="true"></script>
+    <script>window.IpdTpa = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdInsurance/"), payerType = h.S("PayerType"), can = new { preauth = Can("PREAUTH") } }));</script>
+    <script src="~/js/ipd/tpa-common.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/insurance.js" asp-append-version="true"></script>
 }

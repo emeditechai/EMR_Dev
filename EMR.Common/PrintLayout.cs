@@ -29,6 +29,10 @@ public class PrintLayout
     public string ToJson() => JsonSerializer.Serialize(this, Json);
 
     /// <summary>Clamps what a hand-edited or old layout could carry out of range.</summary>
+    /// <summary>Blocks whose box takes Width % of the column (dragged on its side edge in the designer). A line and a barcode
+    /// apply Width % to what they draw instead.</summary>
+    public static bool SizedBox(string? type) => type is "field" or "text" or "pageinfo" or "logo" or "image";
+
     public static PrintLayout? Normalize(PrintLayout? l)
     {
         if (l is null) return null;
@@ -43,6 +47,7 @@ public class PrintLayout
             foreach (var row in band.Rows)
             {
                 row.Cols ??= [];
+                row.MinHeightMm = Math.Round(Math.Clamp(row.MinHeightMm, 0, 60), 1);
                 if (row.Cols.Count == 0) row.Cols.Add(new PrintCol { Span = 12 });
                 foreach (var col in row.Cols)
                 {
@@ -52,7 +57,7 @@ public class PrintLayout
                     {
                         b.Size = Math.Clamp(b.Size <= 0 ? 9 : b.Size, 5, 28);
                         b.HeightMm = Math.Clamp(b.HeightMm, 0, 60);
-                        b.WidthPct = Math.Clamp(b.WidthPct <= 0 ? 100 : b.WidthPct, 10, 100);
+                        b.WidthPct = Math.Round(Math.Clamp(b.WidthPct <= 0 ? 100 : b.WidthPct, 5, 100), 1);
                         b.Thickness = Math.Clamp(b.Thickness <= 0 ? 1 : b.Thickness, 0.5m, 4);
                         b.LetterSpacing = Math.Clamp(b.LetterSpacing, 0, 0.3m);
                         b.Font = PrintFonts.Find(b.Font);
@@ -89,6 +94,8 @@ public class PrintBand
 public class PrintRow
 {
     public List<PrintCol> Cols { get; set; } = [];
+    /// <summary>Lowest height of the row (mm, dragged on its bottom edge in the designer); 0 = as tall as its content.</summary>
+    public decimal MinHeightMm { get; set; }
 }
 
 public class PrintCol
@@ -179,6 +186,8 @@ public static class PrintFields
         new("hospitalType", "Hospital Type", "Organisation", "BILL,REPORT,RX", "", "Super Speciality Hospital"),
         new("registrationNo", "Registration / License No", "Organisation", "BILL,REPORT,RX", "Reg. No", "WB/KOL/HOSP/2022/889"),
         new("gstCode", "GST Code", "Organisation", "BILL,REPORT,RX", "GSTIN", "19ABCDE1234F1Z5"),
+        // Hospital Settings > OPD Configuration (SQLScripts/2533), per branch; skipped when the branch has none
+        new("wbhsCode", "WBHS Empanelment Code", "Organisation", "BILL,REPORT,RX", "WBHS Code", "WBHS/KOL/1234"),
         new("branchName", "Branch Name", "Branch contact", "BILL,REPORT,RX", "Branch", "Head Office"),
         new("address", "Address", "Branch contact", "BILL,REPORT,RX", "Address", "12 Park Street, Kolkata 700016"),
         new("contact1", "Contact Number 1", "Branch contact", "BILL,REPORT,RX", "Tel", "033 4000 1234"),

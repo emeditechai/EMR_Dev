@@ -408,24 +408,54 @@
   "version": "1.32"
  },
  {
-  "by": "purojitbhar",
+  "by": "abhikporel",
+  "changes": [
+   "Doctor_IP_Commission_Dtl: new column(s) Is_Paid, Paid_Date, Paid_Reference, Paid_Remarks, Paid_By, Paid_On",
+   "HospitalSettings: new column(s) DoctorIpIncludeUnpaidBills, WbhsEmpanelmentCode",
+   "PatientMaster: new column(s) BeneficiaryId",
+   "MS_Description changed on PatientMaster"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.33"
+ },
+ {
+  "by": "abhikporel",
   "changes": [
    "New table LabBarcodeSequenceB2B (4 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) B2BBarcodeSeparateSequence",
+   "LabOrder: new column(s) Govt_Scheme_Name, Beneficiary_ID"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.34"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
    "New table PhAutoIndentLog (12 columns, module not yet grouped)",
    "New table PhAutoIndentRule (14 columns, module not yet grouped)",
    "New table PhAutoIndentState (3 columns, module not yet grouped)",
-   "Doctor_IP_Commission_Dtl: new column(s) Is_Paid, Paid_Date, Paid_Reference, Paid_Remarks, Paid_By, Paid_On",
-   "HospitalSettings: new column(s) DoctorIpIncludeUnpaidBills, WbhsEmpanelmentCode, B2BBarcodeSeparateSequence, PharmacyAutoIndentEnabled",
-   "LabOrder: new column(s) Govt_Scheme_Name, Beneficiary_ID",
-   "LanguageMaster: new column(s) LanguageCode",
-   "PatientMaster: new column(s) BeneficiaryId",
+   "HospitalSettings: new column(s) PharmacyAutoIndentEnabled",
    "PhPurchaseIndent: new column(s) IsAuto",
    "New foreign key PhAutoIndentRule.ItemId -> PhItem.ItemId",
-   "New foreign key PhAutoIndentRule.SupplierId -> PhSupplier.SupplierId",
-   "MS_Description changed on PatientMaster",
+   "New foreign key PhAutoIndentRule.SupplierId -> PhSupplier.SupplierId"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.35"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
    "Lookup values changed: ApprovalModule"
   ],
-  "date": "25 Nov 2026",
-  "version": "1.33"
+  "date": "24 Nov 2026",
+  "version": "1.36"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "LanguageMaster: new column(s) LanguageCode"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.37"
  }
 ]

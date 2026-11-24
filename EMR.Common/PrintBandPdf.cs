@@ -34,7 +34,9 @@ public static class PrintBandPdf
             {
                 if (row.Cols.All(x => x.Blocks.Count == 0 || x.Blocks.All(b => IsEmpty(b, values)))) continue;
                 var spans = Math.Max(1d, (double)row.Cols.Sum(x => x.Span));
-                col.Item().PaddingBottom(1).Row(r =>
+                var rowItem = col.Item().PaddingBottom(1);
+                if (row.MinHeightMm > 0) rowItem = rowItem.MinHeight((float)row.MinHeightMm, Unit.Millimetre);
+                rowItem.Row(r =>
                 {
                     foreach (var pc in row.Cols)
                         r.RelativeItem((float)pc.Span).Element(cell =>
@@ -66,6 +68,9 @@ public static class PrintBandPdf
 
     private static void Block(IContainer c, PrintBlock b, Dictionary<string, string?> values, Func<string?, byte[]?> loadImage, double colMm)
     {
+        // its own width inside the column (Width %, dragged in the designer), placed by its alignment
+        if (PrintLayout.SizedBox(b.Type) && b.WidthPct is > 0 and < 100)
+            c = Aligned(c, b.Align).Width((float)(colMm * (double)b.WidthPct / 100), Unit.Millimetre);
         switch (b.Type)
         {
             case "field":

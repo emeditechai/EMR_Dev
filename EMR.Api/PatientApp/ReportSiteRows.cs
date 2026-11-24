@@ -192,10 +192,12 @@ public class HospitalSettings
 
     /// <summary>SQLScripts/2383: wrong passwords after which the user gets a WhatsApp security alert; 0 (default) = no alert.</summary>
     public int LoginAlertCount { get; set; }
+    public string? WbhsEmpanelmentCode { get; set; }   // SQLScripts/2533
 
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;
+    public bool B2BBarcodeSeparateSequence { get; set; }   // SQLScripts/2536
     /// <summary>LAB billing AI features (AI prescription assist, Smart ID Scan) for this branch (SQLScripts/2286). Off = billing as before.</summary>
     public bool EnableAiBillingFeatures { get; set; } = false;
     /// <summary>The AI Help Assistant (Ask AI on the Home dashboard and in the Help Center) for this branch (SQLScripts/2302).</summary>

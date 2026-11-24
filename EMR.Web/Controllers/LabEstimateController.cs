@@ -219,6 +219,16 @@ public class LabEstimateController(LabEstimateApiClient api, ILabOrderApiClient 
                      + $"Tests: {d.Lines.Count(l => l.ItemKind != "M")}\nEstimated amount: Rs {d.NetAmount:N2}\nValid till: {d.ValidTill:dd-MMM-yyyy}\n"
                      + (isLocal ? "" : $"\nView online: {PublicUrl("View", d.PublicToken)}\n")
                      + "\nThis is an estimate, not a bill.";
+            // SQLScripts/2544: in the patient's language (by the Patient ID, else the mobile) when a text exists for it (else the English above)
+            using (var langCon = HttpContext.RequestServices.GetRequiredService<EMR.Web.Data.IDbConnectionFactory>().CreateConnection())
+                text = await NotifyLanguage.WhatsAppAsync(langCon, d.BranchId, EMR.Common.NotifyText.LabEstimate,
+                    await NotifyLanguage.OfPatientCodeAsync(langCon, d.BranchId, d.PatientCode) ?? await NotifyLanguage.OfMobileAsync(langCon, to),
+                    new Dictionary<string, string?>
+                    {
+                        ["PatientName"] = d.PatientName, ["BranchName"] = d.BranchName, ["EstimateNo"] = d.EstimateNo,
+                        ["TestCount"] = d.Lines.Count(l => l.ItemKind != "M").ToString(), ["Amount"] = d.NetAmount.ToString("N2"),
+                        ["ValidTill"] = d.ValidTill.ToString("dd-MMM-yyyy"), ["ViewUrl"] = isLocal ? null : PublicUrl("View", d.PublicToken)
+                    }, text, logger);
             var res = await whatsApp.SendTextMessageAsync(to, text, d.BranchId, "LAB_ESTIMATE", d.EstimateId,
                 documentUrl, $"Estimate_{d.EstimateNo.Replace('/', '-')}.pdf");
             if (!res.Success) return Fail("Not sent: " + (res.ErrorMessage ?? "WhatsApp is not available for this branch."));

@@ -111,6 +111,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Barcode Generate at Billing")]
     public bool BarcodeGenerateAtBilling { get; set; } = false;
 
+    [Display(Name = "B2B Barcode Generate Separate Sequence Required")]
+    public bool B2BBarcodeSeparateSequence { get; set; } = false;
+
     [Display(Name = "Enable AI Features at Billing")]
     public bool EnableAiBillingFeatures { get; set; } = false;
 
@@ -382,6 +385,9 @@ public class HospitalSettingsViewModel
     [Display(Name = "Auto Reorder")]
     public bool PharmacyAutoReorderEnabled { get; set; } = false;
 
+    [Display(Name = "Auto Indent to Suppliers")]
+    public bool PharmacyAutoIndentEnabled { get; set; } = false;
+
     [Display(Name = "Average Sales Over (Days)")]
     public int PharmacyReorderSalesDays { get; set; } = 30;
 
@@ -504,6 +510,10 @@ public class HospitalSettingsViewModel
     [Display(Name = "Login Alert After Wrong Attempts")]
     [Range(0, 20, ErrorMessage = "Login Alert After Wrong Attempts must be between 0 and 20 (0 = no alert).")]
     public int LoginAlertCount { get; set; }
+
+    [Display(Name = "WBHS Empanelment Code")]
+    [StringLength(50, ErrorMessage = "WBHS Empanelment Code can be at most 50 characters.")]
+    public string? WbhsEmpanelmentCode { get; set; }
 
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;

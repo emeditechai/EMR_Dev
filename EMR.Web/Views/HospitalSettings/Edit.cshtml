@@ -500,6 +500,17 @@
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-hospital"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">WBHS Empanelment Code</div>
+                            <div class="lp-desc">This branch's empanelment code under the West Bengal Health Scheme (WBHS). Optional, up to 50 characters; leave blank if the branch is not empanelled.</div>
+                            <input asp-for="WbhsEmpanelmentCode" type="text" maxlength="50" autocomplete="off" class="form-control form-control-sm mt-2" placeholder="e.g. WBHS/KOL/1234" />
+                            <span asp-validation-for="WbhsEmpanelmentCode" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>
@@ -689,6 +700,20 @@
                                 <label class="form-check-label" asp-for="IsSampleCollectionMandatory">Is Sample Collection Mandatory</label>
                             </div>
                             <span asp-validation-for="IsSampleCollectionMandatory" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-upc"></i></div>
+                        <div class="lp-body">
+                            <div class="lp-label">B2B Barcode Generate Separate Sequence Required</div>
+                            <div class="lp-desc">Yes: B2B (franchise / company) bills get their sample barcodes from a sequence of their own. No: one sequence for B2C and B2B. Default No.</div>
+                            <div class="form-check form-switch lp-switch ps-0">
+                                <input class="form-check-input" type="checkbox" role="switch" asp-for="B2BBarcodeSeparateSequence">
+                                <label class="form-check-label" asp-for="B2BBarcodeSeparateSequence">Separate B2B barcode sequence</label>
+                            </div>
+                            <span asp-validation-for="B2BBarcodeSeparateSequence" class="text-danger small d-block mt-1"></span>
                         </div>
                     </div>
                 </div>
@@ -1277,6 +1302,13 @@
                         <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyAutoReorderEnabled">
                         <label class="form-check-label fw-semibold small" asp-for="PharmacyAutoReorderEnabled"></label>
                         <div class="form-text mt-0">Suggest purchase quantities from sales and raise POs grouped by supplier.</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-check form-switch p-2 border rounded bg-light ps-5 h-100">
+                        <input class="form-check-input" type="checkbox" role="switch" asp-for="PharmacyAutoIndentEnabled">
+                        <label class="form-check-label fw-semibold small" asp-for="PharmacyAutoIndentEnabled"></label>
+                        <div class="form-text mt-0">Right after stock goes out, items at or below their reorder level are indented to the supplier set in Auto Reorder &gt; Auto Indent Rules (submitted for approval).</div>
                     </div>
                 </div>
                 <div class="col-md-3">

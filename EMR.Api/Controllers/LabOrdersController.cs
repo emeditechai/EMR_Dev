@@ -103,6 +103,22 @@ namespace EMR.Api.Controllers
             return Ok(data);
         }
 
+        /// <summary>LAB B2B: is the partner's rate list a government scheme (Beneficiary ID mandatory)? SQLScripts/2535</summary>
+        [HttpGet("b2b-scheme")]
+        public async Task<IActionResult> GetB2BScheme([FromQuery] int branchId, [FromQuery] string agentType, [FromQuery] int agentId)
+        {
+            if (branchId <= 0 || agentId <= 0 || string.IsNullOrWhiteSpace(agentType)) return BadRequest("branchId, agentType and agentId are required.");
+            return Ok(await labOrderService.GetB2BSchemeAsync(branchId, agentType, agentId));
+        }
+
+        /// <summary>After a B2B order is saved: records its government scheme and Beneficiary ID (SQLScripts/2535).</summary>
+        [HttpPost("{id}/scheme")]
+        public async Task<IActionResult> SetOrderScheme(int id, [FromBody] LabOrderSchemeRequest request)
+        {
+            if (id <= 0) return BadRequest("Valid LabOrderId is required.");
+            return Ok(new { schemeName = await labOrderService.SetOrderSchemeAsync(id, request?.BeneficiaryId) });
+        }
+
         [HttpPost("{id}/sample-collection")]
         public async Task<IActionResult> CreateSampleCollection(int id, [FromQuery] int branchId, [FromQuery] int companyId = 1, [FromQuery] int? userId = null)
         {

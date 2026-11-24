@@ -83,7 +83,18 @@ public class MembershipRenewalReminderBackgroundService(
                 }
                 else
                 {
-                    var (ok, text) = await emailService.SendEmailAsync(r.BranchId, r.EmailId, Subject(r), Body(r));
+                    var (subject, body) = (Subject(r), Body(r));
+                    // SQLScripts/2544: in the card holder's language when a text exists for it (else the English above)
+                    using (var con = db.CreateConnection())
+                        if (await NotifyLanguage.EmailAsync(con, r.BranchId, EMR.Common.NotifyText.MemRenewal, await NotifyLanguage.OfCardHolderAsync(con, r.CardId),
+                                new Dictionary<string, string?>
+                                {
+                                    ["PatientName"] = r.PatientName, ["HospitalName"] = HospitalName(r), ["PlanName"] = r.PlanName, ["CardNo"] = r.CardNo,
+                                    ["ValidTo"] = r.ValidTo.ToString("dd MMM yyyy"), ["DaysLeft"] = r.DaysLeft.ToString(), ["Points"] = r.PointsBalance.ToString("0.##"),
+                                    ["Today"] = r.DaysLeft <= 0 ? "1" : null
+                                }, HospitalName(r), null, logger) is { } lang)
+                            (subject, body) = lang;
+                    var (ok, text) = await emailService.SendEmailAsync(r.BranchId, r.EmailId, subject, body);
                     if (ok) { (outcome, detail) = ("sent", "emailed to " + r.EmailId); sent++; }
                     else { (outcome, detail) = ("failed", text); failed++; }
                 }

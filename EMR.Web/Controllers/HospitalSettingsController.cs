@@ -575,6 +575,7 @@ public class HospitalSettingsController(
             existing.LabEmailNotificationRequired = model.LabEmailNotificationRequired;
             existing.IsSampleCollectionMandatory = model.IsSampleCollectionMandatory;
             existing.BarcodeGenerateAtBilling = model.BarcodeGenerateAtBilling;
+            existing.B2BBarcodeSeparateSequence = model.B2BBarcodeSeparateSequence;
             existing.EnableAiBillingFeatures = model.EnableAiBillingFeatures;
             EMR.Web.Services.AiBillingFeatures.Invalidate(HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>(), existing.BranchId);
             existing.EnableAskAiFeatures = model.EnableAskAiFeatures;
@@ -657,6 +658,7 @@ public class HospitalSettingsController(
             existing.PharmacyBillNotificationRequired = model.PharmacyBillNotificationRequired;
             existing.PharmacyGrnNotRequired = model.PharmacyGrnNotRequired;
             existing.PharmacyAutoReorderEnabled = model.PharmacyAutoReorderEnabled;
+            existing.PharmacyAutoIndentEnabled = model.PharmacyAutoIndentEnabled;
             existing.PharmacyReorderSalesDays = Math.Clamp(model.PharmacyReorderSalesDays, 1, 180);
             existing.PharmacyReorderSafetyDays = Math.Clamp(model.PharmacyReorderSafetyDays, 0, 60);
             existing.PharmacyReorderCoverDays = Math.Clamp(model.PharmacyReorderCoverDays, 1, 120);
@@ -697,6 +699,7 @@ public class HospitalSettingsController(
             existing.PharmacyLoyaltyExpiryReminderDays = Math.Clamp(model.PharmacyLoyaltyExpiryReminderDays, 0, 60);
             existing.LoginRetryCount = model.LoginRetryCount;
             existing.LoginAlertCount = model.LoginAlertCount;
+            existing.WbhsEmpanelmentCode = CleanCode(model.WbhsEmpanelmentCode);
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -779,6 +782,7 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = s.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = s.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = s.BarcodeGenerateAtBilling,
+            B2BBarcodeSeparateSequence = s.B2BBarcodeSeparateSequence,
             EnableAiBillingFeatures = s.EnableAiBillingFeatures,
             EnableAskAiFeatures = s.EnableAskAiFeatures,
             TokenGenerateOnDuePayment = s.TokenGenerateOnDuePayment,
@@ -849,6 +853,7 @@ public class HospitalSettingsController(
             PharmacyBillNotificationRequired = s.PharmacyBillNotificationRequired,
             PharmacyGrnNotRequired = s.PharmacyGrnNotRequired,
             PharmacyAutoReorderEnabled = s.PharmacyAutoReorderEnabled,
+            PharmacyAutoIndentEnabled = s.PharmacyAutoIndentEnabled,
             PharmacyReorderSalesDays = s.PharmacyReorderSalesDays,
             PharmacyReorderSafetyDays = s.PharmacyReorderSafetyDays,
             PharmacyReorderCoverDays = s.PharmacyReorderCoverDays,
@@ -889,6 +894,7 @@ public class HospitalSettingsController(
             PharmacyLoyaltyExpiryReminderDays = s.PharmacyLoyaltyExpiryReminderDays,
             LoginRetryCount = s.LoginRetryCount,
             LoginAlertCount = s.LoginAlertCount,
+            WbhsEmpanelmentCode = s.WbhsEmpanelmentCode,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -926,6 +932,7 @@ public class HospitalSettingsController(
             LabEmailNotificationRequired = m.LabEmailNotificationRequired,
             IsSampleCollectionMandatory = m.IsSampleCollectionMandatory,
             BarcodeGenerateAtBilling = m.BarcodeGenerateAtBilling,
+            B2BBarcodeSeparateSequence = m.B2BBarcodeSeparateSequence,
             EnableAiBillingFeatures = m.EnableAiBillingFeatures,
             EnableAskAiFeatures = m.EnableAskAiFeatures,
             TokenGenerateOnDuePayment = m.TokenGenerateOnDuePayment,
@@ -998,6 +1005,7 @@ public class HospitalSettingsController(
             PharmacyBillNotificationRequired = m.PharmacyBillNotificationRequired,
             PharmacyGrnNotRequired = m.PharmacyGrnNotRequired,
             PharmacyAutoReorderEnabled = m.PharmacyAutoReorderEnabled,
+            PharmacyAutoIndentEnabled = m.PharmacyAutoIndentEnabled,
             PharmacyReorderSalesDays = Math.Clamp(m.PharmacyReorderSalesDays, 1, 180),
             PharmacyReorderSafetyDays = Math.Clamp(m.PharmacyReorderSafetyDays, 0, 60),
             PharmacyReorderCoverDays = Math.Clamp(m.PharmacyReorderCoverDays, 1, 120),
@@ -1038,12 +1046,20 @@ public class HospitalSettingsController(
             PharmacyLoyaltyExpiryReminderDays = Math.Clamp(m.PharmacyLoyaltyExpiryReminderDays, 0, 60),
             LoginRetryCount = m.LoginRetryCount,
             LoginAlertCount = m.LoginAlertCount,
+            WbhsEmpanelmentCode = CleanCode(m.WbhsEmpanelmentCode),
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId
         };
 
 
+
+    // free-text code: trimmed, blank stored as NULL, never longer than the column (NVARCHAR(50), SQLScripts/2533)
+    private static string? CleanCode(string? code)
+    {
+        code = code?.Trim();
+        return string.IsNullOrEmpty(code) ? null : code.Length > 50 ? code[..50] : code;
+    }
 
     private void ValidateLogoFile(HospitalSettingsViewModel model)
     {

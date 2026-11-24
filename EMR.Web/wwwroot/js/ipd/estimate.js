@@ -27,7 +27,7 @@ async function loadLive() {
         const fh = document.getElementById('fHead'); if (fh.options.length === 1) hs.forEach(x => fh.append(new Option(x.HeadName, x.Head)));
         totals.innerHTML = `<dt>Gross</dt><dd class="num">${Ipd.money(t.Gross)}</dd><dt>Discount</dt><dd class="num">${Ipd.money(t.Discount)}</dd><dt>GST</dt><dd class="num">${Ipd.money(t.Gst)}</dd>
             <dt class="fw-bold">Bill if discharged now</dt><dd class="num fw-bold">${Ipd.money(t.BillNow)}</dd><dt>Advance received</dt><dd class="num">${Ipd.money(t.AdvanceTotal)}</dd><dt>Refunded</dt><dd class="num">${Ipd.money(t.RefundTotal)}</dd>
-            <dt>TPA / corporate approved</dt><dd class="num">${Ipd.money(t.ApprovedAmount)} <span class="small text-muted">(Phase 6)</span></dd><dt>Patient share</dt><dd class="num">${Ipd.money(t.PatientShare)}</dd>
+            <dt>TPA / corporate approved</dt><dd class="num">${Ipd.money(t.ApprovedAmount)}${t.PayerShare > 0 ? ` <span class="small text-muted">· pays ${Ipd.money(t.PayerShare)} now</span>` : ''}</dd><dt>Patient share</dt><dd class="num">${Ipd.money(t.PatientShare)}</dd>
             <dt class="fw-bold">${t.RefundDue > 0 ? 'Refundable now' : 'Balance due now'}</dt><dd class="num fw-bold ${t.BalanceDue > 0 ? 'money-due' : 'money-ok'}">${Ipd.money(t.RefundDue > 0 ? t.RefundDue : t.BalanceDue)}</dd>
             <dt>Deposit alert</dt><dd>${t.DepositAlert ? '<span class="ipd-pill alert">Collect deposit</span>' : '<span class="ipd-pill muted">No</span>'} <span class="small text-muted">at ${t.DepositAlertPercent}% of advance</span></dd>`;
         projection.innerHTML = t.ProjectedTotal == null ? '<dt>Expected discharge</dt><dd class="text-muted">Not set</dd>'

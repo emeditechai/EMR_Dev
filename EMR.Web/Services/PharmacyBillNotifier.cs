@@ -18,7 +18,7 @@ public interface IPharmacyBillNotifier
 }
 
 public class PharmacyBillNotifier(IPharmacySaleService sales, IPharmacyPurchaseService purchase, IWhatsAppService whatsApp, IEmailService email,
-    ILogger<PharmacyBillNotifier> logger) : IPharmacyBillNotifier
+    EMR.Web.Data.IDbConnectionFactory db, ILogger<PharmacyBillNotifier> logger) : IPharmacyBillNotifier
 {
     static PharmacyBillNotifier() => QuestPDF.Settings.License = LicenseType.Community;
 
@@ -116,6 +116,22 @@ public class PharmacyBillNotifier(IPharmacySaleService sales, IPharmacyPurchaseS
         catch (Exception ex) { logger.LogError(ex, "[PH-BILL] PDF failed for sale {Id}", saleId); outcome.Add("The bill PDF could not be made."); return outcome; }
         var file = $"Bill_{(b.SaleNo ?? saleId.ToString()).Replace('/', '-')}.pdf";
         var message = $"Dear {b.CustomerName ?? "Customer"}, thank you for your purchase at {h.Name}. Your bill {b.SaleNo} of ₹{b.NetAmount:N2} dated {b.SaleDate:dd MMM yyyy} is attached.";
+        // SQLScripts/2544: in the customer's language when a text exists for it (else the English above)
+        var waMessage = message;
+        (string Subject, string Html)? mail = null;
+        try
+        {
+            using var con = db.CreateConnection();
+            var langId = await NotifyLanguage.OfPatientAsync(con, b.PatientId) ?? await NotifyLanguage.OfMobileAsync(con, b.Mobile);
+            var values = new Dictionary<string, string?>
+            {
+                ["CustomerName"] = b.CustomerName ?? "Customer", ["PharmacyName"] = h.Name, ["BillNo"] = b.SaleNo,
+                ["Amount"] = b.NetAmount.ToString("N2"), ["BillDate"] = b.SaleDate.ToString("dd MMM yyyy")
+            };
+            waMessage = await NotifyLanguage.WhatsAppAsync(con, branchId, EMR.Common.NotifyText.PhBill, langId, values, message, logger);
+            if (!string.IsNullOrWhiteSpace(b.Email)) mail = await NotifyLanguage.EmailAsync(con, branchId, EMR.Common.NotifyText.PhBill, langId, values, h.Name, null, logger);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "[PH-BILL] language text not read for sale {Id} - sent in English", saleId); }
 
         // WhatsApp
         try
@@ -128,7 +144,7 @@ public class PharmacyBillNotifier(IPharmacySaleService sales, IPharmacyPurchaseS
                 if (string.IsNullOrWhiteSpace(url)) outcome.Add("WhatsApp: the PDF could not be uploaded.");
                 else
                 {
-                    var r = await whatsApp.SendTextMessageAsync(b.Mobile!, message, branchId, "PHR", saleId, url, file);
+                    var r = await whatsApp.SendTextMessageAsync(b.Mobile!, waMessage, branchId, "PHR", saleId, url, file);
                     outcome.Add(r.Success ? $"WhatsApp: sent to {b.Mobile}." : "WhatsApp: " + (r.ErrorMessage ?? "not accepted."));
                 }
             }
@@ -146,7 +162,7 @@ public class PharmacyBillNotifier(IPharmacySaleService sales, IPharmacyPurchaseS
                     heading: "Pharmacy bill", organisation: h.Name);
                 using var stream = new MemoryStream(pdf);
                 using var att = new Attachment(stream, file, "application/pdf");
-                var (ok, text) = await email.SendEmailAsync(branchId, b.Email!, $"Your pharmacy bill {b.SaleNo} - {h.Name}", body, [att]);
+                var (ok, text) = await email.SendEmailAsync(branchId, b.Email!, mail?.Subject ?? $"Your pharmacy bill {b.SaleNo} - {h.Name}", mail?.Html ?? body, [att]);
                 outcome.Add(ok ? $"E-mail: sent to {b.Email}." : "E-mail: " + text);
             }
         }

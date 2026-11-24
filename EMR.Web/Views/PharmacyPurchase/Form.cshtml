@@ -150,9 +150,10 @@
                 <label asp-permission="@(Model.PageCode):SAVE" class="btn btn-sm btn-primary py-0 mb-0" title="Read the supplier's bill (PDF or photo) and fill this form - you check it before saving">
                     <i class="bi bi-magic me-1"></i>Read bill<input type="file" id="readBillFile" accept=".pdf,.jpg,.jpeg,.png,.webp,.tif,.tiff" hidden /></label>
             }
-            @if ((k == "grn" || Model.Direct) && !ro)
+            @if ((k == "grn" || k == "po") && !ro)
             {
-                <label class="btn btn-sm btn-outline-primary py-0 mb-0" title="Distributor's bill as Excel / CSV"><i class="bi bi-file-earmark-arrow-up me-1"></i>Import lines<input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden /></label>
+                @* GRN and direct PO: the distributor's bill with batch / expiry / MRP; a plain PO: items, quantities and rates *@
+                <label class="btn btn-sm btn-outline-primary py-0 mb-0" title="@(k == "grn" || Model.Direct ? "Distributor's bill as Excel / CSV" : "Order lines from Excel / CSV (item, qty, free, rate, disc %, GST %)")"><i class="bi bi-file-earmark-arrow-up me-1"></i>Import lines<input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden /></label>
                 <button type="button" class="btn btn-sm btn-outline-secondary py-0" id="btnTemplate" title="Download the import template"><i class="bi bi-download"></i></button>
             }
             @if (!ro) { <span class="small text-muted ms-1"><span class="ph-kbd">F2</span> add · <span class="ph-kbd">Enter</span> next · @if (k == "grn" || Model.Direct) { <span class="ph-kbd">↑</span><span class="ph-kbd">↓</span> <text>expiry month ·</text> } <span class="ph-kbd">Ctrl+S</span> save</span> }
@@ -242,7 +243,7 @@
 
 @section Scripts {
 <script src="~/lib/tom-select/dist/js/tom-select.complete.min.js"></script>
-@if (k == "grn" || Model.Direct) { <script src="~/lib/xlsx/xlsx.full.min.js"></script> }
+@if ((k == "grn" || k == "po") && !ro) { <script src="~/lib/xlsx/xlsx.full.min.js"></script> }
 <script src="~/js/ph-gs1.js" asp-append-version="true"></script>
 <script src="~/js/pharmacy-doc.js" asp-append-version="true"></script>
 <script>

@@ -503,6 +503,13 @@
                             <input asp-for="AbhaAddress" class="form-control" maxlength="100" placeholder="name@abdm" />
                         </div>
                     }
+                    @* Beneficiary ID (SQLScripts/2534, 2535): shown and mandatory only for a company whose rate list is a government
+                       scheme (wwwroot/js/views/LabOrderBooking/b2b-govt-scheme.js); printed on that B2B bill *@
+                    <div class="col-12 col-sm-6 col-lg-3" id="divBeneficiaryId" style="display:none">
+                        <label asp-for="BeneficiaryId" class="form-label fw-semibold small">Beneficiary ID <span class="text-danger">*</span> <span class="badge bg-success-subtle text-success-emphasis fw-semibold" id="lblBeneficiaryScheme"></span></label>
+                        <input asp-for="BeneficiaryId" class="form-control" maxlength="50" autocomplete="off" placeholder="scheme beneficiary no." disabled />
+                        <span asp-validation-for="BeneficiaryId" class="text-danger small"></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1635,6 +1642,8 @@
                     else $('#ddlFranchise').select2('open');
                     return false;
                 }
+                // government scheme company: Beneficiary ID is mandatory (SQLScripts/2535)
+                if (window.B2BScheme && !window.B2BScheme.validate()) { e.preventDefault(); return false; }
 
                 // Phone Validation
                 var phone = ($('#phoneNumber').val() || '').trim();
@@ -2041,6 +2050,7 @@
             setVal('IdentificationNumber', p.identificationNumber || '');
             setVal('AbhaNumber', p.abhaNumber || '');
             setVal('AbhaAddress', p.abhaAddress || '');
+            setVal('BeneficiaryId', p.beneficiaryId || '');
             setVal('IdentificationFilePath', p.identificationFilePath || '');
             // the ID document already on record: Preview under "Upload ID Document"
             window.IdDocPreview?.set('idDocExisting', p.identificationFilePath || '');
@@ -2294,6 +2304,7 @@
         function onPartnerSelected(agentId) {
             currentAgentId = parseInt(agentId) || 0;
             $('#SelectedB2BAgentId').val(currentAgentId);
+            window.B2BScheme?.refresh(currentAgentType, currentAgentId);   // government scheme: Beneficiary ID (2535)
 
             if (currentAgentId > 0) {
                 var partnerName = currentAgentType === 'C' 
@@ -3477,6 +3488,7 @@
         }
     </script>
 <script src="~/js/views/LabOrderBooking/B2BBooking.js" asp-append-version="true"></script>
+    <script src="~/js/views/LabOrderBooking/b2b-govt-scheme.js" asp-append-version="true"></script>
     <script src="~/js/doctor-suspension.js" asp-append-version="true" data-url="@Url.Action("SuspensionStatus", "Doctors")"></script>   @* SQLScripts/2484 *@
 
     @if (await AiBillingFeatures.IsEnabledAsync(Context))

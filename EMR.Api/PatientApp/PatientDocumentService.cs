@@ -200,7 +200,7 @@ public sealed class PatientDocumentService(
             Title = "LAB Bill",
             Patient =
             [
-                ("Patient", vm.PatientName), ("Patient ID", vm.PatientCode),
+                ("Patient", vm.PatientName), ("Patient ID", vm.PatientCode), (string.IsNullOrWhiteSpace(vm.GovtSchemeName) ? "Beneficiary ID" : $"Beneficiary ID ({vm.GovtSchemeName})", vm.IsB2B && !string.IsNullOrWhiteSpace(vm.GovtSchemeName) ? vm.BeneficiaryId : null),
                 ("Age / Sex", string.Join(" / ", new[] { vm.FormattedAge, vm.Gender }.Where(x => !string.IsNullOrWhiteSpace(x)))),
                 ("Mobile", vm.PhoneNumber), ("Referred by", vm.ReferralDoctorName)
             ],

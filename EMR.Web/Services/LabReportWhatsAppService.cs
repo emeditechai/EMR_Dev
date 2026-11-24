@@ -153,6 +153,15 @@ public class LabReportWhatsAppService(
                 .Replace("{TokenNo}", state.TokenNo ?? "—")
                 .Trim();
 
+            // SQLScripts/2544: in the patient's language when a text exists for it (else the English above)
+            using (var langCon = db.CreateConnection())
+                message = await NotifyLanguage.WhatsAppAsync(langCon, state.BranchId, EMR.Common.NotifyText.LabReport, await NotifyLanguage.OfLabOrderAsync(langCon, labOrderId),
+                    new Dictionary<string, string?>
+                    {
+                        ["PatientName"] = state.PatientName ?? string.Empty, ["HospitalName"] = hospitalName, ["BillNo"] = state.BillNo ?? string.Empty,
+                        ["TokenNo"] = state.TokenNo ?? "—", ["Revised"] = claim.IsRevised ? "1" : null
+                    }, message, logger);
+
             // A WhatsApp message carries one document: the first report goes with the configured message,
             // a second one (the Microbiology Report of a bill that has both) follows with a short caption.
             var errors = new List<string>();

@@ -133,6 +133,7 @@ namespace EMR.Web.Controllers
                     model.IdentificationFilePath = patient.IdentificationFilePath;
                     model.AbhaNumber = patient.AbhaNumber;
                     model.AbhaAddress = patient.AbhaAddress;
+                    model.BeneficiaryId = patient.BeneficiaryId;
                     model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
                     model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
@@ -182,6 +183,21 @@ namespace EMR.Web.Controllers
                 {
                     var partnerTypeLabel = model.AgentType == "C" ? "Company" : "Franchise";
                     ModelState.AddModelError(nameof(model.B2BAgentId), $"Please select a {partnerTypeLabel}.");
+                }
+                // SQLScripts/2535: a company whose rate list is a government scheme (e.g. WBHS) needs the Beneficiary ID
+                else
+                {
+                    try
+                    {
+                        var scheme = await labOrderApiClient.GetB2BSchemeAsync(branchId.Value, model.AgentType ?? "F", model.B2BAgentId.Value);
+                        if (scheme.IsGovtScheme && string.IsNullOrWhiteSpace(model.BeneficiaryId))
+                            ModelState.AddModelError(nameof(model.BeneficiaryId), $"Beneficiary ID is required for {scheme.SchemeName ?? "the government scheme"} bills.");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "B2B booking: government scheme check failed");
+                        ModelState.AddModelError(string.Empty, "The company's rate list could not be checked. Please try again.");
+                    }
                 }
             }
 
@@ -357,6 +373,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
+                BeneficiaryId = model.BeneficiaryId,   // SQLScripts/2534/2535: posted only for a government scheme company; null keeps the stored value
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -552,6 +569,9 @@ namespace EMR.Web.Controllers
                 return View(model);
             }
             await labOrderApiClient.CreateSampleCollectionAsync(labOrderRes.LabOrderId, branchId.Value, patient.CompanyId, User.GetUserId());
+            // SQLScripts/2535: government scheme and Beneficiary ID on the order (printed on the B2B bill)
+            try { await labOrderApiClient.SetOrderSchemeAsync(labOrderRes.LabOrderId, model.BeneficiaryId); }
+            catch (Exception ex) { logger.LogError(ex, "B2B booking: scheme snapshot failed for order {LabOrderId}", labOrderRes.LabOrderId); }
             await SaveComplianceDocumentsAsync(labOrderRes.LabOrderId,
                 prescriptionFile, prescriptionRemarks, ovdDocumentFile, ovdDocumentRemarks, consentFile, consentRemarks);
 
@@ -743,6 +763,12 @@ namespace EMR.Web.Controllers
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
                                     string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
+                                    // SQLScripts/2543-2544: the bill e-mail in the patient's language when a text exists for it
+                                    if (await NotifyLanguage.EmailAsync(db.Database.GetDbConnection(), bId, EMR.Common.NotifyText.LabBill,
+                                            await NotifyLanguage.OfLabOrderAsync(db.Database.GetDbConnection(), savedLabOrderId),
+                                            EMR.Common.NotifyText.LabBillValues(patientNameStr, hs.HospitalName, savedBillNo, null, 0m, DateTime.Now, hs.Address),
+                                            hs.HospitalName, hs.Address, logger) is { } lang)
+                                        (subj, body) = lang;
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -867,6 +893,7 @@ namespace EMR.Web.Controllers
                     model.IdentificationFilePath = patient.IdentificationFilePath;
                     model.AbhaNumber = patient.AbhaNumber;
                     model.AbhaAddress = patient.AbhaAddress;
+                    model.BeneficiaryId = patient.BeneficiaryId;
                     model.Address = PatientAddress.Split(patient.Address).Address;   // the PIN is edited in its own field
                     model.Pincode = patient.Pincode ?? PatientAddress.Split(patient.Address).Pincode;
                     model.HomeCollectionAddress = patient.HomeCollectionAddress;
@@ -1061,6 +1088,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
+                BeneficiaryId = model.IsB2B ? (model.BeneficiaryId ?? "") : null,   // SQLScripts/2534: B2B booking only; B2C keeps the stored value
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -1422,6 +1450,7 @@ namespace EMR.Web.Controllers
                 IdentificationNumber = model.IdentificationNumber,
                 AbhaNumber = model.AbhaNumber,
                 AbhaAddress = model.AbhaAddress,
+                BeneficiaryId = model.IsB2B ? (model.BeneficiaryId ?? "") : null,   // SQLScripts/2534: B2B booking only; B2C keeps the stored value
                 ReligionId = model.ReligionId,
                 GuardianName = model.GuardianName,
                 CountryId = model.CountryId,
@@ -1659,6 +1688,8 @@ namespace EMR.Web.Controllers
             var safeBillNo = savedBillNo?.Replace("/", "_").Replace("\\", "_");
             var patientEmail = patient.EmailId;
             var patientNameStr = patientFullName;
+            var patientLanguageId = patient.LanguageId;            // SQLScripts/2543: notices in the patient's language
+            var savedTokenNo = labOrderRes.TokenNo;
             
             if (savedLabOrderId > 0)
             {
@@ -1737,6 +1768,11 @@ namespace EMR.Web.Controllers
                                 {
                                     string subj = $"Your Lab Order Bill [{savedBillNo}] - {hs.HospitalName}";
                                     string body = LabBillEmail.Body(hs.HospitalName, patientNameStr, savedBillNo, hs.Address);
+                                    // SQLScripts/2543-2544: the bill e-mail in the patient's language when a text exists for it
+                                    if (await NotifyLanguage.EmailAsync(db.Database.GetDbConnection(), bId, EMR.Common.NotifyText.LabBill, patientLanguageId,
+                                            EMR.Common.NotifyText.LabBillValues(patientNameStr, hs.HospitalName, savedBillNo, savedTokenNo, 0m, DateTime.Now, hs.Address),
+                                            hs.HospitalName, hs.Address, logger) is { } lang)
+                                        (subj, body) = lang;
 
                                     if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                     {
@@ -2900,6 +2936,16 @@ namespace EMR.Web.Controllers
             decimal value = p.Get<decimal>("@ValueRs");
             var text = $"Dear {name}, your OTP to redeem {request.Points:0} membership points (Rs {value:0.00}) on card {cardNo} is {code}. " +
                        "It is valid for 10 minutes. Do not share it with anyone except the billing counter.";
+            // SQLScripts/2545: in the card holder's language when a text exists for it (else the English above / below)
+            var otpCon = dbContext.Database.GetDbConnection();
+            var otpLang = await NotifyLanguage.OfCardHolderAsync(otpCon, request.CardId);
+            var otpValues = new Dictionary<string, string?>
+            {
+                ["CardHolderName"] = name, ["Points"] = request.Points.ToString("0"), ["PointsValue"] = value.ToString("0.00"), ["CardNo"] = cardNo, ["Code"] = code
+            };
+            text = await NotifyLanguage.WhatsAppAsync(otpCon, branchId, EMR.Common.NotifyText.MemRedeemOtp, otpLang, otpValues, text, logger);
+            var otpMail = string.IsNullOrWhiteSpace(email) ? null
+                : await NotifyLanguage.EmailAsync(otpCon, branchId, EMR.Common.NotifyText.MemRedeemOtp, otpLang, otpValues, null, null, logger);
 
             var channels = new List<string>();
             try
@@ -2914,8 +2960,8 @@ namespace EMR.Web.Controllers
                 try
                 {
                     var (ok, _) = await HttpContext.RequestServices.GetRequiredService<IEmailService>()
-                        .SendEmailAsync(branchId, email!, $"OTP to redeem membership points - card {cardNo}",
-                            EmailLayout.Wrap(
+                        .SendEmailAsync(branchId, email!, otpMail?.Subject ?? $"OTP to redeem membership points - card {cardNo}",
+                            otpMail?.Html ?? EmailLayout.Wrap(
                                 EmailLayout.Greeting(name ?? "Member")
                                 + EmailLayout.P($"Your OTP to redeem <strong>{request.Points:0} points</strong> (Rs {value:0.00}) on membership card <strong>{System.Net.WebUtility.HtmlEncode(cardNo)}</strong> is:")
                                 + $"<p style=\"margin:20px 0;text-align:center;\"><span style=\"display:inline-block;font-size:28px;font-weight:800;letter-spacing:8px;color:{EmailLayout.Purple};background:#f5f1fa;border:1px dashed {EmailLayout.Purple};border-radius:8px;padding:10px 22px;\">{code}</span></p>"
@@ -3120,6 +3166,8 @@ namespace EMR.Web.Controllers
                 // Patient
                 PatientName  = detail.PatientName,
                 PatientCode  = detail.PatientCode,
+                BeneficiaryId = detail.BeneficiaryId,
+                GovtSchemeName = detail.GovtSchemeName,
                 PhoneNumber  = detail.PhoneNumber,
                 EmailId      = detail.EmailId,
                 Gender       = detail.Gender,
@@ -3414,6 +3462,23 @@ namespace EMR.Web.Controllers
         }
 
         #region ── B2B Billing, Credit Policy, Invoicing & Multi-Bill Settlement ──
+
+        [HttpGet]
+        public async Task<IActionResult> GetB2BScheme(string agentType, int agentId)
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (branchId is null || agentId <= 0 || string.IsNullOrWhiteSpace(agentType)) return Json(new { success = false });
+            try
+            {
+                var s = await labOrderApiClient.GetB2BSchemeAsync(branchId.Value, agentType, agentId);
+                return Json(new { success = true, isGovtScheme = s.IsGovtScheme, schemeName = s.SchemeName });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "GetB2BScheme failed");
+                return Json(new { success = false });
+            }
+        }
 
         [HttpGet]
         public async Task<IActionResult> GetPartnerCreditStatus(string agentType, int agentId)

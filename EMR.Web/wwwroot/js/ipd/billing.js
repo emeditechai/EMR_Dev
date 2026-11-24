@@ -199,7 +199,9 @@
             ${(t.ItemDiscount + t.BillDiscount) > 0 ? `<tr><td colspan="5" class="text-end">Discount${t.BillDiscount > 0 ? ` (bill ${Ipd.money(t.BillDiscount)})` : ''}</td><td class="text-end">- ${Ipd.num(t.ItemDiscount + t.BillDiscount)}</td></tr>` : ''}
             ${t.Gst > 0 ? `<tr><td colspan="5" class="text-end">GST</td><td class="text-end">${Ipd.num(t.Gst)}</td></tr>` : ''}
             ${t.RoundOff ? `<tr><td colspan="5" class="text-end">Round off</td><td class="text-end">${Ipd.num(t.RoundOff)}</td></tr>` : ''}
-            <tr><td colspan="5" class="text-end fw-bold">Bill amount</td><td class="text-end fw-bold">${Ipd.money(t.Net)}</td></tr>`;
+            <tr><td colspan="5" class="text-end fw-bold">Bill amount</td><td class="text-end fw-bold">${Ipd.money(t.Net)}</td></tr>
+            ${t.PayerShare > 0 ? `<tr><td colspan="5" class="text-end">Less: TPA / insurance share${t.PayerName ? ' (' + Ipd.esc(t.PayerName) + ')' : ''}${t.CoPayAmount > 0 ? ` · co-pay ${Ipd.money(t.CoPayAmount)}` : ''}</td><td class="text-end">- ${Ipd.num(t.PayerShare)}</td></tr>
+                <tr><td colspan="5" class="text-end fw-bold">Patient's share</td><td class="text-end fw-bold">${Ipd.money(t.PatientShare)}</td></tr>` : ''}`;
         const prints = [];
         if (billed) prints.push(`<a class="btn btn-sm btn-light border" target="_blank" href="${url}PrintBill/${t.BillId}"><i class="bi bi-printer me-1"></i>Bill</a>`, `<a class="btn btn-sm btn-light border" target="_blank" href="${url}PrintBill/${t.BillId}?format=detail"><i class="bi bi-list-ul me-1"></i>Detailed</a>`);
         else if (can.estimate) prints.push(`<a class="btn btn-sm btn-light border" target="_blank" href="${B.estBase}Print/${B.id}?format=head"><i class="bi bi-printer me-1"></i>Interim bill</a>`);
@@ -211,6 +213,7 @@
             $('bbSub').textContent = `Made ${Ipd.dt(t.BillAt)} · billed up to ${Ipd.dt(t.UpTo)}`;
             $('bbBody').innerHTML = `<table class="table table-sm mb-0"><tbody>
                 <tr><td>Bill amount</td><td class="text-end fw-semibold">${Ipd.money(t.Net)}</td></tr>
+                ${t.PayerShare > 0 ? `<tr><td>TPA / insurance share (claim)</td><td class="text-end">${Ipd.money(t.PayerShare)}</td></tr><tr><td>Patient's share</td><td class="text-end fw-semibold">${Ipd.money(t.PatientShare)}</td></tr>` : ''}
                 <tr><td>Advance adjusted</td><td class="text-end">${Ipd.money(t.AdvanceAdjusted)}</td></tr>
                 ${t.SettleTotal > 0 ? `<tr><td>Paid against the bill</td><td class="text-end">${Ipd.money(t.SettleTotal)}</td></tr>` : ''}
                 <tr><td class="fw-bold">${t.RefundDue > 0 ? 'Refundable' : 'Balance due'}</td><td class="text-end fw-bold ${t.BalanceDue > 0 ? 'text-danger' : 'text-success'}">${Ipd.money(t.RefundDue > 0 ? t.RefundDue : t.BalanceDue)}</td></tr></tbody></table>`;
@@ -225,7 +228,9 @@
             $('fbMsg').innerHTML = t.Error ? `<span class="text-danger">${Ipd.esc(t.Error)}</span>`
                 : t.NoTariff ? '<span class="text-danger">A bed day has no tariff: add the rate (Master › IPD › Bed / Room Tariff) before the final bill.</span>'
                 : !can.finalBill ? '<span class="text-muted">Making the final bill needs the IPD Patient › Final bill permission.</span>'
-                : !chargeable() ? '<span class="text-muted">The stay is closed.</span>' : '';
+                : !chargeable() ? '<span class="text-muted">The stay is closed.</span>'
+                : ['REQUESTED', 'QUERY', 'ENHANCE_REQUESTED', 'FINAL_REQUESTED'].includes(t.PreAuthStatus) ? '<span class="text-warning">The pre-authorisation waits for the TPA: record its answer on the Insurance / TPA tab before the final bill.</span>'
+                : t.PayerShare > 0 ? `<span class="text-muted">The TPA / insurance pays ${Ipd.money(t.PayerShare)} of this bill (a claim is made with the final bill).</span>` : '';
         }
     }
     function billQuery() {
@@ -248,7 +253,7 @@
             await loadBill();
             const t = (preview.totals || [])[0] || {};
             if (t.Error) return Ipd.error(t.Error);
-            const html = `Bill amount <b>${Ipd.money(t.Net)}</b>${t.BillDiscount > 0 ? ` after a discount of ${Ipd.money(t.BillDiscount)}` : ''}.<br>Advance adjusted ${Ipd.money(t.AdvanceAdjusted)}; ${t.RefundDue > 0 ? 'refundable ' + Ipd.money(t.RefundDue) : 'balance due ' + Ipd.money(t.BalanceDue)}.<br><small class="text-muted">No charges can be added after this (cancel the bill to reopen).</small>`;
+            const html = `Bill amount <b>${Ipd.money(t.Net)}</b>${t.BillDiscount > 0 ? ` after a discount of ${Ipd.money(t.BillDiscount)}` : ''}.<br>${t.PayerShare > 0 ? `TPA / insurance share <b>${Ipd.money(t.PayerShare)}</b> (claim), patient's share <b>${Ipd.money(t.PatientShare)}</b>.<br>` : ''}Advance adjusted ${Ipd.money(t.AdvanceAdjusted)}; ${t.RefundDue > 0 ? 'refundable ' + Ipd.money(t.RefundDue) : 'balance due ' + Ipd.money(t.BalanceDue)}.<br><small class="text-muted">No charges can be added after this (cancel the bill to reopen).</small>`;
             if (!await Ipd.confirm('Make the final bill?', html, 'Make final bill')) return;
             const b = $('fbSave'); b.disabled = true;
             try {

@@ -56,6 +56,7 @@ public class ServiceBookingDetail
     public string?  OPDBillNo             { get; set; }
     public string?  TokenNo               { get; set; }
     public string   PatientCode           { get; set; } = string.Empty;
+    public string? BeneficiaryId { get; set; }   // PatientMaster.BeneficiaryId (SQLScripts/2534)
     public string   PatientName           { get; set; } = string.Empty;
     public string?  PhoneNumber           { get; set; }
     public string?  Gender                { get; set; }

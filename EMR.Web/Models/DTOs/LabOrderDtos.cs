@@ -210,6 +210,8 @@ namespace EMR.Web.Models.DTOs
         public string? CreatedByName { get; set; }
         public string? CreatedByUsername { get; set; }
         public string? PatientCode { get; set; }
+        public string? BeneficiaryId { get; set; }   // LAB B2B government scheme order: LabOrder.Beneficiary_ID (SQLScripts/2535)
+        public string? GovtSchemeName { get; set; }   // LabOrder.Govt_Scheme_Name (2535); null = not a scheme order
         public string? PatientName { get; set; }
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
@@ -457,6 +459,14 @@ namespace EMR.Web.Models.DTOs
         public List<CancellationHistoryItemDto> Cancellations { get; set; } = new();
         public List<CancellationHistoryLineItemDto> CancellationItems { get; set; } = new();
         public List<RefundHistoryItemDto> Refunds { get; set; } = new();
+    }
+
+    // LAB B2B government scheme (SQLScripts/2535)
+    public class LabB2BSchemeDto
+    {
+        public int? RateCard_ID { get; set; }
+        public bool IsGovtScheme { get; set; }
+        public string? SchemeName { get; set; }
     }
 }
 

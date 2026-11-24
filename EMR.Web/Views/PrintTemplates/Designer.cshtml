@@ -91,7 +91,7 @@
             </div>
             <div class="small text-muted mt-3"><i class="bi bi-hand-index me-1"></i>Click any part of the header or footer to select it, then change it on the right. Empty fields of a branch are skipped when printing.</div>
             <div class="small text-muted mt-2"><i class="bi bi-rulers me-1"></i>Sizes are real print sizes (pt / mm): the header and footer print exactly this size on A4 and A5 bills and in the lab report PDF.</div>
-            <div class="small text-muted mt-2"><i class="bi bi-arrows-move me-1"></i><strong>Drag on the page:</strong> a block anywhere to place it (drop it on another column to move it there; hold Alt to re-order in its column) · the edge between columns for width · the bottom edge of a logo, image, barcode or space for height · the ⋮⋮ grip to move a row · the purple bar under the header / footer for its height.</div>
+            <div class="small text-muted mt-2"><i class="bi bi-arrows-move me-1"></i><strong>Drag on the page:</strong> a block anywhere to place it (drop it on another column to move it there; hold Alt to re-order in its column) · the edge between columns for width · the side edge of any block for its own width (double-click: full width) · the bottom-left edge of a row for its height · the bottom edge of a logo, image, barcode or space for height · the ⋮⋮ grip to move a row · the purple bar under the header / footer for its height.</div>
             <div class="small text-muted mt-2"><i class="bi bi-keyboard me-1"></i><strong>Keys</strong> (after clicking a block): arrows move it 0.5 mm, Shift + arrows 5 mm · Alt + arrows: up / down a place or into the next column · Delete removes it · Esc selects its column · Ctrl / ⌘ + Z undo. A selected row: ↑ ↓ move it.</div>
             @if (Model.Versions.Count > 0)
             {
@@ -118,6 +118,7 @@
 </div>
 
 <form id="pdToken">@Html.AntiForgeryToken()</form>
+<link rel="stylesheet" href="~/css/views/PrintTemplates/Designer.css" asp-append-version="true" />
 
 <style>
     .pd-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr) 280px; gap: 12px; align-items: start; }
@@ -161,6 +162,7 @@
 </style>
 
 @section Scripts {
+<script src="~/js/views/PrintTemplates/designer-resize.js" asp-append-version="true"></script>
 <script>
 (function () {
     const KIND = '@Model.Kind', ID = @Model.TemplateId, CAN_MANAGE = @(canManage ? "true" : "false");
@@ -217,6 +219,8 @@
     }
     function addDragHandles() {
         const canvas = $('#pdCanvas');
+        // block width / row height: wwwroot/js/views/PrintTemplates/designer-resize.js
+        window.PdResize?.attach(canvas, { parse, change, track, handle, render, pxPerMm, select: p => selected = p });
         // 1. column width: the edge between two columns - any width the user drags to (0.1% steps)
         canvas.querySelectorAll('.ptpl-row[data-path]').forEach(rowEl => {
             const cols = [...rowEl.querySelectorAll(':scope > .ptpl-col')];
@@ -524,6 +528,7 @@
                         ${b.type !== 'pageinfo' ? `<div class="col-5 small pb-1"><label><input type="checkbox" data-set="style" data-on="badge" data-off="plain" ${b.style === 'badge' ? 'checked' : ''}> Pill</label></div>` : ''}
                     </div>`;
             }
+            if (['field', 'text', 'pageinfo', 'logo', 'image'].includes(b.type)) h += `<label class="form-label">Width (% of the column) <span class="text-muted fw-normal">- or drag its side edge</span></label><input type="number" min="5" max="100" step="0.5" class="form-control form-control-sm mb-2" data-set="widthPct" value="${b.widthPct || 100}">`;
             if (['logo', 'image', 'barcode', 'spacer'].includes(b.type)) h += `<label class="form-label">Height (mm)</label><input type="number" min="2" max="60" step="1" class="form-control form-control-sm mb-2" data-set="heightMm" value="${b.heightMm || ''}">`;
             if (b.type === 'image') h += `<label class="form-label">Image (PNG / JPG, up to 2 MB)</label><input type="file" accept=".png,.jpg,.jpeg" class="form-control form-control-sm mb-2" id="pdImage">
                 ${b.imageUrl ? `<img src="${esc(b.imageUrl)}" style="max-height:48px" class="mb-2 border rounded">` : ''}`;
@@ -557,7 +562,8 @@
             if (Math.abs(total - 12) > 0.01) h += `<div class="small text-warning mt-2"><i class="bi bi-exclamation-triangle"></i> The columns of this row add up to ${pctOf(total)}% of the row.
                 <button class="btn btn-link btn-sm p-0 align-baseline" data-act="fitrow">Make them fill 100%</button></div>`;
         } else if (s.level === 'row') {
-            h += `<div class="pd-pane-title">Row</div>${where}${moveBar('row')}`;
+            h += `<div class="pd-pane-title">Row</div>${where}${moveBar('row')}
+                <label class="form-label mt-2">Lowest height (mm) <span class="text-muted fw-normal">- or drag its bottom-left edge; 0 = as tall as its content</span></label><input type="number" min="0" max="60" step="0.5" class="form-control form-control-sm mb-2" data-set="minHeightMm" value="${s.row.minHeightMm || 0}">`;
         }
         // band settings are always shown under the selection
         const band = s.band, bk = s.bandKey === 'f' ? 'Footer' : 'Header';
@@ -615,7 +621,7 @@
             return;
         }
         const k = el.dataset.set; if (!k || k === 'align') return;
-        const target = s.level === 'block' ? s.block : s.col; if (!target) return;
+        const target = s.level === 'block' ? s.block : s.level === 'col' ? s.col : s.row; if (!target) return;
         let v = el.type === 'checkbox' ? (el.dataset.on ? (el.checked ? el.dataset.on : el.dataset.off) : el.checked) : el.type === 'number' || k === 'span' || k === 'letterSpacing' ? +el.value : el.value;
         history.push(JSON.stringify(layout)); target[k] = v; dirty = true; $('#pdState').textContent = 'Unsaved changes'; render();
         if (rerenderProps && (el.type === 'checkbox' || el.tagName === 'SELECT')) props();

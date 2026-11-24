@@ -204,6 +204,8 @@ namespace EMR.Api.Models
         public string? CreatedByName { get; set; }
         public string? CreatedByUsername { get; set; }
         public string? PatientCode { get; set; }
+        public string? BeneficiaryId { get; set; }   // LAB B2B government scheme order: LabOrder.Beneficiary_ID (SQLScripts/2535)
+        public string? GovtSchemeName { get; set; }   // LabOrder.Govt_Scheme_Name (2535); null = not a scheme order
         public string? PatientName { get; set; }
         public string? PhoneNumber { get; set; }
         public string? EmailId { get; set; }
@@ -265,5 +267,18 @@ namespace EMR.Api.Models
         public string? Notes { get; set; }
         public string? ReceivedByName { get; set; }
         public bool IsDueCollection { get; set; }
+    }
+
+    // LAB B2B government scheme (SQLScripts/2535)
+    public class LabB2BSchemeDto
+    {
+        public int? RateCard_ID { get; set; }
+        public bool IsGovtScheme { get; set; }
+        public string? SchemeName { get; set; }
+    }
+
+    public class LabOrderSchemeRequest
+    {
+        public string? BeneficiaryId { get; set; }
     }
 }

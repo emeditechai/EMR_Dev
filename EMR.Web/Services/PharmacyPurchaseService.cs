@@ -7,6 +7,107 @@ namespace EMR.Web.Services;
 // Quantities on indent / PO / GRN are in purchase units (packs); stock and returns are in sale units.
 // Amounts are always worked out here (the page only previews them); GRN and return posting is in stored procedures.
 
+// ── Auto indent (SQLScripts/2538): rules per item, raised by PharmacyAutoIndentWorker / "Run now" ──
+public class PhAutoIndentSettings
+{
+    public bool Enabled { get; set; }
+    public int SalesDays { get; set; }
+    public int SafetyDays { get; set; }
+    public int CoverDays { get; set; }
+    public DateTime? LastCheckAt { get; set; }
+    public int Rules { get; set; }
+    public int ActiveRules { get; set; }
+    public int DueNow { get; set; }
+    public int AwaitingApproval { get; set; }
+}
+
+public class PhAutoIndentRow
+{
+    public int ItemId { get; set; }
+    public string? ItemCode { get; set; }
+    public string? ItemName { get; set; }
+    public string? FormShort { get; set; }
+    public string? Strength { get; set; }
+    public string? PackSize { get; set; }
+    public string? GenericName { get; set; }
+    public string? PurchaseUom { get; set; }
+    public int LeadDays { get; set; }
+    public decimal StockPacks { get; set; }
+    public decimal OnOrder { get; set; }
+    public decimal OpenIndent { get; set; }
+    public decimal Available { get; set; }
+    public decimal ReorderLevel { get; set; }
+    public decimal MaxQty { get; set; }
+    public int? RuleId { get; set; }
+    public int? SupplierId { get; set; }
+    public string? SupplierName { get; set; }
+    public string? QtyMode { get; set; }
+    public decimal? FixedQty { get; set; }
+    public bool RuleActive { get; set; }
+    public bool IsDue { get; set; }
+    public decimal NextQty { get; set; }
+    public DateTime? LastIndentDate { get; set; }
+    public string? LastIndentNo { get; set; }
+    public int? LastSupplierId { get; set; }
+    public string? LastSupplierName { get; set; }
+    public decimal AvgDaily { get; set; }
+    public decimal? SuggReorderLevel { get; set; }
+    public decimal? SuggMaxQty { get; set; }
+}
+
+public class PhAutoIndentRuleInput
+{
+    public int ItemId { get; set; }
+    public int? SupplierId { get; set; }
+    public decimal ReorderLevel { get; set; }
+    public decimal MaxQty { get; set; }
+    public string? QtyMode { get; set; }
+    public decimal? FixedQty { get; set; }
+    public bool IsActive { get; set; } = true;
+    public bool Remove { get; set; }
+}
+
+public class PhAutoIndentRunResult
+{
+    public string? Message { get; set; }
+    public int ItemsChecked { get; set; }
+    public int LinesRaised { get; set; }
+    public int IndentsNew { get; set; }
+    public int IndentsAdded { get; set; }
+    public bool IsError { get; set; }
+    public List<PhAutoIndentRaised> Indents { get; set; } = [];
+}
+
+public class PhAutoIndentRaised
+{
+    public int IndentId { get; set; }
+    public string? IndentNo { get; set; }
+    public int SupplierId { get; set; }
+    public string? SupplierName { get; set; }
+    public int Lines { get; set; }
+    public bool IsNew { get; set; }
+}
+
+public class PhAutoIndentLogRow
+{
+    public int LogId { get; set; }
+    public DateTime RunAt { get; set; }
+    public string? RunType { get; set; }
+    public int ItemsChecked { get; set; }
+    public int LinesRaised { get; set; }
+    public int IndentsNew { get; set; }
+    public int IndentsAdded { get; set; }
+    public string? Message { get; set; }
+    public bool IsError { get; set; }
+    public string? RunBy { get; set; }
+}
+
+public class PhAutoIndentBranch
+{
+    public int BranchId { get; set; }
+    public int CompanyId { get; set; }
+}
+
 // ── Auto Reorder / supplier schemes (SQLScripts/2403) ──
 public class PhReorderSettings
 {
@@ -399,6 +500,12 @@ public interface IPharmacyPurchaseService
     Task<(PhReorderSettings Settings, List<PhReorderRow> Rows)> AutoReorderAsync(int companyId, int branchId, int? supplierId, int? categoryId, bool showAll);
     Task<(List<PhReorderCreated> Created, string? Error)> AutoReorderCreatePosAsync(int companyId, int branchId, List<PhReorderLine> lines, int userId);
     Task<PhSchemeFree> SchemeFreeAsync(int companyId, int branchId, int supplierId, int itemId, decimal qty);
+    // auto indent (SQLScripts/2538)
+    Task<(PhAutoIndentSettings Settings, List<PhAutoIndentRow> Rows)> AutoIndentListAsync(int companyId, int branchId, int? supplierId, int? categoryId, string filter, string? search);
+    Task<List<string>> AutoIndentSaveRulesAsync(int companyId, int branchId, List<PhAutoIndentRuleInput> rules, int userId);
+    Task<PhAutoIndentRunResult> AutoIndentRunAsync(int companyId, int branchId, int? userId, bool manual);
+    Task<List<PhAutoIndentLogRow>> AutoIndentLogAsync(int companyId, int branchId);
+    Task<List<PhAutoIndentBranch>> AutoIndentBranchesAsync();
     Task<(int Id, string? Error)> SaveIndentAsync(int companyId, int branchId, PhDoc d, int userId);
     Task<string?> IndentActionAsync(int companyId, int branchId, int id, string action, string? remarks, int userId);
 
@@ -588,6 +695,44 @@ public class PharmacyPurchaseService(PharmacyApiClient api) : IPharmacyPurchaseS
     public async Task<PhSchemeFree> SchemeFreeAsync(int companyId, int branchId, int supplierId, int itemId, decimal qty) =>
         (await api.GetAsync<List<PhSchemeFree>>($"{Base}/scheme-free" + Q(("companyId", companyId), ("branchId", branchId), ("supplierId", supplierId), ("itemId", itemId), ("qty", qty))))
             .FirstOrDefault() ?? new PhSchemeFree();
+
+    // ── auto indent (SQLScripts/2538) ──
+    public async Task<(PhAutoIndentSettings Settings, List<PhAutoIndentRow> Rows)> AutoIndentListAsync(int companyId, int branchId, int? supplierId, int? categoryId, string filter, string? search)
+    {
+        filter = filter is "DUE" or "NORULE" or "ALL" ? filter : "RULES";
+        var sets = await api.GetAsync<List<List<JsonElement>>>($"{Base}/auto-indent" +
+            Q(("companyId", companyId), ("branchId", branchId), ("supplierId", supplierId), ("categoryId", categoryId), ("filter", filter), ("search", search)));
+        var settings = sets.Count > 0 && sets[0].Count > 0 ? sets[0][0].Deserialize<PhAutoIndentSettings>(PharmacyApiClient.Json)! : new PhAutoIndentSettings();
+        var rows = sets.Count > 1 ? sets[1].Select(e => e.Deserialize<PhAutoIndentRow>(PharmacyApiClient.Json)!).ToList() : [];
+        return (settings, rows);
+    }
+
+    public async Task<List<string>> AutoIndentSaveRulesAsync(int companyId, int branchId, List<PhAutoIndentRuleInput> rules, int userId)
+    {
+        rules = rules.Where(r => r.ItemId > 0).GroupBy(r => r.ItemId).Select(g => g.Last()).ToList();
+        if (rules.Count == 0) return ["Nothing to save."];
+        if (rules.Count > 2000) return ["Up to 2000 items at a time."];
+        var rows = await api.PostAsync<List<JsonElement>>($"{Base}/auto-indent/rules", new
+        {
+            companyId, branchId, userId,
+            Rules = Json(rules.Select(r => new { r.ItemId, r.SupplierId, r.ReorderLevel, r.MaxQty, QtyMode = r.QtyMode == "FIXED" ? "FIXED" : "MAX", r.FixedQty, r.IsActive, r.Remove }))
+        });
+        return rows.Select(e => e.TryGetProperty("error", out var v) || e.TryGetProperty("Error", out v) ? v.GetString() : null)
+                   .Where(m => !string.IsNullOrWhiteSpace(m)).Select(m => m!).ToList();
+    }
+
+    public async Task<PhAutoIndentRunResult> AutoIndentRunAsync(int companyId, int branchId, int? userId, bool manual)
+    {
+        var sets = await api.PostAsync<List<List<JsonElement>>>($"{Base}/auto-indent/run", new { companyId, branchId, userId, RunType = manual ? "MANUAL" : "AUTO" });
+        var res = sets.Count > 0 && sets[0].Count > 0 ? sets[0][0].Deserialize<PhAutoIndentRunResult>(PharmacyApiClient.Json)! : new PhAutoIndentRunResult { Message = "No answer from the server.", IsError = true };
+        res.Indents = sets.Count > 1 ? sets[1].Select(e => e.Deserialize<PhAutoIndentRaised>(PharmacyApiClient.Json)!).ToList() : [];
+        return res;
+    }
+
+    public Task<List<PhAutoIndentLogRow>> AutoIndentLogAsync(int companyId, int branchId) =>
+        api.GetAsync<List<PhAutoIndentLogRow>>($"{Base}/auto-indent/log" + Q(("companyId", companyId), ("branchId", branchId)));
+
+    public Task<List<PhAutoIndentBranch>> AutoIndentBranchesAsync() => api.GetAsync<List<PhAutoIndentBranch>>($"{Base}/auto-indent/branches");
 
     public Task<List<PhTxnItem>> ReorderSuggestAsync(int companyId, int branchId) =>
         api.GetAsync<List<PhTxnItem>>($"{Base}/reorder" + Q(("companyId", companyId), ("branchId", branchId)));

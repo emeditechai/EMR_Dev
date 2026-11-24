@@ -1,0 +1,48 @@
+@{
+    // IPD > TPA Receivable & Ageing (Phase 6, SQLScripts/2539-2542): outstanding claims by TPA in age buckets, the claims behind them,
+    // and the TPA statement (receivable ledger from the claims). js/ipd/tpa-ageing.js
+    ViewData["Title"] = "TPA Receivable & Ageing";
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-tpa.css" asp-append-version="true" />
+}
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-hourglass-split me-2 text-primary"></i>TPA Receivable &amp; Ageing</h2>
+        <p>What each insurer / TPA still owes on IPD claims, by age. Click a TPA for its claims and statement.</p></div>
+    <div class="d-flex gap-2 flex-wrap align-items-center no-print">
+        <label class="small text-muted">As of</label><input type="date" id="fAsOf" class="form-control form-control-sm" style="width:auto" />
+        <select id="fBasis" class="form-select form-select-sm" style="width:auto"><option value="BILL">Age from the bill date</option><option value="SUBMIT">Age from the submission date</option></select>
+        <select id="fTpa" class="form-select form-select-sm" style="width:auto"><option value="">All insurers / TPAs</option></select>
+        <button type="button" class="btn btn-sm btn-light border" id="reload" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-success" id="csv"><i class="bi bi-filetype-csv me-1"></i>Export</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i></button>
+    </div>
+</div>
+<div class="reg-section"><div class="reg-section-body p-0"><div class="table-responsive">
+    <table class="table ipd-table table-hover mb-0">
+        <thead><tr><th>Insurer / TPA</th><th class="text-end">Claims</th><th class="text-end">0-30</th><th class="text-end">31-60</th><th class="text-end">61-90</th><th class="text-end">91-180</th><th class="text-end">180+</th><th class="text-end">Outstanding</th><th class="text-end">Write-off pending</th><th class="text-end">Oldest</th><th class="no-print"></th></tr></thead>
+        <tbody id="tpaRows"><tr><td colspan="11" class="text-muted small p-3">Loading…</td></tr></tbody><tfoot id="tpaFoot"></tfoot>
+    </table></div></div></div>
+<div class="reg-section"><div class="reg-section-header"><div class="sec-icon blue"><i class="bi bi-list-ul"></i></div><div class="flex-grow-1"><h6 class="fw-bold mb-0" id="clTitle">Outstanding claims</h6></div></div>
+    <div class="reg-section-body p-0"><div class="table-responsive"><table class="table ipd-table mb-0">
+        <thead><tr><th>Claim</th><th>Patient</th><th>Insurer / TPA</th><th>Bill</th><th>Submitted</th><th>Status</th><th class="text-end">Claim</th><th class="text-end">Outstanding</th><th class="text-end">Age</th><th>Bucket</th></tr></thead>
+        <tbody id="clRows"></tbody></table></div></div></div>
+
+<div class="modal fade" id="stModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header py-2"><h5 class="modal-title" id="stTitle">Statement</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+        <div class="modal-body">
+            <div class="d-flex gap-2 align-items-center mb-2 no-print"><label class="small">From</label><input type="date" id="stFrom" class="form-control form-control-sm" style="width:auto" />
+                <label class="small">To</label><input type="date" id="stTo" class="form-control form-control-sm" style="width:auto" />
+                <button type="button" class="btn btn-sm btn-primary" id="stLoad">Show</button><button type="button" class="btn btn-sm btn-outline-success" id="stCsv"><i class="bi bi-filetype-csv me-1"></i>Export</button></div>
+            <div id="stBody"></div>
+        </div>
+    </div></div>
+</div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.AgeingPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdClaims/") }));</script>
+    <script src="~/js/ipd/tpa-common.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/tpa-ageing.js" asp-append-version="true"></script>
+}

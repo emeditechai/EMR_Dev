@@ -134,6 +134,16 @@ public sealed class OpdBookingNotifier(IServiceScopeFactory scopeFactory) : IOpd
                                     .Replace("{{HospitalName}}", hospitalName);
                                 var subject = FillBooking(template.Subject);
                                 var htmlBody = FillBooking(template.HtmlBody);
+                                // SQLScripts/2544: in the patient's language when a text exists for it (else the template above)
+                                var langCon = db.Database.GetDbConnection();
+                                if (await NotifyLanguage.EmailAsync(langCon, activeBranchId, EMR.Common.NotifyText.OpdBooking, await NotifyLanguage.OfPatientAsync(langCon, booking.PatientId),
+                                        new Dictionary<string, string?>
+                                        {
+                                            ["PatientName"] = $"{patient?.FirstName} {patient?.LastName}".Trim(), ["HospitalName"] = hospitalName, ["DoctorName"] = doctorName ?? "",
+                                            ["VisitDate"] = booking.VisitDate.ToString("dd-MMM-yyyy"), ["SlotTime"] = slotTimeStr, ["TokenNo"] = booking.TokenNo ?? "Pending",
+                                            ["TotalAmount"] = booking.TotalAmount?.ToString("0.00") ?? "0.00"
+                                        }, hospitalName, hospital?.Address) is { } lang)
+                                    (subject, htmlBody) = lang;
 
                                 if (!string.IsNullOrEmpty(tempPdfPath) && System.IO.File.Exists(tempPdfPath))
                                 {

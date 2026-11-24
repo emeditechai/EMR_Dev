@@ -123,6 +123,15 @@ public sealed class PatientPortalLoginService(
         var baseUrl = await emailService.GetApplicationBaseUrlAsync(branchId);
         var portalUrl = string.IsNullOrWhiteSpace(baseUrl) ? null : $"{baseUrl}/PatientPortal/Login";
 
+        // SQLScripts/2544: in the patient's language when a text exists for it (else the English below)
+        var langCon = dbContext.Database.GetDbConnection();
+        var langId = await NotifyLanguage.OfPatientCodeAsync(langCon, branchId, patientCode);
+        var langValues = new Dictionary<string, string?>
+        {
+            ["PatientName"] = string.IsNullOrWhiteSpace(name) ? "Patient" : name, ["HospitalName"] = hospitalName, ["PatientCode"] = patientCode,
+            ["Password"] = password, ["PortalUrl"] = portalUrl, ["Reset"] = isReset ? "1" : null
+        };
+
         var emailed = false;
         if (!string.IsNullOrWhiteSpace(email))
         {
@@ -143,6 +152,8 @@ public sealed class PatientPortalLoginService(
                     heading: isReset ? "Your patient portal password" : $"Welcome to {hospitalName}",
                     organisation: hospitalName);
                 var subject = isReset ? $"{hospitalName} - Patient portal password reset" : $"Welcome to {hospitalName} - Your Login Credentials";
+                if (await NotifyLanguage.EmailAsync(langCon, branchId, EMR.Common.NotifyText.PortalLogin, langId, langValues, hospitalName, null, logger) is { } lang)
+                    (subject, htmlBody) = lang;
                 emailed = (await emailService.SendEmailAsync(branchId, email.Trim(), subject, htmlBody)).Success;
             }
             catch (Exception ex)
@@ -159,6 +170,7 @@ public sealed class PatientPortalLoginService(
                 var text = $"{hospitalName} - Patient portal\nPatient ID: {patientCode}\nPassword: {password}"
                            + (portalUrl is null ? "" : $"\nSign in: {portalUrl}")
                            + "\nYou will be asked to choose your own password at the first sign-in.";
+                text = await NotifyLanguage.WhatsAppAsync(langCon, branchId, EMR.Common.NotifyText.PortalLogin, langId, langValues, text, logger);
                 whatsApped = (await whatsAppService.SendTextMessageAsync(phone.Trim(), text, branchId, "PORTAL_LOGIN")).Success;
             }
             catch (Exception ex)

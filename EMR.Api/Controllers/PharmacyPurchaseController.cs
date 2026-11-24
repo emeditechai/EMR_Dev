@@ -35,6 +35,30 @@ public class PharmacyPurchaseController(IPharmacyPurchaseService service) : Cont
     public async Task<IActionResult> AutoReorderCreatePos([FromBody] PhAutoReorderCreateRequest req) =>
         Rows(await service.RowsAsync("dbo.usp_Api_PhReorder_CreatePos", new { req.CompanyId, req.BranchId, req.UserId, req.Lines }));
 
+    // SQLScripts/2538: auto indent - rules per item (supplier, levels, quantity), run (worker / "Run now"), log
+    [HttpGet("auto-indent")]
+    public async Task<IActionResult> AutoIndentList([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int? supplierId, [FromQuery] int? categoryId,
+        [FromQuery] string? filter, [FromQuery] string? search) =>
+        Ok(ApiResponse<List<List<IDictionary<string, object?>>>>.Ok(await service.SetsAsync("dbo.usp_Api_PhAutoIndent_List",
+            new { CompanyId = companyId, BranchId = branchId, SupplierId = supplierId, CategoryId = categoryId, Filter = filter ?? "RULES", Search = search }, 2)));
+
+    [HttpPost("auto-indent/rules")]
+    public async Task<IActionResult> AutoIndentSaveRules([FromBody] PhAutoIndentRulesRequest req) =>
+        Rows(await service.RowsAsync("dbo.usp_Api_PhAutoIndent_SaveRules", new { req.CompanyId, req.BranchId, req.UserId, req.Rules }));
+
+    [HttpPost("auto-indent/run")]
+    public async Task<IActionResult> AutoIndentRun([FromBody] PhAutoIndentRunRequest req) =>
+        Ok(ApiResponse<List<List<IDictionary<string, object?>>>>.Ok(await service.SetsAsync("dbo.usp_Api_PhAutoIndent_Run",
+            new { req.CompanyId, req.BranchId, req.UserId, RunType = req.RunType == "MANUAL" ? "MANUAL" : "AUTO" }, 2)));
+
+    [HttpGet("auto-indent/log")]
+    public async Task<IActionResult> AutoIndentLog([FromQuery] int companyId, [FromQuery] int branchId) =>
+        Rows(await service.RowsAsync("dbo.usp_Api_PhAutoIndent_Log", new { CompanyId = companyId, BranchId = branchId }));
+
+    [HttpGet("auto-indent/branches")]
+    public async Task<IActionResult> AutoIndentBranches() =>
+        Rows(await service.RowsAsync("dbo.usp_Api_PhAutoIndent_Branches", new { }));
+
     [HttpGet("scheme-free")]
     public async Task<IActionResult> SchemeFree([FromQuery] int companyId, [FromQuery] int branchId, [FromQuery] int supplierId, [FromQuery] int itemId, [FromQuery] decimal qty, [FromQuery] DateTime? onDate) =>
         Rows(await service.RowsAsync("dbo.usp_Api_PhPur_SchemeFree", new { CompanyId = companyId, BranchId = branchId, SupplierId = supplierId, ItemId = itemId, Qty = qty, OnDate = onDate }));

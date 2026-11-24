@@ -343,6 +343,23 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-hospital"></i></div>
+                        <div>
+                            <div class="lp-label">WBHS Empanelment Code</div>
+                            <div class="lp-desc">The branch's empanelment code under the West Bengal Health Scheme.</div>
+                            @if (string.IsNullOrWhiteSpace(Model.WbhsEmpanelmentCode))
+                            {
+                                <span class="lp-pill na"><i class="bi bi-dash-circle"></i>NOT SET</span>
+                            }
+                            else
+                            {
+                                <span class="lp-pill val" title="@Model.WbhsEmpanelmentCode"><i class="bi bi-upc-scan"></i><span style="max-width:11rem;overflow:hidden;text-overflow:ellipsis">@Model.WbhsEmpanelmentCode</span></span>
+                            }
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>
@@ -446,6 +463,16 @@ else
                             <div class="lp-label">Is Sample Collection Mandatory</div>
                             <div class="lp-desc">No: samples are collected automatically at billing / payment.</div>
                             <span class="lp-pill @(Model.IsSampleCollectionMandatory ? "yes" : "no")"><i class="bi @(Model.IsSampleCollectionMandatory ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.IsSampleCollectionMandatory ? "YES" : "NO")</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0d9488;--lp-bg:#ccfbf1;">
+                        <div class="lp-icon"><i class="bi bi-upc"></i></div>
+                        <div>
+                            <div class="lp-label">B2B Barcode Generate Separate Sequence Required</div>
+                            <div class="lp-desc">Yes: B2B (franchise / company) bills get their sample barcodes from a sequence of their own. No: one sequence for B2C and B2B.</div>
+                            <span class="lp-pill @(Model.B2BBarcodeSeparateSequence ? "yes" : "no")"><i class="bi @(Model.B2BBarcodeSeparateSequence ? "bi-check-circle-fill" : "bi-x-circle-fill")"></i>@(Model.B2BBarcodeSeparateSequence ? "YES" : "NO")</span>
                         </div>
                     </div>
                 </div>
@@ -697,6 +724,7 @@ else
                     {
                         B("GRN Not Required", "Yes: PO approval with the bill details adds the stock. No: stock comes in on the GRN.", "bi-box-arrow-in-down", "#2563eb", Model.PharmacyGrnNotRequired),
                         B("Auto Reorder", Model.PharmacyAutoReorderEnabled ? $"Average of {Model.PharmacyReorderSalesDays} days · safety {Model.PharmacyReorderSafetyDays} · cover {Model.PharmacyReorderCoverDays} days." : "Sales-based order suggestions and draft POs per supplier.", "bi-arrow-repeat", "#7c3aed", Model.PharmacyAutoReorderEnabled),
+                        B("Auto Indent to Suppliers", "Items at or below their reorder level are indented to their supplier right after stock goes out (Auto Reorder > Auto Indent Rules).", "bi-send-check", "#0d9488", Model.PharmacyAutoIndentEnabled),
                         B("Supplier Schemes at PO / GRN", "Free quantity of a running scheme (e.g. 10 + 1) fills in automatically.", "bi-gift", "#d97706", Model.PharmacySchemeAutoApply),
                         B("GS1 DataMatrix Scanning", "2D pack code gives GTIN, batch and expiry at GRN, sale and return.", "bi-qr-code-scan", "#0891b2", Model.PharmacyGs1ScanEnabled)
                     }),

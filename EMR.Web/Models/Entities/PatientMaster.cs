@@ -74,6 +74,9 @@ public class PatientMaster
     [MaxLength(100)]
     public string? AbhaAddress { get; set; }
 
+    /// <summary>SQLScripts/2534: Beneficiary ID (e.g. WBHS / health-scheme beneficiary number), optional; printed on the bills.</summary>
+    public string? BeneficiaryId { get; set; }
+
     [MaxLength(30)]
     public string? AyushmanCardNo { get; set; }
 

@@ -111,8 +111,25 @@ public class CertificateNotificationService(
                     + " Thank you.";
         var fileName = $"Certificate_{(c.CertificateNo ?? c.CertificateId.ToString()).Replace('/', '-')}.pdf";
 
-        await SendWhatsAppAsync(m, branchId, userId, pdf, message, fileName, outcomes);
-        await SendEmailAsync(m, branchId, userId, pdf, message, fileName, hospital, outcomes);
+        // SQLScripts/2544: in the patient's language when a text exists for it (else the English above)
+        var waMessage = message;
+        (string Subject, string Html)? mail = null;
+        try
+        {
+            using var con = db.CreateConnection();
+            var langId = await NotifyLanguage.OfPatientAsync(con, c.PatientId);
+            var values = new Dictionary<string, string?>
+            {
+                ["PatientName"] = patientName, ["CertificateType"] = m.Type.TypeName, ["CertificateNo"] = c.CertificateNo,
+                ["IssueDate"] = c.IssueDate?.ToString("dd MMM yyyy"), ["SignedBy"] = m.Doctor?.DoctorName, ["HospitalName"] = hospital, ["VerifyUrl"] = m.VerifyUrl
+            };
+            waMessage = await NotifyLanguage.WhatsAppAsync(con, branchId, EMR.Common.NotifyText.Certificate, langId, values, message, logger);
+            mail = await NotifyLanguage.EmailAsync(con, branchId, EMR.Common.NotifyText.Certificate, langId, values, hospital, null, logger);
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "[CERT-NOTIF] language text not read for CertificateId {Id} - sent in English", certificateId); }
+
+        await SendWhatsAppAsync(m, branchId, userId, pdf, waMessage, fileName, outcomes);
+        await SendEmailAsync(m, branchId, userId, pdf, message, fileName, hospital, outcomes, mail);
         return outcomes;
     }
 
@@ -141,7 +158,8 @@ public class CertificateNotificationService(
         }
     }
 
-    private async Task SendEmailAsync(CertificatePrintModel m, int branchId, int? userId, byte[] pdf, string message, string fileName, string hospital, List<CertificateNotificationRow> outcomes)
+    private async Task SendEmailAsync(CertificatePrintModel m, int branchId, int? userId, byte[] pdf, string message, string fileName, string hospital, List<CertificateNotificationRow> outcomes,
+        (string Subject, string Html)? mail = null)
     {
         const string channel = "Email";
         var email = m.Patient.EmailId?.Trim();
@@ -166,7 +184,7 @@ public class CertificateNotificationService(
 
             using var stream = new MemoryStream(pdf);
             using var attachment = new Attachment(stream, fileName, "application/pdf");
-            var (success, text) = await emailService.SendEmailAsync(branchId, email, $"Your {m.Type.TypeName} {c.CertificateNo} - {hospital}", body, [attachment]);
+            var (success, text) = await emailService.SendEmailAsync(branchId, email, mail?.Subject ?? $"Your {m.Type.TypeName} {c.CertificateNo} - {hospital}", mail?.Html ?? body, [attachment]);
             if (success) await LogAsync(c.CertificateId, branchId, channel, email, "Sent", $"Sent to {email}.", userId, outcomes);
             else await LogAsync(c.CertificateId, branchId, channel, email,
                 text.Contains("No active SMTP", StringComparison.OrdinalIgnoreCase) ? "Skipped" : "Failed", text, userId, outcomes);
