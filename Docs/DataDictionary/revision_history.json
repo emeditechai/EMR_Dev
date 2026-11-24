@@ -417,5 +417,15 @@
   ],
   "date": "24 Nov 2026",
   "version": "1.33"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabBarcodeSequenceB2B (4 columns, module not yet grouped)",
+   "HospitalSettings: new column(s) B2BBarcodeSeparateSequence",
+   "LabOrder: new column(s) Govt_Scheme_Name, Beneficiary_ID"
+  ],
+  "date": "24 Nov 2026",
+  "version": "1.34"
  }
 ]

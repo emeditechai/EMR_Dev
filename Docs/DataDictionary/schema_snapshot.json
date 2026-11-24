@@ -17525,6 +17525,19 @@
    "type": "nvarchar"
   },
   {
+   "col": "B2BBarcodeSeparateSequence",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 164,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -23385,6 +23398,58 @@
    "prec": 10,
    "scale": 0,
    "tbl": "LabBarcodeSequence",
+   "type": "int"
+  },
+  {
+   "col": "BranchId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 1,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
+   "type": "int"
+  },
+  {
+   "col": "FinancialYear",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 40,
+   "nullable": false,
+   "ord": 2,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
+   "type": "nvarchar"
+  },
+  {
+   "col": "LastSeq",
+   "def": "((0))",
+   "descr": null,
+   "ident": false,
+   "len": 8,
+   "nullable": false,
+   "ord": 3,
+   "prec": 19,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
+   "type": "bigint"
+  },
+  {
+   "col": "CompanyId",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": true,
+   "ord": 4,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "LabBarcodeSequenceB2B",
    "type": "int"
   },
   {
@@ -29860,6 +29925,32 @@
    "scale": 0,
    "tbl": "LabOrder",
    "type": "date"
+  },
+  {
+   "col": "Govt_Scheme_Name",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 39,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "nvarchar"
+  },
+  {
+   "col": "Beneficiary_ID",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 100,
+   "nullable": true,
+   "ord": 40,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "nvarchar"
   },
   {
    "col": "LabOrderItemId",
@@ -60933,7 +61024,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-24T07:40:42",
+ "extracted_on": "2026-11-24T10:59:38",
  "fk": [
   {
    "col": "LedgerId",
@@ -66029,6 +66120,16 @@
    "tbl": "LabBarcodeSequence"
   },
   {
+   "col": "BranchId",
+   "k": 1,
+   "tbl": "LabBarcodeSequenceB2B"
+  },
+  {
+   "col": "FinancialYear",
+   "k": 2,
+   "tbl": "LabBarcodeSequenceB2B"
+  },
+  {
    "col": "BillChangeLineId",
    "k": 1,
    "tbl": "LabBillChangeLine"
@@ -67571,6 +67672,7 @@
   "LabApprovalFlowLevel",
   "LabBarcodeConfig",
   "LabBarcodeSequence",
+  "LabBarcodeSequenceB2B",
   "LabBillChangeLine",
   "LabBillChangeRequest",
   "LabBillRevision",
