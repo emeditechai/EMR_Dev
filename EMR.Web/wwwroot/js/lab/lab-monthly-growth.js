@@ -117,7 +117,7 @@
         $('#kNet').text(money0(net));
         $('#kNetSub').html(`${chip(growth(net, lyNet), 'Same months last year: ' + money0(lyNet))} vs last year ${money0(lyNet)}`);
         $('#kProfit').text(money0(profit)).toggleClass('text-danger', profit < 0);
-        $('#kProfitSub').text(`${pctText(pct(profit, net))} margin · material ${money0(sum(ms, 'MaterialCost'))}`);
+        $('#kProfitSub').text(`${pctText(pct(profit, net))} margin · cost ${money0(sum(ms, 'MaterialCost'))} (not run yet ${money0(sum(ms, 'MaterialPending'))}, kits ${money0(sum(ms, 'KitCost'))})`);
         const full = done.filter(r => !r.partial);
         const avg = full.length ? sum(full, 'NetRevenue') / full.length : 0;
         $('#kAvg').text(money0(avg)); $('#kAvgSub').text(`${full.length} complete month(s)`);
@@ -227,7 +227,7 @@
             type: 'bar',
             data: { labels: ms.map(r => mLabel(r.Month)), datasets: [
                 { label: 'Gross profit', data: ms.map(r => N(r.GrossProfit)), backgroundColor: ms.map(r => N(r.GrossProfit) >= 0 ? C.up : C.down), stack: 's', maxBarThickness: 34, yAxisID: 'y' },
-                { label: 'Material cost', data: ms.map(r => N(r.MaterialCost)), backgroundColor: C.cost, stack: 's', borderRadius: 3, maxBarThickness: 34, yAxisID: 'y' },
+                { label: 'Cost', data: ms.map(r => N(r.MaterialCost)), backgroundColor: C.cost, stack: 's', borderRadius: 3, maxBarThickness: 34, yAxisID: 'y' },
                 { type: 'line', label: 'Margin %', data: ms.map(r => pct(r.GrossProfit, r.NetRevenue)), borderColor: C.margin, backgroundColor: C.margin, pointRadius: 2, tension: .3, yAxisID: 'y1', spanGaps: true }
             ] },
             options: { maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
@@ -246,7 +246,7 @@
         { k: '_mom', label: 'vs prev. month', g: r => growth(r.NetRevenue, r.prev?.NetRevenue) },
         { k: 'LyNet', label: 'Last year', v: r => N(r.ly?.NetRevenue) },
         { k: '_yoy', label: 'vs last year', g: r => growth(r.NetRevenue, r.ly?.NetRevenue) },
-        { k: 'MaterialCost', label: 'Material cost' }, { k: 'GrossProfit', label: 'Gross profit' },
+        { k: 'MaterialActual', label: 'Material used' }, { k: 'MaterialPending', label: 'Not run yet (est.)' }, { k: 'KitCost', label: 'Kits (est.)' }, { k: 'MaterialCost', label: 'Total cost' }, { k: 'GrossProfit', label: 'Gross profit' },
         { k: '_gm', label: 'Margin %', p: r => pct(r.GrossProfit, r.NetRevenue) },
         { k: 'Collected', label: 'Collected' }, { k: 'DueOnBills', label: 'Due on bills' }, { k: 'Refunds', label: 'Refunds' }
     ];

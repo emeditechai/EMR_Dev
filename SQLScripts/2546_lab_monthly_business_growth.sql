@@ -3,14 +3,14 @@
 --   usp_Api_LabReport_MonthlyGrowth returns, for each month of the range (up to 24 months) and the 12 months before it
 --   (for the same month last year):
 --     RS1 months       bills, patients (new = first LAB bill ever), tests, MRP, discount, partner margin, net revenue
---                      (B2C / B2B), material actually consumed for the month's bills (QcConsumption), gross profit,
+--                      (B2C / B2B), cost (actual + not run yet + kits, as Owner MIS), gross profit,
 --                      receipts (wallet deductions apart), refunds, cancelled amount, due on the month's bills.
 --     RS2 departments  net revenue per department per month (bill lines scaled so a bill's lines add up to its net).
 --     RS3 branches     net revenue and bills per branch per month.
 --     RS4 doctors      referring doctor by month; RS5 partners B2B partner by month; RS6 executives LAB marketing executive by month
 --     RS7 meta         branches in scope.
 --   Definitions match usp_Api_LabReport_OwnerMis (net / paid / due, B2B at the contract total, receipts by receipt date).
---   Cost here = BOM material actually consumed for the bills; tests not run yet and collection kits are not estimated.
+--   Cost = as Owner MIS: BOM material consumed for the bills + tests not run yet at BOM cost + collection kits (estimated).
 --   Scope: the current branch, or all branches the user works in (super admin: all of the company).
 --   Page REPORTS.LABMONTHLYGROWTH (Reports > LAB). No grants are seeded: give them in Role Permissions.
 -- Needs 2200, 2252. Safe to re-run.
@@ -79,7 +79,8 @@ BEGIN
     CREATE CLUSTERED INDEX IX_O ON #O (LabOrderId);
 
     -- bill lines: MRP and the line's share of the bill's net (as Owner MIS)
-    SELECT o.LabOrderId, o.MonthStart, o.IsB2B,
+    SELECT o.LabOrderId, li.LabOrderItemId, li.InvestigationId AS TestId, CAST(CASE WHEN li.[Type] = 'P' THEN 1 ELSE 0 END AS BIT) AS IsPackage,
+           o.MonthStart, o.IsB2B,
            CASE WHEN li.[Type] = 'P' THEN 'Packages' ELSE ISNULL(dm.DeptName, 'Not set') END AS Department,
            CAST(li.Price AS DECIMAL(18, 2)) AS Mrp,
            CAST(CASE WHEN o.IsB2B = 1 THEN ISNULL(li.B2BRate, li.Price) ELSE COALESCE(pli.NetLineAmount, li.Price) END AS DECIMAL(18, 4)) AS Basis,
@@ -97,14 +98,47 @@ BEGIN
     UPDATE l SET NetLine = CAST(CASE WHEN s.SumBasis > 0 THEN l.Basis * l.BillNet / s.SumBasis ELSE 0 END AS DECIMAL(18, 2))
     FROM #L l INNER JOIN s ON s.LabOrderId = l.LabOrderId;
 
-    -- per bill: tests, MRP, material actually consumed for it
-    ALTER TABLE #O ADD Tests INT NOT NULL DEFAULT 0, Mrp DECIMAL(18, 2) NOT NULL DEFAULT 0, MaterialCost DECIMAL(18, 2) NOT NULL DEFAULT 0;
+    -- cost of the tests billed (same rules as Owner MIS, SQLScripts/2250 / 2449):
+    --   actual    = consumption runs recorded for the line on its own bill (re-runs included);
+    --   estimated = an in-house test billed but not run yet, at its current BOM cost; outsourced tests have no BOM cost;
+    --   kits      = one collection kit per sample type collected in-house (estimated).
+    SELECT l.LabOrderItemId, l.LabOrderId, CASE WHEN l.IsPackage = 1 THEN pd.Test_ID ELSE l.TestId END AS UnitTestId,
+           CASE WHEN l.IsPackage = 1 THEN l.TestId END AS PackageId
+    INTO #LU
+    FROM #L l
+    LEFT JOIN dbo.LabInvestigationProfileDetail pd ON l.IsPackage = 1 AND pd.Profile_ID = l.TestId AND ISNULL(pd.IsDeleted, 0) = 0
+    WHERE l.IsPackage = 0 OR pd.Test_ID IS NOT NULL;
+
+    ALTER TABLE #LU ADD ActualCost DECIMAL(18, 2), Runs INT, Outsourced BIT, EstCost DECIMAL(18, 2);
+    UPDATE u SET ActualCost = ISNULL(x.Cost, 0), Runs = ISNULL(x.Runs, 0),
+                 Outsourced = CASE WHEN ISNULL(m.Is_Outsourced, 0) = 1
+                                     OR EXISTS (SELECT 1 FROM dbo.SampleCollection sc
+                                                LEFT JOIN dbo.LabInvestigationProfileHeader ph ON ph.Profile_ID = sc.ProfileId
+                                                WHERE sc.Laborderid = u.LabOrderId AND ISNULL(sc.IsoutSource, 0) = 1
+                                                  AND (sc.InvestigationID = u.UnitTestId OR ph.Test_ID = u.UnitTestId)) THEN 1 ELSE 0 END,
+                 EstCost = dbo.ufn_Qc_TestMaterialCost(u.UnitTestId, NULL)
+    FROM #LU u
+    LEFT JOIN dbo.LabInvestigationMaster m ON m.Test_ID = u.UnitTestId
+    OUTER APPLY (SELECT SUM(c.MaterialCost) AS Cost, COUNT(1) AS Runs
+                 FROM dbo.QcConsumption c
+                 WHERE c.LabOrderId = u.LabOrderId AND c.TestId = u.UnitTestId AND ISNULL(c.PackageId, 0) = ISNULL(u.PackageId, 0)) x;
+
+    -- per bill: tests, MRP, material (actual + not run yet) and kits
+    ALTER TABLE #O ADD Tests INT NOT NULL DEFAULT 0, Mrp DECIMAL(18, 2) NOT NULL DEFAULT 0,
+                       ActualCost DECIMAL(18, 2) NOT NULL DEFAULT 0, PendingCost DECIMAL(18, 2) NOT NULL DEFAULT 0, KitCost DECIMAL(18, 2) NOT NULL DEFAULT 0;
     UPDATE o SET Tests = x.Tests, Mrp = x.Mrp
     FROM #O o INNER JOIN (SELECT LabOrderId, COUNT(1) AS Tests, SUM(Mrp) AS Mrp FROM #L GROUP BY LabOrderId) x ON x.LabOrderId = o.LabOrderId;
-    UPDATE o SET MaterialCost = x.Cost
-    FROM #O o INNER JOIN (SELECT c.LabOrderId, SUM(c.MaterialCost) AS Cost FROM dbo.QcConsumption c
-                          WHERE c.LabOrderId IN (SELECT LabOrderId FROM #O) GROUP BY c.LabOrderId) x ON x.LabOrderId = o.LabOrderId
-    WHERE o.IsActive = 1;
+    UPDATE o SET ActualCost = x.ActualCost, PendingCost = x.PendingCost
+    FROM #O o INNER JOIN (SELECT LabOrderId, SUM(ActualCost) AS ActualCost,
+                                 SUM(CASE WHEN Runs = 0 AND Outsourced = 0 THEN ISNULL(EstCost, 0) ELSE 0 END) AS PendingCost
+                          FROM #LU GROUP BY LabOrderId) x ON x.LabOrderId = o.LabOrderId;
+    UPDATE o SET KitCost = ISNULL((SELECT SUM(ISNULL(dbo.ufn_Qc_SampleKitCost(s.SampleTypeId), 0))
+                                   FROM (SELECT DISTINCT m.Sample_Type_ID AS SampleTypeId
+                                         FROM dbo.SampleCollection sc
+                                         INNER JOIN dbo.LabInvestigationMaster m ON m.Test_ID = sc.InvestigationID
+                                         WHERE sc.Laborderid = o.LabOrderId AND sc.Is_Active = 1 AND sc.Iscancelled = 0
+                                           AND ISNULL(sc.IsoutSource, 0) = 0 AND m.Sample_Type_ID IS NOT NULL) s), 0)
+    FROM #O o WHERE o.IsActive = 1;
 
     -- new patients: the month of the patient's first active LAB bill ever (any branch)
     SELECT f.PatientId, DATEFROMPARTS(YEAR(f.FirstBill), MONTH(f.FirstBill), 1) AS FirstMonth
@@ -133,8 +167,9 @@ BEGIN
            ISNULL(b.Mrp, 0) AS Mrp,
            ISNULL(b.Discount, 0) AS Discount, ISNULL(b.PartnerMargin, 0) AS PartnerMargin,
            ISNULL(b.Net, 0) AS NetRevenue, ISNULL(b.B2CNet, 0) AS B2CRevenue, ISNULL(b.B2BNet, 0) AS B2BRevenue,
-           ISNULL(b.MaterialCost, 0) AS MaterialCost,
-           ISNULL(b.Net, 0) - ISNULL(b.MaterialCost, 0) AS GrossProfit,
+           ISNULL(b.ActualCost, 0) AS MaterialActual, ISNULL(b.PendingCost, 0) AS MaterialPending, ISNULL(b.KitCost, 0) AS KitCost,
+           ISNULL(b.ActualCost, 0) + ISNULL(b.PendingCost, 0) + ISNULL(b.KitCost, 0) AS MaterialCost,
+           ISNULL(b.Net, 0) - ISNULL(b.ActualCost, 0) - ISNULL(b.PendingCost, 0) - ISNULL(b.KitCost, 0) AS GrossProfit,
            ISNULL(b.Due, 0) AS DueOnBills,
            ISNULL((SELECT SUM(p.PaidAmount) FROM #P p WHERE p.MonthStart = m.MonthStart AND p.FromWallet = 0), 0) AS Collected,
            ISNULL((SELECT SUM(p.PaidAmount) FROM #P p WHERE p.MonthStart = m.MonthStart AND p.FromWallet = 1), 0) AS PaidFromWallet,
@@ -164,7 +199,9 @@ BEGIN
                         SUM(CASE WHEN o.IsActive = 1 THEN o.NetAmount END) AS Net,
                         SUM(CASE WHEN o.IsActive = 1 AND o.IsB2B = 0 THEN o.NetAmount END) AS B2CNet,
                         SUM(CASE WHEN o.IsActive = 1 AND o.IsB2B = 1 THEN o.NetAmount END) AS B2BNet,
-                        SUM(CASE WHEN o.IsActive = 1 THEN o.MaterialCost END) AS MaterialCost,
+                        SUM(CASE WHEN o.IsActive = 1 THEN o.ActualCost END) AS ActualCost,
+                        SUM(CASE WHEN o.IsActive = 1 THEN o.PendingCost END) AS PendingCost,
+                        SUM(CASE WHEN o.IsActive = 1 THEN o.KitCost END) AS KitCost,
                         SUM(CASE WHEN o.IsActive = 1 AND o.NetAmount > o.PaidAmount THEN o.NetAmount - o.PaidAmount ELSE 0 END) AS Due
                  FROM #O o WHERE o.MonthStart = m.MonthStart) b
     ORDER BY m.MonthStart;
@@ -221,7 +258,7 @@ BEGIN
     SELECT (SELECT COUNT(1) FROM @Br) AS BranchCount,
            CONVERT(VARCHAR(7), @FromMonth, 23) AS FromMonth, CONVERT(VARCHAR(7), @ToMonth, 23) AS ToMonth;
 
-    DROP TABLE #M; DROP TABLE #O; DROP TABLE #L; DROP TABLE #NP; DROP TABLE #P;
+    DROP TABLE #M; DROP TABLE #O; DROP TABLE #L; DROP TABLE #LU; DROP TABLE #NP; DROP TABLE #P;
 END;
 GO
 
