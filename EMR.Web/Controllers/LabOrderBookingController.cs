@@ -1834,7 +1834,8 @@ namespace EMR.Web.Controllers
                 totalPaid = paymentResult?.TotalPaid ?? 0,
                 balanceDue = paymentResult?.BalanceDue ?? totalAmount,
                 paymentStatus = paymentResult?.PaymentStatus ?? "U",
-                showPrintBarcode = showPrintBarcode
+                showPrintBarcode = showPrintBarcode,
+                formFUrl = await FormFUrlAsync(labOrderRes.LabOrderId)   // 2554: B2C bill with a female consent test
             });
             }
             catch (Exception ex)
@@ -1886,8 +1887,38 @@ namespace EMR.Web.Controllers
                 totalPaid = ph.TotalPaid,
                 balanceDue = ph.BalanceDue,
                 paymentStatus = ph.PaymentStatus,
-                showPrintBarcode
+                showPrintBarcode,
+                formFUrl = await FormFUrlAsync(labOrderId)   // 2554
             });
+        }
+
+        /// <summary>
+        /// SQLScripts/2554: the encrypted "Print FORM F" link when the bill has a test with Applicable Gender = Female and
+        /// Consent Required = Yes (B2C only); null otherwise or when the check fails - billing never fails because of it.
+        /// </summary>
+        private async Task<string?> FormFUrlAsync(int labOrderId)
+        {
+            try
+            {
+                var st = (await labOrderApiClient.GetConsentStatusAsync(new[] { labOrderId }, User.GetCurrentBranchId())).FirstOrDefault();
+                return st is { FormFRequired: true } ? Url.ActionEncrypted("PrintFormF", "LabOrderBooking", new { labOrderId }) : null;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "FORM F check failed for lab order {LabOrderId}", labOrderId);
+                return null;
+            }
+        }
+
+        /// <summary>FORM F (PC-PNDT Act) of a B2C bill on A4, with the bill's details filled in (SQLScripts/2554).</summary>
+        [HttpGet]
+        public async Task<IActionResult> PrintFormF(int labOrderId)
+        {
+            if (labOrderId <= 0) return BadRequest("Invalid lab order ID.");
+            if (!await FranchiseOwnsOrderAsync(labOrderId)) return Forbid();
+            var form = await labOrderApiClient.GetFormFAsync(labOrderId, User.GetCurrentBranchId());
+            if (form == null) return NotFound("This bill has no test that needs FORM F.");
+            return View(form);
         }
 
         /// <summary>
@@ -2659,7 +2690,9 @@ namespace EMR.Web.Controllers
                         labOrderId = r.LabOrderId,
                         tests = r.ConsentTests,
                         hasFile = !string.IsNullOrWhiteSpace(r.ConsentFilePath),
-                        remarks = r.ConsentRemarks
+                        remarks = r.ConsentRemarks,
+                        // 2554: B2C bill with a female consent test - "Print FORM - F"
+                        formFUrl = r.FormFRequired ? Url.ActionEncrypted("PrintFormF", "LabOrderBooking", new { labOrderId = r.LabOrderId }) : null
                     })
                 });
             }

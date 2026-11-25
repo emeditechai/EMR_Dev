@@ -22,5 +22,7 @@ namespace EMR.Api.Services
         Task<IEnumerable<LabOrderConsentStatusDto>> GetConsentStatusAsync(string labOrderIds, int? branchId);
         /// <summary>Stores the path of a consent uploaded after billing (SQLScripts/2553).</summary>
         Task SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId);
+        /// <summary>FORM F (PC-PNDT) fields of a bill; null when the bill does not need FORM F (SQLScripts/2554).</summary>
+        Task<LabOrderFormFDto?> GetFormFAsync(int labOrderId, int? branchId);
     }
 }

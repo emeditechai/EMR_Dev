@@ -127,6 +127,15 @@ namespace EMR.Api.Controllers
             return Ok(await labOrderService.GetConsentStatusAsync(ids, branchId));
         }
 
+        /// <summary>FORM F (PC-PNDT) fields of a B2C bill; 404 when the bill has no female consent test (SQLScripts/2554).</summary>
+        [HttpGet("{id}/form-f")]
+        public async Task<IActionResult> GetFormF(int id, [FromQuery] int? branchId = null)
+        {
+            if (id <= 0) return BadRequest(new { message = "A valid bill is required." });
+            var dto = await labOrderService.GetFormFAsync(id, branchId);
+            return dto == null ? NotFound(new { message = "This bill has no test that needs FORM F." }) : Ok(dto);
+        }
+
         /// <summary>Consent uploaded after billing: stores the file path saved by EMR.Web (SQLScripts/2553).</summary>
         [HttpPost("{id}/consent")]
         public async Task<IActionResult> SaveConsent(int id, [FromBody] LabOrderConsentRequest request)

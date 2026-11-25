@@ -700,6 +700,7 @@ public class HospitalSettingsController(
             existing.LoginRetryCount = model.LoginRetryCount;
             existing.LoginAlertCount = model.LoginAlertCount;
             existing.WbhsEmpanelmentCode = CleanCode(model.WbhsEmpanelmentCode);
+            existing.PndtRegistrationNo = string.IsNullOrWhiteSpace(model.PndtRegistrationNo) ? null : model.PndtRegistrationNo.Trim();
             existing.IsActive = model.IsActive;
             existing.LastModifiedDate = DateTime.Now;
             existing.LastModifiedBy = userId;
@@ -895,6 +896,7 @@ public class HospitalSettingsController(
             LoginRetryCount = s.LoginRetryCount,
             LoginAlertCount = s.LoginAlertCount,
             WbhsEmpanelmentCode = s.WbhsEmpanelmentCode,
+            PndtRegistrationNo = s.PndtRegistrationNo,
             IsActive = s.IsActive,
             CreatedDate = s.CreatedDate,
             LastModifiedDate = s.LastModifiedDate
@@ -1047,6 +1049,7 @@ public class HospitalSettingsController(
             LoginRetryCount = m.LoginRetryCount,
             LoginAlertCount = m.LoginAlertCount,
             WbhsEmpanelmentCode = CleanCode(m.WbhsEmpanelmentCode),
+            PndtRegistrationNo = string.IsNullOrWhiteSpace(m.PndtRegistrationNo) ? null : m.PndtRegistrationNo.Trim(),
             IsActive = m.IsActive,
             CreatedDate = DateTime.Now,
             CreatedBy = userId

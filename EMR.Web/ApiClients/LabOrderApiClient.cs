@@ -121,6 +121,14 @@ namespace EMR.Web.ApiClients
             return await httpClient.GetFromJsonAsync<List<LabOrderConsentStatusDto>>(url) ?? new List<LabOrderConsentStatusDto>();
         }
 
+        public async Task<LabOrderFormFDto?> GetFormFAsync(int labOrderId, int? branchId)
+        {
+            var response = await httpClient.GetAsync($"api/LabOrders/{labOrderId}/form-f" + (branchId is > 0 ? $"?branchId={branchId}" : ""));
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<LabOrderFormFDto>();
+        }
+
         public async Task<string?> SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId)
         {
             var response = await httpClient.PostAsJsonAsync($"api/LabOrders/{labOrderId}/consent",

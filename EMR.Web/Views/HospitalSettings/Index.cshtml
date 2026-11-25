@@ -360,6 +360,23 @@ else
                         </div>
                     </div>
                 </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="lab-param" style="--lp:#0369a1;--lp-bg:#e0f2fe;">
+                        <div class="lp-icon"><i class="bi bi-hospital"></i></div>
+                        <div>
+                            <div class="lp-label">PC-PNDT Registration No.</div>
+                            <div class="lp-desc">Printed on FORM F; blank = the Registration Number.</div>
+                            @if (string.IsNullOrWhiteSpace(Model.PndtRegistrationNo))
+                            {
+                                <span class="lp-pill na"><i class="bi bi-dash-circle"></i>NOT SET</span>
+                            }
+                            else
+                            {
+                                <span class="lp-pill val" title="@Model.PndtRegistrationNo"><i class="bi bi-file-earmark-medical"></i><span style="max-width:11rem;overflow:hidden;text-overflow:ellipsis">@Model.PndtRegistrationNo</span></span>
+                            }
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="lab-section-title">Planned parameters</div>

@@ -470,6 +470,34 @@ namespace EMR.Web.Models.DTOs
         public string? ConsentTests { get; set; }
         public string? ConsentFilePath { get; set; }
         public string? ConsentRemarks { get; set; }
+        /// <summary>SQLScripts/2554: a consent test for females - FORM F (PC-PNDT) can be printed.</summary>
+        public bool FormFRequired { get; set; }
+    }
+
+    /// <summary>FORM F (PC-PNDT) fields of a B2C bill (SQLScripts/2554).</summary>
+    public class LabOrderFormFDto
+    {
+        public int LabOrderId { get; set; }
+        public string? BillNo { get; set; }
+        public DateTime BillDate { get; set; }
+        public string? ClinicName { get; set; }
+        public string? ClinicAddress { get; set; }
+        public string? RegistrationNo { get; set; }
+        public string? ClinicPhone { get; set; }
+        public string? Place { get; set; }
+        public string? PatientCode { get; set; }
+        public string? PatientName { get; set; }
+        public string? Salutation { get; set; }
+        public string? Gender { get; set; }
+        public int? AgeYears { get; set; }
+        public string? GuardianName { get; set; }
+        public string? GuardianRelation { get; set; }
+        public string? PatientAddress { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? ReferredBy { get; set; }
+        public DateTime? LmpDate { get; set; }
+        public int? PregnancyDays { get; set; }
+        public string? Procedures { get; set; }
     }
 
     public class LabB2BSchemeDto

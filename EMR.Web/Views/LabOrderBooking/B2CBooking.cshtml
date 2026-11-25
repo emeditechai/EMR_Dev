@@ -766,6 +766,10 @@
                     <a href="#" id="btnPrintBill" target="_blank" class="btn btn-outline-success btn-sm px-3">
                         <i class="bi bi-printer me-1"></i> Print Bill
                     </a>
+                    @* 2554: shown when the bill has a test with Applicable Gender = Female and Consent Required = Yes *@
+                    <a href="#" id="btnPrintFormF" target="_blank" class="btn btn-outline-danger btn-sm px-3 d-none" title="FORM F (PC-PNDT Act)">
+                        <i class="bi bi-printer me-1"></i> Print FORM - F
+                    </a>
                     <a href="#" id="btnPrintBarcode" target="_blank" class="btn btn-outline-info btn-sm px-3 d-none">
                         <i class="bi bi-upc-scan me-1"></i> Print Barcode
                     </a>
@@ -1990,6 +1994,9 @@
                     // Store labOrderId for print button
                     var printUrl = '@Url.Action("PrintBill", "LabOrderBooking")' + '?labOrderId=' + result.labOrderId;
                     $('#btnPrintBill').attr('href', printUrl);
+                    // 2554: FORM F link (encrypted, from the server) only for a female consent test
+                    if (result.formFUrl) $('#btnPrintFormF').removeClass('d-none').attr('href', result.formFUrl);
+                    else $('#btnPrintFormF').addClass('d-none').attr('href', '#');
 
                     var sm = new bootstrap.Modal(document.getElementById('bookingSuccessModal'));
                     sm.show();

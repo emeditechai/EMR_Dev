@@ -515,6 +515,10 @@ public class HospitalSettingsViewModel
     [StringLength(50, ErrorMessage = "WBHS Empanelment Code can be at most 50 characters.")]
     public string? WbhsEmpanelmentCode { get; set; }
 
+    [Display(Name = "PC-PNDT Registration No.")]
+    [StringLength(100, ErrorMessage = "PC-PNDT Registration No. can be at most 100 characters.")]
+    public string? PndtRegistrationNo { get; set; }
+
     [Display(Name = "Active")]
     public bool IsActive { get; set; } = true;
 

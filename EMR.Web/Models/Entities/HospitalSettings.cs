@@ -200,6 +200,9 @@ public class HospitalSettings
     /// <summary>SQLScripts/2533: the branch's WBHS (West Bengal Health Scheme) empanelment code; null = not set.</summary>
     public string? WbhsEmpanelmentCode { get; set; }
 
+    /// <summary>SQLScripts/2554: the branch's PC-PNDT registration no., printed on FORM F; null = use RegistrationNumber.</summary>
+    public string? PndtRegistrationNo { get; set; }
+
     public bool LabEmailNotificationRequired { get; set; } = true;
     public bool IsSampleCollectionMandatory { get; set; } = true;
     public bool BarcodeGenerateAtBilling { get; set; } = false;

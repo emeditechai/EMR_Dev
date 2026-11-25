@@ -2,6 +2,7 @@
 // The page renders a hidden .btn-upload-consent (data-laborderid) per row; this script asks which bills need a consent
 // (a test with Consent Required = Yes, also inside a profile / package), shows the action on those rows only, and
 // uploads a PDF / JPG / JPEG / PNG to LabOrderBooking/UploadOrderConsent. Nothing else on the page is touched.
+// Also shows "Print FORM - F" (.li-print-formf, SQLScripts/2554) on B2C rows with a female consent test.
 // Requires jQuery, Bootstrap 5 and SweetAlert2 (already on both pages).
 (function (window, $) {
     'use strict';
@@ -32,7 +33,7 @@
     }
 
     function loadStatus() {
-        var ids = $('.btn-upload-consent').map(function () { return $(this).data('laborderid'); }).get();
+        var ids = $('.btn-upload-consent, .btn-print-formf').map(function () { return $(this).data('laborderid'); }).get();
         ids = ids.filter(function (v, i) { return v && ids.indexOf(v) === i; });
         if (!ids.length) return;
         $.get(STATUS_URL, { ids: ids.join(',') }).done(function (res) {
@@ -40,6 +41,10 @@
             (res.rows || []).forEach(function (r) {
                 status[r.labOrderId] = { tests: r.tests, hasFile: r.hasFile, remarks: r.remarks };
                 show(r.labOrderId);
+                if (r.formFUrl) {   // 2554: FORM F (PC-PNDT) for a female consent test
+                    $('.btn-print-formf[data-laborderid="' + r.labOrderId + '"]').attr('href', r.formFUrl);
+                    $('.li-print-formf[data-laborderid="' + r.labOrderId + '"]').removeClass('d-none');
+                }
             });
         });
     }

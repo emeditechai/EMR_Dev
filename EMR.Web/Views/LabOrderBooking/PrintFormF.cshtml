@@ -1,0 +1,129 @@
+@model EMR.Web.Models.DTOs.LabOrderFormFDto
+@{
+    // FORM F (PC-PNDT Act, Rule 9(4) and 10(1A)) for a B2C bill with a female consent test (SQLScripts/2554).
+    // Dynamic: clinic, registration, patient, age, husband / father, address, phone, referral, LMP / weeks, procedures, dates.
+    Layout = null;
+    string Dots(int n = 40) => new string('.', n);
+    string V(string? s, int dots = 40) => string.IsNullOrWhiteSpace(s) ? Dots(dots) : s!.Trim();
+    var billDate = Model.BillDate.ToString("dd-MM-yyyy");
+    var fullName = string.Join(" ", new[] { Model.Salutation, Model.PatientName }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    var lmp = Model.LmpDate.HasValue ? Model.LmpDate.Value.ToString("dd-MM-yyyy") : null;
+    var weeks = Model.PregnancyDays is > 0 ? $"{Model.PregnancyDays / 7} weeks {Model.PregnancyDays % 7} days" : null;
+    var lmpText = lmp == null ? Dots(44) : (weeks == null ? lmp : $"{lmp}  /  {weeks}");
+    var guardian = string.IsNullOrWhiteSpace(Model.GuardianName) ? Dots(40)
+                 : (string.IsNullOrWhiteSpace(Model.GuardianRelation) ? Model.GuardianName : $"{Model.GuardianName} ({Model.GuardianRelation})");
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FORM F — @Model.BillNo</title>
+    <style>
+        @@page { size: A4; margin: 0; }   /* the sheet carries its own margin, so it prints the same with any "Margins" choice */
+        * { box-sizing: border-box; }
+        body { font-family: "Times New Roman", Times, serif; font-size: 12.5px; color: #000; margin: 0; background: #f1f5f9; }
+        .sheet { width: 210mm; min-height: 297mm; margin: 12px auto; background: #fff; padding: 12mm 14mm; box-shadow: 0 1px 6px rgba(0,0,0,.15); }
+        .toolbar { text-align: center; margin: 12px 0 0; font-family: Arial, sans-serif; }
+        .toolbar button { background: #0f766e; color: #fff; border: 0; border-radius: 6px; padding: 8px 18px; font-size: 14px; cursor: pointer; }
+        .title { text-align: center; }
+        .title .box { display: inline-block; border: 1.5px solid #000; padding: 1px 34px; font-weight: bold; font-size: 14px; }
+        .title .sub { margin-top: 2px; }
+        .title .head { display: inline-block; border: 1.5px solid #000; padding: 3px 18px; margin-top: 6px; font-weight: bold; font-size: 10.5px; line-height: 1.35; }
+        table.f { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        table.f td { vertical-align: top; padding: 1.6px 0; line-height: 1.35; }
+        td.n { width: 24px; font-weight: bold; }
+        td.l { width: 46%; }
+        td.c { width: 14px; text-align: center; }
+        .val { font-weight: bold; }
+        .sm { font-size: 11.5px; }
+        .sign { display: flex; justify-content: space-between; margin-top: 14px; }
+        .decl { text-align: center; margin-top: 16px; }
+        .decl .box { display: inline-block; border: 1.5px solid #000; padding: 4px 12px; font-weight: bold; }
+        .right { text-align: right; font-weight: bold; margin-top: 12px; }
+        .center { text-align: center; }
+        @@media print {
+            body { background: #fff; }
+            .toolbar { display: none; }
+            html, body { width: 210mm; }
+            body { font-size: 11.6px; }
+            .sheet { margin: 0; box-shadow: none; width: 210mm; min-height: 0; padding: 12mm 15mm 8mm; page-break-after: avoid; }
+            table.f { margin-top: 8px; }
+            table.f td { padding: 1px 0; line-height: 1.28; }
+            .sm { font-size: 10.6px; }
+            .decl { margin-top: 10px; }
+            .sign { margin-top: 10px; }
+            p { margin: 6px 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="toolbar"><button type="button" onclick="window.print()">&#128424; Print FORM F</button></div>
+<div class="sheet">
+    <div class="title">
+        <div class="box">FORM - F</div>
+        <div class="sub">[See Proviso to Section 4 (3), Rule 9 (4) and Rule 10 (1A)]</div>
+        <div class="head">FORM FOR MAINTENANCE OF RECORD IN RESPECT OF PREGNANT WOMAN<br />BY<br />GENETIC CLINIC / ULTRASOUND CLINIC / IMAGING CENTRE</div>
+    </div>
+
+    <table class="f">
+        <tr><td class="n">1.</td><td class="l">Name and address of Genetic Clinic / Ultrasound Clinic / Imaging Clinic</td><td class="c">:</td>
+            <td><span class="val">@V(Model.ClinicName)</span><br />@V(Model.ClinicAddress)</td></tr>
+        <tr><td class="n">2.</td><td class="l">Registration No.</td><td class="c">:</td><td class="val">@V(Model.RegistrationNo)</td></tr>
+        <tr><td class="n">3.</td><td class="l">Patient's name and her age</td><td class="c">:</td>
+            <td><span class="val">@V(fullName)</span> &nbsp;&nbsp; Age: <span class="val">@(Model.AgeYears.HasValue ? $"{Model.AgeYears} Years" : Dots(10))</span></td></tr>
+        <tr><td class="n">4.</td><td class="l">Number of children with sex of each child</td><td class="c">:</td>
+            <td>Male: @Dots(12) &nbsp;&nbsp; Female: @Dots(12)</td></tr>
+        <tr><td class="n">5.</td><td class="l">Husband's / Father's Name</td><td class="c">:</td><td class="val">@guardian</td></tr>
+        <tr><td class="n">6.</td><td class="l">Full address with Telephone No. if any</td><td class="c">:</td>
+            <td>@V(Model.PatientAddress)<br />Phone: <span class="val">@V(Model.PhoneNumber, 20)</span></td></tr>
+        <tr><td class="n">7.</td><td class="l">Referred by (Full Name and address of Doctor(s) / Genetic Counselling Centre)
+                <span class="sm">(Referral note to be preserved carefully with case papers) / Self referral</span></td><td class="c">:</td>
+            <td class="val">@(string.IsNullOrWhiteSpace(Model.ReferredBy) ? "Self referral" : Model.ReferredBy)</td></tr>
+        <tr><td class="n">8.</td><td class="l">Last menstrual period / weeks of pregnancy</td><td class="c">:</td><td class="val">@lmpText</td></tr>
+        <tr><td class="n">9.</td><td class="l">History of genetic / medical disease in the family (specify) - Basis of diagnosis
+                <span class="sm">(a) Clinical (b) Bio-Chemical (c) Cytogenetic (d) Other (e.g. radiological, ultrasonography etc. specify)</span></td><td class="c">:</td>
+            <td>Not Applicable</td></tr>
+        <tr><td class="n">10.</td><td colspan="3">Indication for pre-natal diagnosis</td></tr>
+        <tr><td></td><td class="l sm">A. Previous child / children with: i) Chromosomal disorders, ii) Metabolic disorders, iii) Congenital anomaly,
+                iv) Mental retardation, v) Haemoglobinopathy, vi) Sex linked disorders, vii) Single gene disorder, viii) Any other (specify)</td><td class="c">:</td><td>Not Applicable</td></tr>
+        <tr><td></td><td class="l">B. Advanced maternal age (35 years)</td><td class="c">:</td><td>@(Model.AgeYears >= 35 ? "Yes" : "Not Applicable")</td></tr>
+        <tr><td></td><td class="l">C. Mother / Father / Sibling has genetic disease (specify)</td><td class="c">:</td><td>Not Applicable</td></tr>
+        <tr><td></td><td class="l">D. Other (specify)</td><td class="c">:</td><td>Routine Prenatal Check-up</td></tr>
+        <tr><td class="n">11.</td><td class="l sm">Procedures carried out (with name and registration No. of Gynaecologist / Radiologist / Registered Medical
+                practitioner who performed it). Non-invasive i) Ultrasound (specify purpose for which ultrasound is to be done during pregnancy)
+                Invasive ii) Amniocentesis, iii) Chorionic villi aspiration, iv) Foetal biopsy, v) Cordocentesis, vi) Any other (specify)</td><td class="c">:</td>
+            <td><span class="val">@Model.Procedures</span><br />Purpose: Routine Prenatal Check-up<br />Performed by: @Dots(36)</td></tr>
+        <tr><td class="n">12.</td><td class="l">Any complication of procedure - please specify</td><td class="c">:</td><td>Not Applicable</td></tr>
+        <tr><td class="n">13.</td><td class="l sm">Laboratory test recommended - i) Chromosomal studies, ii) Biochemical studies, iii) Molecular studies,
+                iv) Preimplantation genetic diagnosis</td><td class="c">:</td><td>Not Applicable</td></tr>
+        <tr><td class="n">14.</td><td class="l sm">Result of: a) pre-natal diagnostic procedure (give details) b) Ultrasonography
+                (specify abnormality detected, if any) Normal / Abnormal</td><td class="c">:</td><td>@Dots(44)</td></tr>
+        <tr><td class="n">15.</td><td class="l">Date(s) on which procedures carried out</td><td class="c">:</td><td class="val">@billDate</td></tr>
+        <tr><td class="n">16.</td><td class="l">Date on which consent obtained (in case of invasive)</td><td class="c">:</td><td>Not Applicable</td></tr>
+        <tr><td class="n">17.</td><td class="l">The result of pre-natal diagnostic procedure were conveyed to</td><td class="c">:</td>
+            <td>Patient &nbsp; on @Dots(24)</td></tr>
+        <tr><td class="n">18.</td><td class="l">Was MTP advised / conducted?</td><td class="c">:</td><td>Not Applicable</td></tr>
+        <tr><td class="n">19.</td><td class="l">Date on which MTP carried out</td><td class="c">:</td><td>Not Applicable</td></tr>
+    </table>
+
+    <div class="sign">
+        <div>Date &nbsp;: <span class="val">@billDate</span><br />Place : <span class="val">@V(Model.Place, 24)</span></div>
+        <div class="center">Name, Signature and Registration number of the<br />Gynaecologist / Radiologist / Director of the Clinic</div>
+    </div>
+
+    <div class="decl"><span class="box">DECLARATION OF PREGNANT WOMAN</span></div>
+    <p>I, Ms. <span class="val">@V(Model.PatientName)</span> (name of the pregnant woman) declare that by undergoing ultra sonography / imaging
+        scanning etc. I do not want to know the sex of my foetus.</p>
+    <div class="right">Signature / Thumb impression of pregnant woman</div>
+
+    <div class="decl"><span class="box">DECLARATION OF DOCTOR / PERSON CONDUCTING ULTRASONOGRAPHY / IMAGE SCANNING</span></div>
+    <p>I, @Dots(70) (name of the person conducting ultrasonography / image scanning) declare that while conducting ultrasonography /
+        image scanning on Ms. <span class="val">@V(Model.PatientName)</span> (name of the pregnant woman), I have neither detected nor
+        disclosed the sex of her foetus to any body in any manner.</p>
+    <div class="center" style="margin-top:26px">Name and signature of the person conducting ultrasonography / image scanning /<br />
+        Director or owner of genetic clinic / ultrasound clinic / imaging centre</div>
+    <div class="center sm" style="margin-top:10px;color:#555">Bill No: @Model.BillNo &nbsp;·&nbsp; Patient ID: @Model.PatientCode</div>
+</div>
+</body>
+</html>

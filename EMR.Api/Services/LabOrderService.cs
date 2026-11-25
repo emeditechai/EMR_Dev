@@ -129,6 +129,13 @@ namespace EMR.Api.Services
                 new { LabOrderIds = labOrderIds, BranchId = branchId }, commandType: CommandType.StoredProcedure);
         }
 
+        public async Task<LabOrderFormFDto?> GetFormFAsync(int labOrderId, int? branchId)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryFirstOrDefaultAsync<LabOrderFormFDto>("dbo.usp_LabOrder_FormF",
+                new { LabOrderId = labOrderId, BranchId = branchId }, commandType: CommandType.StoredProcedure);
+        }
+
         public async Task SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId)
         {
             using var connection = db.CreateConnection();

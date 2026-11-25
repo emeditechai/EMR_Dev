@@ -333,6 +333,12 @@
                                                     <i class="bi bi-file-earmark-arrow-up me-2 text-primary"></i>View Uploaded Documents
                                                 </button>
                                             </li>
+                                            @* 2554: shown by lab-consent-upload.js only for a female consent test (FORM F, PC-PNDT) *@
+                                            <li asp-permission="LAB.LABORDERBOOKING.B2CORDERLIST:PRINT" class="d-none li-print-formf" data-laborderid="@o.LabOrderId">
+                                                <a class="dropdown-item btn-print-formf" href="#" target="_blank" data-laborderid="@o.LabOrderId">
+                                                    <i class="bi bi-printer-fill me-2 text-danger"></i>Print FORM - F
+                                                </a>
+                                            </li>
                                             @* shown by lab-consent-upload.js only when a test of the bill needs a consent (SQLScripts/2553) *@
                                             <li asp-permission="LAB.LABORDERBOOKING.B2CORDERLIST:UPLOAD_CONSENT" class="d-none li-upload-consent" data-laborderid="@o.LabOrderId">
                                                 <button type="button" class="dropdown-item btn-upload-consent" data-laborderid="@o.LabOrderId" data-bill="@(o.BillNo ?? "")">
