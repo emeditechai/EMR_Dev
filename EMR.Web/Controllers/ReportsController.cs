@@ -400,7 +400,19 @@ public class ReportsController : Controller
     public IActionResult LabMonthlyGrowth() => View();
 
     [HttpGet]
-    public async Task<IActionResult> GetLabMonthlyGrowthData(string fromMonth, string toMonth, string? scope)
+    public Task<IActionResult> GetLabMonthlyGrowthData(string fromMonth, string toMonth, string? scope)
+        => MonthlyGrowthDataAsync(fromMonth, toMonth, scope, _reportApi.GetLabMonthlyGrowthRawAsync);
+
+    /// <summary>OPD Monthly Business Growth: month-wise growth or loss of the OPD (SQLScripts/2547).</summary>
+    [HttpGet]
+    public IActionResult OpdMonthlyGrowth() => View();
+
+    [HttpGet]
+    public Task<IActionResult> GetOpdMonthlyGrowthData(string fromMonth, string toMonth, string? scope)
+        => MonthlyGrowthDataAsync(fromMonth, toMonth, scope, _reportApi.GetOpdMonthlyGrowthRawAsync);
+
+    private async Task<IActionResult> MonthlyGrowthDataAsync(string fromMonth, string toMonth, string? scope,
+        Func<IDictionary<string, string?>, Task<ReportApiResult<string>>> fetch)
     {
         var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
         // inputs are yyyy-MM (month pickers); a full date is accepted too
@@ -423,7 +435,7 @@ public class ReportsController : Controller
             ["userId"] = User.GetUserId().ToString(),
             ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
         };
-        var result = await _reportApi.GetLabMonthlyGrowthRawAsync(query);
+        var result = await fetch(query);
         if (!result.IsSuccess)
             return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
         return Content("{\"success\":true,\"data\":" + result.Data + "}", "application/json");

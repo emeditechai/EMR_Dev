@@ -170,13 +170,19 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
         }
     }
 
-    public async Task<ReportApiResult<string>> GetLabMonthlyGrowthRawAsync(IDictionary<string, string?> query)
+    public Task<ReportApiResult<string>> GetLabMonthlyGrowthRawAsync(IDictionary<string, string?> query)
+        => GetMonthlyGrowthRawAsync("lab", query);
+
+    public Task<ReportApiResult<string>> GetOpdMonthlyGrowthRawAsync(IDictionary<string, string?> query)
+        => GetMonthlyGrowthRawAsync("opd", query);
+
+    private async Task<ReportApiResult<string>> GetMonthlyGrowthRawAsync(string module, IDictionary<string, string?> query)
     {
         try
         {
             var qs = string.Join("&", query.Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
                                            .Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value!)}"));
-            var response = await _http.GetAsync($"/api/reports/lab/monthly-growth?{qs}");
+            var response = await _http.GetAsync($"/api/reports/{module}/monthly-growth?{qs}");
             if (response.IsSuccessStatusCode)
                 return ReportApiResult<string>.SuccessResult(await response.Content.ReadAsStringAsync());
             if (response.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.BadRequest)
