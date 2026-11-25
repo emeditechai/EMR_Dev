@@ -119,6 +119,30 @@ namespace EMR.Api.Controllers
             return Ok(new { schemeName = await labOrderService.SetOrderSchemeAsync(id, request?.BeneficiaryId) });
         }
 
+        /// <summary>Order lists: consent needed / already on file, for the given bills (SQLScripts/2553).</summary>
+        [HttpGet("consent-status")]
+        public async Task<IActionResult> GetConsentStatus([FromQuery] string ids, [FromQuery] int? branchId = null)
+        {
+            if (string.IsNullOrWhiteSpace(ids)) return Ok(System.Array.Empty<LabOrderConsentStatusDto>());
+            return Ok(await labOrderService.GetConsentStatusAsync(ids, branchId));
+        }
+
+        /// <summary>Consent uploaded after billing: stores the file path saved by EMR.Web (SQLScripts/2553).</summary>
+        [HttpPost("{id}/consent")]
+        public async Task<IActionResult> SaveConsent(int id, [FromBody] LabOrderConsentRequest request)
+        {
+            if (id <= 0 || string.IsNullOrWhiteSpace(request?.ConsentFilePath)) return BadRequest(new { message = "A bill and a consent file are required." });
+            try
+            {
+                await labOrderService.SaveConsentAsync(id, request.ConsentFilePath, request.BranchId, request.UserId);
+                return Ok(new { isSuccess = true });
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 56530 or 56531)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         [HttpPost("{id}/sample-collection")]
         public async Task<IActionResult> CreateSampleCollection(int id, [FromQuery] int branchId, [FromQuery] int companyId = 1, [FromQuery] int? userId = null)
         {

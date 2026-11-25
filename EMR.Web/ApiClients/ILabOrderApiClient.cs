@@ -18,5 +18,9 @@ namespace EMR.Web.ApiClients
         Task<LabB2BSchemeDto> GetB2BSchemeAsync(int branchId, string agentType, int agentId);
         /// <summary>Records the government scheme and Beneficiary ID on a saved B2B order (SQLScripts/2535).</summary>
         Task SetOrderSchemeAsync(int labOrderId, string? beneficiaryId);
+        /// <summary>Order lists: consent needed / on file for the given bills (SQLScripts/2553).</summary>
+        Task<List<LabOrderConsentStatusDto>> GetConsentStatusAsync(IEnumerable<int> labOrderIds, int? branchId);
+        /// <summary>Stores the path of a consent uploaded after billing; returns an error message or null (SQLScripts/2553).</summary>
+        Task<string?> SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId);
     }
 }

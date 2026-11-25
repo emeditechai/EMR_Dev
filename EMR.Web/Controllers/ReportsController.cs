@@ -411,6 +411,14 @@ public class ReportsController : Controller
     public Task<IActionResult> GetOpdMonthlyGrowthData(string fromMonth, string toMonth, string? scope)
         => MonthlyGrowthDataAsync(fromMonth, toMonth, scope, _reportApi.GetOpdMonthlyGrowthRawAsync);
 
+    /// <summary>Pharmacy Monthly Business Growth: month-wise growth or loss of the pharmacy (SQLScripts/2548).</summary>
+    [HttpGet]
+    public IActionResult PharmacyMonthlyGrowth() => View();
+
+    [HttpGet]
+    public Task<IActionResult> GetPharmacyMonthlyGrowthData(string fromMonth, string toMonth, string? scope)
+        => MonthlyGrowthDataAsync(fromMonth, toMonth, scope, _reportApi.GetPharmacyMonthlyGrowthRawAsync);
+
     private async Task<IActionResult> MonthlyGrowthDataAsync(string fromMonth, string toMonth, string? scope,
         Func<IDictionary<string, string?>, Task<ReportApiResult<string>>> fetch)
     {

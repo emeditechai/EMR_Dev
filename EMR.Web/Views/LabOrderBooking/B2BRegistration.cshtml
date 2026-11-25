@@ -289,6 +289,12 @@
                                         data-laborderid="@item.LabOrderId" title="View Uploaded Documents">
                                     <i class="bi bi-file-earmark-arrow-up"></i>
                                 </button>
+                                @* shown by lab-consent-upload.js only when a test of the bill needs a consent (SQLScripts/2553) *@
+                                <button asp-permission="LAB.LABORDERBOOKING.B2BREGISTRATION:UPLOAD_CONSENT" type="button"
+                                        class="btn btn-outline-warning btn-upload-consent d-none" title="Upload Consent"
+                                        data-laborderid="@item.LabOrderId" data-bill="@(item.BillNo ?? "")">
+                                    <i class="bi bi-file-earmark-check"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -351,6 +357,10 @@
 
 @section Scripts {
     <script src="~/js/lab-compliance-docs-viewer.js"></script>
+    <form id="frmConsentToken" class="d-none">@Html.AntiForgeryToken()</form>
+    <script src="~/js/lab/lab-consent-upload.js" asp-append-version="true"
+            data-status-url="@Url.Action("GetOrderConsentStatus", "LabOrderBooking")"
+            data-upload-url="@Url.Action("UploadOrderConsent", "LabOrderBooking")"></script>
     <script>
         function viewOrderDetail(id) {
             $('#orderDetailModal').modal('show');

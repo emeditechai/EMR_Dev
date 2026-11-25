@@ -113,6 +113,27 @@ namespace EMR.Web.ApiClients
             return await response.Content.ReadFromJsonAsync<LabB2BSchemeDto>() ?? new LabB2BSchemeDto();
         }
 
+        public async Task<List<LabOrderConsentStatusDto>> GetConsentStatusAsync(IEnumerable<int> labOrderIds, int? branchId)
+        {
+            var ids = string.Join(",", labOrderIds);
+            if (ids.Length == 0) return new List<LabOrderConsentStatusDto>();
+            var url = $"api/LabOrders/consent-status?ids={System.Uri.EscapeDataString(ids)}" + (branchId is > 0 ? $"&branchId={branchId}" : "");
+            return await httpClient.GetFromJsonAsync<List<LabOrderConsentStatusDto>>(url) ?? new List<LabOrderConsentStatusDto>();
+        }
+
+        public async Task<string?> SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId)
+        {
+            var response = await httpClient.PostAsJsonAsync($"api/LabOrders/{labOrderId}/consent",
+                new { ConsentFilePath = consentFilePath, BranchId = branchId, UserId = userId });
+            if (response.IsSuccessStatusCode) return null;
+            try
+            {
+                var body = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                return body?.GetValueOrDefault("message")?.ToString() ?? "The consent could not be saved.";
+            }
+            catch { return "The consent could not be saved."; }
+        }
+
         public async Task SetOrderSchemeAsync(int labOrderId, string? beneficiaryId)
         {
             var response = await httpClient.PostAsJsonAsync($"api/LabOrders/{labOrderId}/scheme", new { BeneficiaryId = beneficiaryId });

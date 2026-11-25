@@ -176,6 +176,9 @@ public class ReportApiClient(IHttpClientFactory factory) : IReportApiClient
     public Task<ReportApiResult<string>> GetOpdMonthlyGrowthRawAsync(IDictionary<string, string?> query)
         => GetMonthlyGrowthRawAsync("opd", query);
 
+    public Task<ReportApiResult<string>> GetPharmacyMonthlyGrowthRawAsync(IDictionary<string, string?> query)
+        => GetMonthlyGrowthRawAsync("pharmacy", query);
+
     private async Task<ReportApiResult<string>> GetMonthlyGrowthRawAsync(string module, IDictionary<string, string?> query)
     {
         try

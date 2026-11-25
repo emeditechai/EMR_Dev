@@ -281,4 +281,21 @@ namespace EMR.Api.Models
     {
         public string? BeneficiaryId { get; set; }
     }
+
+    /// <summary>Order lists: consent needed for the bill, and what is on file (SQLScripts/2553).</summary>
+    public class LabOrderConsentStatusDto
+    {
+        public int LabOrderId { get; set; }
+        public bool ConsentRequired { get; set; }
+        public string? ConsentTests { get; set; }
+        public string? ConsentFilePath { get; set; }
+        public string? ConsentRemarks { get; set; }
+    }
+
+    public class LabOrderConsentRequest
+    {
+        public string? ConsentFilePath { get; set; }
+        public int? BranchId { get; set; }
+        public int? UserId { get; set; }
+    }
 }

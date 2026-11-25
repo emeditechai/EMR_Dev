@@ -65,7 +65,8 @@
                     <!-- Department -->
                     <div class="col-md-6">
                         <label asp-for="Department_ID" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
-                        <select asp-for="Department_ID" class="form-select" asp-items="Model.DepartmentOptions" required>
+                        <select asp-for="Department_ID" id="cboDepartment" class="form-select" asp-items="Model.DepartmentOptions" required
+                                data-lookup-url="@Url.Action("GetDependentLookups", "LabInvestigations")">
                             <option value="">-- Select Lab Department --</option>
                         </select>
                         <span asp-validation-for="Department_ID" class="text-danger small"></span>
@@ -74,7 +75,7 @@
                     <!-- Category -->
                     <div class="col-md-6">
                         <label asp-for="Category_ID" class="form-label fw-semibold"></label> <span class="text-danger">*</span>
-                        <select asp-for="Category_ID" class="form-select" asp-items="Model.CategoryOptions" required>
+                        <select asp-for="Category_ID" id="cboCategory" class="form-select" asp-items="Model.CategoryOptions" required>
                             <option value="">-- Select Test Category --</option>
                         </select>
                         <span asp-validation-for="Category_ID" class="text-danger small"></span>
@@ -83,7 +84,7 @@
                     <!-- SubCategory -->
                     <div class="col-md-6">
                         <label asp-for="SubCategory_ID" class="form-label fw-semibold"></label>
-                        <select asp-for="SubCategory_ID" class="form-select" asp-items="Model.SubCategoryOptions">
+                        <select asp-for="SubCategory_ID" id="cboSubCategory" class="form-select" asp-items="Model.SubCategoryOptions">
                             <option value="">-- None / Select Sub-Category --</option>
                         </select>
                         <span asp-validation-for="SubCategory_ID" class="text-danger small"></span>
@@ -109,7 +110,7 @@
                     <!-- Method -->
                     <div class="col-md-6">
                         <label asp-for="Method_ID" class="form-label fw-semibold"></label>
-                        <select asp-for="Method_ID" class="form-select" asp-items="Model.MethodOptions">
+                        <select asp-for="Method_ID" id="cboMethod" class="form-select" asp-items="Model.MethodOptions">
                             <option value="">-- Select Test Method --</option>
                         </select>
                         <span asp-validation-for="Method_ID" class="text-danger small"></span>
@@ -345,4 +346,5 @@
             }
         });
     </script>
+    <script src="~/js/lab/lab-investigation-form.js" asp-append-version="true"></script>
 }

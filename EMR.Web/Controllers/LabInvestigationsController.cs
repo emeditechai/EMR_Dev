@@ -70,10 +70,11 @@ public class LabInvestigationsController(
             Applicable_Gender = "All",
             Is_Billable = true,
             DepartmentOptions = await GetDepartmentOptionsAsync(),
-            CategoryOptions = await GetCategoryOptionsAsync(),
-            SubCategoryOptions = await GetSubCategoryOptionsAsync(),
+            // category, sub-category and method follow the chosen department / category (lab-investigation-form.js)
+            CategoryOptions = [],
+            SubCategoryOptions = [],
             SampleTypeOptions = await GetSampleTypeOptionsAsync(),
-            MethodOptions = await GetMethodOptionsAsync(),
+            MethodOptions = [],
             UnitOptions = await GetUnitOptionsAsync(),
             ReportingTypeOptions = GetReportingTypeOptions(),
             ProfileTestOptions = GetProfileTestOptions(false),
@@ -386,6 +387,22 @@ public class LabInvestigationsController(
         }
 
         return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Lists that depend on the form's choices: categories and methods of the department, sub-categories of
+    /// the category (SQLScripts/2552). Called when Department / Category changes on Create and Edit.</summary>
+    [HttpGet]
+    public async Task<IActionResult> GetDependentLookups(int? departmentId, int? categoryId)
+    {
+        var dept = departmentId is > 0 ? departmentId : null;
+        var cat = categoryId is > 0 ? categoryId : null;
+        return Json(new
+        {
+            success = true,
+            categories = dept == null ? [] : await GetCategoryOptionsAsync(dept),
+            methods = dept == null ? [] : await GetMethodOptionsAsync(dept),
+            subCategories = cat == null ? [] : await GetSubCategoryOptionsAsync(cat)
+        });
     }
 
     [HttpGet]

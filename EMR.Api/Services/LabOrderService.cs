@@ -122,6 +122,21 @@ namespace EMR.Api.Services
             return $"{prefix}{seq:D4}";
         }
 
+        public async Task<IEnumerable<LabOrderConsentStatusDto>> GetConsentStatusAsync(string labOrderIds, int? branchId)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryAsync<LabOrderConsentStatusDto>("dbo.usp_LabOrder_ConsentStatus",
+                new { LabOrderIds = labOrderIds, BranchId = branchId }, commandType: CommandType.StoredProcedure);
+        }
+
+        public async Task SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId)
+        {
+            using var connection = db.CreateConnection();
+            await connection.ExecuteAsync("dbo.usp_LabOrder_SaveConsent",
+                new { LabOrderId = labOrderId, ConsentFilePath = consentFilePath, BranchId = branchId, UserId = userId },
+                commandType: CommandType.StoredProcedure);
+        }
+
         public async Task<IEnumerable<AvailableInvestigationDto>> GetAvailableInvestigationsAsync(int branchId, int? departmentId, int? categoryId, int? subCategoryId, string? gender = null, int? ageInYears = null, string? rateType = "B2C", int? agentId = null)
         {
             using var connection = db.CreateConnection();

@@ -462,6 +462,16 @@ namespace EMR.Web.Models.DTOs
     }
 
     // LAB B2B government scheme (SQLScripts/2535)
+    /// <summary>Order lists: consent needed for the bill, and what is on file (SQLScripts/2553).</summary>
+    public class LabOrderConsentStatusDto
+    {
+        public int LabOrderId { get; set; }
+        public bool ConsentRequired { get; set; }
+        public string? ConsentTests { get; set; }
+        public string? ConsentFilePath { get; set; }
+        public string? ConsentRemarks { get; set; }
+    }
+
     public class LabB2BSchemeDto
     {
         public int? RateCard_ID { get; set; }

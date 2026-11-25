@@ -2638,6 +2638,85 @@ namespace EMR.Web.Controllers
             }
         }
 
+        /// <summary>
+        /// B2C Order List / B2B Registration: for the bills on the page, whether a consent is needed (a test with
+        /// Consent Required = Yes, also inside a profile / package) and whether one is on file (SQLScripts/2553).
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetOrderConsentStatus(string? ids)
+        {
+            var list = (ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                  .Select(x => int.TryParse(x, out var v) ? v : 0).Where(v => v > 0).Distinct().Take(500).ToList();
+            if (list.Count == 0) return Json(new { success = true, rows = Array.Empty<object>() });
+            try
+            {
+                var rows = await labOrderApiClient.GetConsentStatusAsync(list, User.GetCurrentBranchId());
+                return Json(new
+                {
+                    success = true,
+                    rows = rows.Where(r => r.ConsentRequired).Select(r => new
+                    {
+                        labOrderId = r.LabOrderId,
+                        tests = r.ConsentTests,
+                        hasFile = !string.IsNullOrWhiteSpace(r.ConsentFilePath),
+                        remarks = r.ConsentRemarks
+                    })
+                });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        private static readonly string[] ConsentExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };
+        private const long ConsentMaxBytes = 10 * 1024 * 1024;
+
+        /// <summary>
+        /// Consent uploaded after billing from the order lists: PDF / JPG / JPEG / PNG up to 10 MB, saved where the
+        /// billing upload goes (wwwroot/uploads/lab-compliance/consent) and recorded on the bill (SQLScripts/2553).
+        /// </summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        [RequestSizeLimit(ConsentMaxBytes + 1024 * 1024)]
+        public async Task<IActionResult> UploadOrderConsent(int labOrderId, IFormFile? consentFile)
+        {
+            if (labOrderId <= 0) return Json(new { success = false, message = "A valid bill is required." });
+            if (consentFile == null || consentFile.Length == 0) return Json(new { success = false, message = "Please choose the consent file." });
+            var ext = Path.GetExtension(consentFile.FileName).ToLowerInvariant();
+            if (!ConsentExtensions.Contains(ext)) return Json(new { success = false, message = "Only PDF, JPG, JPEG or PNG files can be uploaded." });
+            if (consentFile.Length > ConsentMaxBytes) return Json(new { success = false, message = "The file is larger than 10 MB." });
+
+            try
+            {
+                // the bill must need a consent (and be of this branch) before anything is written
+                var status = (await labOrderApiClient.GetConsentStatusAsync(new[] { labOrderId }, User.GetCurrentBranchId())).FirstOrDefault();
+                if (status == null) return Json(new { success = false, message = "The bill was not found in this branch." });
+                if (!status.ConsentRequired) return Json(new { success = false, message = "This bill has no test that needs a consent." });
+
+                var folder = Path.Combine(env.WebRootPath, "uploads", "lab-compliance", "consent");
+                Directory.CreateDirectory(folder);
+                var fileName = $"{Guid.NewGuid()}{ext}";
+                await using (var stream = new FileStream(Path.Combine(folder, fileName), FileMode.Create))
+                {
+                    await consentFile.CopyToAsync(stream);
+                }
+                var path = $"/uploads/lab-compliance/consent/{fileName}";
+
+                var error = await labOrderApiClient.SaveConsentAsync(labOrderId, path, User.GetCurrentBranchId(), User.GetUserId());
+                if (error != null)
+                {
+                    try { System.IO.File.Delete(Path.Combine(folder, fileName)); } catch { /* the record was not written */ }
+                    return Json(new { success = false, message = error });
+                }
+                return Json(new { success = true, filePath = path });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetCategoriesForDropdown(int? departmentId)
         {
