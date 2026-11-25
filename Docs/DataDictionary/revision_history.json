@@ -457,5 +457,13 @@
   ],
   "date": "24 Nov 2026",
   "version": "1.37"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "HospitalSettings: new column(s) PndtRegistrationNo"
+  ],
+  "date": "25 Nov 2026",
+  "version": "1.38"
  }
 ]

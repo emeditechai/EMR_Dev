@@ -17551,6 +17551,19 @@
    "type": "bit"
   },
   {
+   "col": "PndtRegistrationNo",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 200,
+   "nullable": true,
+   "ord": 166,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "nvarchar"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -61440,7 +61453,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-24T18:00:23",
+ "extracted_on": "2026-11-25T18:04:57",
  "fk": [
   {
    "col": "LedgerId",
