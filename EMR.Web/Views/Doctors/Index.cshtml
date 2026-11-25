@@ -39,8 +39,26 @@
                 <div class="text-muted small mt-1"><i class="bi bi-building me-1"></i>Branch: <strong class="text-dark">@bn</strong></div>
             }
         </div>
-        <a asp-permission="MASTER.DOCTORS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm"><i class="bi bi-person-plus-fill me-1"></i> Add Doctor</a>
+        <div class="d-flex gap-2">
+            <div class="dropdown" asp-permission="MASTER.DOCTORS:IMPORT">
+                <button type="button" class="btn btn-outline-success px-3 shadow-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-file-earmark-excel me-1"></i> Bulk Upload
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#doctorBulkUploadOpdIpd"><i class="bi bi-hospital me-2"></i>OPD / IPD Doctors</button></li>
+                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#doctorBulkUploadReferral"><i class="bi bi-person-lines-fill me-2"></i>Referral Doctors</button></li>
+                </ul>
+            </div>
+            <a asp-permission="MASTER.DOCTORS:ADD" asp-action="Create" class="btn btn-primary px-3 shadow-sm"><i class="bi bi-person-plus-fill me-1"></i> Add Doctor</a>
+        </div>
     </div>
+
+    <partial name="_LabBulkUploadModal" model='new EMR.Web.Models.ViewModels.LabBulkUploadModalModel(
+        "doctor-opd-ipd", "OPD / IPD Doctors", "Speciality, OPD / IPD Department, Branch, Marketing Executive",
+        Controller: "DoctorBulkUpload", Permission: "MASTER.DOCTORS:IMPORT", ElementId: "doctorBulkUploadOpdIpd", KeyColumn: "Doctor ID")' />
+    <partial name="_LabBulkUploadModal" model='new EMR.Web.Models.ViewModels.LabBulkUploadModalModel(
+        "doctor-referral", "Referral Doctors", "Speciality, Department, Branch, Marketing Executive",
+        Controller: "DoctorBulkUpload", Permission: "MASTER.DOCTORS:IMPORT", ElementId: "doctorBulkUploadReferral", KeyColumn: "Doctor ID")' />
 
     @if (TempData["SuccessMessage"] != null)
     {

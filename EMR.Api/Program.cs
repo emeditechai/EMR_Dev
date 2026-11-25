@@ -196,6 +196,11 @@ builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.Franchise));
 builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.RateCardBulkHandler(
     sp.GetRequiredService<ILabRateCardService>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), EMR.Api.Services.BulkUpload.RateCardBulkHandler.Corporate));
+// Doctor Master bulk upload: referral doctors and OPD / IPD doctors (Doctors/Index)
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.DoctorBulkHandler(
+    sp.GetRequiredService<IDbConnectionFactory>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), referral: true));
+builder.Services.AddScoped<EMR.Api.Services.BulkUpload.ILabBulkUploadHandler>(sp => new EMR.Api.Services.BulkUpload.DoctorBulkHandler(
+    sp.GetRequiredService<IDbConnectionFactory>(), sp.GetRequiredService<EMR.Api.Services.BulkUpload.LabBulkLookups>(), referral: false));
 builder.Services.AddScoped<ILabBulkUploadService,             LabBulkUploadService>();
 
 // ── CORS (allow EMR.Web to call this API) ─────────────────────────────────────
