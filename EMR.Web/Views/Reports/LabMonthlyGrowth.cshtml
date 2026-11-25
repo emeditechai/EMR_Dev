@@ -1,0 +1,159 @@
+@{
+    ViewData["Title"] = "Monthly Business Growth";
+    var branchName = User.FindFirst("BranchName")?.Value ?? User.FindFirst("BranchCode")?.Value ?? "";
+}
+
+@section HeadStyles {
+<link rel="stylesheet" href="~/css/lab-monthly-growth.css" asp-append-version="true" />
+}
+
+<div class="container-fluid px-3 py-2 mg-wrap" id="mgRoot"
+     data-url="@Url.Action("GetLabMonthlyGrowthData", "Reports")" data-branch="@branchName">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div>
+            <h1 class="h4 fw-bold mb-0"><i class="bi bi-bar-chart-line text-success me-2"></i>Monthly Business Growth</h1>
+            <div class="text-muted fs-8">Reports &rsaquo; LAB &middot; <span id="lblScope">@(string.IsNullOrWhiteSpace(branchName) ? "This branch" : "Branch " + branchName)</span>
+                &middot; <span id="lblRange"></span></div>
+            <div class="fs-9 mt-1 text-muted"><i class="bi bi-info-circle me-1"></i>Month by month: net revenue after discounts and partner rates, growth or fall against the previous month and the same month last year, and gross profit after the BOM material actually consumed for the month's bills.</div>
+        </div>
+        <div class="d-flex gap-2 no-print">
+            <button type="button" class="btn btn-sm btn-outline-success" id="btnExcel" disabled><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="btnPdf" disabled><i class="bi bi-file-earmark-pdf me-1"></i>PDF</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPrint" disabled><i class="bi bi-printer me-1"></i>Print</button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="cr-card p-2 px-3 mb-2 no-print">
+        <div class="row g-2 align-items-end">
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">From month</label>
+                <input type="month" id="txtFrom" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">To month</label>
+                <input type="month" id="txtTo" class="form-control form-control-sm" autocomplete="off" />
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Quick select</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="6m">Last 6 Months</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="12m">Last 12 Months</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="fy">This FY</button>
+                    <button type="button" class="btn btn-outline-secondary btn-quick" data-range="lfy">Last FY</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label fs-9 fw-bold text-muted text-uppercase mb-0">Branches</label>
+                <div class="btn-group btn-group-sm w-100" role="group">
+                    <button type="button" class="btn btn-outline-secondary btn-scope active" data-scope="branch">This branch</button>
+                    <button type="button" class="btn btn-outline-secondary btn-scope" data-scope="all" title="All branches you work in">All my branches</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-2 d-flex justify-content-md-end">
+                <button type="button" class="btn btn-sm btn-success px-4 w-100" id="btnApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="stateError" class="alert alert-danger fs-8 d-none"></div>
+
+    <div id="mgBody" class="d-none">
+        <!-- Verdict -->
+        <div id="verdict" class="verdict flat mb-2"></div>
+
+        <!-- KPIs -->
+        <div class="row g-2 mb-2">
+            <div class="col-6 col-lg"><div class="cr-card cr-kpi" style="--k:#0f766e;--kb:#ccfbf1;"><div class="k-ico"><i class="bi bi-currency-rupee"></i></div>
+                <div class="k-label">Net revenue</div><div class="k-val amt" id="kNet">&mdash;</div><div class="k-sub" id="kNetSub"></div></div></div>
+            <div class="col-6 col-lg"><div class="cr-card cr-kpi" style="--k:#b45309;--kb:#ffedd5;"><div class="k-ico"><i class="bi bi-graph-up-arrow"></i></div>
+                <div class="k-label">Gross profit</div><div class="k-val amt" id="kProfit">&mdash;</div><div class="k-sub" id="kProfitSub"></div></div></div>
+            <div class="col-6 col-lg"><div class="cr-card cr-kpi" style="--k:#2563eb;--kb:#dbeafe;"><div class="k-ico"><i class="bi bi-calendar3"></i></div>
+                <div class="k-label">Average per month</div><div class="k-val amt" id="kAvg">&mdash;</div><div class="k-sub" id="kAvgSub"></div></div></div>
+            <div class="col-6 col-lg"><div class="cr-card cr-kpi" style="--k:#15803d;--kb:#dcfce7;"><div class="k-ico"><i class="bi bi-trophy"></i></div>
+                <div class="k-label">Best month</div><div class="k-val amt" id="kBest">&mdash;</div><div class="k-sub" id="kBestSub"></div></div></div>
+            <div class="col-6 col-lg"><div class="cr-card cr-kpi" style="--k:#b91c1c;--kb:#fee2e2;"><div class="k-ico"><i class="bi bi-arrow-down-right"></i></div>
+                <div class="k-label">Weakest month</div><div class="k-val amt" id="kWorst">&mdash;</div><div class="k-sub" id="kWorstSub"></div></div></div>
+            <div class="col-6 col-lg"><div class="cr-card cr-kpi" style="--k:#7c3aed;--kb:#ede9fe;"><div class="k-ico"><i class="bi bi-activity"></i></div>
+                <div class="k-label">Months up / down</div><div class="k-val num" id="kUpDown">&mdash;</div><div class="k-sub" id="kUpDownSub"></div></div></div>
+            <div class="col-6 col-lg"><div class="cr-card cr-kpi" style="--k:#db2777;--kb:#fce7f3;"><div class="k-ico"><i class="bi bi-people"></i></div>
+                <div class="k-label">Patients</div><div class="k-val num" id="kPatients">&mdash;</div><div class="k-sub" id="kPatientsSub"></div></div></div>
+        </div>
+
+        <!-- Main chart -->
+        <div class="cr-card p-3 mb-2">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <div class="cr-section-title"><i class="bi bi-bar-chart me-1"></i>Month-wise business <span id="lblMetric">(net revenue)</span></div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <div class="fs-9 text-muted"><span class="legend-dot" style="background:#15803d"></span>Grew <span class="legend-dot" style="background:#dc2626"></span>Fell
+                        <span class="legend-dot" style="background:#94a3b8"></span>Same month last year <span class="legend-dot" style="background:#2563eb"></span>3-month average</div>
+                    <div class="btn-group btn-group-sm no-print" role="group">
+                        <button type="button" class="btn btn-outline-secondary btn-metric active" data-metric="NetRevenue">Revenue</button>
+                        <button type="button" class="btn btn-outline-secondary btn-metric" data-metric="GrossProfit">Profit</button>
+                        <button type="button" class="btn btn-outline-secondary btn-metric" data-metric="Collected">Collected</button>
+                        <button type="button" class="btn btn-outline-secondary btn-metric" data-metric="Bills">Bills</button>
+                        <button type="button" class="btn btn-outline-secondary btn-metric" data-metric="Patients">Patients</button>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-box"><canvas id="chMain"></canvas></div>
+        </div>
+
+        <div class="row g-2 mb-2">
+            <div class="col-12 col-xl-6">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-arrow-down-up me-1"></i>Growth % month on month &amp; year on year</div>
+                    <div class="chart-box sm"><canvas id="chGrowth"></canvas></div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-graph-up me-1"></i>Cumulative revenue: this period vs last year</div>
+                    <div class="chart-box sm"><canvas id="chCumul"></canvas></div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-layers me-1"></i>B2C vs B2B revenue</div>
+                    <div class="chart-box sm"><canvas id="chMix"></canvas></div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="cr-card p-3 h-100">
+                    <div class="cr-section-title mb-2"><i class="bi bi-cash-coin me-1"></i>Revenue, cost &amp; profit margin</div>
+                    <div class="chart-box sm"><canvas id="chProfit"></canvas></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Month table -->
+        <div class="cr-card mb-2">
+            <div class="px-3 pt-3 pb-2 cr-section-title"><i class="bi bi-table me-1"></i>Month-wise detail</div>
+            <div class="tbl-scroll"><table class="table table-hover mb-0 cr-table" id="tblMonths"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+        </div>
+
+        <!-- Breakdowns by month (department / referring doctor / B2B partner / marketing executive / branch) -->
+        <div class="cr-card mb-2">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 px-3 pt-3 pb-2">
+                <div class="cr-section-title"><i class="bi bi-grid-3x3 me-1"></i>Month-wise revenue by <span id="lblDim">department</span> <span class="text-muted fw-normal text-lowercase">(darker = more revenue)</span></div>
+                <input type="search" id="txtDimSearch" class="form-control form-control-sm no-print" style="max-width:220px" placeholder="Search name..." autocomplete="off" />
+            </div>
+            <ul class="nav nav-tabs px-3 mg-tabs no-print" id="dimTabs">
+                <li class="nav-item"><button type="button" class="nav-link active" data-dim="departments" data-key="Department" data-label="department"><i class="bi bi-diagram-3 me-1"></i>By department</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-dim="doctors" data-key="Doctor" data-label="referring doctor"><i class="bi bi-person-badge me-1"></i>By referring doctor</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-dim="partners" data-key="Partner" data-label="B2B partner"><i class="bi bi-buildings me-1"></i>By B2B partner</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-dim="executives" data-key="Executive" data-label="marketing executive"><i class="bi bi-person-video2 me-1"></i>By marketing executive</button></li>
+                <li class="nav-item"><button type="button" class="nav-link" data-dim="branches" data-key="Branch" data-label="branch"><i class="bi bi-geo-alt me-1"></i>By branch</button></li>
+            </ul>
+            <div class="tbl-scroll"><table class="table mb-0 cr-table heat" id="tblDim"><thead></thead><tbody></tbody></table></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/emr-shimmer.js" asp-append-version="true"></script>
+<script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
+<script src="~/js/emr-export-libs.js" asp-append-version="true"></script>
+<script src="~/js/lab/lab-monthly-growth.js" asp-append-version="true"></script>
+}

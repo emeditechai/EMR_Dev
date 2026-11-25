@@ -26,6 +26,7 @@ public interface IReportApiClient
     Task<ReportApiResult<string>> RunOpdReportRawAsync(string report, IDictionary<string, string?> query);
     /// <summary>LF-18 Owner MIS: the API's named result sets as raw JSON.</summary>
     Task<ReportApiResult<string>> GetLabOwnerMisRawAsync(IDictionary<string, string?> query);
+    Task<ReportApiResult<string>> GetLabMonthlyGrowthRawAsync(IDictionary<string, string?> query);
     /// <summary>LR-13: "sent" (to the outside lab) or "received" (its result); the API validates and records it.</summary>
     Task<ReportApiResult<int>> LabOutsourceActionAsync(string action, LabOutsourceActionModel request);
 }

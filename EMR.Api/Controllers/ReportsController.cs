@@ -242,6 +242,38 @@ public class ReportsController : ControllerBase
         }
     }
 
+    private static readonly string[] MonthlyGrowthSections = { "months", "departments", "branches", "doctors", "partners", "executives", "meta" };
+
+    /// <summary>Monthly Business Growth: month-wise revenue, profit and collection with last year's same month (SQLScripts/2546).</summary>
+    [HttpGet("lab/monthly-growth")]
+    public async Task<IActionResult> GetLabMonthlyGrowth(
+        [FromQuery] int branchId,
+        [FromQuery] DateTime fromMonth,
+        [FromQuery] DateTime toMonth,
+        [FromQuery] bool allBranches = false,
+        [FromQuery] int userId = 0,
+        [FromQuery] bool isSuperAdmin = false)
+    {
+        if (branchId <= 0) return BadRequest(new { message = "Valid branchId is required." });
+        var parameters = new Dictionary<string, object?>
+        {
+            ["BranchId"] = branchId, ["FromMonth"] = fromMonth.Date, ["ToMonth"] = toMonth.Date, ["AllBranches"] = allBranches,
+            ["UserId"] = userId, ["IsSuperAdmin"] = isSuperAdmin
+        };
+        try
+        {
+            return Ok(await _reportService.RunLabSectionsAsync("dbo.usp_Api_LabReport_MonthlyGrowth", parameters, MonthlyGrowthSections));
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50020)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 50010 or 50011)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+        }
+    }
+
     [HttpGet("lab/run/{report}")]
     public Task<IActionResult> RunLabReport(
         string report,

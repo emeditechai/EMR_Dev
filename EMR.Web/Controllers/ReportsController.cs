@@ -395,6 +395,40 @@ public class ReportsController : Controller
         return Content("{\"success\":true,\"data\":" + result.Data + "}", "application/json");
     }
 
+    /// <summary>Monthly Business Growth: month-wise growth or loss of the lab (SQLScripts/2546).</summary>
+    [HttpGet]
+    public IActionResult LabMonthlyGrowth() => View();
+
+    [HttpGet]
+    public async Task<IActionResult> GetLabMonthlyGrowthData(string fromMonth, string toMonth, string? scope)
+    {
+        var branchId = User.GetCurrentBranchId() ?? HttpContext.Session.GetInt32("SelectedBranchId") ?? 1;
+        // inputs are yyyy-MM (month pickers); a full date is accepted too
+        static DateTime? Month(string? s) =>
+            DateTime.TryParseExact(s, "yyyy-MM", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? d
+            : DateTime.TryParse(s, out d) ? new DateTime(d.Year, d.Month, 1) : null;
+        var today = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        var fMonth = Month(fromMonth) ?? today.AddMonths(-11);
+        var tMonth = Month(toMonth) ?? today;
+        if (tMonth < fMonth) (fMonth, tMonth) = (tMonth, fMonth);
+        if ((tMonth.Year - fMonth.Year) * 12 + tMonth.Month - fMonth.Month > 23)
+            return Json(new { success = false, message = "Please select up to 24 months." });
+
+        var query = new Dictionary<string, string?>
+        {
+            ["branchId"] = branchId.ToString(),
+            ["fromMonth"] = fMonth.ToString("yyyy-MM-dd"),
+            ["toMonth"] = tMonth.ToString("yyyy-MM-dd"),
+            ["allBranches"] = string.Equals(scope, "all", StringComparison.OrdinalIgnoreCase) ? "true" : "false",
+            ["userId"] = User.GetUserId().ToString(),
+            ["isSuperAdmin"] = User.IsSuperAdmin() ? "true" : "false"
+        };
+        var result = await _reportApi.GetLabMonthlyGrowthRawAsync(query);
+        if (!result.IsSuccess)
+            return Json(new { success = false, message = result.ErrorMessage ?? "Unable to load the report." });
+        return Content("{\"success\":true,\"data\":" + result.Data + "}", "application/json");
+    }
+
     // ── LR-13 Outsourced Test Register: Mark sent / Mark result received ──
     // Each is its own control of the page (Settings > Security); the procedure validates the test and the dates.
     private const string OutsourcedPage = "REPORTS.LABOUTSOURCED";

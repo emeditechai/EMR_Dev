@@ -1,0 +1,45 @@
+/* Reports > LAB > Monthly Business Growth (SQLScripts/2546) - same card language as Owner MIS */
+.mg-wrap { --cr-line:#e2e8f0; --cr-muted:#64748b; --cr-ink:#0f172a; --up:#15803d; --down:#b91c1c; }
+.mg-wrap .fs-8 { font-size:.78rem !important; } .mg-wrap .fs-9 { font-size:.7rem !important; }
+.mg-wrap .cr-card { background:#fff;border:1px solid var(--cr-line);border-radius:.75rem; }
+.mg-wrap .cr-kpi { position:relative;overflow:hidden;padding:.85rem 1rem;border-left:4px solid var(--k);height:100%; }
+.mg-wrap .k-label { font-size:.66rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+.mg-wrap .k-val { font-size:1.4rem;font-weight:800;color:var(--cr-ink);line-height:1.25; }
+.mg-wrap .k-sub { font-size:.7rem;color:var(--cr-muted); }
+.mg-wrap .k-ico { position:absolute;right:.8rem;top:.8rem;width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+                  background:var(--kb);color:var(--k);font-size:1.05rem; }
+.mg-wrap .cr-section-title { font-size:.72rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--cr-muted); }
+.mg-wrap .btn-quick.active, .mg-wrap .btn-scope.active, .mg-wrap .btn-metric.active { background:#0f766e;border-color:#0f766e;color:#fff; }
+.mg-wrap .chip { display:inline-flex;align-items:center;gap:2px;font-size:.66rem;font-weight:700;padding:1px 6px;border-radius:999px;white-space:nowrap; }
+.mg-wrap .chip.up { background:#dcfce7;color:var(--up); } .mg-wrap .chip.down { background:#fee2e2;color:var(--down); } .mg-wrap .chip.flat { background:#f1f5f9;color:#64748b; }
+.mg-wrap .amt, .mg-wrap .num { font-variant-numeric:tabular-nums;white-space:nowrap; }
+.mg-wrap .legend-dot { display:inline-block;width:10px;height:10px;border-radius:3px;margin:0 4px 0 10px;vertical-align:-1px; }
+.mg-wrap .chart-box { position:relative;height:300px; }
+.mg-wrap .chart-box.sm { height:230px; }
+.mg-wrap .verdict { border-radius:.75rem;padding:.75rem 1rem;font-size:.85rem; }
+.mg-wrap .verdict.up { background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d; }
+.mg-wrap .verdict.down { background:#fef2f2;border:1px solid #fecaca;color:#7f1d1d; }
+.mg-wrap .verdict.flat { background:#f8fafc;border:1px solid var(--cr-line);color:#334155; }
+.mg-wrap .cr-table thead th { position:sticky;top:0;z-index:1;background:#f8fafc;color:var(--cr-muted);font-size:.66rem;font-weight:700;
+                              letter-spacing:.4px;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--cr-line); }
+.mg-wrap .cr-table tbody td { font-size:.78rem;vertical-align:middle;border-color:#eef2f6;white-space:nowrap; }
+.mg-wrap .cr-table tfoot td { font-size:.8rem;font-weight:800;background:#f8fafc;white-space:nowrap; }
+.mg-wrap .cr-table tr.partial td:first-child::after { content:' (to date)';font-size:.64rem;color:var(--cr-muted);font-weight:400; }
+.mg-wrap .tbl-scroll { max-height:65vh;overflow:auto; }
+.mg-wrap .neg { color:var(--down); } .mg-wrap .pos { color:var(--up); }
+.mg-wrap .heat td.h { text-align:right;font-variant-numeric:tabular-nums;font-size:.74rem; }
+.mg-wrap .heat th.sticky-col, .mg-wrap .heat td.sticky-col { position:sticky;left:0;background:#fff;z-index:2; }
+@media (max-width: 575.98px) {
+    .mg-wrap .k-ico { display:none; }
+    .mg-wrap .k-val { font-size:1.15rem; }
+    .mg-wrap .btn-group.w-100 { flex-wrap:wrap; }
+    .mg-wrap .chart-box { height:240px; }
+}
+@media print {
+    .emr-topbar, footer, .no-print { display:none !important; }
+    .mg-wrap .tbl-scroll { max-height:none;overflow:visible; }
+    .mg-wrap .cr-card { border:1px solid #ddd;break-inside:avoid; }
+    body { background:#fff !important; }
+}
+.mg-wrap .mg-tabs .nav-link { font-size:.78rem;font-weight:600;color:#475569;border:0;border-bottom:2px solid transparent;padding:.45rem .8rem; }
+.mg-wrap .mg-tabs .nav-link.active { color:#0f766e;border-bottom-color:#0f766e;background:transparent; }
