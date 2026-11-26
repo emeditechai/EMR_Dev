@@ -11649,6 +11649,19 @@
    "type": "datetime"
   },
   {
+   "col": "SignaturePath",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 600,
+   "nullable": true,
+   "ord": 26,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "DoctorMaster",
+   "type": "nvarchar"
+  },
+  {
    "col": "PayoutProfileId",
    "def": null,
    "descr": null,
@@ -17562,6 +17575,19 @@
    "scale": 0,
    "tbl": "HospitalSettings",
    "type": "nvarchar"
+  },
+  {
+   "col": "IpdDischargeTatTargetMinutes",
+   "def": "((180))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 167,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
   },
   {
    "col": "IdentificationTypeId",
@@ -61453,7 +61479,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-25T18:04:57",
+ "extracted_on": "2026-11-26T11:39:31",
  "fk": [
   {
    "col": "LedgerId",
@@ -62779,6 +62805,41 @@
    "tbl": "IpdClaimWriteOff"
   },
   {
+   "col": "AdmissionId",
+   "fk": "FK_IpdDeathRecord_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdDeathRecord"
+  },
+  {
+   "col": "DischargeId",
+   "fk": "FK_IpdDeathRecord_Dis",
+   "rcol": "DischargeId",
+   "rtbl": "IpdDischarge",
+   "tbl": "IpdDeathRecord"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdDischarge_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdDischarge"
+  },
+  {
+   "col": "DischargeId",
+   "fk": "FK_IpdDischargeClearance_Dis",
+   "rcol": "DischargeId",
+   "rtbl": "IpdDischarge",
+   "tbl": "IpdDischargeClearance"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdDischargeSummary_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdDischargeSummary"
+  },
+  {
    "col": "DoctorId",
    "fk": "FK_IpdDoctorVisitFee_Doctor",
    "rcol": "DoctorId",
@@ -62798,6 +62859,13 @@
    "rcol": "EstimateId",
    "rtbl": "IpdEstimate",
    "tbl": "IpdEstimateLine"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdFollowUp_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdFollowUp"
   },
   {
    "col": "AdmissionId",
@@ -62826,6 +62894,20 @@
    "rcol": "AdmissionId",
    "rtbl": "IpdAdmission",
    "tbl": "IpdIcuObservation"
+  },
+  {
+   "col": "AdmissionId",
+   "fk": "FK_IpdLamaRecord_Adm",
+   "rcol": "AdmissionId",
+   "rtbl": "IpdAdmission",
+   "tbl": "IpdLamaRecord"
+  },
+  {
+   "col": "DischargeId",
+   "fk": "FK_IpdLamaRecord_Dis",
+   "rcol": "DischargeId",
+   "rtbl": "IpdDischarge",
+   "tbl": "IpdLamaRecord"
   },
   {
    "col": "AdmissionId",
@@ -64704,6 +64786,13 @@
    "tbl": "UserBranchLastLogin"
   },
   {
+   "col": "UserId",
+   "fk": "FK_UserLoginOtp_Users",
+   "rcol": "Id",
+   "rtbl": "Users",
+   "tbl": "UserLoginOtp"
+  },
+  {
    "col": "DepartmentId",
    "fk": "FK__UserMaste__Depar__4F52B2DB",
    "rcol": "Id",
@@ -66473,6 +66562,26 @@
    "tbl": "IpdClaimWriteOff"
   },
   {
+   "col": "DeathId",
+   "k": 1,
+   "tbl": "IpdDeathRecord"
+  },
+  {
+   "col": "DischargeId",
+   "k": 1,
+   "tbl": "IpdDischarge"
+  },
+  {
+   "col": "ClearanceId",
+   "k": 1,
+   "tbl": "IpdDischargeClearance"
+  },
+  {
+   "col": "SummaryId",
+   "k": 1,
+   "tbl": "IpdDischargeSummary"
+  },
+  {
    "col": "FeeId",
    "k": 1,
    "tbl": "IpdDoctorVisitFee"
@@ -66493,6 +66602,11 @@
    "tbl": "IpdEstimateLine"
   },
   {
+   "col": "FollowUpId",
+   "k": 1,
+   "tbl": "IpdFollowUp"
+  },
+  {
    "col": "DeviceId",
    "k": 1,
    "tbl": "IpdIcuDevice"
@@ -66511,6 +66625,11 @@
    "col": "ObservationId",
    "k": 1,
    "tbl": "IpdIcuObservation"
+  },
+  {
+   "col": "LamaId",
+   "k": 1,
+   "tbl": "IpdLamaRecord"
   },
   {
    "col": "AdmissionId",
@@ -67943,6 +68062,11 @@
    "tbl": "UserBranchLastLogin"
   },
   {
+   "col": "LoginOtpId",
+   "k": 1,
+   "tbl": "UserLoginOtp"
+  },
+  {
    "col": "Id",
    "k": 1,
    "tbl": "UserMaster"
@@ -68225,14 +68349,20 @@
   "IpdClaimEvent",
   "IpdClaimSettlement",
   "IpdClaimWriteOff",
+  "IpdDeathRecord",
+  "IpdDischarge",
+  "IpdDischargeClearance",
+  "IpdDischargeSummary",
   "IpdDoctorVisitFee",
   "IpdDocument",
   "IpdEstimate",
   "IpdEstimateLine",
+  "IpdFollowUp",
   "IpdIcuDevice",
   "IpdIcuInfusion",
   "IpdIcuInfusionEvent",
   "IpdIcuObservation",
+  "IpdLamaRecord",
   "IpdMlc",
   "IpdNumberCounter",
   "IpdOtBooking",
@@ -68490,6 +68620,7 @@
   "TicketSubCategoryMaster",
   "UserBranchLastLogin",
   "UserBranches",
+  "UserLoginOtp",
   "UserMaster",
   "UserNotification",
   "UserPasswordResetOtp",
@@ -69030,9 +69161,44 @@
    "tbl": "IpdClaim"
   },
   {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdDeathRecord_Live",
+   "tbl": "IpdDeathRecord"
+  },
+  {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdDischarge_Live",
+   "tbl": "IpdDischarge"
+  },
+  {
+   "cols": "DischargeId, Dept",
+   "idx": "UX_IpdDischargeClearance",
+   "tbl": "IpdDischargeClearance"
+  },
+  {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdDischargeSummary_Draft",
+   "tbl": "IpdDischargeSummary"
+  },
+  {
+   "cols": "AdmissionId",
+   "idx": "UX_IpdDischargeSummary_Signed",
+   "tbl": "IpdDischargeSummary"
+  },
+  {
+   "cols": "AdmissionId, Version",
+   "idx": "UX_IpdDischargeSummary_Version",
+   "tbl": "IpdDischargeSummary"
+  },
+  {
    "cols": "CompanyId, EstimateNo",
    "idx": "UX_IpdEstimate_No",
    "tbl": "IpdEstimate"
+  },
+  {
+   "cols": "DischargeId",
+   "idx": "UX_IpdLamaRecord_Live",
+   "tbl": "IpdLamaRecord"
   },
   {
    "cols": "OtBookingId, Phase",

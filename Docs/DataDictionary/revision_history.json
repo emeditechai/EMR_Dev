@@ -465,5 +465,14 @@
   ],
   "date": "25 Nov 2026",
   "version": "1.38"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "DoctorMaster: new column(s) SignaturePath",
+   "HospitalSettings: new column(s) IpdDischargeTatTargetMinutes"
+  ],
+  "date": "26 Nov 2026",
+  "version": "1.39"
  }
 ]
