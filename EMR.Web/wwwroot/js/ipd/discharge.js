@@ -162,10 +162,10 @@
 
     function followCard(h) {
         const f = D.followUps || [];
-        return card('bi-calendar-check', 'OPD follow-up', 'Booked from the doctor\'s OPD roster; printed on the discharge summary',
+        return card('bi-calendar-check', 'OPD follow-up', 'Booked from the doctor\'s OPD roster; printed on the discharge summary; closed when the OPD visit is booked',
             `${f.length ? `<table class="table table-sm ipdx-table mb-2"><thead><tr><th>Date</th><th>Slot</th><th>Doctor</th><th>Notes</th><th>Status</th><th></th></tr></thead><tbody>
                 ${f.map(r => `<tr class="${r.Status === 'CANCELLED' ? 'text-muted text-decoration-line-through' : ''}"><td>${Ipd.date(r.FollowUpDate)}</td><td>${E(r.SlotTime) || '—'}</td><td>${E(r.DoctorName)}</td><td class="small">${E(r.Notes)}</td>
-                <td class="small">${E(r.Status.toLowerCase())}</td><td class="text-end text-nowrap">${r.Status === 'BOOKED' && D.opd[r.FollowUpId] ? `<a class="btn btn-sm btn-light border" target="_blank" href="${E(D.opd[r.FollowUpId])}" title="Register the OPD visit for this slot"><i class="bi bi-box-arrow-up-right me-1"></i>OPD booking</a>` : ''}
+                <td class="small">${r.Status === 'VISITED' ? `<span class="badge bg-success-subtle text-success-emphasis">Visited</span><div class="text-muted">OPD ${E(r.OPDBillNo) || '#' + r.OpdServiceId}${r.VisitedAt ? ' · ' + Ipd.dt(r.VisitedAt) : ''}</div>` : r.Status === 'BOOKED' ? '<span class="badge bg-primary-subtle text-primary-emphasis">Booked</span>' : `<span class="badge bg-secondary-subtle text-secondary-emphasis">Cancelled</span>${r.CancelReason ? '<div class="text-muted">' + E(r.CancelReason) + '</div>' : ''}`}</td><td class="text-end text-nowrap">${r.Status === 'BOOKED' && D.opd[r.FollowUpId] ? `<a class="btn btn-sm btn-light border" target="_blank" href="${E(D.opd[r.FollowUpId])}" title="Register the OPD visit for this slot"><i class="bi bi-box-arrow-up-right me-1"></i>OPD booking</a>` : ''}
                 ${r.Status === 'BOOKED' && C.can.followUp ? `<button type="button" class="btn btn-sm btn-link text-danger" data-act="fuCancel" data-fid="${r.FollowUpId}">Cancel</button>` : ''}</td></tr>`).join('')}</tbody></table>` : '<p class="small text-muted mb-2">No follow-up booked.</p>'}
              ${C.can.followUp && h.Status !== 'CANCELLED' ? '<button type="button" class="btn btn-sm btn-outline-primary" data-act="followUp"><i class="bi bi-calendar-plus me-1"></i>Book follow-up</button>' : ''}`);
     }
@@ -315,12 +315,40 @@
                 : '<i class="bi bi-person-badge me-1 text-warning"></i>Signing <b>on behalf</b> of the consultant: your name and the reason are recorded and printed.';
         }
         $('smSigner')?.addEventListener('change', syncSigner);
+        // mandatory fields: marked in red with their message, first one scrolled into view (the SP checks the same rules)
+        function checkSummary(sign, onBehalf) {
+            m.querySelectorAll('.is-invalid').forEach(x => x.classList.remove('is-invalid'));
+            m.querySelectorAll('.sm-err').forEach(x => x.remove());
+            const bad = [];
+            const need = (el, msg) => {
+                if (!el) return;
+                el.classList.add('is-invalid');
+                el.insertAdjacentHTML('afterend', `<div class="invalid-feedback d-block sm-err">${E(msg)}</div>`);
+                el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { el.classList.remove('is-invalid'); el.nextElementSibling?.classList.contains('sm-err') && el.nextElementSibling.remove(); }, { once: true });
+                bad.push({ el, msg });
+            };
+            if (amending && !v('smAmend')) need($('smAmend'), 'Enter the reason for the amendment.');
+            if (sign) {
+                if (![...m.querySelectorAll('.dx-title')].some(x => x.value.trim())) need(m.querySelector('.dx-title'), 'Enter at least one final diagnosis.');
+                if (!v('smCo')) need($('smCo'), 'Enter the course in hospital.');
+                if (!v('smCd')) need($('smCd'), 'Choose the condition at discharge.');
+                if ($('smEc') && !['DEATH', 'ABSCONDED'].includes(dis.DischargeType) && !v('smEc')) need($('smEc'), 'Enter the emergency contact (NABH).');
+                if (!v('smSigner')) need($('smSigner'), 'Choose the consultant signing the summary.');
+                else if (onBehalf && !v('smOb')) need($('smOb'), 'Enter why you are signing on behalf of the consultant.');
+            }
+            if (!bad.length) return true;
+            bad[0].el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            bad[0].el.focus({ preventScroll: true });
+            const title = sign ? 'Complete these before signing' : 'Complete these before saving';
+            if (window.Swal) Swal.fire({ icon: 'warning', title, html: `<ul class="text-start mb-0">${bad.map(b => `<li>${E(b.msg)}</li>`).join('')}</ul>` });
+            else Ipd.error(title + ': ' + bad.map(b => b.msg).join(' '));
+            return false;
+        }
         const save = async sign => {
             const dxs = [...m.querySelectorAll('.dx-row')].map(r => ({ kind: r.querySelector('.dx-kind').value, code: r.querySelector('.dx-code').value.trim(), title: r.querySelector('.dx-title').value.trim() })).filter(x => x.title || x.code);
             const mds = [...m.querySelectorAll('.md-row')].map(r => Object.fromEntries(['drug', 'dose', 'route', 'frequency', 'duration', 'instructions'].map(k => [k, r.querySelector('.md-' + k).value.trim()]))).filter(x => x.drug);
-            if (amending && !v('smAmend')) return Ipd.error('Enter the reason for the amendment.');
             const onBehalf = sign && !(h.MyDoctorId && Number(v('smSigner')) === Number(h.MyDoctorId));
-            if (onBehalf && !v('smOb')) return Ipd.error('Enter why you are signing on behalf of the consultant.');
+            if (!checkSummary(sign, onBehalf)) return;
             if (sign && !(await Ipd.confirm('Sign the summary?', (onBehalf ? 'You sign <b>on behalf of</b> the consultant. ' : '') + 'A signed summary is changed only as an amendment with a reason.', 'Sign'))) return;
             const body = {
                 diagnoses: JSON.stringify(dxs), presentingComplaints: v('smPc') || null, historyOfIllness: v('smHi') || null, pastHistory: v('smPh') || null, allergies: v('smAl') || null,

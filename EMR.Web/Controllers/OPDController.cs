@@ -45,7 +45,9 @@ public class OPDController(
     EMR.Shared.Security.IActionPermissionGuard permissionGuard,
     IAdministratorCheck administratorCheck,
     IPatientPortalLoginService portalLoginService,
-    IBillingSubmissionApiClient billingSubmissionApiClient) : Controller
+    IBillingSubmissionApiClient billingSubmissionApiClient,
+    IpdApiClient ipdApiClient,
+    ILogger<OPDController> logger) : Controller
 {
     // ─── OPD Dashboard ──────────────────────────────────────────────────────────
 
@@ -1670,7 +1672,7 @@ public class OPDController(
     // ─── New Service Booking (GET) ────────────────────────────────────────────
 
     [HttpGet]
-    public async Task<IActionResult> NewServiceBooking(int? doctorId = null, string? date = null, int? scheduleId = null, string? time = null)
+    public async Task<IActionResult> NewServiceBooking(int? doctorId = null, string? date = null, int? scheduleId = null, string? time = null, int? patientId = null, int? followUpId = null)
     {
         // a slot of a suspended doctor (SQLScripts/2484) is not opened: back to the roster with the reason
         if (await DoctorSuspendedAsync(doctorId, null) is { } suspended)
@@ -1687,8 +1689,36 @@ public class OPDController(
             ScheduleId = scheduleId,
             AppointmentTime = TimeSpan.TryParse(time, out var t) ? t : null
         };
+        // a follow-up / roster slot books the visit for that date (not the bill date); a date already passed books today
+        if (DateTime.TryParse(date, out var apptDate))
+        {
+            ViewData["ApptPreset"] = true;
+            var slotAt = model.AppointmentTime is TimeSpan st ? apptDate.Date + st : (DateTime?)null;
+            if (apptDate.Date < DateTime.Today || (slotAt.HasValue && slotAt.Value < DateTime.Now))
+            {
+                ViewData["ApptNote"] = $"The planned slot ({(slotAt ?? apptDate):dd MMM yyyy}{(slotAt.HasValue ? $", {slotAt:HH:mm}" : "")}) has passed: the visit is booked for today.";
+                model.AppointmentDate = DateTime.Today;
+                model.ScheduleId = null;
+                model.AppointmentTime = null;
+            }
+        }
+        // IPD discharge follow-up (OPD booking): the patient comes pre-selected; only a patient of the user's company
+        if (patientId > 0 && await patientService.GetByIdAsync(patientId.Value) != null)
+        {
+            ViewData["PresetPatientId"] = patientId.Value;
+            if (followUpId > 0) ViewData["IpdFollowUpId"] = followUpId.Value;   // closed by the booking (SQLScripts/2560)
+        }
         await PopulateSelectLists(model);
         return View(model);
+    }
+
+    /// <summary>Booked IPD discharge follow-ups of the patient (banner on New Service Booking; SQLScripts/2560).</summary>
+    [HttpGet]
+    public async Task<IActionResult> IpdFollowUps(int patientId)
+    {
+        if (patientId <= 0 || await patientService.GetByIdAsync(patientId) == null) return Json(Array.Empty<object>());
+        try { return Json(await ipdApiClient.GetAsync($"/followups/patient/{patientId}")); }
+        catch (Exception ex) { logger.LogWarning(ex, "IPD follow-ups of patient {PatientId} not read", patientId); return Json(Array.Empty<object>()); }
     }
 
     // ─── New Service Booking (POST) ───────────────────────────────────────────
@@ -1738,6 +1768,15 @@ public class OPDController(
         // The amount is the bill as saved; a failure is logged and the Reconciliation report can post it later.
         var billTotal = await OpdBillTotalAsync(newSvcId);
         await ledgerService.PostOpdBillLedgerAsync(newSvcId, billTotal, branchId, User.GetCompanyId(), userId, billNo);
+
+        // IPD discharge follow-up (SQLScripts/2560): this visit closes it - the one opened from the discharge screen, else the
+        // patient's booked follow-up with this doctor near the visit date. The booking stands if this fails (logged).
+        try
+        {
+            int? ipdFollowUpId = int.TryParse(Request.Form["IpdFollowUpId"], out var fu) && fu > 0 ? fu : null;
+            await ipdApiClient.PostAsync("/followups/link-opd", new { opdServiceId = newSvcId, followUpId = ipdFollowUpId });
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "IPD follow-up not linked to OPD booking {OpdServiceId}", newSvcId); }
 
         TempData["OPDBillNo"]      = billNo;
         TempData["TokenNo"]        = tokenNo;                          // null unless ₹0 bill

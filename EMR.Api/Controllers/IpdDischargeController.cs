@@ -19,6 +19,7 @@ public record IpdDischargeDeathRequest(DateTime? DeathAt, string? FormType, stri
     string? BodyHandedTo, string? BodyHandedRelation, DateTime? BodyHandedAt, string? Remarks, string? VoidReason);
 public record IpdGatePassRequest(string? HandedOverTo, string? HandedOverRelation, string? HandedOverPhone, string? TransportMode, string? Remarks,
     bool Credit, string? CreditReason, bool CanCredit);
+public record IpdFollowUpLinkRequest(int OpdServiceId, int? FollowUpId);
 public record IpdFollowUpRequest(int? FollowUpId, int? DoctorId, DateTime? FollowUpDate, int? ScheduleId, string? SlotTime, string? Notes, string? CancelReason);
 
 /// <summary>
@@ -108,6 +109,16 @@ public class IpdDischargeController(IIpdProcService ipd) : ControllerBase
             c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.HandedOverTo, r.HandedOverRelation, r.HandedOverPhone, r.TransportMode, r.Remarks,
             r.Credit, r.CreditReason, r.CanCredit
         })));
+
+    /// <summary>Booked IPD follow-ups of a patient (OPD New Service Booking shows them; SQLScripts/2560).</summary>
+    [HttpGet("followups/patient/{patientId:int}")]
+    public Task<IActionResult> FollowUpsForPatient(int patientId) => Run(async c =>
+        Ok(ApiResponse<List<IDictionary<string, object?>>>.Ok(await ipd.RowsAsync("dbo.usp_Api_IpdFollowUp_ForPatient", new { c.CompanyId, c.BranchId, PatientId = patientId }))));
+
+    /// <summary>An OPD booking closes the patient's follow-up (the one given, or the booked one with that doctor near the visit date).</summary>
+    [HttpPost("followups/link-opd")]
+    public Task<IActionResult> LinkOpd([FromBody] IpdFollowUpLinkRequest r) => Run(async c =>
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdFollowUp_LinkOpd", new { c.CompanyId, c.BranchId, c.UserId, r.OpdServiceId, r.FollowUpId })));
 
     [HttpPost("admissions/{id:int}/discharge/followup")]
     public Task<IActionResult> FollowUp(int id, [FromBody] IpdFollowUpRequest r) => Run(async c =>

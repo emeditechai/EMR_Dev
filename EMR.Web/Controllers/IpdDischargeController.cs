@@ -82,6 +82,8 @@ public class IpdDischargeController(IpdApiClient api, IDoctorScheduleApiClient s
         var s = await api.SetsAsync($"/admissions/{id}/discharge");
         var summaries = s.ElementAtOrDefault(3);
         var followUps = s.ElementAtOrDefault(6);
+        var hdr = s.ElementAtOrDefault(0);
+        int? patientId = hdr.ValueKind == JsonValueKind.Array && hdr.GetArrayLength() > 0 ? hdr[0].NI("PatientId") : null;
         // page URLs are built here, encrypted (CLAUDE.md): prints and the OPD booking of a follow-up
         var prints = new
         {
@@ -96,7 +98,7 @@ public class IpdDischargeController(IpdApiClient api, IDoctorScheduleApiClient s
         var opd = followUps.ValueKind == JsonValueKind.Array
             ? followUps.EnumerateArray().Where(f => f.S("Status") == "BOOKED").ToDictionary(f => f.I("FollowUpId").ToString(), f => Url.ActionEncrypted("NewServiceBooking", "OPD", new
               {
-                  doctorId = f.I("DoctorId"), date = f.D("FollowUpDate")?.ToString("yyyy-MM-dd"),
+                  patientId, followUpId = f.I("FollowUpId"), doctorId = f.I("DoctorId"), date = f.D("FollowUpDate")?.ToString("yyyy-MM-dd"),
                   scheduleId = f.NI("ScheduleId"), time = f.S("SlotTime") is { Length: > 0 } t ? t : null
               }))
             : new Dictionary<string, string>();

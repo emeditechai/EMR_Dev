@@ -60,6 +60,12 @@
     </div>
 </div>
 
+@* ── IPD discharge follow-up of the patient (SQLScripts/2560): pre-selected from the discharge screen, banner otherwise ── *@
+<div id="ipdFollowUpBanner" class="alert alert-info d-none mb-3"
+     data-url="@Url.Action("IpdFollowUps", "OPD")"
+     data-preset-patient="@(ViewData["PresetPatientId"] ?? "")"
+     data-preset-doctor="@(ViewData["PresetPatientId"] != null || ViewData["ApptPreset"] is true ? Model.ConsultingDoctorId?.ToString() : "")"></div>
+
 @* ── Loaded patient card (hidden until patient selected) ── *@
 <div id="patientInfoCard" style="display:none" class="mb-3">
     <div class="d-flex align-items-start gap-3 flex-wrap">
@@ -120,6 +126,8 @@
     @Html.AntiForgeryToken()
     <input asp-for="PatientId"              type="hidden" id="hdnPatientId" />
     <input asp-for="PatientCode"            type="hidden" id="hdnPatientCode" />
+    <input type="hidden" name="IpdFollowUpId" id="hdnIpdFollowUpId"
+           value="@(ViewData["IpdFollowUpId"]?.ToString() ?? (Context.Request.HasFormContentType ? Context.Request.Form["IpdFollowUpId"].ToString() : ""))" />
     <input asp-for="OPDServiceId"           type="hidden" id="hdnOPDServiceId" value="0" />
     <input asp-for="IdentificationFilePath" type="hidden" id="existingFilePath" />
     <input asp-for="DemographicsOnly"       type="hidden" value="false" />
@@ -159,6 +167,26 @@
                     <div class="col-12 col-md-4">
                         <label class="form-label fw-semibold small">Remarks</label>
                         <input asp-for="Remarks" class="form-control" maxlength="500" placeholder="Optional" />
+                    </div>
+                    @* appointment of a follow-up / roster slot: the visit is booked for that date, not the bill date (disabled = not posted = today) *@
+                    @{ var apptPreset = ViewData["ApptPreset"] is true || (Context.Request.HasFormContentType && !string.IsNullOrEmpty(Context.Request.Form["AppointmentDate"])); }
+                    <div class="col-12 col-md-4 @(apptPreset ? "" : "d-none")" id="apptBox"
+                         data-slot-doctor="@(apptPreset && Model.ScheduleId.HasValue ? Model.ConsultingDoctorId?.ToString() : "")">
+                        <label class="form-label fw-semibold small" for="txtApptDate">Appointment Date <span class="text-danger">*</span></label>
+                        <input type="date" name="AppointmentDate" id="txtApptDate" class="form-control" min="@DateTime.Today.ToString("yyyy-MM-dd")"
+                               value="@(apptPreset ? Model.AppointmentDate?.ToString("yyyy-MM-dd") : "")" disabled="@(apptPreset ? null : "disabled")" />
+                        <input type="hidden" name="ScheduleId" id="hdnApptSchedule" value="@(apptPreset ? Model.ScheduleId?.ToString() : "")" disabled="@(apptPreset && Model.ScheduleId.HasValue ? null : "disabled")" />
+                        <input type="hidden" name="AppointmentTime" id="hdnApptTime" value="@(apptPreset ? Model.AppointmentTime?.ToString(@"hh\:mm") : "")" disabled="@(apptPreset && Model.AppointmentTime.HasValue ? null : "disabled")" />
+                        <div class="small mt-1" id="apptSlotText">
+                            @if (apptPreset && Model.AppointmentTime.HasValue)
+                            {
+                                <span class="text-success"><i class="bi bi-clock me-1"></i>Slot @Model.AppointmentTime.Value.ToString(@"hh\:mm") (doctor roster)</span>
+                            }
+                            @if (ViewData["ApptNote"] is string apptNote)
+                            {
+                                <div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>@apptNote</div>
+                            }
+                        </div>
                     </div>
                 </div>
 
@@ -541,8 +569,11 @@
             showPatientCard(p);
             unlockForm();
 
-            // Pre-select last consulting doctor; clear line items for fresh visit
-            if (p.consultingDoctorId) {
+            // Pre-select last consulting doctor (the follow-up's doctor when opened from IPD discharge); clear line items for fresh visit
+            const presetDoctor = document.getElementById('ipdFollowUpBanner')?.dataset.presetDoctor;
+            if (presetDoctor) {
+                $('#ddlDoctor').val(presetDoctor).trigger('change');
+            } else if (p.consultingDoctorId) {
                 $('#ddlDoctor').val(p.consultingDoctorId).trigger('change');
             } else {
                 $('#ddlDoctor').val('').trigger('change');
@@ -555,6 +586,7 @@
             await checkRegistrationValidity(p.patientId);
 
             showToast(`Patient loaded — ${p.patientCode} · ${p.fullName ?? ''}`);
+            document.dispatchEvent(new CustomEvent('opd:patient-loaded', { detail: p }));
         }
 
         // Clear patient selection
@@ -568,6 +600,7 @@
             lineItems = [];
             renderRows();
             saveJson();
+            document.dispatchEvent(new CustomEvent('opd:patient-cleared'));
         });
 
         // ── Search modal ──────────────────────────────────────────────────────
@@ -965,5 +998,6 @@
 
     })();
     </script>
+    <script src="~/js/views/OPD/ipd-followup.js" asp-append-version="true"></script>   @* SQLScripts/2560 *@
     <script src="~/js/doctor-suspension.js" asp-append-version="true" data-url="@Url.Action("SuspensionStatus", "Doctors")"></script>   @* SQLScripts/2484 *@
 }
