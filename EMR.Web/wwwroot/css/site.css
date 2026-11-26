@@ -1032,7 +1032,7 @@ body {
   box-shadow: 0 10px 30px rgba(13, 27, 62, 0.15);
   background: #fff;
   z-index: 1055;
-  margin-left: 2px;
+  margin-left: 0; /* flush with its row: no dead gap for the pointer to fall into (hover intent in _Layout.js) */
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f8fafc;
 }
@@ -1064,7 +1064,7 @@ body {
   left: auto;
   right: 100%;
   margin-left: 0;
-  margin-right: 2px;
+  margin-right: 0;
 }
 .dropdown-submenu-menu.open-left ~ .dropdown-submenu-toggle .submenu-arrow,
 .dropdown-submenu:has(> .dropdown-submenu-menu.open-left) .submenu-arrow {
@@ -1073,7 +1073,8 @@ body {
 
 /* Highlight parent row when submenu is open */
 .dropdown-submenu:hover > .dropdown-submenu-toggle,
-.dropdown-submenu:focus-within > .dropdown-submenu-toggle {
+.dropdown-submenu:focus-within > .dropdown-submenu-toggle,
+.dropdown-submenu:has(> .dropdown-submenu-menu.show) > .dropdown-submenu-toggle {
   background: #eef3ff;
 }
 
