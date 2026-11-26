@@ -999,6 +999,64 @@ public class DoctorsController(
         return Json(new { success = true, fees });
     }
 
+    // ── Doctor signature (SQLScripts/2559): used on the IPD discharge prints when this doctor signs. Separate from the
+    //    pathologist signature of User Master, which is not touched. Stored name via EMR.Api -> procedure; file in App_Data. ──
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> UploadSignature(int id, IFormFile? signatureFile,
+        [FromServices] DoctorSignatureApiClient signatures, [FromServices] IWebHostEnvironment env)
+    {
+        if (id <= 0) return Json(new { success = false, error = "Save the doctor first." });
+        var (name, error) = await DoctorSignatureStore.SaveAsync(env, signatureFile);
+        if (name is null) return Json(new { success = false, error });
+        try
+        {
+            var (ok, err, previous) = await signatures.SetAsync(id, name);
+            if (!ok) { DoctorSignatureStore.Delete(env, name); return Json(new { success = false, error = err ?? "The signature could not be saved." }); }
+            DoctorSignatureStore.Delete(env, previous);
+            await auditLogService.LogActivityAsync(eventType: "Doctor Master", actionName: "Doctor.SignatureUpload", description: $"Doctor {id}: signature uploaded",
+                userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "MASTER", referenceId: id);
+            return Json(new { success = true, previewUrl = Url.ActionEncrypted("Signature", "Doctors", new { id, v = DateTime.UtcNow.Ticks }) });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
+        {
+            DoctorSignatureStore.Delete(env, name);
+            logger.LogWarning(ex, "Doctor signature save");
+            return Json(new { success = false, error = "The signature could not be saved: " + ex.Message });
+        }
+    }
+
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> RemoveSignature(int id, [FromServices] DoctorSignatureApiClient signatures, [FromServices] IWebHostEnvironment env)
+    {
+        try
+        {
+            var (ok, err, previous) = await signatures.SetAsync(id, null);
+            if (!ok) return Json(new { success = false, error = err ?? "The signature could not be removed." });
+            DoctorSignatureStore.Delete(env, previous);
+            await auditLogService.LogActivityAsync(eventType: "Doctor Master", actionName: "Doctor.SignatureRemove", description: $"Doctor {id}: signature removed",
+                userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "MASTER", referenceId: id);
+            return Json(new { success = true });
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException)
+        {
+            logger.LogWarning(ex, "Doctor signature remove");
+            return Json(new { success = false, error = "The signature could not be removed: " + ex.Message });
+        }
+    }
+
+    /// <summary>The doctor's signature image (preview on Doctor Master).</summary>
+    [HttpGet]
+    public async Task<IActionResult> Signature(int id, [FromServices] DoctorSignatureApiClient signatures, [FromServices] IWebHostEnvironment env)
+    {
+        try
+        {
+            var f = DoctorSignatureStore.Find(env, await signatures.GetAsync(id));
+            if (f is null) return NotFound();
+            Response.Headers.CacheControl = "no-store";
+            return PhysicalFile(f.Value.Path, f.Value.ContentType);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException) { return NotFound(); }
+    }
 }
 
 public record ConsultingFeeRequest(int DoctorId, int ServiceId, int? GraceTime);

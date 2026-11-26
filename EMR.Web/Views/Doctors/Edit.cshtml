@@ -287,7 +287,30 @@
     </div>
 </form>
 
+@* ── Doctor signature (SQLScripts/2559): printed on the IPD discharge / death summary and MCCD when this doctor signs.
+   Uploaded on its own (not with Update); separate from the pathologist signature of User Master. ── *@
+<div class="dashboard-panel doctor-form-panel mt-4 mb-4" id="docSigPanel" data-upload="@Url.Action("UploadSignature", "Doctors")" data-remove="@Url.Action("RemoveSignature", "Doctors")" data-id="@Model.DoctorId">
+    @Html.AntiForgeryToken()
+    <h5 class="fw-bold mb-1 text-primary"><i class="bi bi-pen me-2"></i>Doctor Signature</h5>
+    <p class="text-muted small mb-3">Printed on the IPD discharge summary, death summary and MCCD when this doctor signs. PNG or JPG, up to 2 MB; a white or transparent background prints best. Saved at once, apart from the Update button.</p>
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="border rounded-3 d-flex align-items-center justify-content-center bg-white" style="width:240px;height:90px;">
+            <img id="docSigImg" alt="Signature" style="max-width:230px;max-height:80px;display:none;" src="@Url.ActionEncrypted("Signature", "Doctors", new { id = Model.DoctorId, v = DateTime.UtcNow.Ticks })" />
+            <span id="docSigNone" class="text-muted small">No signature</span>
+        </div>
+        <div>
+            <input type="file" id="docSigFile" class="form-control form-control-sm mb-2" accept=".png,.jpg,.jpeg,image/png,image/jpeg" style="max-width:320px" />
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-primary" id="docSigUpload"><i class="bi bi-upload me-1"></i>Upload signature</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" id="docSigRemove" style="display:none;"><i class="bi bi-trash me-1"></i>Remove</button>
+            </div>
+            <div class="small mt-1" id="docSigMsg"></div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
+    <script src="~/js/views/Doctors/doctor-signature.js" asp-append-version="true"></script>
     @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
     <script src="~/js/views/Doctors/Edit.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/tom-select/dist/css/tom-select.bootstrap5.min.css" />

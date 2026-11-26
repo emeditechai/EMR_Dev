@@ -1,0 +1,10 @@
+@{
+    // IPD discharge prints (Phase 7, SQLScripts/2557): discharge / death summary, LAMA / DAMA form, MCCD Form 4 / 4A, gate pass.
+    // Rendered by js/ipd/discharge-print.js from the data below.
+    Layout = "_IpdPrintLayout";
+}
+<div id="disPrint"></div>
+@section Scripts {
+    <script>window.DisPrint = @Html.Raw(ViewData["Print"] as string ?? "{}");</script>
+    <script src="~/js/ipd/discharge-print.js" asp-append-version="true"></script>
+}

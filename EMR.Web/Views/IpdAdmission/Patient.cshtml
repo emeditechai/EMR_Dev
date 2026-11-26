@@ -16,13 +16,12 @@
         ("ot", "OT", "bi-heart-pulse", null), ("icu", "ICU Chart", "bi-activity", null), ("services", "Other Charges", "bi-plus-square", null), ("visits", "Doctor Visits", "bi-person-workspace", null),
         ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", null), ("clinical", "Clinical", "bi-journal-medical", "Phase 3"),
         ("nursing", "Nursing", "bi-clipboard2-pulse", "Phase 3"), ("advance", "Advance & Payments", "bi-cash-coin", null), ("billing", "Billing", "bi-receipt", null),
-        ("insurance", "Insurance / TPA", "bi-shield-plus", null), ("documents", "Documents & Consents", "bi-folder2-open", null), ("discharge", "Discharge", "bi-door-open", "Phase 7")
+        ("insurance", "Insurance / TPA", "bi-shield-plus", null), ("documents", "Documents & Consents", "bi-folder2-open", null), ("discharge", "Discharge", "bi-door-open", null)
     };
     var soonText = new Dictionary<string, string>
     {
         ["clinical"] = "Initial assessment, progress notes, doctor orders (CPOE) with countersign of verbal orders.",
-        ["nursing"] = "Vitals with NEWS2, medication administration record, intake / output, nursing notes, risk scores and handover.",
-        ["discharge"] = "Discharge advice, clearance checklist, discharge summary, LAMA / DAMA, gate pass and bed release."
+        ["nursing"] = "Vitals with NEWS2, medication administration record, intake / output, nursing notes, risk scores and handover."
     };
 }
 @section HeadStyles {
@@ -31,6 +30,7 @@
     <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ipd-ot-icu.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ipd-tpa.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-discharge.css" asp-append-version="true" />
     <style>.select2-container { width:100% !important; } .modal .select2-container { z-index:1060; }</style>
 }
 @Html.AntiForgeryToken()
@@ -293,6 +293,7 @@
     @await Html.PartialAsync("_Icu", Model)
 
     @await Html.PartialAsync("_Insurance", Model)
+    @await Html.PartialAsync("_Discharge", Model)
 
     @* documents & consents *@
     <div class="tab-pane fade @(Model.Tab == "documents" ? "show active" : "")" id="tab-documents" role="tabpanel">
@@ -464,4 +465,6 @@
     <script>window.IpdTpa = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdInsurance/"), payerType = h.S("PayerType"), can = new { preauth = Can("PREAUTH") } }));</script>
     <script src="~/js/ipd/tpa-common.js" asp-append-version="true"></script>
     <script src="~/js/ipd/insurance.js" asp-append-version="true"></script>
+    <script>window.IpdDis = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdDischarge/"), admBase = Url.Content("~/IpdAdmission/"), attendants = Model.Attendants, can = new { advise = Can("DISCHARGE_ADVISE"), clear = new Dictionary<string, bool> { ["PHARMACY"] = Can("CLEAR_PHARMACY"), ["LAB"] = Can("CLEAR_LAB"), ["NURSING"] = Can("CLEAR_NURSING"), ["TPA"] = Can("CLEAR_TPA") }, summary = Can("DISCHARGE_SUMMARY"), sign = Can("DISCHARGE_SUMMARY_SIGN"), onBehalf = Can("DISCHARGE_SUMMARY_ONBEHALF"), lama = Can("DISCHARGE_LAMA"), death = Can("DEATH_RECORD"), gatePass = Can("GATEPASS"), credit = Can("GATEPASS_CREDIT"), followUp = Can("FOLLOWUP") } }));</script>
+    <script src="~/js/ipd/discharge.js" asp-append-version="true"></script>
 }

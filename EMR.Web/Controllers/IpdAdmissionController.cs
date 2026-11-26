@@ -455,7 +455,8 @@ public class IpdAdmissionController(
             if (model is null) return NotFound();
             model.Tab = string.IsNullOrWhiteSpace(tab) ? "overview" : tab;
             foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER", "CHARGE", "CHARGE_CANCEL", "RATE_EDIT", "DISCOUNT", "PACKAGE", "FINAL_BILL", "BILL_BACKDATE", "BILL_CANCEL", "LAB_ORDER", "LAB_CANCEL", "PH_ISSUE", "PH_RETURN", "PH_INDENT", "PH_RECEIVE",
-                                       "OT_BOOK", "OT_CHECKLIST", "OT_PROGRESS", "OT_ANAESTHESIA", "OT_NOTE", "OT_NOTE_SIGN", "OT_IMPLANT", "OT_CHARGE", "ICU_CHART", "ICU_CORRECT", "PREAUTH" })   // PREAUTH: Insurance / TPA tab (SQLScripts/2542)
+                                       "OT_BOOK", "OT_CHECKLIST", "OT_PROGRESS", "OT_ANAESTHESIA", "OT_NOTE", "OT_NOTE_SIGN", "OT_IMPLANT", "OT_CHARGE", "ICU_CHART", "ICU_CORRECT", "PREAUTH",
+                                       "DISCHARGE_ADVISE", "CLEAR_PHARMACY", "CLEAR_LAB", "CLEAR_NURSING", "CLEAR_TPA", "DISCHARGE_SUMMARY", "DISCHARGE_SUMMARY_SIGN", "DISCHARGE_SUMMARY_ONBEHALF", "DISCHARGE_LAMA", "DEATH_RECORD", "GATEPASS", "GATEPASS_CREDIT", "FOLLOWUP" })   // Discharge tab (SQLScripts/2558)   // PREAUTH: Insurance / TPA tab (SQLScripts/2542)
                 ViewData["Can" + c] = await permissionGuard.AllowsAsync(HttpContext, PatientPage, c);
             ViewData["CanEstimate"] = await permissionGuard.AllowsAsync(HttpContext, IpdEstimationController.EstimationPage, "VIEW");
             return View(model);
