@@ -461,6 +461,53 @@ namespace EMR.Web.Models.DTOs
         public List<RefundHistoryItemDto> Refunds { get; set; } = new();
     }
 
+    /// <summary>B2C Order List: can the booking be rescheduled, and why not (SQLScripts/2561).</summary>
+    public class LabOrderRescheduleInfoDto
+    {
+        public int LabOrderId { get; set; }
+        public DateTime? BookingDate { get; set; }
+        public int TotalTests { get; set; }
+        public int EnteredTests { get; set; }
+        public string? HomeVisitStatus { get; set; }
+        public int RescheduleCount { get; set; }
+        public DateTime? LastRescheduledAt { get; set; }
+        public bool CanReschedule { get; set; }
+        public string? WhyNot { get; set; }
+    }
+
+    public class LabOrderRescheduleResultDto
+    {
+        public int RescheduleId { get; set; }
+        public int LabOrderId { get; set; }
+        public string? BillNo { get; set; }
+        public string? BookingNo { get; set; }
+        public string? TokenNo { get; set; }
+        public string? OldTokenNo { get; set; }
+        public DateTime OldBookingDate { get; set; }
+        public DateTime NewBookingDate { get; set; }
+        public string? CollectionType { get; set; }
+        public int? HomeVisitId { get; set; }
+        public int PatientId { get; set; }
+        public string? PatientName { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? EmailId { get; set; }
+        public string? BranchName { get; set; }
+    }
+
+    public class LabOrderRescheduleHistoryDto
+    {
+        public int RescheduleId { get; set; }
+        public DateTime OldBookingDate { get; set; }
+        public DateTime NewBookingDate { get; set; }
+        public string? OldTokenNo { get; set; }
+        public string? NewTokenNo { get; set; }
+        public string? Reason { get; set; }
+        public string? WhatsAppStatus { get; set; }
+        public string? EmailStatus { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public string? CreatedByName { get; set; }
+    }
+
     // LAB B2B government scheme (SQLScripts/2535)
     /// <summary>Order lists: consent needed for the bill, and what is on file (SQLScripts/2553).</summary>
     public class LabOrderConsentStatusDto

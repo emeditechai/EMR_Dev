@@ -24,5 +24,11 @@ namespace EMR.Api.Services
         Task SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId);
         /// <summary>FORM F (PC-PNDT) fields of a bill; null when the bill does not need FORM F (SQLScripts/2554).</summary>
         Task<LabOrderFormFDto?> GetFormFAsync(int labOrderId, int? branchId);
+        /// <summary>B2C bookings: can each be rescheduled, and why not (SQLScripts/2561).</summary>
+        Task<IEnumerable<LabOrderRescheduleInfoDto>> GetRescheduleInfoAsync(string labOrderIds, int branchId);
+        /// <summary>Moves a B2C booking to a new date / time (SQLScripts/2561); a refused rule throws SqlException 56600-56619.</summary>
+        Task<LabOrderRescheduleResultDto?> RescheduleAsync(int labOrderId, LabOrderRescheduleRequest request);
+        Task<IEnumerable<LabOrderRescheduleHistoryDto>> GetRescheduleHistoryAsync(int labOrderId, int branchId);
+        Task SetRescheduleNotifiedAsync(int rescheduleId, LabOrderRescheduleNotifiedRequest request);
     }
 }

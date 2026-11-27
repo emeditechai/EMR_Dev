@@ -23,6 +23,7 @@
 <partial name="_PaymentModal" />
 
 @{ bool showLabReportPrint = ViewBag.ShowLabReportPrintOnList as bool? ?? false; }
+@{ var rescheduleMap = ViewBag.Reschedule as Dictionary<int, EMR.Web.Models.DTOs.LabOrderRescheduleInfoDto> ?? new(); }
 @if (showLabReportPrint)
 {
     <partial name="_LabReportPrintModal" />
@@ -195,7 +196,16 @@
                             var searchText = string.Join(" ", o.PatientName, o.PatientCode, o.BillNo, o.TokenNo, o.BookingNo, o.PhoneNumber, o.TestNamesSummary, payText).ToLower();
                             <tr data-search="@searchText">
                                 <td class="text-nowrap">@((o.CreatedDate > DateTime.MinValue ? o.CreatedDate : o.OrderDate).ToString("dd MMM yyyy HH:mm"))</td>
-                                <td class="text-nowrap">@(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")</td>
+                                @{ rescheduleMap.TryGetValue(o.LabOrderId, out var rs); }
+                                <td class="text-nowrap">
+                                    @(o.BookingDate.HasValue ? o.BookingDate.Value.ToString("dd MMM yyyy HH:mm") : "—")
+                                    @if (rs is { RescheduleCount: > 0 })
+                                    {
+                                        @* SQLScripts/2561: moved from the first booking time *@
+                                        <div><span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:.66rem;"
+                                                   title="Rescheduled @rs.RescheduleCount time(s), last on @rs.LastRescheduledAt?.ToString("dd MMM yyyy HH:mm")"><i class="bi bi-calendar2-week me-1"></i>Rescheduled@(rs.RescheduleCount > 1 ? $" ×{rs.RescheduleCount}" : "")</span></div>
+                                    }
+                                </td>
                                 <td>
                                     <span class="badge text-bg-light font-monospace border">@(o.BillNo ?? "—")</span>
                                     @if (o.IsUrgent)
@@ -324,6 +334,17 @@
                                                     <button type="button" class="dropdown-item"
                                                             onclick="collectOrderPayment(@o.LabOrderId)">
                                                         <i class="bi bi-cash-coin me-2 text-success"></i>Collect Payment
+                                                    </button>
+                                                </li>
+                                            }
+                                            @if (rs is { CanReschedule: true })
+                                            {
+                                                @* SQLScripts/2561: Is Booking Req = Yes, booking day not passed, a test without its result *@
+                                                <li asp-permission="LAB.LABORDERBOOKING.B2CORDERLIST:RESCHEDULE">
+                                                    <button type="button" class="dropdown-item btn-reschedule-booking"
+                                                            data-laborderid="@o.LabOrderId" data-bill="@(o.BillNo ?? "")" data-booking-no="@(o.BookingNo ?? "")"
+                                                            data-patient="@o.PatientName">
+                                                        <i class="bi bi-calendar2-week me-2 text-warning"></i>Reschedule Booking
                                                     </button>
                                                 </li>
                                             }
@@ -470,11 +491,81 @@
     </div>
 </div>
 
+@* ── Reschedule Booking (SQLScripts/2561; js/lab/lab-booking-reschedule.js) ── *@
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-labelledby="rescheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning-subtle">
+                <h5 class="modal-title" id="rescheduleModalLabel"><i class="bi bi-calendar2-week me-2"></i>Reschedule Booking</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="frmReschedule" novalidate>
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="labOrderId" id="rsOrderId" />
+                    <input type="hidden" name="expectedBookingDate" id="rsExpected" />
+                    <div class="small text-muted mb-2" id="rsHeader"></div>
+                    <div class="alert alert-light border py-2 mb-3">
+                        <div class="small text-muted">Current booking</div>
+                        <div class="fw-semibold" id="rsCurrent">—</div>
+                        <div class="small text-muted" id="rsTests"></div>
+                    </div>
+                    <div class="alert alert-danger py-2 d-none" id="rsBlocked"></div>
+                    <div id="rsFields">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="rsNewDate">New booking date &amp; time <span class="text-danger">*</span></label>
+                            <input type="datetime-local" class="form-control" name="newBookingDate" id="rsNewDate" required />
+                            <div class="form-text">A future date and time, at most 90 days ahead.</div>
+                            <div class="invalid-feedback" id="rsNewDateErr"></div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-semibold" for="rsReason">Reason <span class="text-danger">*</span></label>
+                            <select class="form-select mb-2" id="rsReasonPick" aria-label="Common reasons">
+                                <option value="">-- Choose a reason or type below --</option>
+                                <option>Patient request</option>
+                                <option>Patient not available at the booked time</option>
+                                <option>Patient not fasting</option>
+                                <option>Patient unwell / admitted</option>
+                                <option>Patient travelling / out of station</option>
+                                <option>Doctor not available</option>
+                                <option>Radiologist / sonologist not available</option>
+                                <option>Phlebotomist not available</option>
+                                <option>Lab / equipment not available</option>
+                                <option>Reagent / kit not available</option>
+                                <option>Preparation instructions not followed</option>
+                                <option>Address not reachable (home collection)</option>
+                                <option>Weather / traffic disruption</option>
+                                <option>Holiday / centre closed</option>
+                                <option>Payment pending</option>
+                                <option>Booked by mistake for a wrong date</option>
+                            </select>
+                            <textarea class="form-control" name="reason" id="rsReason" rows="2" maxlength="300" required placeholder="Reason for rescheduling"></textarea>
+                            <div class="invalid-feedback">Enter the reason for rescheduling.</div>
+                        </div>
+                        <div class="form-text"><i class="bi bi-bell me-1"></i>The patient gets the new date and time by WhatsApp / e-mail.</div>
+                    </div>
+                </form>
+                <div class="mt-3 d-none" id="rsHistoryBox">
+                    <div class="small fw-semibold text-muted mb-1">Earlier reschedules</div>
+                    <ul class="list-group list-group-flush small" id="rsHistory"></ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="btnRescheduleSave"><i class="bi bi-check2-circle me-1"></i>Reschedule</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <partial name="_BillTestsPopup" />
 
 @section Scripts {
     <script src="~/js/lab-compliance-docs-viewer.js"></script>
     <form id="frmConsentToken" class="d-none">@Html.AntiForgeryToken()</form>
+    <script src="~/js/lab/lab-booking-reschedule.js" asp-append-version="true"
+            data-info-url="@Url.Action("RescheduleBookingInfo", "LabOrderBooking")"
+            data-save-url="@Url.Action("RescheduleBooking", "LabOrderBooking")"></script>
     <script src="~/js/lab/lab-consent-upload.js" asp-append-version="true"
             data-status-url="@Url.Action("GetOrderConsentStatus", "LabOrderBooking")"
             data-upload-url="@Url.Action("UploadOrderConsent", "LabOrderBooking")"></script>

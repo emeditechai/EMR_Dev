@@ -22,7 +22,7 @@ public static class NotifyText
         OpdFollowUp = "OPD_FOLLOWUP", OpdVideo = "OPD_VIDEO", Certificate = "CERTIFICATE", MemPoints = "MEM_POINTS", MemCard = "MEM_CARD",
         MemRenewal = "MEM_RENEWAL", PhBill = "PH_BILL", PhLoyalty = "PH_LOYALTY", PhRefill = "PH_REFILL", PhWalletExpiry = "PH_WALLET_EXPIRY",
         PortalLogin = "PORTAL_LOGIN", MemRedeemOtp = "MEM_REDEEM_OTP", PhLoyaltyOtp = "PH_LOYALTY_OTP", PatientAppOtp = "PATIENT_APP_OTP",
-        HomeCollectionOtp = "HOME_COLLECTION_OTP";
+        HomeCollectionOtp = "HOME_COLLECTION_OTP", LabReschedule = "LAB_RESCHEDULE";
     public const string WhatsApp = "WHATSAPP";
     public const string Email = "EMAIL";
 

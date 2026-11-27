@@ -24,5 +24,11 @@ namespace EMR.Web.ApiClients
         Task<string?> SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId);
         /// <summary>FORM F (PC-PNDT) fields of a bill; null when it does not need FORM F (SQLScripts/2554).</summary>
         Task<LabOrderFormFDto?> GetFormFAsync(int labOrderId, int? branchId);
+        /// <summary>B2C bookings: can each be rescheduled, and why not (SQLScripts/2561).</summary>
+        Task<List<LabOrderRescheduleInfoDto>> GetRescheduleInfoAsync(IEnumerable<int> labOrderIds, int branchId);
+        Task<List<LabOrderRescheduleHistoryDto>> GetRescheduleHistoryAsync(int labOrderId, int branchId);
+        /// <summary>Moves a B2C booking; returns the result, or the refusal message (SQLScripts/2561).</summary>
+        Task<(LabOrderRescheduleResultDto? Result, string? Error)> RescheduleAsync(int labOrderId, int branchId, int userId, DateTime newBookingDate, string? reason, DateTime? expectedBookingDate);
+        Task SetRescheduleNotifiedAsync(int rescheduleId, int branchId, string? whatsAppStatus, string? emailStatus, string? detail);
     }
 }

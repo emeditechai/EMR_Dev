@@ -136,6 +136,40 @@ namespace EMR.Api.Services
                 new { LabOrderId = labOrderId, BranchId = branchId }, commandType: CommandType.StoredProcedure);
         }
 
+        public async Task<IEnumerable<LabOrderRescheduleInfoDto>> GetRescheduleInfoAsync(string labOrderIds, int branchId)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryAsync<LabOrderRescheduleInfoDto>("dbo.usp_Api_LabOrder_RescheduleInfo",
+                new { LabOrderIds = labOrderIds, BranchId = branchId }, commandType: CommandType.StoredProcedure);
+        }
+
+        public async Task<LabOrderRescheduleResultDto?> RescheduleAsync(int labOrderId, LabOrderRescheduleRequest request)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryFirstOrDefaultAsync<LabOrderRescheduleResultDto>("dbo.usp_Api_LabOrder_Reschedule",
+                new
+                {
+                    LabOrderId = labOrderId, request.BranchId, request.UserId, NewBookingDate = request.NewBookingDate,
+                    Reason = request.Reason, ExpectedBookingDate = request.ExpectedBookingDate
+                },
+                commandType: CommandType.StoredProcedure);
+        }
+
+        public async Task<IEnumerable<LabOrderRescheduleHistoryDto>> GetRescheduleHistoryAsync(int labOrderId, int branchId)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryAsync<LabOrderRescheduleHistoryDto>("dbo.usp_Api_LabOrder_RescheduleHistory",
+                new { LabOrderId = labOrderId, BranchId = branchId }, commandType: CommandType.StoredProcedure);
+        }
+
+        public async Task SetRescheduleNotifiedAsync(int rescheduleId, LabOrderRescheduleNotifiedRequest request)
+        {
+            using var connection = db.CreateConnection();
+            await connection.ExecuteAsync("dbo.usp_Api_LabOrder_RescheduleNotified",
+                new { RescheduleId = rescheduleId, request.BranchId, request.WhatsAppStatus, request.EmailStatus, request.Detail },
+                commandType: CommandType.StoredProcedure);
+        }
+
         public async Task SaveConsentAsync(int labOrderId, string consentFilePath, int? branchId, int? userId)
         {
             using var connection = db.CreateConnection();

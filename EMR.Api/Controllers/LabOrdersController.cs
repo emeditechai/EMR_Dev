@@ -152,6 +152,48 @@ namespace EMR.Api.Controllers
             }
         }
 
+        /// <summary>B2C Order List: can these bookings be rescheduled (SQLScripts/2561).</summary>
+        [HttpGet("reschedule-info")]
+        public async Task<IActionResult> GetRescheduleInfo([FromQuery] string ids, [FromQuery] int branchId)
+        {
+            if (string.IsNullOrWhiteSpace(ids) || branchId <= 0) return Ok(System.Array.Empty<LabOrderRescheduleInfoDto>());
+            return Ok(await labOrderService.GetRescheduleInfoAsync(ids, branchId));
+        }
+
+        /// <summary>Reschedule history of one booking.</summary>
+        [HttpGet("{id}/reschedules")]
+        public async Task<IActionResult> GetRescheduleHistory(int id, [FromQuery] int branchId)
+        {
+            if (id <= 0 || branchId <= 0) return BadRequest(new { message = "A bill and a branch are required." });
+            return Ok(await labOrderService.GetRescheduleHistoryAsync(id, branchId));
+        }
+
+        /// <summary>Moves a B2C booking to a new date / time; a refused rule comes back as 400 with its message.</summary>
+        [HttpPost("{id}/reschedule")]
+        public async Task<IActionResult> Reschedule(int id, [FromBody] LabOrderRescheduleRequest request)
+        {
+            if (id <= 0 || request == null || request.BranchId <= 0 || request.UserId <= 0)
+                return BadRequest(new { message = "A bill, a branch and a user are required." });
+            try
+            {
+                var result = await labOrderService.RescheduleAsync(id, request);
+                return result == null ? BadRequest(new { message = "The booking could not be rescheduled." }) : Ok(result);
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is >= 56600 and <= 56619)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>Records what the patient was sent about a reschedule (WhatsApp / e-mail).</summary>
+        [HttpPost("reschedules/{rescheduleId}/notified")]
+        public async Task<IActionResult> RescheduleNotified(int rescheduleId, [FromBody] LabOrderRescheduleNotifiedRequest request)
+        {
+            if (rescheduleId <= 0 || request == null || request.BranchId <= 0) return BadRequest(new { message = "A reschedule and a branch are required." });
+            await labOrderService.SetRescheduleNotifiedAsync(rescheduleId, request);
+            return Ok(new { isSuccess = true });
+        }
+
         [HttpPost("{id}/sample-collection")]
         public async Task<IActionResult> CreateSampleCollection(int id, [FromQuery] int branchId, [FromQuery] int companyId = 1, [FromQuery] int? userId = null)
         {

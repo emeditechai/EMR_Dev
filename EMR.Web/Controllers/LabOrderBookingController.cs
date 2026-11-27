@@ -2803,6 +2803,20 @@ namespace EMR.Web.Controllers
             ViewBag.Adjustments = await EMR.Web.Services.LabBillAdjustments.LoadAsync(
                 dbContext.Database.GetDbConnection(), (result?.Items ?? new List<LabOrderListItemDto>()).Select(o => o.LabOrderId));
 
+            // SQLScripts/2561: "Reschedule Booking" only for a booking still open to it (Is Booking Req, booking day not passed,
+            // a test without its result); the list still opens when this read fails
+            var reschedule = new Dictionary<int, LabOrderRescheduleInfoDto>();
+            var bookingIds = (result?.Items ?? new List<LabOrderListItemDto>()).Where(o => o.IsActive && o.IsBookingRequired).Select(o => o.LabOrderId).ToList();
+            if (bookingIds.Count > 0)
+            {
+                try
+                {
+                    foreach (var r in await labOrderApiClient.GetRescheduleInfoAsync(bookingIds, resolvedBranchId)) reschedule[r.LabOrderId] = r;
+                }
+                catch (Exception ex) { logger.LogWarning(ex, "[LAB-RESCHEDULE] Reschedule state of the B2C list not read"); }
+            }
+            ViewBag.Reschedule = reschedule;
+
             var vm = new LabOrderPagedListViewModel
             {
                 Items = result?.Items ?? new List<LabOrderListItemDto>(),
@@ -2819,6 +2833,177 @@ namespace EMR.Web.Controllers
             };
 
             return View(vm);
+        }
+
+        // ── B2C Order List > Reschedule Booking (SQLScripts/2561) ─────────────────────────────────────────────────────
+
+        private static string RescheduleWhen(DateTime d) => d.ToString("dd MMM yyyy, hh:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+
+        /// <summary>The Reschedule dialog: the booking now, whether it can move (and why not), and its earlier reschedules.</summary>
+        [HttpGet]
+        public async Task<IActionResult> RescheduleBookingInfo(int labOrderId)
+        {
+            var branchId = User.GetCurrentBranchId();
+            if (labOrderId <= 0 || branchId is not > 0) return Json(new { success = false, message = "Select a branch and a bill first." });
+            try
+            {
+                var info = (await labOrderApiClient.GetRescheduleInfoAsync(new[] { labOrderId }, branchId.Value)).FirstOrDefault();
+                if (info == null) return Json(new { success = false, message = "The bill was not found in this branch." });
+                var history = await labOrderApiClient.GetRescheduleHistoryAsync(labOrderId, branchId.Value);
+                return Json(new
+                {
+                    success = true,
+                    canReschedule = info.CanReschedule,
+                    whyNot = info.WhyNot,
+                    bookingDate = info.BookingDate?.ToString("yyyy-MM-ddTHH:mm"),
+                    bookingText = info.BookingDate.HasValue ? RescheduleWhen(info.BookingDate.Value) : null,
+                    totalTests = info.TotalTests,
+                    enteredTests = info.EnteredTests,
+                    homeVisitStatus = info.HomeVisitStatus,
+                    minDate = DateTime.Now.AddMinutes(5).ToString("yyyy-MM-ddTHH:mm"),
+                    maxDate = DateTime.Now.AddDays(90).ToString("yyyy-MM-ddTHH:mm"),
+                    history = history.Select(h => new
+                    {
+                        from = RescheduleWhen(h.OldBookingDate), to = RescheduleWhen(h.NewBookingDate),
+                        token = h.OldTokenNo != h.NewTokenNo ? $"{h.OldTokenNo} → {h.NewTokenNo}" : null,
+                        h.Reason, by = h.CreatedByName, at = RescheduleWhen(h.CreatedDate),
+                        whatsApp = h.WhatsAppStatus, email = h.EmailStatus
+                    })
+                });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[LAB-RESCHEDULE] Info for order {LabOrderId}", labOrderId);
+                return Json(new { success = false, message = "The booking could not be read. Please try again." });
+            }
+        }
+
+        /// <summary>Moves a B2C booking to a new date / time, then tells the patient (WhatsApp / e-mail).</summary>
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RescheduleBooking(int labOrderId, string? newBookingDate, string? reason, string? expectedBookingDate)
+        {
+            var branchId = User.GetCurrentBranchId();
+            var userId = User.GetUserId();
+            if (labOrderId <= 0 || branchId is not > 0 || userId <= 0) return Json(new { success = false, message = "Select a branch and a bill first." });
+            if (!DateTime.TryParse(newBookingDate, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var newAt))
+                return Json(new { success = false, message = "Choose the new booking date and time." });
+            if (newAt <= DateTime.Now) return Json(new { success = false, message = "The new booking date and time must be in the future." });
+            if (string.IsNullOrWhiteSpace(reason)) return Json(new { success = false, message = "Enter the reason for rescheduling." });
+            DateTime? expected = DateTime.TryParse(expectedBookingDate, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var e) ? e : null;
+
+            LabOrderRescheduleResultDto? r;
+            try
+            {
+                string? error;
+                (r, error) = await labOrderApiClient.RescheduleAsync(labOrderId, branchId.Value, userId, newAt, reason.Trim(), expected);
+                if (r == null) return Json(new { success = false, message = error ?? "The booking could not be rescheduled." });
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "[LAB-RESCHEDULE] Order {LabOrderId}", labOrderId);
+                return Json(new { success = false, message = "The booking could not be rescheduled. Please try again." });
+            }
+
+            await auditLogService.LogActivityAsync(
+                eventType: "LAB Booking",
+                actionName: "LAB.BookingRescheduled",
+                description: $"Booking {r.BookingNo ?? r.BillNo} (bill {r.BillNo}) rescheduled from {RescheduleWhen(r.OldBookingDate)} to {RescheduleWhen(r.NewBookingDate)}: {reason.Trim()}",
+                userId: userId, branchId: branchId);
+
+            // the booking is saved: a message that cannot go out never undoes it, it is only reported
+            var (waStatus, mailStatus, detail) = await NotifyRescheduleAsync(r, branchId.Value);
+            try { await labOrderApiClient.SetRescheduleNotifiedAsync(r.RescheduleId, branchId.Value, waStatus, mailStatus, detail); }
+            catch (Exception ex) { logger.LogWarning(ex, "[LAB-RESCHEDULE] Notification outcome of reschedule {Id} not recorded", r.RescheduleId); }
+
+            var sent = new List<string>();
+            if (waStatus == "SENT") sent.Add("WhatsApp");
+            if (mailStatus == "SENT") sent.Add("e-mail");
+            var tokenNote = !string.IsNullOrEmpty(r.TokenNo) && r.TokenNo != r.OldTokenNo ? $" New token {r.TokenNo}." : "";
+            return Json(new
+            {
+                success = true,
+                message = $"Booking moved to {RescheduleWhen(r.NewBookingDate)}.{tokenNote}",
+                notified = sent.Count > 0 ? $"The patient was informed by {string.Join(" and ", sent)}." : $"The patient was not informed: {detail}",
+                notifiedOk = sent.Count > 0
+            });
+        }
+
+        /// <summary>The patient's WhatsApp and e-mail about a reschedule (NotifyEvent LAB_RESCHEDULE, in the patient's language when a text exists).</summary>
+        private async Task<(string WhatsApp, string Email, string Detail)> NotifyRescheduleAsync(LabOrderRescheduleResultDto r, int branchId)
+        {
+            var notes = new List<string>();
+            string wa = "SKIPPED", mail = "SKIPPED";
+            var hs = await dbContext.HospitalSettings.AsNoTracking().FirstOrDefaultAsync(s => s.BranchId == branchId && s.IsActive);
+            var hospital = hs?.HospitalName ?? r.BranchName ?? "our lab";
+            var con = dbContext.Database.GetDbConnection();
+            var lang = await NotifyLanguage.OfPatientAsync(con, r.PatientId);
+            var collection = string.Equals(r.CollectionType, "Home Collection", StringComparison.OrdinalIgnoreCase) ? "home collection" : "at the lab";
+            var values = new Dictionary<string, string?>
+            {
+                ["PatientName"] = r.PatientName, ["HospitalName"] = hospital, ["BillNo"] = r.BillNo, ["BookingNo"] = r.BookingNo,
+                ["OldDateTime"] = RescheduleWhen(r.OldBookingDate), ["NewDateTime"] = RescheduleWhen(r.NewBookingDate),
+                ["TokenNo"] = r.TokenNo, ["CollectionType"] = collection
+            };
+
+            // WhatsApp: the branch's LAB notifications must be on
+            if (string.IsNullOrWhiteSpace(r.PhoneNumber)) notes.Add("no mobile number");
+            else
+            {
+                try
+                {
+                    var waSvc = HttpContext.RequestServices.GetRequiredService<IWhatsAppService>();
+                    var cfg = await waSvc.GetActiveConfigAsync(branchId);
+                    if (cfg == null || !cfg.IsEnabled || !cfg.LabNotificationEnabled) notes.Add("WhatsApp LAB notifications are off for this branch");
+                    else
+                    {
+                        var english = $"Dear {r.PatientName}, your lab booking{(string.IsNullOrEmpty(r.BookingNo) ? "" : " " + r.BookingNo)} (bill {r.BillNo}) at {hospital} " +
+                                      $"has been rescheduled from {values["OldDateTime"]} to *{values["NewDateTime"]}* ({collection})." +
+                                      (string.IsNullOrEmpty(r.TokenNo) ? "" : $" Your token is {r.TokenNo}.") +
+                                      " Please contact us if this time does not suit you.";
+                        var text = await NotifyLanguage.WhatsAppAsync(con, branchId, EMR.Common.NotifyText.LabReschedule, lang, values, english, logger);
+                        var res = await waSvc.SendTextMessageAsync(r.PhoneNumber!, text, branchId, "LAB_RESCHEDULE", r.LabOrderId);
+                        wa = res.Success ? "SENT" : "FAILED";
+                        if (!res.Success) notes.Add("WhatsApp failed" + (string.IsNullOrWhiteSpace(res.ErrorMessage) ? "" : ": " + res.ErrorMessage));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    wa = "FAILED"; notes.Add("WhatsApp failed");
+                    logger.LogWarning(ex, "[LAB-RESCHEDULE] WhatsApp for order {LabOrderId}", r.LabOrderId);
+                }
+            }
+
+            // e-mail: the branch's LAB e-mail notifications must be on
+            if (string.IsNullOrWhiteSpace(r.EmailId)) notes.Add("no e-mail address");
+            else if (hs == null || !hs.LabEmailNotificationRequired) notes.Add("LAB e-mails are off for this branch");
+            else
+            {
+                try
+                {
+                    string H(string? v) => System.Net.WebUtility.HtmlEncode(v ?? "");
+                    var subject = $"Your lab booking is rescheduled to {values["NewDateTime"]} - {hospital}";
+                    var html = EmailLayout.Wrap(
+                        EmailLayout.Greeting(r.PatientName ?? "Patient")
+                        + EmailLayout.P($"Your lab booking{(string.IsNullOrEmpty(r.BookingNo) ? "" : " <strong>" + H(r.BookingNo) + "</strong>")} (bill {H(r.BillNo)}) has been rescheduled.")
+                        + EmailLayout.P($"Earlier: {H(values["OldDateTime"])}<br/>New date and time: <strong>{H(values["NewDateTime"])}</strong><br/>Collection: {H(collection)}"
+                                        + (string.IsNullOrEmpty(r.TokenNo) ? "" : $"<br/>Token: <strong>{H(r.TokenNo)}</strong>"))
+                        + EmailLayout.P("Please contact us if this time does not suit you."),
+                        heading: "Lab booking rescheduled", organisation: hospital);
+                    if (await NotifyLanguage.EmailAsync(con, branchId, EMR.Common.NotifyText.LabReschedule, lang, values, hospital, hs.Address, logger) is { } local)
+                        (subject, html) = local;
+                    var (ok, msg) = await HttpContext.RequestServices.GetRequiredService<IEmailService>().SendEmailAsync(branchId, r.EmailId!, subject, html);
+                    mail = ok ? "SENT" : "FAILED";
+                    if (!ok) notes.Add("e-mail failed" + (string.IsNullOrWhiteSpace(msg) ? "" : ": " + msg));
+                }
+                catch (Exception ex)
+                {
+                    mail = "FAILED"; notes.Add("e-mail failed");
+                    logger.LogWarning(ex, "[LAB-RESCHEDULE] E-mail for order {LabOrderId}", r.LabOrderId);
+                }
+            }
+            return (wa, mail, notes.Count == 0 ? "Sent." : string.Join("; ", notes) + ".");
         }
 
         [HttpGet]

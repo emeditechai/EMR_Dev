@@ -142,6 +142,42 @@ namespace EMR.Web.ApiClients
             catch { return "The consent could not be saved."; }
         }
 
+        public async Task<List<LabOrderRescheduleInfoDto>> GetRescheduleInfoAsync(IEnumerable<int> labOrderIds, int branchId)
+        {
+            var ids = string.Join(",", labOrderIds);
+            if (ids.Length == 0 || branchId <= 0) return new List<LabOrderRescheduleInfoDto>();
+            return await httpClient.GetFromJsonAsync<List<LabOrderRescheduleInfoDto>>(
+                $"api/LabOrders/reschedule-info?ids={System.Uri.EscapeDataString(ids)}&branchId={branchId}") ?? new List<LabOrderRescheduleInfoDto>();
+        }
+
+        public async Task<List<LabOrderRescheduleHistoryDto>> GetRescheduleHistoryAsync(int labOrderId, int branchId) =>
+            await httpClient.GetFromJsonAsync<List<LabOrderRescheduleHistoryDto>>($"api/LabOrders/{labOrderId}/reschedules?branchId={branchId}")
+            ?? new List<LabOrderRescheduleHistoryDto>();
+
+        public async Task<(LabOrderRescheduleResultDto? Result, string? Error)> RescheduleAsync(int labOrderId, int branchId, int userId,
+            System.DateTime newBookingDate, string? reason, System.DateTime? expectedBookingDate)
+        {
+            var response = await httpClient.PostAsJsonAsync($"api/LabOrders/{labOrderId}/reschedule", new
+            {
+                BranchId = branchId, UserId = userId, NewBookingDate = newBookingDate, Reason = reason, ExpectedBookingDate = expectedBookingDate
+            });
+            if (response.IsSuccessStatusCode)
+                return (await response.Content.ReadFromJsonAsync<LabOrderRescheduleResultDto>(), null);
+            try
+            {
+                var body = await response.Content.ReadFromJsonAsync<Dictionary<string, object>>();
+                return (null, body?.GetValueOrDefault("message")?.ToString() ?? "The booking could not be rescheduled.");
+            }
+            catch { return (null, "The booking could not be rescheduled."); }
+        }
+
+        public async Task SetRescheduleNotifiedAsync(int rescheduleId, int branchId, string? whatsAppStatus, string? emailStatus, string? detail)
+        {
+            var response = await httpClient.PostAsJsonAsync($"api/LabOrders/reschedules/{rescheduleId}/notified",
+                new { BranchId = branchId, WhatsAppStatus = whatsAppStatus, EmailStatus = emailStatus, Detail = detail });
+            response.EnsureSuccessStatusCode();
+        }
+
         public async Task SetOrderSchemeAsync(int labOrderId, string? beneficiaryId)
         {
             var response = await httpClient.PostAsJsonAsync($"api/LabOrders/{labOrderId}/scheme", new { BeneficiaryId = beneficiaryId });
