@@ -482,5 +482,13 @@
   ],
   "date": "27 Nov 2026",
   "version": "1.40"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "HospitalSettings: new column(s) IpdDoctorAssessHours, IpdNursingAssessHours, IpdCountersignHours, IpdAutoVisitCharge, IpdMarLateMinutes"
+  ],
+  "date": "27 Nov 2026",
+  "version": "1.41"
  }
 ]

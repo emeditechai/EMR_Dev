@@ -17590,6 +17590,71 @@
    "type": "int"
   },
   {
+   "col": "IpdDoctorAssessHours",
+   "def": "((24))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 168,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdNursingAssessHours",
+   "def": "((24))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 169,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdCountersignHours",
+   "def": "((24))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 170,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
+   "col": "IpdAutoVisitCharge",
+   "def": "((1))",
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": false,
+   "ord": 171,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "bit"
+  },
+  {
+   "col": "IpdMarLateMinutes",
+   "def": "((60))",
+   "descr": null,
+   "ident": false,
+   "len": 4,
+   "nullable": false,
+   "ord": 172,
+   "prec": 10,
+   "scale": 0,
+   "tbl": "HospitalSettings",
+   "type": "int"
+  },
+  {
    "col": "IdentificationTypeId",
    "def": null,
    "descr": null,
@@ -61661,7 +61726,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-27T16:09:32",
+ "extracted_on": "2026-11-27T17:47:34",
  "fk": [
   {
    "col": "LedgerId",
@@ -66684,6 +66749,11 @@
    "tbl": "IpdAnaesthesiaRecord"
   },
   {
+   "col": "AssessmentId",
+   "k": 1,
+   "tbl": "IpdAssessment"
+  },
+  {
    "col": "AttendantId",
    "k": 1,
    "tbl": "IpdAttendant"
@@ -66719,6 +66789,11 @@
    "tbl": "IpdBillLine"
   },
   {
+   "col": "PlanId",
+   "k": 1,
+   "tbl": "IpdCarePlan"
+  },
+  {
    "col": "ChargeId",
    "k": 1,
    "tbl": "IpdCharge"
@@ -66742,6 +66817,11 @@
    "col": "WriteOffId",
    "k": 1,
    "tbl": "IpdClaimWriteOff"
+  },
+  {
+   "col": "ConsultId",
+   "k": 1,
+   "tbl": "IpdCrossConsult"
   },
   {
    "col": "DeathId",
@@ -66789,6 +66869,16 @@
    "tbl": "IpdFollowUp"
   },
   {
+   "col": "FrequencyCode",
+   "k": 1,
+   "tbl": "IpdFrequency"
+  },
+  {
+   "col": "HandoverId",
+   "k": 1,
+   "tbl": "IpdHandover"
+  },
+  {
    "col": "DeviceId",
    "k": 1,
    "tbl": "IpdIcuDevice"
@@ -66809,9 +66899,24 @@
    "tbl": "IpdIcuObservation"
   },
   {
+   "col": "IncidentId",
+   "k": 1,
+   "tbl": "IpdIncident"
+  },
+  {
+   "col": "IoId",
+   "k": 1,
+   "tbl": "IpdIntakeOutput"
+  },
+  {
    "col": "LamaId",
    "k": 1,
    "tbl": "IpdLamaRecord"
+  },
+  {
+   "col": "MarId",
+   "k": 1,
+   "tbl": "IpdMarAdmin"
   },
   {
    "col": "AdmissionId",
@@ -66832,6 +66937,16 @@
    "col": "FinYear",
    "k": 3,
    "tbl": "IpdNumberCounter"
+  },
+  {
+   "col": "NoteId",
+   "k": 1,
+   "tbl": "IpdNursingNote"
+  },
+  {
+   "col": "OrderId",
+   "k": 1,
+   "tbl": "IpdOrder"
   },
   {
    "col": "OtBookingId",
@@ -66879,6 +66994,16 @@
    "tbl": "IpdPreAuthEvent"
   },
   {
+   "col": "NoteId",
+   "k": 1,
+   "tbl": "IpdProgressNote"
+  },
+  {
+   "col": "RiskId",
+   "k": 1,
+   "tbl": "IpdRiskScore"
+  },
+  {
    "col": "LogId",
    "k": 1,
    "tbl": "IpdStatusLog"
@@ -66902,6 +67027,11 @@
    "col": "DocTypeId",
    "k": 1,
    "tbl": "IpdTpaDocType"
+  },
+  {
+   "col": "VitalId",
+   "k": 1,
+   "tbl": "IpdVital"
   },
   {
    "col": "LotId",
@@ -68524,6 +68654,7 @@
   "IpdAdmissionPayer",
   "IpdAdvance",
   "IpdAnaesthesiaRecord",
+  "IpdAssessment",
   "IpdAttendant",
   "IpdBedCleaning",
   "IpdBedMovement",
@@ -68531,11 +68662,13 @@
   "IpdBedStatusLog",
   "IpdBill",
   "IpdBillLine",
+  "IpdCarePlan",
   "IpdCharge",
   "IpdClaim",
   "IpdClaimEvent",
   "IpdClaimSettlement",
   "IpdClaimWriteOff",
+  "IpdCrossConsult",
   "IpdDeathRecord",
   "IpdDischarge",
   "IpdDischargeClearance",
@@ -68545,13 +68678,20 @@
   "IpdEstimate",
   "IpdEstimateLine",
   "IpdFollowUp",
+  "IpdFrequency",
+  "IpdHandover",
   "IpdIcuDevice",
   "IpdIcuInfusion",
   "IpdIcuInfusionEvent",
   "IpdIcuObservation",
+  "IpdIncident",
+  "IpdIntakeOutput",
   "IpdLamaRecord",
+  "IpdMarAdmin",
   "IpdMlc",
   "IpdNumberCounter",
+  "IpdNursingNote",
+  "IpdOrder",
   "IpdOtBooking",
   "IpdOtChecklist",
   "IpdOtImplant",
@@ -68561,11 +68701,14 @@
   "IpdPhIssueLine",
   "IpdPreAuth",
   "IpdPreAuthEvent",
+  "IpdProgressNote",
+  "IpdRiskScore",
   "IpdStatusLog",
   "IpdSurgeryNote",
   "IpdSurgeryNoteVersion",
   "IpdTpaChecklist",
   "IpdTpaDocType",
+  "IpdVital",
   "IqcLot",
   "IqcMaterial",
   "IqcResult",
@@ -69314,6 +69457,11 @@
    "tbl": "IpdAdmissionAdvice"
   },
   {
+   "cols": "AdmissionId, Kind",
+   "idx": "UX_IpdAssessment_Current",
+   "tbl": "IpdAssessment"
+  },
+  {
    "cols": "BedId",
    "idx": "UX_IpdBedCleaning_OpenBed",
    "tbl": "IpdBedCleaning"
@@ -69387,6 +69535,11 @@
    "cols": "DischargeId",
    "idx": "UX_IpdLamaRecord_Live",
    "tbl": "IpdLamaRecord"
+  },
+  {
+   "cols": "OrderId, DueAt",
+   "idx": "UX_IpdMarAdmin_Dose",
+   "tbl": "IpdMarAdmin"
   },
   {
    "cols": "OtBookingId, Phase",
