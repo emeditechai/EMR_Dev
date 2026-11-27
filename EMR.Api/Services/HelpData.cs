@@ -17,10 +17,12 @@ namespace EMR.Api.Services;
 /// </summary>
 public static partial class HelpData
 {
-    public const string Help = "HELP", Bill = "BILL", Token = "TOKEN", Patient = "PATIENT", Summary = "SUMMARY", Dues = "DUES", LabWork = "LABWORK";
+    public const string Help = "HELP", Bill = "BILL", Token = "TOKEN", Patient = "PATIENT", Summary = "SUMMARY", Dues = "DUES", LabWork = "LABWORK",
+        Cancelled = "CANCELLED",   // SQLScripts/2566
+        Ipd = "IPD", Pharmacy = "PHARMACY", Collection = "COLLECTION";   // SQLScripts/2567
 
     // scopes EMR.Web passes (from page permissions)
-    public const string ScopeLab = "LAB", ScopeOpd = "OPD", ScopeSamples = "SAMPLES", ScopePatients = "PATIENTS";
+    public const string ScopeLab = "LAB", ScopeOpd = "OPD", ScopeSamples = "SAMPLES", ScopePatients = "PATIENTS", ScopeIpd = "IPD", ScopePharmacy = "PHARMACY";
 
     private static readonly Lazy<HelpTextClassifier> Model = new(() => HelpTextClassifier.Train(Examples(), 60));
 
@@ -36,6 +38,20 @@ public static partial class HelpData
     private static partial Regex PhoneRegex();
     [GeneratedRegex(@"[a-z]+|\d+")]
     private static partial Regex WordRegex();
+    // a question about cancelled / refunded bills (not "how do I cancel ...", which is a help question)
+    [GeneratedRegex(@"\b(cancell?ed|cancell?ations?|refunds?|refunded|reversed|voided|deleted bills?)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CancelledRegex();
+    // money received by payment mode: "cash collection today", "how much upi this month", "payment mode wise collection"
+    [GeneratedRegex(@"\b(cash|upi|card|cards|neft|rtgs|cheque|wallet|paytm|gpay|phonepe|payment modes?|mode wise|modewise|by mode)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ModeRegex();
+    // pharmacy data: sales, stock of a medicine, expiry, low stock
+    [GeneratedRegex(@"\b(pharmacy|medicines?|stock|stocks|expiry|expiring|expired|expire|reorder|out of stock|shortage|chemist)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex PharmacyRegex();
+    // IPD data: census, beds, admissions, discharges
+    [GeneratedRegex(@"\b(ipd|admitted|admissions?|inpatients?|in patients?|beds?|occupancy|occupied|discharged|discharges|discharge pending|pending discharges?|icu|ward)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex IpdRegex();
+    [GeneratedRegex(@"\bstock\s+(?:of|for)\s+(?<item>[a-z0-9][a-z0-9 .%/-]{1,40})$|^(?:how much|how many|what is the|what is|check|show)?\s*(?:the\s+)?(?<item2>[a-z0-9][a-z0-9 .%/-]{1,40}?)\s+(?:stock|available|left)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex StockItemRegex();
     [GeneratedRegex(@"^\s*(how|where|why|can i|steps?|what is the (process|procedure|way)|what should|what do i|guide|help me)\b", RegexOptions.IgnoreCase)]
     private static partial Regex HowToRegex();
     [GeneratedRegex(@"\b(open|show|print|view|display|see|get|find)\b", RegexOptions.IgnoreCase)]
@@ -53,7 +69,7 @@ public static partial class HelpData
         "due", "dues", "pending", "outstanding", "unpaid", "balance", "receivable",
         "bill", "bills", "billing", "invoice", "receipt", "token", "patient", "patients", "phone", "mobile", "number",
         "sample", "samples", "report", "reports", "approval", "approved", "result", "results", "test", "tests", "investigation",
-        "lab", "opd", "consultation", "doctor", "cancelled", "cancel", "count", "many", "much", "list", "show", "open", "status",
+        "lab", "opd", "ipd", "pharmacy", "consultation", "doctor", "cancelled", "cancel", "cancellation", "cancellations", "refund", "refunds", "refunded", "reversed", "count", "admitted", "admission", "admissions", "discharge", "discharged", "discharges", "occupancy", "occupied", "available", "beds", "stock", "expiry", "expiring", "expired", "reorder", "medicine", "medicines", "upi", "card", "mode", "many", "much", "list", "show", "open", "status",
         "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"
     ];
     private static readonly HashSet<string> VocabSet = new(Vocabulary, StringComparer.OrdinalIgnoreCase);
@@ -112,11 +128,30 @@ public static partial class HelpData
             return new(Patient, 1, Regex.Replace(ph.Groups[1].Value, @"[\s-]", ""), modules, from, to, label, open);
 
         // "find patient anita mitra", "patient named kajal": a name search
-        if (PatientAskRegex().Match(raw) is { Success: true } pn && !HowToRegex().IsMatch(text))
+        if (PatientAskRegex().Match(raw) is { Success: true } pn && !HowToRegex().IsMatch(text)
+            && !IpdRegex().IsMatch(pn.Groups["name"].Value) && !CancelledRegex().IsMatch(pn.Groups["name"].Value))   // "patients in icu" is not a name
             return new(Patient, 1, pn.Groups["name"].Value.Trim(), modules, from, to, label, open);
 
         // "how do I collect a due" is a help question even though it has data words
         if (HowToRegex().IsMatch(text) && !Regex.IsMatch(text, @"\bhow (much|many)\b")) return new(Help, 1, null, modules, from, to, label, open);
+
+        // "is there any cancelled bill today", "refunds this month in pharmacy": the cancellations of every module asked
+        if (CancelledRegex().IsMatch(text)) return new(Cancelled, 1, null, CancelModules(text), from, to, label, open);
+        // money by payment mode across modules
+        if (ModeRegex().IsMatch(text) && !Regex.IsMatch(text, @"\b(how to|add|configure|set up|setup)\b"))
+            return new(Collection, 1, null, CancelModules(text), from, to, label, open);
+        // pharmacy: stock of a medicine, near expiry, low stock, sales
+        if (PharmacyRegex().IsMatch(text))
+        {
+            if (Regex.IsMatch(text, @"\b(expiry|expiring|expired|expire|near expiry)\b")) return new(Pharmacy, 1, "EXPIRY", "PHR", from, to, label, open);
+            if (Regex.IsMatch(text, @"\b(low stock|reorder|out of stock|shortage|short)\b")) return new(Pharmacy, 1, "LOW", "PHR", from, to, label, open);
+            if (Regex.IsMatch(text, @"\bstocks?\b") && StockItem(text) is { } item) return new(Pharmacy, 1, "STOCK:" + item, "PHR", from, to, label, open);
+            if (Regex.IsMatch(text, @"\b(sale|sales|sold|revenue|business|collection|bills?|income|profit)\b") && Regex.IsMatch(text, @"\b(pharmacy|medicines?|chemist)\b"))
+                return new(Pharmacy, 1, "SALES", "PHR", from, to, label, open);
+        }
+        // IPD census
+        if (IpdRegex().IsMatch(text) && Regex.IsMatch(text, @"\b(how many|count|number|list|show|who|which|now|current|currently|today|yesterday|this|last|available|occupied|occupancy|status|total|any|pending|free|vacant|empty)\b"))
+            return new(Ipd, 1, null, "IPD", from, to, label, open);
 
         var (kind, p) = Model.Value.Predict(text, 1).Select(x => (x.Label, x.P)).FirstOrDefault();
         if (kind is null || kind == Help || p < 0.5) return new(Help, p, null, modules, from, to, label, open);
@@ -135,6 +170,31 @@ public static partial class HelpData
         var lab = Regex.IsMatch(text, @"\b(lab|laboratory|pathology|test|tests|sample|samples|b2c|investigation)\b");
         var opd = Regex.IsMatch(text, @"\b(opd|consultation|doctor|visit|visits|appointment)\b");
         return lab == opd ? "LAB,OPD" : lab ? "LAB" : "OPD";
+    }
+
+    private static readonly HashSet<string> StockNoise = new(StringComparer.OrdinalIgnoreCase)
+    { "the", "a", "an", "of", "for", "medicine", "medicines", "tablet", "tablets", "tab", "in", "pharmacy", "how", "much", "many", "is", "there",
+      "what", "check", "show", "current", "available", "left", "today", "now", "stock", "stocks", "qty", "quantity", "do", "we", "have", "any" };
+
+    /// <summary>The medicine a stock question names ("stock of dolo 650", "dolo stock"), or null.</summary>
+    private static string? StockItem(string text)
+    {
+        var m = StockItemRegex().Match(text.Trim());
+        var raw = m.Success ? (m.Groups["item"].Success ? m.Groups["item"].Value : m.Groups["item2"].Value) : null;
+        if (raw is null) return null;
+        var words = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => !StockNoise.Contains(w)).ToList();
+        return words.Count == 0 ? null : string.Join(' ', words);
+    }
+
+    /// <summary>Modules of a cancellation question: those named (lab, opd, ipd, pharmacy), or all.</summary>
+    private static string CancelModules(string text)
+    {
+        var m = new List<string>();
+        if (Regex.IsMatch(text, @"\b(lab|laboratory|pathology|test|tests|b2c|investigation)\b")) m.Add("LAB");
+        if (Regex.IsMatch(text, @"\b(opd|consultation|appointment)\b")) m.Add("OPD");
+        if (Regex.IsMatch(text, @"\b(ipd|admission|admissions|inpatient|in patient|admitted|ward)\b")) m.Add("IPD");
+        if (Regex.IsMatch(text, @"\b(pharmacy|medicine|medicines|chemist|sale|sales)\b")) m.Add("PHR");
+        return m.Count == 0 ? "LAB,OPD,IPD,PHR" : string.Join(',', m);
     }
 
     private static readonly string[] MonthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -202,6 +262,24 @@ public static partial class HelpData
                                       $"pending reports {p}", $"lab work status {p}", $"how many reports approved {p}", $"tests waiting for result {p}",
                                       $"sample collection status {p}", $"rejected samples {p}" })
                 yield return (s.Trim(), LabWork);
+        // cancellations (SQLScripts/2566): also learned by the model, for wording without the word "cancel"
+        foreach (var p in periods)
+            foreach (var m in new[] { "lab", "opd", "ipd", "pharmacy", "" })
+                foreach (var s in new[] { $"is there any cancelled {m} bill {p}", $"cancelled {m} bills {p}", $"any {m} bill cancelled {p}",
+                                          $"{m} cancellations {p}", $"how many {m} bills cancelled {p}", $"which {m} bills were cancelled {p}",
+                                          $"{m} refunds {p}", $"show cancelled {m} bills {p}", $"list of {m} bill cancellation {p}", $"was any {m} bill reversed {p}" })
+                    yield return (s.Trim(), Cancelled);
+        foreach (var p in periods)
+        {
+            foreach (var s in new[] { $"how many patients admitted {p}", $"admissions {p}", $"discharges {p}", $"bed occupancy {p}", $"how many beds available",
+                                      $"ipd census {p}", $"patients in icu", $"list of admitted patients", $"how many inpatients", $"pending discharges" })
+                yield return (s.Trim(), Ipd);
+            foreach (var s in new[] { $"pharmacy sales {p}", $"medicine sales {p}", $"how much pharmacy business {p}", $"pharmacy collection {p}",
+                                      "stock of dolo", "near expiry medicines", "low stock medicines", "items to reorder" })
+                yield return (s.Trim(), Pharmacy);
+            foreach (var s in new[] { $"cash collection {p}", $"upi received {p}", $"card payments {p}", $"payment mode wise collection {p}", $"how much cash {p}" })
+                yield return (s.Trim(), Collection);
+        }
         foreach (var s in new[] { "find patient rahul das", "show patient anita mitra", "patient details of abhik porel", "search patient named kajal",
                                   "open patient profile of samir", "patient history of manas mitra", "who is patient arun", "patient record for anjali" })
             yield return (s, Patient);
@@ -470,6 +548,148 @@ public static partial class HelpData
                 if (mods.Contains("OPD")) a.Data.Actions.Add(new() { Title = "OPD dues list", Url = $"/OPD/ServiceBooking?fromDate={from:yyyy-MM-dd}&toDate={to:yyyy-MM-dd}&paymentStatus=DUE", Icon = "bi-cash-coin" });
                 return a;
             }
+            case Cancelled:
+            {
+                // the modules asked that the user may see (LAB, OPD, IPD, pharmacy)
+                var allowed = q.Modules.Split(',').Where(m => scopes.Contains(m == "PHR" ? ScopePharmacy : m, StringComparer.OrdinalIgnoreCase)).ToList();
+                if (allowed.Count == 0) return Denied("cancelled bills of " + (q.Modules.Contains(',') ? "these modules" : q.Modules == "PHR" ? "the pharmacy" : q.Modules));
+                var rows = (await db.QueryAsync<CancelRow>("dbo.usp_HelpData_Cancellations",
+                    new { p.CompanyId, p.BranchId, From = from, To = to, Modules = string.Join(',', allowed) }, commandType: sp)).ToList();
+                string Name(string m) => m == "PHR" ? "Pharmacy" : m;
+                var which = string.Join(", ", allowed.Select(Name));
+                var byModule = rows.GroupBy(x => x.Module).Select(g => $"{Name(g.Key)} {g.Count()}").ToList();
+                var a = new HelpAnswer
+                {
+                    Found = true, Kind = "DATA", Code = "DATA:CANCELLED", Title = $"Cancelled bills {q.PeriodLabel}",
+                    Text = rows.Count == 0
+                        ? $"No bill was cancelled on {periodText} ({which})."
+                        : $"{rows.Count} cancellation(s) on {periodText}: {string.Join(", ", byModule)}; {Money(rows.Sum(x => x.Amount ?? 0))} cancelled / refunded{(rows.Count > 15 ? " - the latest 15:" : ":")}",
+                    Data = rows.Count == 0 ? null : new HelpDataView
+                    {
+                        Columns = ["Module", "Bill", "When", "Type", "Amount", "Patient", "Reason", "By"],
+                        Rows = rows.Take(15).Select(x => new HelpDataRow
+                        {
+                            Cells = [Name(x.Module), x.BillNo ?? "", Date(x.CancelledAt), x.CancelType ?? "", x.Amount is null ? "—" : Money(x.Amount.Value),
+                                     x.PatientName ?? "", x.Reason ?? "", x.CancelledByName ?? ""],
+                            Url = x.Module is "LAB" or "OPD" ? BillUrl(x.Module, x.RefId) : null
+                        }).ToList(),
+                        Note = $"Modules checked: {which}. Partial = some tests / items cancelled; Full = the whole bill; IPD shows cancelled final bills and admissions."
+                    }
+                };
+                return a;
+            }
+            case Collection:
+            {
+                var allowed = q.Modules.Split(',').Concat(q.Modules.Contains(',') ? ["MEM"] : [])
+                    .Where(m => scopes.Contains(m switch { "PHR" => ScopePharmacy, "MEM" => ScopeLab, _ => m }, StringComparer.OrdinalIgnoreCase)).Distinct().ToList();
+                if (allowed.Count == 0) return Denied("collections");
+                var rows = (await db.QueryAsync<CollectionRow>("dbo.usp_HelpData_Collection",
+                    new { p.CompanyId, p.BranchId, From = from, To = to, Modules = string.Join(',', allowed) }, commandType: sp)).ToList();
+                string Name(string m) => m switch { "PHR" => "Pharmacy", "MEM" => "Membership", _ => m };
+                var byMode = rows.GroupBy(x => x.Mode).Select(g => (Mode: g.Key, Amount: g.Sum(x => x.Amount))).OrderByDescending(x => x.Amount).ToList();
+                return new HelpAnswer
+                {
+                    Found = true, Kind = "DATA", Code = "DATA:COLLECTION", Title = $"Collection by payment mode {q.PeriodLabel}",
+                    Text = rows.Count == 0 ? $"No money received on {periodText}."
+                        : $"{Money(rows.Sum(x => x.Amount))} received on {periodText}: " + string.Join(", ", byMode.Select(x => $"{x.Mode} {Money(x.Amount)}")) + ".",
+                    Data = rows.Count == 0 ? null : new HelpDataView
+                    {
+                        Columns = ["Module", "Mode", "Receipts", "Amount"],
+                        Rows = rows.Select(x => new HelpDataRow { Cells = [Name(x.Module), x.Mode, x.Receipts.ToString(), Money(x.Amount)] }).ToList(),
+                        Note = $"Money received (advances, bills, dues) in {string.Join(", ", allowed.Select(Name))}; refunds paid out are not deducted."
+                    }
+                };
+            }
+            case Ipd:
+            {
+                if (!scopes.Contains(ScopeIpd, StringComparer.OrdinalIgnoreCase)) return Denied("IPD patients and beds");
+                using var multi = await db.QueryMultipleAsync("dbo.usp_HelpData_Ipd", new { p.CompanyId, p.BranchId, From = from, To = to }, commandType: sp);
+                var f = await multi.ReadSingleAsync<IpdFacts>();
+                var pts = (await multi.ReadAsync<IpdPatientRow>()).ToList();
+                var occ = f.Beds == 0 ? 0 : 100.0 * f.Occupied / f.Beds;
+                return new HelpAnswer
+                {
+                    Found = true, Kind = "DATA", Code = "DATA:IPD", Title = "IPD now",
+                    Text = $"{f.InHospital} patient(s) in hospital ({f.InIcu} in ICU, {f.DischargeAdvised} discharge advised). On {periodText}: {f.Admitted} admitted, " +
+                           $"{f.Discharged} discharged, {Money(f.Received)} received. Beds: {f.Occupied} of {f.Beds} occupied ({occ:0}%), {f.Available} available.",
+                    Data = new HelpDataView
+                    {
+                        Facts =
+                        [
+                            new() { Label = "In hospital", Value = f.InHospital.ToString() },
+                            new() { Label = "In ICU", Value = f.InIcu.ToString(), Tone = f.InIcu > 0 ? "warn" : null },
+                            new() { Label = "Discharge advised", Value = f.DischargeAdvised.ToString(), Tone = f.DischargeAdvised > 0 ? "warn" : null },
+                            new() { Label = $"Admitted ({q.PeriodLabel})", Value = f.Admitted.ToString() },
+                            new() { Label = $"Discharged ({q.PeriodLabel})", Value = f.Discharged.ToString() },
+                            new() { Label = "Beds available", Value = $"{f.Available} of {f.Beds}", Tone = f.Available == 0 ? "bad" : "good" },
+                            new() { Label = "Occupancy", Value = $"{occ:0}%" },
+                            new() { Label = "Cleaning / blocked / reserved", Value = $"{f.Cleaning} / {f.Blocked} / {f.Reserved}" }
+                        ],
+                        Columns = pts.Count == 0 ? [] : ["Bed", "Patient", "IP no.", "Day", "Consultant", "Bill so far", "Advance"],
+                        Rows = pts.Take(25).Select(x => new HelpDataRow
+                        {
+                            Cells = [$"{x.BedNumber} · {x.WardName}", x.PatientName ?? "", x.IpNo ?? "", x.DayNo.ToString(), x.ConsultantName ?? "", Money(x.BillSoFar), Money(x.NetAdvance)]
+                        }).ToList(),
+                        Actions =
+                        [
+                            new() { Title = "Bed Board", Url = "/IpdBeds/Index", Icon = "bi-grid-3x3-gap" },
+                            new() { Title = "Admission List", Url = "/IpdAdmission/Index", Icon = "bi-card-list" }
+                        ]
+                    }
+                };
+            }
+            case Pharmacy:
+            {
+                if (!scopes.Contains(ScopePharmacy, StringComparer.OrdinalIgnoreCase)) return Denied("pharmacy figures");
+                var kind = q.Value ?? "SALES";
+                var item = kind.StartsWith("STOCK:") ? kind[6..] : null;
+                if (item is not null) kind = "STOCK";
+                if (kind == "SALES")
+                {
+                    var x = await db.QuerySingleAsync<PhSalesRow>("dbo.usp_HelpData_Pharmacy", new { p.CompanyId, p.BranchId, From = from, To = to, Kind = "SALES", Q = (string?)null }, commandType: sp);
+                    return new HelpAnswer
+                    {
+                        Found = true, Kind = "DATA", Code = "DATA:PHARMACY", Title = $"Pharmacy sales {q.PeriodLabel}",
+                        Text = x.Bills == 0 ? $"No pharmacy sale on {periodText}." : $"{x.Bills} sale bill(s) on {periodText}: net {Money(x.NetAmount)}, paid {Money(x.Paid)}, due {Money(x.Due)}.",
+                        Data = new HelpDataView
+                        {
+                            Facts =
+                            [
+                                new() { Label = "Bills", Value = x.Bills.ToString() }, new() { Label = "Customers", Value = x.Customers.ToString() },
+                                new() { Label = "Net sales", Value = Money(x.NetAmount) }, new() { Label = "Paid", Value = Money(x.Paid), Tone = "good" },
+                                new() { Label = "Due", Value = Money(x.Due), Tone = x.Due > 0 ? "warn" : null }, new() { Label = "Returned", Value = Money(x.Returned) },
+                                new() { Label = "Discount", Value = Money(x.Discount) }, new() { Label = "Gross profit", Value = Money(x.GrossProfit) }
+                            ],
+                            Actions = [new() { Title = "Sale Bills", Url = "/PhSales/Index", Icon = "bi-receipt" }]
+                        }
+                    };
+                }
+                var rows = (await db.QueryAsync<PhStockRow>("dbo.usp_HelpData_Pharmacy", new { p.CompanyId, p.BranchId, From = from, To = to, Kind = kind, Q = item }, commandType: sp)).ToList();
+                var (title, empty, cols) = kind switch
+                {
+                    "STOCK" => ($"Stock of {item}", $"No stock of \"{item}\" (or no medicine of that name).", new List<string> { "Medicine", "Batch", "Expiry", "Store", "Qty", "MRP" }),
+                    "EXPIRY" => ("Medicines expiring in 90 days", "No batch in stock expires in the next 90 days.", new List<string> { "Medicine", "Batch", "Expiry", "Store", "Qty", "Days left" }),
+                    _ => ("Medicines at or below the reorder level", "No medicine is at or below its reorder level.", new List<string> { "Medicine", "In stock", "Reorder level", "Min qty" })
+                };
+                return new HelpAnswer
+                {
+                    Found = true, Kind = "DATA", Code = "DATA:PHARMACY", Title = title,
+                    Text = rows.Count == 0 ? empty
+                        : kind == "STOCK" ? $"{rows.Sum(r => r.QtyOnHand):0.##} in stock in {rows.Count} batch(es)."
+                        : $"{rows.Count} medicine batch(es){(rows.Count >= 30 ? " - the first 30" : "")}:",
+                    Data = rows.Count == 0 ? null : new HelpDataView
+                    {
+                        Columns = cols,
+                        Rows = rows.Select(r => new HelpDataRow
+                        {
+                            Cells = kind == "LOW"
+                                ? [r.ItemName ?? "", r.QtyOnHand.ToString("0.##"), (r.ReorderLevel ?? 0).ToString("0.##"), (r.MinQty ?? 0).ToString("0.##")]
+                                : [r.ItemName ?? "", r.BatchNo ?? "", r.ExpiryDate?.ToString("MMM yyyy") ?? "", r.StoreName ?? "", r.QtyOnHand.ToString("0.##"),
+                                   kind == "STOCK" ? Money(r.Mrp ?? 0) : (r.DaysLeft ?? 0).ToString()]
+                        }).ToList()
+                    }
+                };
+            }
             case LabWork:
             {
                 if (!scopes.Contains(ScopeSamples, StringComparer.OrdinalIgnoreCase)) return Denied("sample and report status");
@@ -526,6 +746,43 @@ public static partial class HelpData
         public string Module { get; set; } = ""; public int RefId { get; set; } public string BillNo { get; set; } = ""; public DateTime BillDate { get; set; }
         public decimal NetAmount { get; set; } public decimal Paid { get; set; } public decimal Due { get; set; } public string? PatientName { get; set; } public string? PhoneNumber { get; set; }
     }
+    private sealed class CollectionRow { public string Module { get; set; } = ""; public string Mode { get; set; } = ""; public int Receipts { get; set; } public decimal Amount { get; set; } }
+    private sealed class IpdFacts
+    {
+        public int InHospital { get; set; } public int DischargeAdvised { get; set; } public int BillFinal { get; set; } public int InIcu { get; set; }
+        public int Admitted { get; set; } public int Discharged { get; set; } public int Beds { get; set; } public int Occupied { get; set; }
+        public int Available { get; set; } public int Reserved { get; set; } public int Cleaning { get; set; } public int Blocked { get; set; } public decimal Received { get; set; }
+    }
+    private sealed class IpdPatientRow
+    {
+        public int AdmissionId { get; set; } public string? IpNo { get; set; } public string? BedNumber { get; set; } public string? WardName { get; set; }
+        public string? PatientName { get; set; } public int DayNo { get; set; } public string? ConsultantName { get; set; } public decimal BillSoFar { get; set; } public decimal NetAdvance { get; set; }
+    }
+    private sealed class PhSalesRow
+    {
+        public int Bills { get; set; } public decimal NetAmount { get; set; } public decimal Paid { get; set; } public decimal Due { get; set; }
+        public decimal Returned { get; set; } public decimal Discount { get; set; } public decimal GrossProfit { get; set; } public int Customers { get; set; }
+    }
+    private sealed class PhStockRow
+    {
+        public string? ItemName { get; set; } public string? BatchNo { get; set; } public DateTime? ExpiryDate { get; set; } public string? StoreName { get; set; }
+        public decimal QtyOnHand { get; set; } public decimal? Mrp { get; set; } public int? DaysLeft { get; set; } public decimal? ReorderLevel { get; set; } public decimal? MinQty { get; set; }
+    }
+
+    private sealed class CancelRow
+    {
+        public string Module { get; set; } = "";
+        public int RefId { get; set; }
+        public string? BillNo { get; set; }
+        public string? CancelNo { get; set; }
+        public DateTime? CancelledAt { get; set; }
+        public string? CancelType { get; set; }
+        public decimal? Amount { get; set; }
+        public string? Reason { get; set; }
+        public string? PatientName { get; set; }
+        public string? CancelledByName { get; set; }
+    }
+
     private sealed class LabWorkRow
     {
         public int Tests { get; set; } public int SamplesPending { get; set; } public int SamplesCollected { get; set; } public int SamplesRejected { get; set; }

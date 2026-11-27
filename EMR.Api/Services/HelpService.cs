@@ -701,6 +701,43 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
         return hits.OrderByDescending(h => h.Score).ToList();
     }
 
+    /// <summary>
+    /// The question names a screen by its title ("where is Daily Collection", "how do I use Expense Heads"): the answer must
+    /// be that screen - its guide when one lists it, else the screen itself. The longest title wins; same-named screens of
+    /// several modules (Stock Enquiry) go by the module the question names, else the best ranked one, the others stay related.
+    /// </summary>
+    private static List<Hit> PreferNamedScreen(Catalog c, string question, List<Hit> hits)
+    {
+        if (NamedScreen(c, question, hits) is not { } page) return hits;
+        bool Covers(Hit h) => h.Doc.Page?.PageCode == page.PageCode
+                              || (h.Doc.Article?.Pages.Contains(page.PageCode, StringComparer.OrdinalIgnoreCase) ?? false);
+        if (hits.Count > 0 && Covers(hits[0])) return hits;
+        var top = hits.FirstOrDefault()?.Score ?? 1;
+        // a guide (not a whole workflow) that lists the screen, else the screen itself
+        var pick = hits.FirstOrDefault(h => h.Doc.Article is { } a && a.Row.Kind is "GUIDE" or "FAQ" or "TROUBLE" && Covers(h) && h.Score >= top * 0.3)
+                   ?? hits.FirstOrDefault(h => h.Doc.Page?.PageCode == page.PageCode)
+                   ?? (c.Search.Docs.FirstOrDefault(d => d.Page?.PageCode == page.PageCode) is { } d ? new Hit(d, top) : null);
+        if (pick is null) return hits;
+        return hits.Where(h => h.Doc.Key != pick.Doc.Key).Prepend(pick with { Score = Math.Max(top, pick.Score) }).ToList();
+    }
+
+    /// <summary>The screen a question names by its title (longest title; same-named screens by the module named, else rank).</summary>
+    private static HelpPageRow? NamedScreen(Catalog c, string question, List<Hit> hits)
+    {
+        var q = " " + string.Join(' ', WordRegex().Matches(HelpText.Normalize(question)).Select(m => m.Value)) + " ";
+        var named = c.Pages.Values
+            .Select(p => (Page: p, Title: " " + string.Join(' ', WordRegex().Matches(HelpText.Normalize(p.Title)).Select(m => m.Value)) + " "))
+            .Where(x => x.Title.Trim().Length >= 6 && x.Title.Trim().Contains(' ') && q.Contains(x.Title))
+            .ToList();
+        if (named.Count == 0) return null;
+        var longest = named.Max(x => x.Title.Length);
+        var pages = named.Where(x => x.Title.Length == longest).Select(x => x.Page).ToList();
+        var asked = AskedModule(HelpText.Normalize(question));
+        var rank = hits.Select((h, i) => (h, i)).ToDictionary(x => x.h.Doc.Key, x => x.i);
+        return pages.OrderByDescending(p => asked is not null && ModuleOfDoc(c, new Doc { Page = p }) == asked)
+                    .ThenBy(p => rank.GetValueOrDefault("PAGE:" + p.PageCode, int.MaxValue)).First();
+    }
+
     /// <summary>The module a question names, or null when it names none or more than one.</summary>
     private static string? AskedModule(string normalized)
     {
@@ -996,6 +1033,7 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
         else if (intent is HelpIntent.Next or HelpIntent.Before && TaskFirst().IsMatch(HelpText.Normalize(question)) && !AskNext().IsMatch(HelpText.Normalize(question)))
             intent = HelpIntent.HowTo;
         hits = PreferGuides(hits, intent);
+        hits = PreferNamedScreen(c, question, hits);
         // learned from use: topics users rejected for this question go down, a confirmed / taught one goes to the top
         if (hits.Any(h => c.Rejected.Contains(key + "|" + h.Doc.Key)))
             hits = hits.Select(h => c.Rejected.Contains(key + "|" + h.Doc.Key) ? h with { Score = h.Score * 0.3 } : h).OrderByDescending(h => h.Score).ToList();
@@ -1069,6 +1107,13 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
             {
                 Code = alt.Flow.Row.Code, Title = $"Or did you mean \"{StepTitle(c, alt.Flow.Body.Flow[alt.Index])}\" in {alt.Flow.Row.Title}?", Note = "FLOW"
             });
+            // the screen the question names is shown first, with its menu path, whatever answer explains it
+            if (NamedScreen(c, question, hits) is { } named && !string.Equals(answer.Code, "PAGE:" + named.PageCode, StringComparison.OrdinalIgnoreCase)
+                && PageLink(c, named.PageCode) is { } link)
+            {
+                answer.Pages.RemoveAll(x => string.Equals(x.Code, named.PageCode, StringComparison.OrdinalIgnoreCase));
+                answer.Pages.Insert(0, link);
+            }
             if (await AiAnswerAsync(c, question, hits.Take(5).Select(h => h.Doc).ToList(), answer) is { } ai)
             {
                 answer.Text = ai;

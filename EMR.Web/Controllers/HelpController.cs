@@ -32,6 +32,8 @@ public class HelpController(IHelpApiClient api, EMR.Web.Services.IAskAiFeatures 
         var scopes = new List<string>();
         if (Can("LAB.LABORDERBOOKING.B2CORDERLIST")) scopes.Add("LAB");
         if (Can("OPD.SERVICEBOOKING")) scopes.Add("OPD");
+        if (Can("IPD.ADMISSIONLIST", "IPD.BILLS")) scopes.Add("IPD");                  // cancelled IPD bills / admissions (SQLScripts/2566)
+        if (Can("PHARMACY.SALEBILLS", "PHARMACY.POS")) scopes.Add("PHARMACY");      // cancelled pharmacy sales
         if (Can("LAB.SAMPLECOLLECTION", "LAB.LABREPORTING")) scopes.Add("SAMPLES");
         if (Can("OPD.PATIENTREGISTRATION", "LAB.LABORDERBOOKING.B2CBOOKING")) scopes.Add("PATIENTS");
         return (branchId, scopes);
