@@ -474,5 +474,13 @@
   ],
   "date": "26 Nov 2026",
   "version": "1.39"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "New table LabOrderReschedule (14 columns, module not yet grouped)"
+  ],
+  "date": "27 Nov 2026",
+  "version": "1.40"
  }
 ]
