@@ -65,11 +65,18 @@ MODULES = [
                 ("SETTINGS.USERS", "Mark Lab Technicians and Pathologists; give department access"),
                 ("SETTINGS.LABAPPROVALFLOWS", "Pathologist approval levels")]),
     dict(code="IPD", menus=["IPD"], title="IPD", icon="bi-hospital",
-         summary="In-patient admissions with beds, wards, tariffs, procedures and packages.",
-         setup=[("MASTER.WARDS", "Wards and nursing stations"), ("MASTER.ROOMS", "Rooms"), ("MASTER.BEDCATEGORIES", "Bed categories"),
+         summary="In-patients from admission to discharge: beds, charges, LAB and medicines, OT and ICU, TPA, clinical and nursing records, final bill, gate pass.",
+         setup=[("MASTER.DEPARTMENTS", "IPD-type departments"), ("MASTER.WARDS", "Wards"), ("MASTER.NURSINGSTATIONS", "Nursing stations of the wards"),
+                ("MASTER.ROOMS", "Rooms"), ("MASTER.BEDCATEGORIES", "Bed categories"),
                 ("MASTER.BEDS", "Beds"), ("MASTER.TARIFFCATEGORIES", "Tariff categories"), ("MASTER.BEDROOMTARIFFS", "Bed / room tariffs"),
                 ("MASTER.HOSPITALSERVICES", "Hospital services and rates"), ("MASTER.PROCEDURES", "Procedures and tariffs"),
+                ("IPD.DOCTORFEE", "Doctor visit charges"), ("MASTER.IPD_LABRATELIST", "IPD LAB rate list"),
                 ("MASTER.HOSPITALPACKAGES", "Hospital packages")]),
+    dict(code="PHARMACY", menus=["PHARMACY", "MASTER.PHARMACY_MASTER", "REPORTS.PHARMACY"], title="Pharmacy", icon="bi-capsule",
+         summary="Medicines: item master, purchase (indent, PO, GRN, returns, supplier payment), counter sales, IPD issues, stock and inventory, reports.",
+         setup=[("MASTER.PH_STORES", "Stores / godowns"), ("MASTER.PH_UOMS", "Units"), ("MASTER.PH_HSN", "HSN and GST rates"),
+                ("MASTER.PH_MANUFACTURERS", "Manufacturers"), ("MASTER.PH_GENERICS", "Generics"), ("MASTER.PH_ITEMS", "Items / drugs"),
+                ("MASTER.PH_SUPPLIERS", "Suppliers"), ("MASTER.PH_PRICERULES", "Price rules"), ("MASTER.PH_NUMBERSERIES", "Document numbers")]),
     dict(code="QUALITY", menus=["QUALITY.BOM", "QUALITY.EQUIPMENT", "QUALITY.IQC", "QUALITY.MASTERS"], title="Quality & Compliance", icon="bi-patch-check",
          summary="Internal QC with Levey-Jennings charts, EQAS, equipment, CAPA and the bill of material (cost) of tests.",
          setup=[("QC.MASTER.ITEMS", "Consumable items"), ("QC.MASTER.SUPPLIERS", "Suppliers"), ("QC.MASTER.STORES", "Stores / locations"),
@@ -112,7 +119,7 @@ guide("GS.SIGNIN", "GENERAL", "Sign in, choose your branch and role",
       tips=["Tick Remember me only on your own computer.",
             "You can switch branch or role any time from your profile menu (top right) without signing out.",
             "Too many wrong passwords lock the account for a while - wait, or use Forgot password?"],
-      next=["HOME.DASHBOARD"], keywords="login log in sign in signin branch role select switch start dashboard")
+      next=["HOME.DASHBOARD"], keywords="how to login log on sign on enter application login log in sign in signin branch role select switch start dashboard")
 
 guide("GS.FORGOT", "GENERAL", "Forgot your password? Reset it by email",
       "Get a reset link by email and set a new password without calling the administrator.",
@@ -297,7 +304,7 @@ guide("OPD.BOOK", "OPD", "Book a consultation or service and bill it",
        "Apply a discount if allowed (above the limit it needs approval) and collect payment (cash, card, UPI...).",
        "Save and print the bill. The patient gets a token and, if email is set up, a booking confirmation email."],
       pages=["OPD.SERVICEBOOKING"], prereq=["OPD.PATIENTREGISTRATION", "OPD.DOCTORROSTER", "MASTER.SERVICES"],
-      next=["OPD.TOKENMANAGEMENT", "OPD.VITALS"], keywords="appointment booking consultation opd bill token service slot fee")
+      next=["OPD.TOKENMANAGEMENT", "OPD.VITALS"], keywords="appointment book appointment doctor appointment consultation booking book doctor opd bill service booking appointment booking consultation opd bill token service slot fee")
 
 guide("OPD.ROSTER", "OPD", "Doctor roster (schedules and slots)",
       "Set when each doctor sits, so appointments can be booked.",
@@ -305,7 +312,7 @@ guide("OPD.ROSTER", "OPD", "Doctor roster (schedules and slots)",
        "Add the days and times, slot length and maximum patients; save.",
        "Leaves / holidays block booking for those days."],
       pages=["OPD.DOCTORROSTER"], prereq=["MASTER.DOCTORS"], next=["OPD.SERVICEBOOKING"],
-      keywords="roster schedule slot doctor timing availability")
+      keywords="roster roaster duty schedule slot doctor timing weekly schedule configure roster roster schedule slot doctor timing availability")
 
 guide("OPD.FLOW", "OPD", "Patient flow on the day: token, vitals, consultation",
       "Move the patient from the waiting area to the doctor and out with a prescription.",
@@ -321,7 +328,7 @@ guide("OPD.CLOSE", "OPD", "OPD day closing",
       ["OPD > OPD Day Closing: check the day's collection by payment mode against the cash in hand and submit.",
        "A supervisor verifies it in OPD > OPD Day Closing Verification.",
        "Use Reports > OPD > OPD Cashier Day-end Closing for the detail."],
-      pages=["OPD.DAYCLOSING", "OPD.DAYCLOSINGVERIFY"], keywords="day closing cash collection verify cashier end of day")
+      pages=["OPD.DAYCLOSING", "OPD.DAYCLOSINGVERIFY"], keywords="opd day closing end of day day end cash closing day closing cash collection verify cashier end of day")
 
 guide("OPD.CANCEL", "OPD", "Cancel an OPD bill or refund",
       "Cancel a bill fully or partly and refund the patient.",
@@ -357,7 +364,7 @@ guide("LAB.B2C", "LAB", "Book tests for a walk-in patient (B2C billing)",
       prereq=["MASTER.LABINVESTIGATIONS", "MASTER.LABRATELISTB2C"], next=["LAB.SAMPLECOLLECTION"],
       tips=["Uploading an Aadhaar / passport lets the system check the name, age and gender on save.",
             "B2C Order List shows the bills to reprint or open; a balance is collected there too (see 'Collect a due')."],
-      keywords="b2c booking lab billing bill tests walk in patient package discount payment print smart id scan")
+      keywords="make lab bill new lab bill lab billing b2c booking lab billing bill tests walk in patient package discount payment print smart id scan")
 
 guide("LAB.B2B", "LAB", "Book tests for a franchise or corporate (B2B)",
       "Bill tests on the partner's rates and account.",
@@ -368,7 +375,7 @@ guide("LAB.B2B", "LAB", "Book tests for a franchise or corporate (B2B)",
       pages=["LAB.LABORDERBOOKING.B2BBOOKING", "LAB.LABORDERBOOKING.B2BREGISTRATION", "LAB.LABORDERBOOKING.B2BINVOICES", "LAB.LABORDERBOOKING.B2BSETTLEMENT"],
       prereq=["MASTER.LABFRANCHISES", "MASTER.LABRATELISTFRANCHISE", "MASTER.CORPORATES"], next=["LAB.SAMPLECOLLECTION"],
       tips=["A franchise needs balance in its wallet - top up in Utility > Franchise Top-Up."],
-      keywords="b2b franchise corporate partner billing invoice settlement wallet credit")
+      keywords="franchise booking b2b booking collection centre booking corporate booking b2b franchise corporate partner billing invoice settlement wallet credit")
 
 guide("LAB.COLLECT", "LAB", "Collect samples and print barcodes",
       "Mark samples collected so they reach the lab for reporting.",
@@ -378,7 +385,7 @@ guide("LAB.COLLECT", "LAB", "Collect samples and print barcodes",
        "If a sample is unsuitable choose Reject / Re-collect with a reason.",
        "Collected samples now appear in Lab Reporting Entry (or go to Sample Transfer if another branch tests them)."],
       pages=["LAB.SAMPLECOLLECTION"], prereq=["LAB.LABORDERBOOKING.B2CBOOKING"], next=["LAB.LABREPORTING", "LAB.SAMPLETRANSFER"],
-      keywords="sample collection collect barcode label tube reject recollect phlebotomy")
+      keywords="sample collection collect sample phlebotomy draw blood sample collection collect barcode label tube reject recollect phlebotomy")
 
 guide("LAB.TRANSFER", "LAB", "Send samples to another branch",
       "Transfer samples to the branch that runs the test, and receive them there.",
@@ -462,14 +469,14 @@ guide("LAB.REPRINT", "LAB", "Reprint a LAB bill, money receipt or report",
        "Action menu (three dots) > Print Bill - or Print Lab Report when tests are approved.",
        "Reports can also be printed or sent again from LAB > Lab Report Dispatch."],
       pages=["LAB.LABORDERBOOKING.B2CORDERLIST", "LAB.LABREPORTDISPATCH"],
-      keywords="reprint print again duplicate bill copy report print receipt print bill again")
+      keywords="reprint money receipt receipt reprint duplicate receipt take print print bill bill print take a bill print print again reprint print again duplicate bill copy report print receipt print bill again")
 
 guide("LAB.CLOSE", "LAB", "LAB day closing",
       "Close the day's LAB collection and get it verified.",
       ["LAB > LAB Day Closing: compare the day's collection by payment mode with the cash and submit.",
        "A supervisor verifies it in LAB Day Closing Verification.",
        "Reports > LAB > Cashier Day-end Closing gives the detail."],
-      pages=["LAB.DAYCLOSING", "LAB.DAYCLOSINGVERIFY"], keywords="lab day closing cash verify cashier")
+      pages=["LAB.DAYCLOSING", "LAB.DAYCLOSINGVERIFY"], keywords="lab day closing end of day day end cash closing lab day closing cash verify cashier")
 
 guide("LAB.AI", "LAB", "AI features at billing and reporting",
       "Smart ID Scan, document check, test suggestions and reflex suggestions.",
@@ -640,7 +647,7 @@ guide("ACC.OPENING", "UTILITY", "Enter opening balances (go-live)",
             "If debits and credits differ, the difference is held in \"Opening Balance Difference\" (Capital Account) and the screen warns you - correct it before closing the first month.",
             "Income and expense ledgers always start at zero - they are not on this screen.",
             "A branch whose books are locked on or after the opening date cannot take the entry: unlock it first in Accounts Settings."],
-      keywords="opening balance go live start books brought forward capital difference first day financial year")
+      keywords="opening balances opening balance go live opening balance go live start books brought forward capital difference first day financial year")
 
 guide("ACC.RECON", "REPORTS", "Reconcile bills with the ledger (Bill Reconciliation)",
       "Make sure what the books say patients owe is exactly what the bills say - and fix what was missed.",
@@ -697,7 +704,7 @@ guide("AI.DATA", "GENERAL", "Ask eMedi: find a bill, open screens and see today'
 # ════════════════════════════════ FAQ ════════════════════════════════
 faq("FAQ.MENU.MISSING", "GENERAL", "Why can't I see a menu or page?",
     "Menus show only the pages your role may open. Ask your administrator to give the page to your role in Settings > Security > Role Permissions (or to you in User Permissions). Lab Reporting also needs the Lab Technician or Pathologist tick in User Master.",
-    pages=["SETTINGS.SECURITY.ROLEPERMISSIONS"], keywords="menu missing page not visible access denied permission")
+    pages=["SETTINGS.SECURITY.ROLEPERMISSIONS"], keywords="menu not visible menu not showing menu hidden page not visible cannot see menu menu missing page not visible access denied permission")
 faq("FAQ.SWITCH.BRANCH", "GENERAL", "How do I work in another branch?",
     "Open your profile menu (top right) and choose Switch Branch, pick the branch and continue. Bills and reports you make belong to the branch shown in the HO / branch badge.",
     keywords="switch branch change branch another centre")
@@ -731,7 +738,7 @@ faq("FAQ.TONE", "GENERAL", "How do I turn the notification sound on or off?",
     keywords="notification sound tone mute bell")
 faq("FAQ.A5", "LAB", "How do I print LAB bills on half a page (A5)?",
     "Settings > Hospital Settings > LAB > Printing: set LAB Bill Print Page Size to A5 landscape. Bills of that branch then print on half an A4 sheet.",
-    pages=["SETTINGS.HOSPITALSETTINGS"], keywords="a5 half page bill print size landscape")
+    pages=["SETTINGS.HOSPITALSETTINGS"], keywords="print bill on a5 a5 paper a5 size half page print size a5 half page bill print size landscape")
 faq("FAQ.DISCOUNT.APPROVAL", "LAB", "Why does my discount need approval?",
     "Discounts above the limit set in Settings > Approval Matrix need an approver. The approver gets a notification and approves in Utility > Approval Dashboard; then the bill can be completed. One discount is allowed per bill.",
     pages=["SETTINGS.APPROVALMATRIX", "UTILITY.APPROVALDASHBOARD"], keywords="discount approval limit approver")
@@ -740,7 +747,7 @@ faq("FAQ.DUE.DISCOUNT", "LAB", "Can I give a discount while collecting a due?",
     pages=["LAB.LABORDERBOOKING.B2CORDERLIST", "SETTINGS.APPROVALMATRIX"], keywords="discount at due collection due discount second discount locked")
 faq("FAQ.DUE.LIST", "LAB", "Where do I see all bills with a balance due?",
     "In LAB > B2C Order List set Payment Status to Full Due or Partial Due; Reports > LAB > Outstanding Dues lists every bill with a balance for any period.",
-    pages=["LAB.LABORDERBOOKING.B2CORDERLIST", "REPORTS.LABOUTSTANDINGDUES"], keywords="due list outstanding pending payment bills balance unpaid report")
+    pages=["LAB.LABORDERBOOKING.B2CORDERLIST", "REPORTS.LABOUTSTANDINGDUES"], keywords="list of bills with due due list outstanding bills pending dues bills with balance due list outstanding pending payment bills balance unpaid report")
 faq("FAQ.PACKAGE.SUGGEST", "LAB", "Why did the system suggest a package?",
     "With AI features on, test suggestions compare the tests you added with packages that contain them at a lower price. Click Switch to use the package; your tests are replaced by it.",
     keywords="package suggestion cheaper ai switch")
@@ -1010,3 +1017,394 @@ workflow("FLOW.ACC.MONTHEND", "UTILITY", "Accounts month-end close",
           step("REPORTS.ACCOUNTS", "Check the Trial Balance", "Debits equal credits.", "ACC.MONTHEND"),
           step("UTILITY.ACCOUNTS.SETTINGS", "Lock the month", "Books Lock: each branch up to the month's last day.", "ACC.MONTHEND")],
          keywords="month end close lock books reconcile trial balance cash book bank book audit")
+
+
+# ════════════════════════════════ IPD (Phases 1-8, 3; SQLScripts 2422-2565) ════════════════════════════════
+guide("IPD.ADMIT", "IPD", "Admit a patient (New Admission)",
+      "Register or find the patient, choose doctors, department, payer and bed, take consent and the advance, and save the admission.",
+      ["IPD > New Admission: type the 10-digit mobile number and pick the patient, or search by UHID / name. A new patient is registered on the same screen.",
+       "Admission details: type and source, date / time, Department (IPD type), Admitting Doctor (fills the consultant and department), Consultant, Referred By, provisional diagnosis (ICD-10), expected discharge, MLC details if medico-legal, attendants.",
+       "Payer and tariff: Cash, Corporate, Insurance / TPA (company, policy / card no.) or Government scheme; the tariff category sets every rate of the stay. Optionally a package or a pre-admission estimate.",
+       "Pick an Available bed in the bed picker (it shows the daily rate).",
+       "Record the general consent with the signature pads (patient / relative and witness).",
+       "Enter the advance with the payment mode (split payment allowed) and click Save Admission. The IP number is given and the IPD Patient screen opens.",
+       "Print the admission form (face sheet), wristband, consent and money receipt from Print."],
+      pages=["IPD.ADMISSION", "IPD.ADMISSIONLIST", "IPD.PATIENT"],
+      prereq=["Masters: IPD departments, wards, rooms, beds with a bed / room tariff of the tariff category (Set up IPD).",
+              "Doctors mapped to an IPD department in Doctor Master."],
+      tips=["The patient cannot have two open admissions; the bed must be Available and of the chosen department's ward.",
+            "A cash patient may need a minimum advance (Hospital Settings > IPD); waiving it needs the Waive Advance permission and a reason.",
+            "Back-dating the admission more than 30 minutes needs the Back-date permission."],
+      next=["IPD.PATIENT", "IPD.BEDBOARD"],
+      keywords="how to admit admit a patient admit admission new admission ipd patient inpatient in-patient indoor ip number bed allot register hospitalise hospitalize wristband face sheet consent advance")
+
+guide("IPD.ADVICE", "IPD", "Admit a patient advised from OPD",
+      "The doctor advises admission at the OPD consultation; the front desk admits from the IPD Dashboard with everything filled in.",
+      ["Doctor: OPD > Doctor Dashboard > the consultation > Advise Admission: reason, diagnosis, urgency, expected date, IPD department.",
+       "Front desk: IPD > IPD Dashboard > Pending admission advice (emergency first) > Admit.",
+       "New Admission opens with the patient, OPD visit, doctor, department and diagnosis filled in; choose the bed, payer and advance and save. The advice closes."],
+      pages=["OPD.DOCTORDASHBOARD", "IPD.INDEX", "IPD.ADMISSION"],
+      tips=["An advice not needed any more is cancelled with a reason from the IPD Dashboard."],
+      next=["IPD.ADMISSION"], keywords="admission advice advise admit from opd doctor dashboard pending advice ipd dashboard")
+
+guide("IPD.BED", "IPD", "Bed Board: transfer, ICU shift, swap, reserve, block, cleaning",
+      "See every bed by ward and status and move patients between beds.",
+      ["IPD > Bed Board shows every bed: Available, Occupied, Reserved, Cleaning, Blocked / Maintenance, with the patient, IP no. and balance.",
+       "Transfer / ICU shift: click the occupied bed > Transfer / ICU shift (or IPD Patient > Bed & Transfers > Transfer), choose the new bed, reason and time, Save. Each day is charged at the bed held at the end of that day.",
+       "Swap: occupied bed > Swap with another patient, choose the patient and reason.",
+       "Reserve for a planned admission: Available bed > Reserve, patient or name, expected time, hold hours. Expired holds free the bed on their own.",
+       "Block / maintenance: bed > Block, choose Blocked or Maintenance and the reason (not while occupied or reserved).",
+       "Cleaning: a vacated bed goes to Cleaning; housekeeping clicks Start, then Cleaning done, and the bed is Available."],
+      pages=["IPD.BEDBOARD", "IPD.PATIENT"],
+      tips=["After the final bill a patient cannot be transferred (cancel the bill first).",
+            "Hospital Settings > IPD decides whether a vacated bed goes to Cleaning or straight to Available."],
+      keywords="bed board bed transfer shift change bed move patient icu shift swap reserve reservation block maintenance cleaning housekeeping vacant available occupied ward room")
+
+guide("IPD.ADVANCE", "IPD", "Collect an advance or refund it (IPD)",
+      "Take deposits during the stay and refund what is not used.",
+      ["IPD > Admission List > the patient > Collect Advance (header button), or the Advance & Payments tab.",
+       "Enter the amount and payment mode (split payment allowed; reference no. for card / UPI / NEFT / cheque) and save; the money receipt prints.",
+       "Refund: Advance & Payments > Refund, amount, mode and reason."],
+      pages=["IPD.PATIENT"],
+      tips=["The banner turns red when the balance passes the deposit alert % (Hospital Settings > IPD); print the deposit request letter from Current Bill.",
+            "Discount and round off are given only when the final bill is settled, not on an advance."],
+      keywords="advance deposit collect money receipt payment ipd refund advance top up deposit request letter")
+
+guide("IPD.ESTIMATE", "IPD", "Current bill (live estimate) and pre-admission estimate",
+      "See what the patient owes right now, and give a cost estimate before admission.",
+      ["Admitted patient: IPD Patient > Current Bill (header), or IPD > Current Billing Estimation and search the patient. Bed, nursing and every posted charge up to this minute, advance and balance; it refreshes every minute.",
+       "Print the summary, detailed by head or by date, the till-discharge estimate or the deposit request letter (all marked PROVISIONAL).",
+       "Without a patient, IPD > Current Billing Estimation shows the due list of every admitted patient.",
+       "Before admission: IPD > Pre-admission Estimate > New: patient or name, bed category, days, package, payer; lines fill from the tariffs and can be edited; print it. It can be attached at admission."],
+      pages=["IPD.ESTIMATION", "IPD.PREESTIMATE", "IPD.PATIENT"],
+      keywords="current bill estimate estimation running bill interim bill how much due balance provisional pre admission estimate cost estimate due list")
+
+guide("IPD.CHARGES", "IPD", "Add charges: services, procedures, doctor visits, package",
+      "Charge the stay from the tabs of the IPD Patient screen; the rate comes from the patient's tariff category.",
+      ["Open the patient (IPD > Admission List) and choose the tab: Procedures, Other Charges (hospital services or a manual charge), Doctor Visits (routine, emergency, cross consultation) or Package.",
+       "Search the item, set quantity, doctor and time, Add, then Save. The rate is filled from the master tariff.",
+       "Cancel a wrong charge from its row with a reason (Charge Cancel permission)."],
+      pages=["IPD.PATIENT", "IPD.DOCTORFEE"],
+      prereq=["Rates: Procedure Tariff, Hospital Service Rate, IPD Doctor Visit Charges (Master > IPD Master) for the patient's tariff category."],
+      tips=["A changed or manual rate needs the Rate Edit permission; a discount needs the Discount permission.",
+            "A signed daily round on the Clinical tab charges the doctor's visit automatically (once a day).",
+            "No charge can be added after the final bill."],
+      keywords="charge add charge ipd procedure charge service charge other charges doctor visit fee round charge package manual charge rate tariff cancel charge")
+
+guide("IPD.LAB", "IPD", "Order LAB / radiology tests for an admitted patient",
+      "Tests are ordered from the IPD Patient screen at IPD rates and charged to the IP bill (no cash at the LAB counter).",
+      ["IPD Patient > LAB (or Radiology) tab: search the IPD rate list, add the tests (tick urgent if needed), choose the ordering doctor and add a clinical note, Order.",
+       "The order is an ordinary LAB order (bill no., token, barcodes): sample collection, result entry and approval work as usual.",
+       "The tab shows each test's status (ordered, collected, result entry, validated, reported) with the report link.",
+       "A test is cancelled from the tab only before its sample is collected."],
+      pages=["IPD.PATIENT", "MASTER.IPD_LABRATELIST", "LAB.SAMPLECOLLECTION"],
+      prereq=["Master > IPD Master > IPD LAB Rate List for the branch."],
+      keywords="lab order ipd test order investigation radiology xray x-ray usg scan admitted patient blood test ipd lab rate list")
+
+guide("IPD.MEDS", "IPD", "Prescribe medicines and send them to the pharmacy (IPD)",
+      "The doctor's prescription (dose, route, frequency) feeds the nurses' eMAR and raises the medicine indent in the same step.",
+      ["IPD Patient > Medicines tab > Prescribe (dose & frequency).",
+       "Search the medicine, enter dose, route, frequency (OD, BD, TDS, QID, every 4 / 6 / 8 / 12 h, HS, STAT, SOS), days and start; add instructions.",
+       "Keep 'Also send to the pharmacy' ticked: the quantity is worked out as doses a day x days. Save: the prescription and the indent are made together.",
+       "A user who is not a doctor writes it as a verbal / telephone order of the chosen doctor (read back and confirmed); the doctor countersigns it within 24 hours.",
+       "The pharmacy issues the indent (Pharmacy > IPD Issue); the ward receives it on the Medicines tab."],
+      pages=["IPD.PATIENT", "PHARMACY.IPDISSUE"],
+      tips=["A high-alert medicine is flagged; the nurse needs a second nurse's check to give it.",
+            "Stop a running prescription from Clinical > Orders with a reason; to change the dose, stop it and prescribe again."],
+      next=["PHARMACY.IPDISSUE"],
+      keywords="prescribe medicine prescription drug tablet injection ipd medicine order medication indent ward indent send to pharmacy dose frequency")
+
+guide("IPD.OT", "IPD", "Book an OT and record the surgery",
+      "OT booking, consents, checklists, anaesthesia record, surgery note, implants and OT charges.",
+      ["IPD > OT Schedule (or IPD Patient > OT tab) > Book: OT, procedure, side, elective / emergency, surgeon, assistant, anaesthetist, anaesthesia type, start and duration.",
+       "Record the surgical and anaesthesia consents, then the pre-op checklist.",
+       "WHO Surgical Safety Checklist: Sign In before anaesthesia, Time Out before incision, Sign Out before leaving OT.",
+       "Record the OT times, the anaesthesia record and the surgery note (signed by the surgeon); add implants with batch and expiry.",
+       "Complete the surgery and post the OT charges (surgeon, assistant, anaesthetist, OT, equipment, consumables) from the tariffs."],
+      pages=["IPD.OTSCHEDULE", "IPD.PATIENT", "MASTER.OTS", "MASTER.OTTARIFFS"],
+      keywords="ot operation theatre surgery book ot schedule surgeon anaesthesia anesthesia who checklist surgical safety sign in time out sign out implant surgery note ot charges")
+
+guide("IPD.ICU", "IPD", "ICU chart and ICU Board",
+      "Hourly ICU flowsheet, infusions and devices while the patient is in an ICU bed.",
+      ["Shift the patient to an ICU bed (Bed Board > Transfer / ICU shift).",
+       "IPD Patient > ICU Chart: Observation (vitals, MAP, GCS, RASS, glucose, intake / output, ventilator), Start infusion (rate changes, stop), Start device (ventilator, NIV, pumps).",
+       "Wrong entries are struck out with a reason, never edited. Print the chart for any window.",
+       "IPD > ICU Board shows all ICU patients with the last vitals, ventilator, infusions and overdue observations."],
+      pages=["IPD.PATIENT", "IPD.ICUBOARD", "MASTER.ICUS"],
+      tips=["ICU days are charged from the ICU Tariff of the ICU whose ward is the bed's ward."],
+      keywords="icu chart flowsheet hourly vitals ventilator infusion device icu board critical care gcs")
+
+guide("IPD.TPA", "IPD", "Insurance / TPA: pre-authorisation to claim settlement",
+      "Cashless approval from the TPA, the payer split on the final bill and the claim after discharge.",
+      ["IPD Patient > Insurance / TPA > Start pre-authorisation: diagnosis, line of treatment, expected stay, estimated cost, documents > Record request > Send request.",
+       "Record the TPA's query and your reply, the approval amount (or rejection), enhancements and finally Ask final authorisation before discharge.",
+       "The final bill splits into the TPA share and the patient share (co-pay, deductible, non-payables).",
+       "After discharge: IPD > TPA Claims: document checklist, Submit, queries, Settlement (amount, TDS, disallowance recovered from the patient or written off with approval).",
+       "Follow the money in IPD > TPA Receivable & Ageing."],
+      pages=["IPD.PATIENT", "IPD.PREAUTHS", "IPD.TPACLAIMS", "IPD.TPAAGEING", "MASTER.IPD_TPADOCS"],
+      tips=["The final bill is refused while a pre-authorisation still waits for the TPA's answer.",
+            "IRDAI targets: decision within 1 hour, final authorisation within 3 hours - the worklist shows the clock."],
+      keywords="tpa insurance cashless pre auth preauth pre-authorisation authorization approval enhancement final authorisation claim settlement tds disallowance write off ageing receivable")
+
+guide("IPD.FINALBILL", "IPD", "Make the IPD final bill and settle it",
+      "Freeze the charges, give the bill discount, adjust the advance and collect or refund the balance.",
+      ["IPD Patient > Billing tab: bill up to (now), bill discount % or amount with a reason, Preview, then Final bill (numbered IPB/...). The advance is adjusted.",
+       "Balance due: Collect (discount / round off allowed here with permission). Excess advance: Refund.",
+       "A wrong bill: Cancel bill with a reason - the stay reopens and money paid stays as advance."],
+      pages=["IPD.PATIENT", "IPD.BILLS"],
+      tips=["After the final bill no charge, transfer or admission edit is possible.",
+            "'A bed day has no tariff': add the bed rate in Master > IPD Master > Bed / Room Tariff."],
+      next=["IPD.PATIENT"], keywords="final bill ipd bill settle settlement discharge bill bill discount round off collect balance refund cancel bill ipd bills")
+
+guide("IPD.DISCHARGE", "IPD", "Discharge a patient (step by step)",
+      "Advice, clearances, summary, final bill, settlement, gate pass and follow-up - all on the Discharge tab.",
+      ["Consultant: IPD Patient > Discharge > Advise discharge: type (Normal, LAMA, DAMA, Absconded, Transfer out, Death), planned time.",
+       "Clearances: pharmacy, LAB, nursing and TPA each click Clear and answer their checklist.",
+       "Discharge / death summary: fill it and the consultant signs it (LAMA / DAMA: record the form with signatures; Death: record the death with MCCD cause).",
+       "Billing tab: final bill, then collect the balance or refund the excess advance.",
+       "Gate pass: hand-over details > Issue gate pass > Print gate pass. The admission closes and the bed goes to cleaning.",
+       "Book the OPD follow-up on the doctor's roster slot."],
+      pages=["IPD.PATIENT", "IPD.DISCHARGES"],
+      tips=["IPD > Discharges tracks every advised patient and the discharge TAT against the 3-hour target."],
+      next=["IPD.BEDBOARD"],
+      keywords="discharge patient discharge process advise discharge lama leave against medical advice dama discharge against medical advice absconded death mccd transfer out clearance gate pass go home release patient")
+
+guide("IPD.SUMMARY", "IPD", "Write and sign the discharge summary",
+      "The NABH discharge / death summary, signed by the consultant or on the consultant's behalf.",
+      ["IPD Patient > Discharge > Discharge summary. Procedures, investigations and medicines are filled in from the stay.",
+       "Fill the final diagnosis (ICD-10), course in hospital, condition at discharge, medicines, advice, warning signs, follow-up and emergency contact. Save draft any time.",
+       "Sign: the consultant signs with their own login (linked in Doctor Master). A permitted user can sign on behalf with a reason, which prints.",
+       "A signed summary changes only by Amend (new version) with a reason. Print it."],
+      pages=["IPD.PATIENT", "MASTER.DOCTORS"],
+      tips=["Required to sign: final diagnosis, course in hospital, condition at discharge, emergency contact - the screen lists what is missing.",
+            "The doctor's signature image is uploaded in Doctor Master > Edit."],
+      keywords="discharge summary sign summary death summary icd diagnosis course in hospital amend summary on behalf signature doctor signature")
+
+guide("IPD.FOLLOWUP", "IPD", "Book the OPD follow-up at discharge",
+      "Book the follow-up on the doctor's roster and close it with the OPD booking.",
+      ["IPD Patient > Discharge > OPD follow-up > Book follow-up: doctor, date, slot from the doctor's roster, notes.",
+       "On the day: OPD booking on the follow-up row opens OPD New Service Booking with the patient, doctor, date and slot filled.",
+       "A patient searched at the OPD desk also shows a banner with their booked follow-ups > Book against this follow-up.",
+       "Saving the OPD booking marks the follow-up Visited with the OPD bill no."],
+      pages=["IPD.PATIENT", "OPD.SERVICEBOOKING"], keywords="follow up followup review visit after discharge opd booking revisit")
+
+guide("IPD.CLINICAL", "IPD", "Clinical tab: doctor's orders, rounds, assessment, cross-consultation",
+      "What the doctor documents during the stay.",
+      ["IPD Patient > Clinical > Initial Assessment: complaints, history, examination, provisional diagnosis, plan; Sign within 24 hours of admission.",
+       "Rounds & Notes > Round note / Progress note in SOAP; signing a round charges the doctor's visit once a day.",
+       "Orders: Diet and Nursing instruction (medicines are prescribed on the Medicines tab; procedures and LAB on their tabs).",
+       "Verbal / telephone orders entered by nurses show as 'to countersign'; the ordering doctor clicks Countersign within 24 hours.",
+       "Cross-consultation > Ask a doctor; the asked doctor answers with a cross-consultation note."],
+      pages=["IPD.PATIENT"],
+      tips=["Only a login linked to a doctor in Doctor Master signs assessments, notes and countersigns."],
+      keywords="clinical doctor orders cpoe round note progress note soap initial assessment countersign verbal order telephone order cross consultation diet order nursing instruction doctor notes")
+
+guide("IPD.NURSING", "IPD", "Nursing tab: eMAR, vitals (NEWS2), intake / output, notes, risk, handover",
+      "Everything the ward nurse charts for the patient.",
+      ["IPD Patient > Nursing > eMAR: the day's doses from the prescriptions; click a dose > Given / Held / Refused (reason when held, refused or late; second nurse for a high-alert drug); Give SOS dose for when-needed medicines.",
+       "Vitals: Record vitals (RR, SpO2, oxygen, BP, pulse, ACVPU, temperature...): NEWS2 is worked out with the advice and when the next vitals are due.",
+       "Intake / Output: add each intake or output in ml; the day's balance shows.",
+       "Notes: nursing notes by shift. Assessment & Care plan: nursing assessment (sign) and care plan problems closed with an evaluation.",
+       "Fall / Pressure risk: Morse and Braden scores. Handover: SBAR to the next shift, who clicks Take over. Incidents: report and close."],
+      pages=["IPD.PATIENT", "IPD.NURSINGSTATION"],
+      tips=["Wrong entries are struck out with a reason; they stay visible.",
+            "Doctor's instructions (diet, nursing, services) appear at the top: click Seen, or Done for a service (it is charged)."],
+      keywords="nursing nurse emar mar medicine given dose administration vitals news2 temperature bp pulse spo2 intake output io nursing notes morse fall risk braden pressure ulcer care plan handover sbar incident")
+
+guide("IPD.STATION", "IPD", "Nursing Station worklist",
+      "One screen for the ward: who needs what now.",
+      ["IPD > Nursing Station: choose the station (ward); the choice is remembered.",
+       "Patients are listed highest NEWS2 first, each with doses overdue / due, vitals due, new orders, orders to countersign, samples to collect, overdue assessments and fall / pressure risk.",
+       "Click a patient to open the Nursing tab. It refreshes every minute."],
+      pages=["IPD.NURSINGSTATION", "MASTER.NURSINGSTATIONS"],
+      keywords="nursing station worklist ward work list due medicines nurse dashboard pending tasks")
+
+guide("IPD.CLOSE", "IPD", "IPD day closing",
+      "The cashier's end-of-day closing of IPD receipts and refunds, verified by a supervisor.",
+      ["IPD > IPD Day Closing: check the receipts and refunds of your window, count the cash, submit.",
+       "IPD > IPD Day Closing Verification: the supervisor verifies or sends it back."],
+      pages=["IPD.DAYCLOSING", "IPD.DAYCLOSINGVERIFY"], keywords="ipd day closing end of day day end cash closing ipd cashier closing verification")
+
+trouble("IPD.TS.GATEPASS", "IPD", "The gate pass is not allowed",
+        "Every discharge step must be complete before the gate pass; the message names what is missing.",
+        ["'Advise the discharge first' - Discharge > Advise discharge.",
+         "'Make the final bill' - Billing tab > Final bill.",
+         "'Some clearances are pending' - pharmacy, LAB, nursing and TPA clear on the Discharge tab.",
+         "'The discharge summary must be signed' (Normal discharge) - the consultant signs the summary.",
+         "LAMA / DAMA: record the form with signatures; Death: record the death record.",
+         "'Excess advance is held' - refund it; 'balance is not paid' - collect it or tick Credit discharge (needs permission and a reason)."],
+        pages=["IPD.PATIENT"], keywords="gate pass not allowed refused cannot discharge gate pass error pending clearance summary not signed")
+
+trouble("IPD.TS.ADMIT", "IPD", "Admission cannot be saved",
+        "The admission rules: one open admission per patient, a free bed of the department's ward, payer details and the doctors' IPD department.",
+        ["'The patient is already admitted' - open that admission from the Admission List.",
+         "'Choose an available bed' / 'bed not in the chosen department' - pick an Available bed of that department.",
+         "'Doctor must belong to an IPD department' - Master > Doctor: add an IPD-type department.",
+         "'Minimum advance needed' - collect it or waive with the Waive Advance permission and a reason.",
+         "'A bed day has no tariff' - add the bed rate for the tariff category in Bed / Room Tariff."],
+        pages=["IPD.ADMISSION", "MASTER.DOCTORS", "MASTER.BEDROOMTARIFFS"], keywords="admission error cannot admit save admission failed bed not available already admitted")
+
+faq("IPD.FAQ.SIGN", "IPD", "Why can't the doctor sign the summary or notes?",
+    "Signing needs the doctor's own login linked in Doctor Master, and the required fields filled.",
+    ["Master > Doctor > Edit: set Linked User to the doctor's login.",
+     "Or sign on behalf (permission) with a reason.",
+     "Fill what the screen lists as missing (final diagnosis, course, condition, emergency contact)."],
+    pages=["MASTER.DOCTORS", "IPD.PATIENT"], keywords="cannot sign summary sign not allowed linked user doctor account sign on behalf")
+
+workflow("FLOW.IPD", "IPD", "IPD patient: from admission to discharge",
+         "An in-patient's stay from admission to the gate pass and the bed back to Available.",
+         [step("IPD.ADMISSION", "Admit the patient", "Patient, doctors, payer, bed, consent and advance; Save Admission.", "IPD.ADMIT"),
+          step("IPD.PATIENT", "Initial assessments", "Doctor and nurse sign their initial assessments within 24 hours.", "IPD.CLINICAL"),
+          step("IPD.PATIENT", "Treat and chart", "Prescribe medicines, order LAB, add procedures and services, rounds, eMAR and vitals.", "IPD.NURSING"),
+          step("IPD.PREAUTHS", "Pre-authorisation", "Get the TPA's approval and final authorisation.", "IPD.TPA", optional=True, when="only for insurance / TPA patients"),
+          step("IPD.PATIENT", "Advise discharge", "The consultant advises the discharge; departments clear.", "IPD.DISCHARGE"),
+          step("IPD.PATIENT", "Discharge summary", "The consultant signs the summary.", "IPD.SUMMARY"),
+          step("IPD.PATIENT", "Final bill and settlement", "Final bill, collect the balance or refund the advance.", "IPD.FINALBILL"),
+          step("IPD.PATIENT", "Gate pass", "Issue and print the gate pass; the bed goes to cleaning.", "IPD.DISCHARGE"),
+          step("IPD.BEDBOARD", "Bed cleaned and available", "Housekeeping: Start, then Cleaning done.", "IPD.BED"),
+          step("IPD.PATIENT", "OPD follow-up", "Book the follow-up on the doctor's roster.", "IPD.FOLLOWUP", optional=True)],
+         keywords="ipd workflow process admission to discharge inpatient stay steps", primary=True)
+
+workflow("FLOW.IPD.BEDVACANT", "IPD", "Bed vacant flow: from gate pass to Available",
+         "How a bed becomes free for the next admission.",
+         [step("IPD.PATIENT", "Issue the gate pass", "The admission closes and the bed movement ends.", "IPD.DISCHARGE"),
+          step("IPD.BEDBOARD", "Bed goes to cleaning", "A cleaning job is raised (or the bed is Available at once, per Hospital Settings > IPD).", "IPD.BED"),
+          step("IPD.BEDBOARD", "Start cleaning", "Housekeeping clicks Start in the bed cleaning list.", "IPD.BED"),
+          step("IPD.BEDBOARD", "Cleaning done", "Housekeeping clicks Cleaning done; the bed is Available for a new admission.", "IPD.BED")],
+         keywords="bed vacant free bed make bed available bed available after discharge cleaning housekeeping bed release")
+
+workflow("FLOW.IPD.TPA", "IPD", "TPA cashless: from pre-authorisation to settlement",
+         "Insurance patient money flow.",
+         [step("IPD.PATIENT", "Pre-authorisation request", "Record and send the request with documents.", "IPD.TPA"),
+          step("IPD.PREAUTHS", "TPA answers", "Record queries, replies, approval and enhancements.", "IPD.TPA"),
+          step("IPD.PATIENT", "Final authorisation", "Ask final authorisation before discharge.", "IPD.TPA"),
+          step("IPD.PATIENT", "Final bill with payer split", "The TPA share goes to the TPA's receivable.", "IPD.FINALBILL"),
+          step("IPD.TPACLAIMS", "Submit and settle the claim", "Documents, submit, settlement with TDS / disallowance.", "IPD.TPA"),
+          step("IPD.TPAAGEING", "Follow the receivable", "TPA Receivable & Ageing.", "IPD.TPA")],
+         keywords="tpa cashless insurance claim process flow")
+
+# ════════════════════════════════ PHARMACY ════════════════════════════════
+guide("PH.ITEM", "PHARMACY", "Add a medicine (Item / Drug Master)",
+      "Every medicine or consumable sold or issued must be in the Item / Drug Master.",
+      ["Master > Pharmacy Master > Item / Drug Master > Add: name, generic, manufacturer, category, dosage form, schedule, HSN & GST, purchase and sale units with the conversion, reorder level.",
+       "Flags: high alert, LASA, cold chain, loose sale allowed.",
+       "Save. Stock comes in by GRN with batch, expiry and MRP."],
+      pages=["MASTER.PH_ITEMS", "MASTER.PH_GENERICS", "MASTER.PH_HSN"],
+      keywords="add medicine new item drug master item master medicine master product generic hsn gst schedule h1 unit conversion")
+
+guide("PH.SALE", "PHARMACY", "Sell medicines at the counter (POS)",
+      "Bill a walk-in or OPD patient, take payment and print the bill.",
+      ["Pharmacy > Sales > Pharmacy Sale (POS): find the customer / patient (or walk-in), optionally load the OPD prescription.",
+       "Scan or search each item; the batch is chosen first-expiry-first; enter quantity (strips or loose).",
+       "Apply a discount or scheme if allowed, take payment (split modes, credit for allowed customers) and Save; the bill prints.",
+       "Schedule H1 / X items need the prescriber and go to the Schedule Register."],
+      pages=["PHARMACY.POS", "PHARMACY.SALEBILLS"],
+      tips=["Expired or blocked batches cannot be sold; stock never goes negative."],
+      keywords="pharmacy sale sell medicine counter pos bill pharmacy bill chemist medical store billing invoice customer prescription")
+
+guide("PH.GRN", "PHARMACY", "Enter a purchase bill (Goods Receipt / GRN)",
+      "Receive the supplier's goods with batch, expiry and rates; stock and the supplier's balance go up.",
+      ["Pharmacy > Purchase > Goods Receipt (GRN) > New: supplier, invoice no. and date, optionally against a purchase order.",
+       "Each line: item, batch, expiry, quantity, free quantity, purchase rate, MRP, discount, GST.",
+       "Save: the batches are created in stock and the supplier's payable is posted."],
+      pages=["PHARMACY.GRN", "PHARMACY.PURCHASEREGISTER", "MASTER.PH_SUPPLIERS"],
+      tips=["Short-expiry receipts are flagged; check MRP against the strip."],
+      next=["PHARMACY.SUPPLIERPAYMENT"],
+      keywords="purchase bill grn goods receipt inward receive stock supplier invoice purchase entry batch expiry mrp")
+
+guide("PH.PO", "PHARMACY", "Purchase indent and purchase order",
+      "Ask for stock (indent), order it from a supplier (PO), then receive it by GRN.",
+      ["Pharmacy > Purchase > Purchase Indent: items and quantities needed (Auto Reorder can propose them from reorder levels).",
+       "Purchase Order > New: supplier, items, rates; approve and send.",
+       "Receive the goods with a GRN against the PO."],
+      pages=["PHARMACY.PURCHASEINDENT", "PHARMACY.PURCHASEORDER", "PHARMACY.AUTOREORDER"],
+      next=["PHARMACY.GRN"], keywords="purchase order po supplier order purchase indent reorder auto reorder order medicine")
+
+guide("PH.PRETURN", "PHARMACY", "Return goods to the supplier (Purchase Return)",
+      "Send expired, damaged or excess stock back and raise the debit note.",
+      ["Pharmacy > Purchase > Purchase Return > New: supplier, items and batches with quantity and reason.",
+       "Save: stock goes down and the debit note reduces the supplier's payable."],
+      pages=["PHARMACY.PURCHASERETURN"], keywords="purchase return return to supplier debit note expired return damaged return")
+
+guide("PH.SRETURN", "PHARMACY", "Take back medicines from a customer (Sale Return)",
+      "Return against the sale bill; stock comes back and the customer gets a refund or credit note.",
+      ["Pharmacy > Sales > Sale Return: find the sale bill, choose items and quantities, reason.",
+       "Save: the credit note / refund is made and the stock goes back to its batch."],
+      pages=["PHARMACY.SALERETURN"], keywords="sale return customer return medicine returned refund credit note pharmacy return")
+
+guide("PH.IPDISSUE", "PHARMACY", "Issue medicines to IPD (ward indents)",
+      "The pharmacy issues the ward's medicine indents against the IP number; the charge goes to the IP bill.",
+      ["Pharmacy > Sales > IPD Issue (Medicine Indents): open the pending indent (urgent / STAT first).",
+       "Pick batches (first expiry first) and quantities, Issue. The ward receives it on the IPD Patient > Medicines tab.",
+       "Returns from the ward credit the IP bill before the final bill."],
+      pages=["PHARMACY.IPDISSUE", "IPD.PATIENT"], keywords="ipd issue ward issue indent issue medicine to ipd inpatient medicine pharmacy indent ward return")
+
+guide("PH.STOCKADJ", "PHARMACY", "Stock adjustment, batch correction and store issue",
+      "Correct stock with a reason, fix batch details, or move stock from the godown to the counter.",
+      ["Pharmacy > Inventory > Stock Adjustment: item, batch, quantity up or down, reason.",
+       "Batch Correction: fix a batch's expiry / MRP / number (audited).",
+       "Store Issue (Godown to Counter): move stock between stores."],
+      pages=["PHARMACY.STOCKADJUST", "PHARMACY.BATCHCORRECTION", "PHARMACY.STOREISSUE"],
+      keywords="stock adjustment adjust stock correct stock batch correction store issue godown counter transfer stock")
+
+guide("PH.COUNT", "PHARMACY", "Physical stock verification",
+      "Count the shelves and post the difference.",
+      ["Pharmacy > Inventory > Physical Stock Verification > New count for a store.",
+       "Enter the counted quantity per batch; the variance is shown.",
+       "Post: the stock is corrected; Reports > Pharmacy > Physical Verification Variance lists it."],
+      pages=["PHARMACY.STOCKCOUNT", "REPORTS.PHARMACY.COUNTVARIANCE"], keywords="physical stock verification stock count stock taking audit count variance")
+
+guide("PH.EXPIRY", "PHARMACY", "Expired / damaged stock write-off",
+      "Write off expired or damaged batches with a reason.",
+      ["Check Reports > Pharmacy > Near-Expiry and Expired Stock.",
+       "Pharmacy > Inventory > Expiry / Damage Write-off: batches, quantities, reason; Save.",
+       "Or return them to the supplier (Purchase Return)."],
+      pages=["PHARMACY.WRITEOFF", "REPORTS.PHARMACY.NEAREXPIRY", "REPORTS.PHARMACY.EXPIREDSTOCK"],
+      keywords="expired medicine expiry write off damage write-off expired stock near expiry dispose")
+
+guide("PH.STOCK", "PHARMACY", "Check the stock of a medicine",
+      "Stock by batch, expiry and store.",
+      ["Pharmacy > Inventory > Stock Enquiry: search the item; batches, expiry, stores and quantities show.",
+       "Reports > Pharmacy > Current Stock (batch-wise) or Stock Movement / Item Ledger for the history."],
+      pages=["PHARMACY.STOCK", "REPORTS.PHARMACY.CURRENTSTOCK", "REPORTS.PHARMACY.ITEMLEDGER"],
+      keywords="check stock stock enquiry how much stock available quantity batch item ledger current stock")
+
+guide("PH.CLOSE", "PHARMACY", "Pharmacy day closing and credit collection",
+      "End-of-day cash closing of the pharmacy counter, and collecting customers' credit.",
+      ["Pharmacy > Sales > Pharmacy Day Closing: receipts and refunds of the window, count cash, submit; a supervisor verifies.",
+       "Credit Collection: collect a credit customer's dues against their bills."],
+      pages=["PHARMACY.DAYCLOSING", "PHARMACY.DAYCLOSINGVERIFY", "PHARMACY.CREDITCOLLECTION"],
+      keywords="pharmacy day closing day end cashier closing credit collection customer due")
+
+guide("PH.SUPPLIERPAY", "PHARMACY", "Pay a supplier",
+      "Settle the supplier's GRNs.",
+      ["Pharmacy > Purchase > Supplier Payments > New: supplier, the GRNs to pay, mode and reference; Save.",
+       "Reports > Pharmacy > Supplier Outstanding & Ageing shows what is still due."],
+      pages=["PHARMACY.SUPPLIERPAYMENT", "REPORTS.PHARMACY.SUPPLIERAGEING"],
+      keywords="supplier payment pay supplier distributor payment outstanding payable")
+
+workflow("FLOW.PH.PURCHASE", "PHARMACY", "Pharmacy purchase: from indent to supplier payment",
+         "How stock is bought.",
+         [step("PHARMACY.PURCHASEINDENT", "Purchase indent", "List what is needed (or use Auto Reorder).", "PH.PO", optional=True),
+          step("PHARMACY.PURCHASEORDER", "Purchase order", "Order from the supplier.", "PH.PO", optional=True),
+          step("PHARMACY.GRN", "Goods receipt (GRN)", "Enter the supplier's bill with batches and expiry.", "PH.GRN"),
+          step("PHARMACY.SUPPLIERPAYMENT", "Pay the supplier", "Settle the GRNs.", "PH.SUPPLIERPAY")],
+         keywords="pharmacy purchase process flow buy stock procurement")
+
+workflow("FLOW.PH.SALE", "PHARMACY", "Pharmacy sale: from bill to day closing",
+         "A counter sale day.",
+         [step("PHARMACY.POS", "Sale bill", "Bill the customer at the POS.", "PH.SALE"),
+          step("PHARMACY.SALERETURN", "Returns", "Take back returned medicines.", "PH.SRETURN", optional=True),
+          step("PHARMACY.DAYCLOSING", "Day closing", "Close the counter's cash.", "PH.CLOSE")],
+         keywords="pharmacy sale process daily flow counter")
+
+# ════════════════════════════════ LAB additions ════════════════════════════════
+guide("LAB.RESCHEDULE", "LAB", "Reschedule a LAB booking (change the booking date / time)",
+      "Move a booked B2C order to another date and time; the patient is informed by WhatsApp / e-mail.",
+      ["LAB > B2C Order List: find the bill (Booking Date filter).",
+       "Action > Reschedule Booking (shown only for an Is Booking Req bill whose booking day has not passed and a test is still without its result).",
+       "Choose the new date and time (future, at most 90 days ahead) and the reason, Reschedule.",
+       "The order moves to its new day; a new token is given when the day changes (unless a sample is collected); a home collection visit moves too."],
+      pages=["LAB.LABORDERBOOKING.B2CORDERLIST"],
+      tips=["Needs the Reschedule permission on the B2C Order List."],
+      keywords="reschedule booking another day different day other date later date new date change booking date change appointment date postpone prepone lab booking move booking date time")

@@ -415,7 +415,17 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
         ["ai"] = ["ai"], ["ocr"] = ["scan"], ["aadhar"] = ["aadhaar"], ["id"] = ["id"], ["dues"] = ["due", "outstanding"],
         ["pending"] = ["pending", "due"], ["balance"] = ["due", "balance"], ["outstanding"] = ["due", "outstanding"],
         ["unpaid"] = ["due"], ["take"] = ["collect"], ["receive"] = ["collect"], ["accept"] = ["collect"], ["reprint"] = ["print"],
-        ["duplicate"] = ["print", "duplicate"], ["copy"] = ["print"], ["closing"] = ["close"], ["eod"] = ["close", "day"], ["cash"] = ["cash", "collect"]
+        ["duplicate"] = ["print", "duplicate"], ["copy"] = ["print"], ["closing"] = ["close"], ["eod"] = ["close", "day"], ["cash"] = ["cash", "collect"],
+        // IPD / pharmacy words people use (2026-11-27)
+        ["deposit"] = ["advance"], ["inpatient"] = ["ipd", "admission"], ["indoor"] = ["ipd"], ["admitted"] = ["ipd", "admission"], ["ward"] = ["ipd", "ward"],
+        ["hospitalise"] = ["admit"], ["hospitalize"] = ["admit"], ["insurance"] = ["tpa", "insurance"], ["cashless"] = ["tpa"], ["mediclaim"] = ["tpa", "claim"],
+        ["injection"] = ["medicine"], ["tablet"] = ["medicine"], ["tab"] = ["medicine"], ["syrup"] = ["medicine"], ["capsule"] = ["medicine"],
+        ["antibiotic"] = ["medicine"], ["drug"] = ["medicine"], ["drugs"] = ["medicine"], ["medication"] = ["medicine"], ["medicines"] = ["medicine"],
+        ["chemist"] = ["pharmacy"], ["druggist"] = ["pharmacy"], ["distributor"] = ["supplier"], ["vendor"] = ["supplier"], ["dealer"] = ["supplier"],
+        ["surgery"] = ["ot", "surgery"], ["operation"] = ["ot", "surgery"], ["theatre"] = ["ot"], ["theater"] = ["ot"],
+        ["lama"] = ["lama", "discharge"], ["dama"] = ["dama", "discharge"], ["absconded"] = ["discharge"], ["expired"] = ["expiry", "death"],
+        ["postpone"] = ["reschedule"], ["prepone"] = ["reschedule"], ["shift"] = ["transfer", "shift"], ["move"] = ["transfer", "move"],
+        ["deposit_request"] = ["deposit"], ["roaster"] = ["roster"], ["rota"] = ["roster"]
     };
 
     private static string Stem(string w)
@@ -668,6 +678,9 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
     {
         var bm = Rank(c.Search, question, pageCode).ToDictionary(x => x.Doc.Key, x => x.Score);
         var ml = c.Topics?.All(question) ?? [];
+        var norm = HelpText.Normalize(question);
+        var asked = AskedModule(norm);
+        var problem = ProblemCue().IsMatch(norm);
         var hits = new List<Hit>();
         foreach (var d in c.Search.Docs)
         {
@@ -678,9 +691,63 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
             var kw = Math.Min(1, b / 12.0);
             var score = ml.Count == 0 ? kw : 0.55 * Math.Min(1, p * 3) + 0.45 * kw;
             if (d.Article is not null) score *= 1.05;   // a written answer before a bare screen
+            // the module the question names (LAB / OPD / IPD / pharmacy): its answers first, other modules' answers back
+            if (asked is not null && ModuleOfDoc(c, d) is { } dm && dm is "LAB" or "OPD" or "IPD" or "PHARMACY")
+                score *= dm == asked ? 1.2 : 0.75;
+            // "why can't I ...", "... not working": troubleshooting and FAQ answers first
+            if (problem && d.Article?.Row.Kind is "TROUBLE" or "FAQ") score *= 1.2;
             hits.Add(new Hit(d, score));
         }
         return hits.OrderByDescending(h => h.Score).ToList();
+    }
+
+    /// <summary>The module a question names, or null when it names none or more than one.</summary>
+    private static string? AskedModule(string normalized)
+    {
+        var found = new HashSet<string>();
+        if (LabWords().IsMatch(normalized)) found.Add("LAB");
+        if (OpdWords().IsMatch(normalized)) found.Add("OPD");
+        if (IpdWords().IsMatch(normalized)) found.Add("IPD");
+        if (PharmacyWords().IsMatch(normalized)) found.Add("PHARMACY");
+        return found.Count == 1 ? found.First() : null;
+    }
+
+    private static string? ModuleOfDoc(Catalog c, Doc d) =>
+        d.Article is { } a ? a.Row.Module
+        : d.Page is { } p ? (c.MenuModule.TryGetValue(p.MenuCode, out var m) ? m : p.PageCode.Split('.')[0].ToUpperInvariant())
+        : null;
+
+    [GeneratedRegex(@"\b(lab|pathology|sample|samples|b2c|b2b|franchise|test report)\b")]
+    private static partial Regex LabWords();
+    [GeneratedRegex(@"\b(opd|outpatient|out patient|consultation)\b")]
+    private static partial Regex OpdWords();
+    [GeneratedRegex(@"\b(ipd|inpatient|in patient|admitted|admission|ward|bed|discharge|ot|icu|tpa|nursing|nurse)\b")]
+    private static partial Regex IpdWords();
+    [GeneratedRegex(@"\b(pharmacy|chemist|medical store|grn|supplier|distributor|pos)\b")]
+    private static partial Regex PharmacyWords();
+    [GeneratedRegex(@"\b(why|cant|can't|cannot|can not|not working|not allowed|unable|error|fails?|failed|failing|doesn't|does not|doesnt|won't|wont|stuck|problem|issue)\b")]
+    private static partial Regex ProblemCue();
+
+    /// <summary>
+    /// A screen or a whole workflow on top while the written guide of that same thing is close behind ("lab day closing": the
+    /// Day Closing screen vs. the guide "LAB day closing"): the guide answers better - it names the screen and says what to do
+    /// there. A workflow stays on top when the question asks for one (what next / before / the process).
+    /// </summary>
+    private static List<Hit> PreferGuides(List<Hit> hits, string intent)
+    {
+        if (hits.Count < 2) return hits;
+        var top = hits[0];
+        var flowAsked = intent is HelpIntent.Next or HelpIntent.Before or HelpIntent.Flow;
+        var topIsPage = top.Doc.Page is not null;
+        var topIsFlow = top.Doc.Article?.Row.Kind == "FLOW";
+        if (!topIsPage && !(topIsFlow && !flowAsked)) return hits;
+        bool Covers(Hit h) => topIsPage
+            ? h.Doc.Article!.Pages.Contains(top.Doc.Page!.PageCode, StringComparer.OrdinalIgnoreCase)
+            : h.Doc.Article!.Pages.Intersect(top.Doc.Article!.Pages, StringComparer.OrdinalIgnoreCase).Any();
+        var guide = hits.Skip(1).Take(8).FirstOrDefault(h => h.Doc.Article is { } a && a.Row.Kind is not ("FLOW" or "MODULE")
+                                                            && h.Score >= top.Score * (topIsPage ? 0.4 : 0.55) && Covers(h));
+        if (guide is null) return hits;
+        return hits.Where(h => h != guide).Prepend(guide with { Score = top.Score }).ToList();
     }
 
     // ── workflows ──
@@ -784,8 +851,14 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
     private static partial Regex NextCue();
     [GeneratedRegex(@"\b(before|prior|prerequisites?|required|requirements?|need|needed|ready|previous|first|beforehand)\b")]
     private static partial Regex BeforeCue();
-    [GeneratedRegex(@"\b(process|workflow|flow|steps|stages?|end to end|lifecycle|life cycle|order|sequence|start|first|begin|whole|full|complete|overall)\b")]
+    [GeneratedRegex(@"\b(process|workflow|flow|steps|stages?|end to end|lifecycle|life cycle|in (what|which) order|sequence|where (do i|to) (start|begin)|start to (end|finish)|from start|first step|whole|full process|complete process|overall)\b")]
     private static partial Regex FlowCue();
+    // a question that opens with the task itself ("make / book / create / print ... after ...")
+    [GeneratedRegex(@"^\s*(how (do|to|can|should) (i|we|you)?\s*)?(make|book|create|add|give|print|collect|take|send|issue|enter|record|set|change|cancel|close|do|get|put|mark|move|free|release|reprint|transfer|admit|discharge)\b")]
+    private static partial Regex TaskFirst();
+    // ...unless it really asks what comes next / before
+    [GeneratedRegex(@"\b(what|which|next|then|now|step|steps)\b")]
+    private static partial Regex AskNext();
 
     private HelpAnswer FlowAnswer(Catalog c, string question, string intent, FlowMatch m)
     {
@@ -919,6 +992,10 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
         // a workflow answer needs the words of one ("after", "before", "process"...); otherwise it is a how-to question
         else if (intent is HelpIntent.Next or HelpIntent.Before or HelpIntent.Flow && !Cue(intent).IsMatch(HelpText.Normalize(question)))
             intent = HelpIntent.HowTo;
+        // "make the bed available after discharge", "book follow-up after discharge": a task with a time, not "what comes next"
+        else if (intent is HelpIntent.Next or HelpIntent.Before && TaskFirst().IsMatch(HelpText.Normalize(question)) && !AskNext().IsMatch(HelpText.Normalize(question)))
+            intent = HelpIntent.HowTo;
+        hits = PreferGuides(hits, intent);
         // learned from use: topics users rejected for this question go down, a confirmed / taught one goes to the top
         if (hits.Any(h => c.Rejected.Contains(key + "|" + h.Doc.Key)))
             hits = hits.Select(h => c.Rejected.Contains(key + "|" + h.Doc.Key) ? h with { Score = h.Score * 0.3 } : h).OrderByDescending(h => h.Score).ToList();
@@ -980,7 +1057,7 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
                        "or \"LAB workflow\"), or open a module below to browse its guides.",
                 Related = hits.Take(5).Select(h => Link(c, h.Doc)).ToList()
             };
-            await FeedbackAsync(new HelpFeedbackRequest { CompanyId = r.CompanyId, UserId = r.UserId, Question = question, PageCode = r.PageCode });
+            if (!DryRun) await FeedbackAsync(new HelpFeedbackRequest { CompanyId = r.CompanyId, UserId = r.UserId, Question = question, PageCode = r.PageCode });
         }
         else
         {
@@ -1004,8 +1081,12 @@ public partial class HelpService(IDbConnectionFactory connectionFactory, IMemory
         return answer;
     }
 
+    /// <summary>HelpAssistant:DryRun = true (the evaluation tool, Tools/HelpEval): questions are answered but not logged or learned from.</summary>
+    private bool DryRun => string.Equals(config["HelpAssistant:DryRun"], "true", StringComparison.OrdinalIgnoreCase);
+
     private async Task LogAskAsync(HelpAskRequest r, string question, string? intent, HelpAnswer answer)
     {
+        if (DryRun) return;
         try
         {
             using var db = connectionFactory.CreateConnection();
