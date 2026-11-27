@@ -1,0 +1,25 @@
+@{
+    ViewData["Title"] = "Nursing Station";
+}
+@section HeadStyles {
+    <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-clinical.css" asp-append-version="true" />
+}
+@* IPD > Nursing Station (Phase 3, SQLScripts/2564-2565): the patients of a station with what is due; js/ipd/station.js *@
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <div><h1 class="h4 fw-bold mb-0"><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Nursing Station</h1>
+        <small class="text-muted">Patients of the station with medicines due, vitals due (NEWS2), new orders, samples and alerts. Refreshes every minute.</small></div>
+    <div class="d-flex gap-2 align-items-center">
+        <select id="nsStation" class="form-select form-select-sm" style="width:auto"><option value="">All wards</option></select>
+        <input id="nsSearch" class="form-control form-control-sm" style="width:200px" placeholder="Search name, bed, IP no." />
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="nsRefresh"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+</div>
+<div id="nsKpi" class="clin-strip"></div>
+<div id="nsBody" class="row g-2"><div class="text-muted small p-3">Loading…</div></div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/clin-common.js" asp-append-version="true"></script>
+    <script>window.IpdStation = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdClinical/"), canPatient = ViewData["CanPatient"] as bool? ?? false }));</script>
+    <script src="~/js/ipd/station.js" asp-append-version="true"></script>
+}

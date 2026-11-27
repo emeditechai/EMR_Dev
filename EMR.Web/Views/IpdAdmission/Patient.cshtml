@@ -14,14 +14,12 @@
         ("overview", "Overview", "bi-grid-1x2", null), ("lab", "LAB", "bi-droplet-half", null), ("radiology", "Radiology", "bi-radioactive", null),
         ("indent", "Medicines", "bi-capsule", null), ("consumables", "Consumables", "bi-bandaid", null), ("procedures", "Procedures", "bi-scissors", null),
         ("ot", "OT", "bi-heart-pulse", null), ("icu", "ICU Chart", "bi-activity", null), ("services", "Other Charges", "bi-plus-square", null), ("visits", "Doctor Visits", "bi-person-workspace", null),
-        ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", null), ("clinical", "Clinical", "bi-journal-medical", "Phase 3"),
-        ("nursing", "Nursing", "bi-clipboard2-pulse", "Phase 3"), ("advance", "Advance & Payments", "bi-cash-coin", null), ("billing", "Billing", "bi-receipt", null),
+        ("bed", "Bed & Transfers", "bi-hospital", null), ("package", "Package", "bi-box-seam", null), ("clinical", "Clinical", "bi-journal-medical", null),
+        ("nursing", "Nursing", "bi-clipboard2-pulse", null), ("advance", "Advance & Payments", "bi-cash-coin", null), ("billing", "Billing", "bi-receipt", null),
         ("insurance", "Insurance / TPA", "bi-shield-plus", null), ("documents", "Documents & Consents", "bi-folder2-open", null), ("discharge", "Discharge", "bi-door-open", null)
     };
     var soonText = new Dictionary<string, string>
     {
-        ["clinical"] = "Initial assessment, progress notes, doctor orders (CPOE) with countersign of verbal orders.",
-        ["nursing"] = "Vitals with NEWS2, medication administration record, intake / output, nursing notes, risk scores and handover."
     };
 }
 @section HeadStyles {
@@ -31,6 +29,7 @@
     <link rel="stylesheet" href="~/css/ipd-ot-icu.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ipd-tpa.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/ipd-discharge.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/ipd-clinical.css" asp-append-version="true" />
     <style>.select2-container { width:100% !important; } .modal .select2-container { z-index:1060; }</style>
 }
 @Html.AntiForgeryToken()
@@ -291,6 +290,8 @@
     @await Html.PartialAsync("_Pharmacy", Model)
     @await Html.PartialAsync("_Ot", Model)
     @await Html.PartialAsync("_Icu", Model)
+    @await Html.PartialAsync("_Clinical", Model)
+    @await Html.PartialAsync("_Nursing", Model)
 
     @await Html.PartialAsync("_Insurance", Model)
     @await Html.PartialAsync("_Discharge", Model)
@@ -403,9 +404,9 @@
         <div class="row g-3">
             <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eType">Admission Type</label><select id="eType" class="form-select"><option value="ELECTIVE">Elective / Planned</option><option value="EMERGENCY">Emergency</option><option value="DAYCARE">Day Care</option><option value="MATERNITY">Maternity</option><option value="TRANSFERIN">Transfer-in</option></select></div>
             <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eSource">Source</label><select id="eSource" class="form-select"><option value="DIRECT">Direct</option><option value="OPD">OPD consultation</option><option value="EMERGENCY">Emergency / Casualty</option><option value="REFERRAL">Referred by doctor</option></select></div>
-            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eAdm">Admitting Doctor</label><select id="eAdm" class="form-select e-s2"></select></div>
+            <div class="col-6 col-lg-3 ipd-key ipd-key-doc"><label class="form-label small fw-semibold" for="eAdm"><i class="bi bi-person-badge-fill me-1"></i>Admitting Doctor</label><select id="eAdm" class="form-select e-s2"></select></div>
             <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eCon">Consultant</label><select id="eCon" class="form-select e-s2"></select></div>
-            <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eDept">Department</label><select id="eDept" class="form-select e-s2"></select></div>
+            <div class="col-6 col-lg-3 ipd-key ipd-key-dept"><label class="form-label small fw-semibold" for="eDept"><i class="bi bi-diagram-3-fill me-1"></i>Department</label><select id="eDept" class="form-select e-s2"></select></div>
             <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eRef">Referred By</label><select id="eRef" class="form-select e-s2"></select></div>
             <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="eExp">Expected Discharge</label><input type="datetime-local" id="eExp" class="form-control" /></div>
             <div class="col-6 col-lg-3"><label class="form-label small fw-semibold" for="ePkg">Package</label><select id="ePkg" class="form-select e-s2"></select></div>
@@ -467,4 +468,9 @@
     <script src="~/js/ipd/insurance.js" asp-append-version="true"></script>
     <script>window.IpdDis = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdDischarge/"), admBase = Url.Content("~/IpdAdmission/"), attendants = Model.Attendants, can = new { advise = Can("DISCHARGE_ADVISE"), clear = new Dictionary<string, bool> { ["PHARMACY"] = Can("CLEAR_PHARMACY"), ["LAB"] = Can("CLEAR_LAB"), ["NURSING"] = Can("CLEAR_NURSING"), ["TPA"] = Can("CLEAR_TPA") }, summary = Can("DISCHARGE_SUMMARY"), sign = Can("DISCHARGE_SUMMARY_SIGN"), onBehalf = Can("DISCHARGE_SUMMARY_ONBEHALF"), lama = Can("DISCHARGE_LAMA"), death = Can("DEATH_RECORD"), gatePass = Can("GATEPASS"), credit = Can("GATEPASS_CREDIT"), followUp = Can("FOLLOWUP") } }));</script>
     <script src="~/js/ipd/discharge.js" asp-append-version="true"></script>
+    <script>window.IpdClin = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdClinical/"), phBase = Url.Content("~/IpdPharmacy/"), open = status != "CANCELLED" && status != "DISCHARGED", consultant = h.I("ConsultantDoctorId"), can = new { assess = Can("CLIN_ASSESS"), note = Can("CLIN_NOTE"), order = Can("CLIN_ORDER"), countersign = Can("CLIN_COUNTERSIGN"), consult = Can("CLIN_CONSULT"), correct = Can("CLIN_CORRECT"), indent = Can("PH_INDENT"), labTab = Can("LAB_ORDER") } }));</script>
+    <script>window.IpdNurse = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { id = h.I("AdmissionId"), @base = Url.Content("~/IpdClinical/"), clinBase = Url.Content("~/IpdClinical/"), open = status != "CANCELLED" && status != "DISCHARGED", can = new { assess = Can("NURS_ASSESS"), chart = Can("NURS_CHART"), mar = Can("NURS_MAR"), handover = Can("NURS_HANDOVER"), incident = Can("NURS_INCIDENT"), done = Can("ORDER_DONE"), correct = Can("CLIN_CORRECT") } }));</script>
+    <script src="~/js/ipd/clin-common.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/clinical.js" asp-append-version="true"></script>
+    <script src="~/js/ipd/nursing.js" asp-append-version="true"></script>
 }

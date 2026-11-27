@@ -1,0 +1,9 @@
+@model EMR.Web.Models.ViewModels.IpdPatientView
+@* IPD Patient > Clinical (Phase 3, SQLScripts/2562-2565): doctor's assessment, rounds / notes, CPOE orders, cross-consultation; js/ipd/clinical.js *@
+<div class="tab-pane fade @(Model.Tab == "clinical" ? "show active" : "")" id="tab-clinical" role="tabpanel">
+    <div class="reg-section">
+        <div class="reg-section-header"><div class="sec-icon violet"><i class="bi bi-journal-medical"></i></div>
+            <div class="flex-grow-1"><h6 class="fw-bold mb-0">Clinical</h6><small class="text-muted">Doctor's orders, daily rounds and notes, initial assessment and cross-consultation</small></div></div>
+    </div>
+    <div id="clinBody"><div class="text-muted small p-3">Loading…</div></div>
+</div>

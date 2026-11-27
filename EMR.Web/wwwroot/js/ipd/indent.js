@@ -117,6 +117,8 @@
         renderCart();
     }
 
+    // a prescription saved from this tab raised an indent (js/ipd/clinical.js)
+    document.addEventListener('ipd:indent-changed', () => loadIndents());
     async function loadIndents() {
         let rows;
         try { rows = await Ipd.get(P.base + 'Indents?id=' + P.id) || []; } catch (e) { tb.innerHTML = `<tr><td colspan="6" class="text-danger small">${E(e.message)}</td></tr>`; return; }

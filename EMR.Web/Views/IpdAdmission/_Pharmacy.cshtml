@@ -14,7 +14,12 @@
     <div class="tab-pane fade @(Model.Tab == p.Key ? "show active" : "")" id="tab-@p.Key" role="tabpanel">
         <div class="reg-section">
             <div class="reg-section-header"><div class="sec-icon @p.Color"><i class="bi @p.Icon"></i></div>
-                <div class="flex-grow-1"><h6 class="fw-bold mb-0">@p.Title</h6><small class="text-muted">@p.Sub</small></div></div>
+                <div class="flex-grow-1"><h6 class="fw-bold mb-0">@p.Title</h6><small class="text-muted">@p.Sub</small></div>
+                @if (isIndent && (ViewData["CanCLIN_ORDER"] as bool? ?? false))
+                {
+                    @* IPD Phase 3: the doctor's prescription (dose, route, frequency) feeds the nurses' eMAR and raises the indent in the same step; js/ipd/clinical.js *@
+                    <button type="button" class="btn btn-sm btn-primary ipd-prescribe"><i class="bi bi-capsule me-1"></i>Prescribe (dose &amp; frequency)</button>
+                }</div>
             @if (isIndent) { <div class="ipd-indent-form"></div> } else { <div class="ipd-ph-form" data-head="@p.Head"></div> }
         </div>
         @if (isIndent)

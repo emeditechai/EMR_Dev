@@ -204,3 +204,16 @@
 .adv-sum-cell.due b { color: #b91c1c; } .adv-sum-cell.minus b { color: #b45309; } .adv-sum-cell.mute b { color: #94a3b8; font-weight: 500; }
 .adv-sum-cell.pay { background: #f0fdf4; border-color: #86efac; } .adv-sum-cell.pay b { color: #166534; font-size: 1.1rem; }
 .adv-settle { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: .6rem .75rem; }
+
+/* Key admission fields (New Admission, Edit Admission): Admitting Doctor (indigo) and Department (teal) stand out by colour */
+.ipd-key > .form-label { font-weight:600; }
+.ipd-key-doc > .form-label { color:#4338ca; }
+.ipd-key-dept > .form-label { color:#0f766e; }
+.ipd-key-doc .form-select, .ipd-key-doc .select2-container--bootstrap-5 .select2-selection {
+    border-color:#818cf8; border-left:4px solid #4f46e5; background-color:#eef2ff; }
+.ipd-key-dept .form-select, .ipd-key-dept .select2-container--bootstrap-5 .select2-selection {
+    border-color:#5eead4; border-left:4px solid #0d9488; background-color:#f0fdfa; }
+.ipd-key-doc .select2-selection__rendered { color:#312e81 !important; font-weight:600; }
+.ipd-key-dept .select2-selection__rendered { color:#134e4a !important; font-weight:600; }
+.ipd-key-doc .select2-container--focus .select2-selection, .ipd-key-doc .form-select:focus { box-shadow:0 0 0 .2rem rgba(79,70,229,.2); }
+.ipd-key-dept .select2-container--focus .select2-selection, .ipd-key-dept .form-select:focus { box-shadow:0 0 0 .2rem rgba(13,148,136,.2); }
