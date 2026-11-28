@@ -261,6 +261,16 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
         && (request.HeaderDiscountAmount > 0 || request.HeaderDiscountValue > 0)
         && (string.IsNullOrWhiteSpace(request.DiscountReason) || request.DiscountApprovedBy is null or <= 0);
 
+    /// <summary>B2C LAB (SQLScripts/2569): the reason tag that needs a referral doctor and the deducted-from-doctor answer.</summary>
+    public const string ReferredByDoctorReason = "Referred by doctor";
+
+    /// <summary>What the user wrote beside the reason tag (B2C LAB), at most 500 characters; null when nothing was written.</summary>
+    private static string? ReasonDescOf(SavePaymentRequest request)
+    {
+        var d = request.ReasonDesc?.Trim();
+        return string.IsNullOrEmpty(d) ? null : d.Length > 500 ? d[..500] : d;
+    }
+
     /// <summary>A bill discount split over the discountable lines in proportion to their amount, the last line taking the
     /// rounding remainder - exactly the split the line snapshot uses (and the payment screen shows).</summary>
     /// <summary>Adds each line's membership benefit to its discount (lines with a benefit took no manual share).</summary>
@@ -730,6 +740,7 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
                             RoundOffAmount       = @RoundOffAmount,
                             NetAmount            = @NetAmount,
                             DiscountReason       = CASE WHEN @SaveApproval = 1 THEN @DiscountReason ELSE DiscountReason END,
+                            ReasonDesc           = CASE WHEN @SaveApproval = 1 THEN @ReasonDesc ELSE ReasonDesc END,
                             DiscountApprovedBy   = CASE WHEN @SaveApproval = 1 THEN @DiscountApprovedBy ELSE DiscountApprovedBy END,
                             DiscountApprovedDate = CASE WHEN @SaveApproval = 1 THEN GETDATE() ELSE DiscountApprovedDate END,
                             DiscountEnteredBy    = CASE WHEN @SaveApproval = 1 THEN @ModifiedBy ELSE DiscountEnteredBy END,
@@ -740,6 +751,7 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
                         {
                             SaveApproval = approvalGiven && hDiscAmt > 0 ? 1 : 0,
                             DiscountReason = request.DiscountReason?.Trim(),
+                            ReasonDesc = ReasonDescOf(request),
                             request.DiscountApprovedBy,
                             request.HeaderDiscountType,
                             request.HeaderDiscountValue,
@@ -849,7 +861,7 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
                          TotalCgstAmount, TotalSgstAmount, TotalIgstAmount,
                          RoundOffAmount, NetAmount, TotalPaid, BalanceDue, PaymentStatus,
                          Notes, CreatedDate, CreatedBy, IsActive,
-                         DiscountReason, DiscountApprovedBy, DiscountApprovedDate, DiscountEnteredBy,
+                         DiscountReason, DiscountApprovedBy, DiscountApprovedDate, DiscountEnteredBy, ReasonDesc,
                          MembershipDiscountAmount, MembershipTestDiscount, MembershipCardId)
                     VALUES
                         (@ModuleCode, @ModuleRefId, @OPDServiceId, @BranchId, ISNULL((SELECT CompanyId FROM BranchMaster WHERE BranchId = @BranchId), 1), @PatientId,
@@ -859,7 +871,7 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
                          @RoundOffAmount, @NetAmount, 0, @NetAmount, 'U',
                          @Notes, GETDATE(), @CreatedBy, 1,
                          @DiscountReason, @DiscountApprovedBy, CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE GETDATE() END,
-                         CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE @CreatedBy END,
+                         CASE WHEN @DiscountApprovedBy IS NULL THEN NULL ELSE @CreatedBy END, @ReasonDesc,
                          @MembershipDiscountAmount, @MembershipTestDiscount, @MembershipCardId);
                     SELECT SCOPE_IDENTITY();",
                     new
@@ -884,6 +896,7 @@ public class PaymentService(IDbConnectionFactory db, IMembershipPointsWhatsAppSe
                         CreatedBy = userId,
                         DiscountReason = hDiscAmt > 0 ? request.DiscountReason?.Trim() : (memTotal > 0 ? memBenefit!.Reason : null),
                         DiscountApprovedBy = hDiscAmt > 0 ? request.DiscountApprovedBy : null,
+                        ReasonDesc = hDiscAmt > 0 ? ReasonDescOf(request) : null,
                         MembershipDiscountAmount = memTotal,
                         MembershipTestDiscount = memTests,
                         MembershipCardId = memTotal > 0 ? memBenefit!.CardId : (int?)null

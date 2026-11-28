@@ -1,0 +1,10 @@
+/* Bill pages (LAB B2C / B2B: LabOrderBooking/PrintBill, OPD: OPD/PrintBill) - "Fit to screen" view, js/print-fit.js.
+   Screen only: printing, and the PDFs sent by WhatsApp / e-mail, keep the paper size. */
+@media screen {
+    html.pf-on body { background:#d1d5db; padding:52px 0 24px; }
+    html.pf-on body .page-wrap { zoom:var(--pf-zoom, 1); background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.25); margin:0 auto; }
+    .print-actions .btn-fit { background:#fff; color:#1f2937; border:1px solid #9ca3af; padding:8px 14px; border-radius:5px; cursor:pointer;
+                              font-size:13px; font-weight:bold; }
+    .print-actions .btn-fit:hover { background:#f3f4f6; }
+}
+@media print { .print-actions .btn-fit { display:none !important; } }

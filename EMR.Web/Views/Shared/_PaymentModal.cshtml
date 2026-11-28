@@ -93,6 +93,7 @@
 #paymentModal .pm-approval { border:1px dashed #f59e0b; background:#fffbeb; border-radius:10px; padding:10px 12px; }
 #paymentModal .pm-reason-chip { font-size:.7rem; padding:1px 8px; border-radius:999px; }
 #paymentModal .pm-reason-chip.active { background:#0f766e; border-color:#0f766e; color:#fff; }
+#paymentModal .pm-chips-invalid { outline:1px dashed #dc3545; outline-offset:3px; border-radius:8px; }
 #paymentModal .pm-badge-nd { font-size:.62rem; font-weight:600; padding:1px 6px; border-radius:999px; background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0; }
 @@media (max-width: 991.98px) {
     #paymentModal .pm-left { border-right:0; border-bottom:1px solid var(--pm-line); }
@@ -113,6 +114,24 @@
      data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true" aria-labelledby="pmTitle">
     <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable" style="max-width:1040px">
         <div class="modal-content border-0 shadow-lg overflow-hidden">
+
+            <!-- B2C LAB, discount reason "Referred by doctor": deducted from the referral doctor? (SQLScripts/2569) -->
+            <div id="pmRefDedPopup" class="pm-dept-popup d-none" role="dialog" aria-modal="true" aria-labelledby="pmRefDedTitle">
+                <div class="pm-dept-panel" style="max-width:420px;margin-top:80px">
+                    <div class="fw-bold mb-1" id="pmRefDedTitle"><i class="bi bi-person-badge me-1 text-primary"></i>Referred by doctor</div>
+                    <div class="small text-muted mb-3">Referral doctor: <strong class="text-dark" id="pmRefDedDoctor"></strong></div>
+                    <label class="pm-lbl" for="pmRefDedSel">Discount Deducted from Ref Doctor <span class="text-danger">*</span></label>
+                    <select id="pmRefDedSel" class="form-select form-select-sm">
+                        <option value="">-- Select --</option>
+                        <option value="1">Yes</option>
+                        <option value="0">No</option>
+                    </select>
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="pmRefDedCancel">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-primary" id="pmRefDedOk"><i class="bi bi-check2 me-1"></i>OK</button>
+                    </div>
+                </div>
+            </div>
 
             <!-- Department-wise discount popup (B2C LAB) -->
             <div id="pmDeptPopup" class="pm-dept-popup d-none" role="dialog" aria-modal="true" aria-labelledby="pmDeptTitle">
@@ -238,6 +257,8 @@
                                     </div>
                                     <label class="pm-lbl" for="pmDiscReason">Reason <span class="text-danger">*</span></label>
                                     <div class="d-flex flex-wrap gap-1 mb-1" id="pmReasonChips"></div>
+                                    <div class="small mb-1 d-none" id="pmRefDedInfo"></div>
+                                    <label class="pm-lbl mt-1 d-none" id="pmDiscReasonDescLbl" for="pmDiscReason">Details <span class="text-muted fw-normal">(optional)</span></label>
                                     <textarea id="pmDiscReason" class="form-control form-control-sm" rows="2" maxlength="250" placeholder="Why is this discount given?"></textarea>
                                     <label class="pm-lbl mt-2" for="pmDiscApprover">Approved by <span class="text-danger">*</span></label>
                                     <select id="pmDiscApprover" class="form-select form-select-sm"><option value="">-- Select the approving person --</option></select>
@@ -386,6 +407,43 @@ document.addEventListener('DOMContentLoaded', function () {
     var _approversFor = null;
     const DISCOUNT_REASONS = ['Senior citizen', 'Staff / staff family', 'Referred by doctor', 'Health camp',
                               'Regular patient', 'Financial hardship', 'Management approval'];
+    // B2C LAB booking only (SQLScripts/2569): the tag chosen is the reason (PaymentHeader.DiscountReason), the box below
+    // is optional detail (ReasonDesc); "Referred by doctor" needs a Referral Doctor and asks if it is deducted from him/her.
+    // Every other screen keeps the old behaviour: a tag only fills the reason box.
+    const REF_REASON = 'Referred by doctor';
+    var _refDoctorId = null, _refDoctorName = '';   // the booking's referral doctor (pmOpenPreSave)
+    var _reasonTag = null;                          // tag chosen (B2C LAB)
+    var _refDeducted = null;                        // true / false once answered, null = not asked
+    function tagReasonMode() { return _isPreSave && _moduleCode === 'LAB' && _isB2CHint === true; }
+    function renderRefDedInfo() {
+        const el = document.getElementById('pmRefDedInfo'); if (!el) return;
+        if (!tagReasonMode() || _reasonTag !== REF_REASON || _refDeducted === null) { el.classList.add('d-none'); el.innerHTML = ''; return; }
+        el.innerHTML = `<i class="bi bi-person-badge me-1 text-primary"></i>${esc(_refDoctorName || 'Referral doctor')}: discount deducted from doctor `
+            + `<strong>${_refDeducted ? 'Yes' : 'No'}</strong> &middot; <a href="#" id="pmRefDedChange">Change</a>`;
+        el.classList.remove('d-none');
+    }
+    function openRefDedPopup() {
+        document.getElementById('pmRefDedDoctor').textContent = _refDoctorName || '—';
+        const sel = document.getElementById('pmRefDedSel');
+        sel.value = _refDeducted === null ? '' : (_refDeducted ? '1' : '0');
+        sel.classList.remove('is-invalid');
+        document.getElementById('pmRefDedPopup').classList.remove('d-none');
+        setTimeout(() => sel.focus(), 30);
+    }
+    function closeRefDedPopup(ok) {
+        const pop = document.getElementById('pmRefDedPopup');
+        if (ok) {
+            const sel = document.getElementById('pmRefDedSel');
+            if (sel.value === '') { sel.classList.add('is-invalid'); sel.focus(); return; }
+            _refDeducted = sel.value === '1';
+        } else if (_refDeducted === null) {
+            // cancelled without an answer: the tag is not kept
+            _reasonTag = null;
+            document.querySelectorAll('#pmReasonChips .pm-reason-chip').forEach(x => x.classList.remove('active'));
+        }
+        pop.classList.add('d-none');
+        renderRefDedInfo();
+    }
 
     async function loadApprovers() {
         // per module: a LAB bill lists only Administrator / Manager users
@@ -410,10 +468,17 @@ document.addEventListener('DOMContentLoaded', function () {
         _approvalBoxReady = true;
         const prevReason = _discApproval?.reason ?? _summary?.existingDiscountReason ?? '';
         const prevBy = _discApproval?.approvedBy ?? _summary?.existingDiscountApprovedBy ?? '';
-        document.getElementById('pmReasonChips').innerHTML = DISCOUNT_REASONS.map(r =>
-            `<button type="button" class="btn btn-sm btn-outline-secondary pm-reason-chip">${esc(r)}</button>`).join('');
+        const tagMode = tagReasonMode();
+        // B2C LAB: "Referred by doctor" only when the bill has a Referral Doctor
+        const reasons = tagMode && !_refDoctorId ? DISCOUNT_REASONS.filter(r => r !== REF_REASON) : DISCOUNT_REASONS;
+        document.getElementById('pmReasonChips').innerHTML = reasons.map(r =>
+            `<button type="button" class="btn btn-sm btn-outline-secondary pm-reason-chip${tagMode && r === _reasonTag ? ' active' : ''}">${esc(r)}</button>`).join('');
         const ta = document.getElementById('pmDiscReason');
-        if (!ta.value) ta.value = prevReason || '';
+        document.getElementById('pmDiscReasonDescLbl')?.classList.toggle('d-none', !tagMode);
+        ta.placeholder = tagMode ? 'Any detail about this discount (optional)' : 'Why is this discount given?';
+        ta.maxLength = tagMode ? 500 : 250;
+        if (!tagMode && !ta.value) ta.value = prevReason || '';
+        renderRefDedInfo();
         const approvers = await loadApprovers();
         const sel = document.getElementById('pmDiscApprover');
         // two users with the same name: the username tells them apart (the notification goes to the one chosen)
@@ -448,6 +513,20 @@ document.addEventListener('DOMContentLoaded', function () {
         await prepareApprovalBox();
         const ta = document.getElementById('pmDiscReason');
         const sel = document.getElementById('pmDiscApprover');
+        if (tagReasonMode()) {
+            // B2C LAB: the tag is the reason, the box is optional detail
+            const chips = document.getElementById('pmReasonChips');
+            if (!_reasonTag) { chips.classList.add('pm-chips-invalid'); showError('Choose the reason for the discount (one of the tags).'); chips.querySelector('.pm-reason-chip')?.focus(); return null; }
+            if (_reasonTag === REF_REASON && _refDeducted === null) { showError('Choose whether the discount is deducted from the referral doctor.'); openRefDedPopup(); return null; }
+            sel.classList.toggle('is-invalid', !sel.value);
+            if (!sel.value) { showError('Select who approved the discount.'); sel.focus(); return null; }
+            _discApproval = {
+                amount: discAmt, reason: _reasonTag, reasonDesc: (ta.value || '').trim() || null,
+                discDeductedFromDoctor: _reasonTag === REF_REASON ? _refDeducted : null,
+                approvedBy: parseInt(sel.value), approvedByName: sel.options[sel.selectedIndex].text.replace(/ \(.*\)$/, '').replace(/ · .*$/, '')
+            };
+            return _discApproval;
+        }
         const reason = (ta.value || '').trim();
         ta.classList.toggle('is-invalid', reason.length < 3);
         sel.classList.toggle('is-invalid', !sel.value);
@@ -512,9 +591,24 @@ document.addEventListener('DOMContentLoaded', function () {
     // Reason chips fill the reason box
     document.getElementById('pmReasonChips')?.addEventListener('click', function (e) {
         const b = e.target.closest('.pm-reason-chip'); if (!b) return;
+        if (tagReasonMode()) {
+            // B2C LAB: the tag is kept as it is; the box stays the user's own detail
+            _reasonTag = b.textContent;
+            this.classList.remove('pm-chips-invalid'); hideError();
+            this.querySelectorAll('.pm-reason-chip').forEach(x => x.classList.toggle('active', x === b));
+            if (_reasonTag === REF_REASON) openRefDedPopup();
+            else { _refDeducted = null; renderRefDedInfo(); }
+            return;
+        }
         const ta = document.getElementById('pmDiscReason');
         ta.value = b.textContent; ta.classList.remove('is-invalid'); ta.focus(); hideError();
         this.querySelectorAll('.pm-reason-chip').forEach(x => x.classList.toggle('active', x === b));
+    });
+    document.getElementById('pmRefDedOk')?.addEventListener('click', () => closeRefDedPopup(true));
+    document.getElementById('pmRefDedCancel')?.addEventListener('click', () => closeRefDedPopup(false));
+    document.getElementById('pmRefDedSel')?.addEventListener('change', function () { this.classList.remove('is-invalid'); });
+    document.getElementById('pmRefDedInfo')?.addEventListener('click', function (e) {
+        if (e.target.closest('#pmRefDedChange')) { e.preventDefault(); openRefDedPopup(); }
     });
     // fixing a flagged field clears its mark and the message
     document.getElementById('pmDiscApprovalBox')?.addEventListener('input', function (e) { e.target.classList?.remove('is-invalid'); hideError(); });
@@ -539,6 +633,12 @@ document.addEventListener('DOMContentLoaded', function () {
     // Keyboard: Enter collects (not inside a text area / button / select), Esc cancels
     pmModalEl.addEventListener('keydown', function (e) {
         if (document.querySelector('.swal2-container')) return;   // a confirmation is open on top
+        if (!document.getElementById('pmRefDedPopup')?.classList.contains('d-none')) {
+            // the "deducted from Ref Doctor" popup: Enter = OK, Esc = Cancel (never the payment itself)
+            if (e.key === 'Escape') { e.preventDefault(); closeRefDedPopup(false); }
+            else if (e.key === 'Enter') { e.preventDefault(); closeRefDedPopup(true); }
+            return;
+        }
         if (e.key === 'Escape') { e.preventDefault(); cancelPayment(); return; }
         if (e.key === 'Enter') {
             const t = e.target;
@@ -625,6 +725,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 headerDiscountAmount: discAmt,
                 departmentDiscounts:  currentDeptDiscounts(),
                 discountReason:       approval.reason,
+                reasonDesc:           approval.reasonDesc,               // B2C LAB only (undefined elsewhere)
+                discDeductedFromDoctor: approval.discDeductedFromDoctor, // B2C LAB, "Referred by doctor" only
                 discountApprovedBy:   approval.approvedBy,
                 netAmount:            net,
                 payments:             [],
@@ -1674,6 +1776,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 headerDiscountAmount: discAmt,
                 departmentDiscounts:  currentDeptDiscounts(),
                 discountReason:       approval.reason,
+                reasonDesc:           approval.reasonDesc,               // B2C LAB only (undefined elsewhere)
+                discDeductedFromDoctor: approval.discDeductedFromDoctor, // B2C LAB, "Referred by doctor" only
                 discountApprovedBy:   approval.approvedBy,
                 roundOffAmount:       roundOff,
                 netAmount:            roundedNet,
@@ -1831,6 +1935,10 @@ document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('input[name="pmDiscType"]').forEach(function (r) { r.checked = r.value === 'P'; });
         // fresh approval box for this bill
         _approvalBoxReady = false;
+        _reasonTag = null; _refDeducted = null;
+        document.getElementById('pmRefDedPopup')?.classList.add('d-none');
+        document.getElementById('pmRefDedInfo')?.classList.add('d-none');
+        document.getElementById('pmReasonChips')?.classList.remove('pm-chips-invalid');
         const ta = document.getElementById('pmDiscReason'); if (ta) { ta.value = ''; ta.classList.remove('is-invalid'); }
         const ap = document.getElementById('pmDiscApprover'); if (ap) ap.classList.remove('is-invalid');
         document.getElementById('pmDiscApprovalBox')?.classList.add('d-none');
@@ -1851,6 +1959,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.pmOpenFor = function (svcId, onSuccessCb, moduleCode) {
         _isPreSave = false;
         _isB2CHint = false;   // an existing bill: the server says whether it is B2C
+        _refDoctorId = null; _refDoctorName = '';
         _summary = null; _methods = []; _rowIdx = 0; _discApproval = null;
         _moduleRefId = svcId;
         if (moduleCode) {
@@ -1883,6 +1992,8 @@ document.addEventListener('DOMContentLoaded', function () {
         };
         _moduleCode = config.moduleCode || 'LAB';
         _isB2CHint  = config.isB2C === true;
+        _refDoctorId   = parseInt(config.referralDoctorId) || null;   // "Referred by doctor" needs one (B2C LAB)
+        _refDoctorName = config.referralDoctorName || '';
         _onSave     = config.onSave;
         _onSkip     = config.onSkip || config.onSave;
         _onCancel   = config.onCancel;

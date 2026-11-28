@@ -119,6 +119,16 @@ namespace EMR.Api.Controllers
             return Ok(new { schemeName = await labOrderService.SetOrderSchemeAsync(id, request?.BeneficiaryId) });
         }
 
+        /// <summary>B2C bill, discount reason "Referred by doctor": is it deducted from the referral doctor (SQLScripts/2569)?
+        /// value null clears it. 409 when the bill is B2B or has no referral doctor.</summary>
+        [HttpPost("{id}/disc-deducted-from-doctor")]
+        public async Task<IActionResult> SetDiscDeductedFromDoctor(int id, [FromBody] LabOrderDiscDeductedRequest request)
+        {
+            if (id <= 0) return BadRequest("Valid LabOrderId is required.");
+            try { return Ok(new { updated = await labOrderService.SetDiscDeductedFromDoctorAsync(id, request?.Value) }); }
+            catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 56620) { return Conflict(ex.Message); }
+        }
+
         /// <summary>Order lists: consent needed / already on file, for the given bills (SQLScripts/2553).</summary>
         [HttpGet("consent-status")]
         public async Task<IActionResult> GetConsentStatus([FromQuery] string ids, [FromQuery] int? branchId = null)

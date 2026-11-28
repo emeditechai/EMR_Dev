@@ -305,39 +305,54 @@ namespace EMR.Web.Controllers
             }
 
             // A bill with Numeric tests as well: link to Lab Report Entry, where those are reported.
-            try
+            async Task<bool> HasNumericTestsAsync()
             {
-                var numeric = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), "Numeric");
-                if (numeric?.Items?.Any(i => string.Equals(i.ReportingType?.Trim(), "Numeric", StringComparison.OrdinalIgnoreCase)) == true)
-                    ViewData["RelatedReportLink"] = ("LabReporting", "Lab Report Entry", "This bill also has lab (numeric) tests");
+                try
+                {
+                    var numeric = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), "Numeric");
+                    return numeric?.Items?.Any(i => string.Equals(i.ReportingType?.Trim(), "Numeric", StringComparison.OrdinalIgnoreCase)) == true;
+                }
+                catch (HttpRequestException) { return false; /* the link is a convenience only */ }
             }
-            catch (HttpRequestException) { /* the link is a convenience only */ }
+            async Task<LabReportClientDto?> B2BClientAsync()
+            {
+                try { return (await labReportingApiClient.GetPrintMetaAsync(labOrderId))?.Client; }
+                catch { return null; /* banner-only */ }
+            }
 
-            var statuses = await labReportingApiClient.GetStatusesAsync();
-            var sampleStatuses = await sampleCollectionApiClient.GetStatusesAsync();
-            var rejectionReasons = (await rejectionReasonApiClient.GetListAsync(status: true, companyId: User.GetCompanyId())).ToList();
+            // The page's other data are independent of each other: loaded together (same API calls as before), so the page
+            // waits for the slowest one instead of all of them in a row. The database setting below stays on its own.
+            var companyId = User.GetCompanyId();
+            var numericTask = HasNumericTestsAsync();
+            var statusesTask = labReportingApiClient.GetStatusesAsync();
+            var sampleStatusesTask = sampleCollectionApiClient.GetStatusesAsync();
+            var rejectionReasonsTask = rejectionReasonApiClient.GetListAsync(status: true, companyId: companyId);
+            var b2bClientTask = B2BClientAsync();
+            var formulaTask = LabReportingController.LoadFormulaTargetsAsync(labFormulaApiClient, companyId, labOrderId, detail);
+            var picklistTask = LoadPicklistOptionsAsync(detail.Items);
+            var descriptiveTask = LoadDescriptiveDefaultsAsync(detail);
+            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
+            var labSerialTask = HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Micro, CurrentBranchId());
+            await Task.WhenAll(numericTask, statusesTask, sampleStatusesTask, rejectionReasonsTask, b2bClientTask, formulaTask, picklistTask, descriptiveTask, labSerialTask);
 
-            LabReportClientDto? b2bClient = null;
-            try { b2bClient = (await labReportingApiClient.GetPrintMetaAsync(labOrderId))?.Client; }
-            catch { /* banner-only */ }
-
-            ViewData["FormulaTargets"] = await LabReportingController.LoadFormulaTargetsAsync(labFormulaApiClient, User.GetCompanyId(), labOrderId, detail);
+            if (numericTask.Result)
+                ViewData["RelatedReportLink"] = ("LabReporting", "Lab Report Entry", "This bill also has lab (numeric) tests");
+            ViewData["FormulaTargets"] = formulaTask.Result;
 
             var viewModel = new LabReportingEntryPageViewModel
             {
                 Screen = LabReportingScreen.Microbiology,
                 PathologistApprovalRequired = await PathologistApprovalRequiredAsync(),
-                B2BClient = b2bClient,
+                B2BClient = b2bClientTask.Result,
                 Detail = detail,
-                Statuses = statuses,
-                SampleCollectionStatuses = sampleStatuses,
-                RejectionReasons = rejectionReasons,
-                PicklistOptions = await LoadPicklistOptionsAsync(detail.Items),
-                DescriptiveDefaults = await LoadDescriptiveDefaultsAsync(detail)
+                Statuses = statusesTask.Result,
+                SampleCollectionStatuses = sampleStatusesTask.Result,
+                RejectionReasons = rejectionReasonsTask.Result.ToList(),
+                PicklistOptions = picklistTask.Result,
+                DescriptiveDefaults = descriptiveTask.Result
             };
 
-            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
-            var labSerial = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Micro, CurrentBranchId());
+            var labSerial = labSerialTask.Result;
             ViewBag.LabSerialRequired = labSerial.Required;
             ViewBag.LabSerialNo = labSerial.LabSerialNo;
             return View("~/Views/LabReporting/Entry.cshtml", viewModel);

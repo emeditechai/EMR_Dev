@@ -293,5 +293,12 @@ namespace EMR.Api.Services
                 new { LabOrderId = labOrderId, BeneficiaryId = string.IsNullOrWhiteSpace(beneficiaryId) ? null : beneficiaryId.Trim() },
                 commandType: CommandType.StoredProcedure);
         }
+
+        public async Task<int> SetDiscDeductedFromDoctorAsync(int labOrderId, bool? value)
+        {
+            using var connection = db.CreateConnection();
+            return await connection.QueryFirstOrDefaultAsync<int>("dbo.usp_Api_LabOrder_SetDiscDeductedFromDoctor",
+                new { LabOrderId = labOrderId, Value = value }, commandType: CommandType.StoredProcedure);
+        }
     }
 }

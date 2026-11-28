@@ -372,6 +372,7 @@
         }
     </style>
     <link rel="stylesheet" href="~/css/fonts.css" />
+    <link rel="stylesheet" href="~/css/print-fit.css" asp-append-version="true" />   @* Fit to screen / Actual size (screen only) *@
 </head>
 @* no auto print when headless Chrome renders the bill to PDF for WhatsApp / e-mail: Chrome 158+ writes no PDF when the page opens its print dialog *@
 <body onload="@(Context.Request.Headers.UserAgent.ToString().Contains("HeadlessChrome") ? null : "window.print()")">
@@ -694,5 +695,6 @@
 </div>
 }
 
+<script src="~/js/print-fit.js" asp-append-version="true"></script>
 </body>
 </html>

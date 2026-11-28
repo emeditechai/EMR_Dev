@@ -93,6 +93,10 @@ public class SavePaymentRequest
     /// <summary>Required whenever a discount is given or changed: the reason, and the user who approved it.</summary>
     public string? DiscountReason { get; set; }
     public int? DiscountApprovedBy { get; set; }
+    /// <summary>B2C LAB (SQLScripts/2569): DiscountReason is the tag chosen; what the user wrote goes here.</summary>
+    public string? ReasonDesc { get; set; }
+    /// <summary>B2C LAB, reason "Referred by doctor": deducted from the referral doctor (saved on LabOrder, SQLScripts/2569).</summary>
+    public bool? DiscDeductedFromDoctor { get; set; }
 
     public decimal RoundOffAmount { get; set; }
     public decimal NetAmount { get; set; }

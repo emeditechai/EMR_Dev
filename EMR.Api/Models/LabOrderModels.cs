@@ -277,6 +277,12 @@ namespace EMR.Api.Models
         public string? SchemeName { get; set; }
     }
 
+    /// <summary>SQLScripts/2569: discount deducted from the referral doctor (null = not a doctor-referral discount).</summary>
+    public class LabOrderDiscDeductedRequest
+    {
+        public bool? Value { get; set; }
+    }
+
     public class LabOrderSchemeRequest
     {
         public string? BeneficiaryId { get; set; }

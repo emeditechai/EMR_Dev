@@ -184,6 +184,19 @@ namespace EMR.Web.ApiClients
             response.EnsureSuccessStatusCode();
         }
 
+        public async Task<string?> SetDiscDeductedFromDoctorAsync(int labOrderId, bool? value)
+        {
+            var response = await httpClient.PostAsJsonAsync($"api/LabOrders/{labOrderId}/disc-deducted-from-doctor", new { Value = value });
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                // the API answers the refusal as a JSON string: show the text, not the quotes
+                var text = await response.Content.ReadAsStringAsync();
+                try { return System.Text.Json.JsonSerializer.Deserialize<string>(text) ?? text; } catch { return text.Trim('"'); }
+            }
+            response.EnsureSuccessStatusCode();
+            return null;
+        }
+
         public async Task<bool> CreateSampleCollectionAsync(int labOrderId, int branchId, int companyId, int? userId = null)
         {
             try

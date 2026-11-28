@@ -67,7 +67,29 @@ public sealed class EmrApiTokenHandler(
         return new Staff(userId, string.Join("|", claims.Select(c => c.Value)), claims);
     }
 
+    /// <summary>One request may call EMR.Api in parallel (Task.WhenAll, e.g. Lab Report Entry): the session that caches the
+    /// token is not thread-safe, so its reads / writes (and a token exchange) are taken one at a time per request.</summary>
+    private const string SessionGateItem = "EmrApi.SessionGate";
+
+    private static SemaphoreSlim SessionGate(HttpContext http)
+    {
+        lock (http.Items)
+        {
+            if (http.Items[SessionGateItem] is not SemaphoreSlim gate)
+                http.Items[SessionGateItem] = gate = new SemaphoreSlim(1, 1);
+            return gate;
+        }
+    }
+
     private async Task<string> UserTokenAsync(HttpContext http, Staff staff, bool renew, CancellationToken ct)
+    {
+        var gate = SessionGate(http);
+        await gate.WaitAsync(ct);
+        try { return await UserTokenCoreAsync(http, staff, renew, ct); }
+        finally { gate.Release(); }
+    }
+
+    private async Task<string> UserTokenCoreAsync(HttpContext http, Staff staff, bool renew, CancellationToken ct)
     {
         ISession? session = null;
         try

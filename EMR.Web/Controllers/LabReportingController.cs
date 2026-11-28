@@ -61,25 +61,21 @@ namespace EMR.Web.Controllers
             var scope = await GetLabDepartmentScopeAsync();
             if (departmentId.HasValue && !scope.Allows(departmentId)) departmentId = null;
 
-            var headerResult = await labReportingApiClient.GetHeaderListAsync(
-                branchId, effectiveFrom, effectiveTo, dateFilterType, statusFilter, search, departmentId, categoryId, subCategoryId, scope.Csv);
-            // Save Draft is no longer part of the flow (entry starts at Submit): the "Draft" bucket now means
-            // "some tests further along than others on this bill", shown as In Progress as on Image Reporting.
-            LabImageReportingController.RelabelDraftAsInProgress(headerResult);
-
-            var statuses = await labReportingApiClient.GetStatusesAsync();
+            // The orders and the card counts are loaded by the page itself (GetHeadersJson) right after it opens, so the
+            // list is not read here as well (it was read twice per visit). Filter lists load together.
+            var categoriesTask = GetScopedCategoriesAsync(departmentId, scope);
+            var subCategoriesTask = labOrderApiClient.GetSubCategoriesAsync(categoryId);
+            await Task.WhenAll(categoriesTask, subCategoriesTask);
 
             var departmentOptions = scope.Departments
                 .Select(x => new SelectListItem { Value = x.Value, Text = x.Text })
                 .ToList();
 
-            var categories = await GetScopedCategoriesAsync(departmentId, scope);
-            var categoryOptions = categories
+            var categoryOptions = categoriesTask.Result
                 .Select(x => new SelectListItem { Value = x.CategoryId.ToString(), Text = x.CategoryName })
                 .ToList();
 
-            var subCategories = await labOrderApiClient.GetSubCategoriesAsync(categoryId);
-            var subCategoryOptions = subCategories
+            var subCategoryOptions = subCategoriesTask.Result
                 .Select(x => new SelectListItem { Value = x.SubCategoryId.ToString(), Text = x.SubCategoryName })
                 .ToList();
 
@@ -97,9 +93,6 @@ namespace EMR.Web.Controllers
                 DepartmentOptions = departmentOptions,
                 CategoryOptions = categoryOptions,
                 SubCategoryOptions = subCategoryOptions,
-                Stats = headerResult.Stats,
-                Headers = headerResult.Headers,
-                Statuses = statuses,
                 DepartmentScopeRestricted = scope.Restricted,
                 DepartmentScopeNames = scope.Departments.Select(d => d.Text).ToList()
             };
@@ -301,48 +294,59 @@ namespace EMR.Web.Controllers
 
             // Microbiology (Reporting Type Template) tests of the bill are reported on Microbiology Report Entry:
             // a bill with only those opens there (links from Un-Authorize, reports ...), a mixed bill links to it.
-            var hasTemplateTests = false;
-            try
+            async Task<bool> HasTemplateTestsAsync()
             {
-                var template = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), LabReportTypes.Template);
-                hasTemplateTests = template?.Items is { Count: > 0 };
+                try
+                {
+                    var template = await labReportingApiClient.GetDetailAsync(labOrderId, CurrentBranchId(), LabReportTypes.Template);
+                    return template?.Items is { Count: > 0 };
+                }
+                catch (HttpRequestException) { return false; /* the link is a convenience only */ }
             }
-            catch (HttpRequestException) { /* the link is a convenience only */ }
 
             if (detail.Items.Count == 0)
             {
-                if (hasTemplateTests)
+                if (await HasTemplateTestsAsync())
                     return this.RedirectToActionEncrypted("Entry", "MicrobiologyReporting", new { labOrderId });
                 TempData["ErrorMessage"] = "This order does not contain any eligible Numeric report tests.";
                 return RedirectToAction(nameof(Index));
             }
-            if (hasTemplateTests)
-                ViewData["RelatedReportLink"] = ("MicrobiologyReporting", "Microbiology Report Entry", "This bill also has microbiology tests");
 
-            var statuses = await labReportingApiClient.GetStatusesAsync();
-            var sampleStatuses = await sampleCollectionApiClient.GetStatusesAsync();
+            // The page's other data are independent of each other: loaded together (same API calls as before), so the page
+            // waits for the slowest one instead of all of them in a row. The database settings below stay one at a time.
             var companyId = User.GetCompanyId();
-            var rejectionReasons = (await rejectionReasonApiClient.GetListAsync(status: true, companyId: companyId)).ToList();
-
+            var branchForSerial = CurrentBranchId();
+            var templateTask = HasTemplateTestsAsync();
+            var statusesTask = labReportingApiClient.GetStatusesAsync();
+            var sampleStatusesTask = sampleCollectionApiClient.GetStatusesAsync();
+            var rejectionReasonsTask = rejectionReasonApiClient.GetListAsync(status: true, companyId: companyId);
             // B2B partner (Franchise / Company) for the banner; display-only, so a failure must never block the page.
-            LabReportClientDto? b2bClient = null;
-            try { b2bClient = (await labReportingApiClient.GetPrintMetaAsync(labOrderId))?.Client; }
-            catch { /* banner-only */ }
+            async Task<LabReportClientDto?> B2BClientAsync()
+            {
+                try { return (await labReportingApiClient.GetPrintMetaAsync(labOrderId))?.Client; }
+                catch { return null; /* banner-only */ }
+            }
+            var b2bClientTask = B2BClientAsync();
+            var formulaTask = GetFormulaTargetsAsync(labOrderId, detail);
+            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
+            var labSerialTask = HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Lab, branchForSerial);
+            await Task.WhenAll(templateTask, statusesTask, sampleStatusesTask, rejectionReasonsTask, b2bClientTask, formulaTask, labSerialTask);
 
-            ViewData["FormulaTargets"] = await GetFormulaTargetsAsync(labOrderId, detail);
+            if (templateTask.Result)
+                ViewData["RelatedReportLink"] = ("MicrobiologyReporting", "Microbiology Report Entry", "This bill also has microbiology tests");
+            ViewData["FormulaTargets"] = formulaTask.Result;
 
             var viewModel = new LabReportingEntryPageViewModel
             {
                 PathologistApprovalRequired = await PathologistApprovalRequiredAsync(),
-                B2BClient = b2bClient,
+                B2BClient = b2bClientTask.Result,
                 Detail = detail,
-                Statuses = statuses,
-                SampleCollectionStatuses = sampleStatuses,
-                RejectionReasons = rejectionReasons
+                Statuses = statusesTask.Result,
+                SampleCollectionStatuses = sampleStatusesTask.Result,
+                RejectionReasons = rejectionReasonsTask.Result.ToList()
             };
 
-            // SQLScripts/2514: Lab Serial No (one per lab order on this page) while the branch requires it
-            var labSerial = await HttpContext.RequestServices.GetRequiredService<LabSerialNoApiClient>().GetAsync(labOrderId, LabSerialNoApiClient.Lab, CurrentBranchId());
+            var labSerial = labSerialTask.Result;
             ViewBag.LabSerialRequired = labSerial.Required;
             ViewBag.LabSerialNo = labSerial.LabSerialNo;
             return View(viewModel);

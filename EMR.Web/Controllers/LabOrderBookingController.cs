@@ -1292,6 +1292,15 @@ namespace EMR.Web.Controllers
                 if (PaymentService.HasDiscount(discountCheck)
                     && !await permissionGuard.AllowsAsync(HttpContext, "LAB.LABORDERBOOKING.B2CBOOKING", EMR.Shared.Security.PermissionControls.Discount))
                     return Json(new { success = false, error = PaymentService.DiscountNotPermittedMessage });
+                // reason "Referred by doctor" (SQLScripts/2569): only with a Referral Doctor, and Yes / No for deducting it from the doctor
+                if (PaymentService.HasDiscount(discountCheck)
+                    && string.Equals(discountCheck!.DiscountReason?.Trim(), PaymentService.ReferredByDoctorReason, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (model.ReferralDoctorId is not > 0)
+                        return Json(new { success = false, error = "The discount reason \"Referred by doctor\" needs a Referral Doctor on this bill. Choose the referral doctor, or pick another reason." });
+                    if (discountCheck.DiscDeductedFromDoctor is null)
+                        return Json(new { success = false, error = "Choose whether the discount is deducted from the referral doctor (Yes / No)." });
+                }
                 // membership points: a wrong / expired OTP is refused before the order is created
                 var otpError = await paymentService.VerifyRedeemOtpAsync(discountCheck);
                 if (otpError != null)
@@ -1631,6 +1640,18 @@ namespace EMR.Web.Controllers
                         }
                     }
 
+                    // discount "Referred by doctor": deducted from the referral doctor? (SQLScripts/2569) - recorded before the
+                    // money so a refusal stops here; a retry of this booking resets an answer given the first time
+                    bool? deductedFromDoctor = PaymentService.HasDiscount(paymentReq)
+                        && string.Equals(paymentReq.DiscountReason?.Trim(), PaymentService.ReferredByDoctorReason, StringComparison.OrdinalIgnoreCase)
+                        ? paymentReq.DiscDeductedFromDoctor : null;
+                    if (deductedFromDoctor != null || reuse != null)
+                    {
+                        var dedError = await labOrderApiClient.SetDiscDeductedFromDoctorAsync(labOrderRes.LabOrderId, deductedFromDoctor);
+                        if (dedError != null)
+                            return Json(new { success = false, error = dedError, billNo = labOrderRes.BillNo, labOrderId = labOrderRes.LabOrderId });
+                    }
+
                     paymentResult = await paymentService.SavePaymentAsync(paymentReq, User.GetUserId());
                     if (paymentResult != null && !paymentResult.Success)
                     {
@@ -1824,6 +1845,7 @@ namespace EMR.Web.Controllers
             {
                 success = true,
                 labOrderId = labOrderRes.LabOrderId,
+                printBillUrl = Url.ActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId = labOrderRes.LabOrderId }),
                 billNo = labOrderRes.BillNo,
                 bookingNo = labOrderRes.BookingNo,   // 2384
                 tokenNo = paymentResult?.TokenNo,
@@ -1878,6 +1900,7 @@ namespace EMR.Web.Controllers
                 success = true,
                 alreadySaved = true,
                 labOrderId,
+                printBillUrl = Url.ActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId }),
                 billNo = claim.BillNo,
                 tokenNo = claim.TokenNo,
                 patientCode = patient?.PatientCode ?? model.PatientCode,

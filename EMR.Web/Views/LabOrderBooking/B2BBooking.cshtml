@@ -1181,7 +1181,7 @@
                 $('#lblSuccessPaymentMode').text('Mode: ' + pMode);
                 var labOrderId = '@TempData["NewLabOrderId"]';
                 if (labOrderId) {
-                    var printUrl = '@Url.Action("PrintBill", "LabOrderBooking")' + '?labOrderId=' + labOrderId;
+                    var printUrl = '@(int.TryParse(TempData["NewLabOrderId"]?.ToString(), out var newLabId) ? Url.ActionEncrypted("PrintBill", "LabOrderBooking", new { labOrderId = newLabId }) : "")';
                     $('#btnPrintBill').attr('href', printUrl);
                 }
                 $('#bookingSuccessModal').modal('show');

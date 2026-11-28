@@ -1894,6 +1894,9 @@
                 window.pmOpenPreSave({
                     moduleCode: 'LAB',
                     isB2C: true,   // department-wise discount is offered on B2C bills
+                    // discount reason "Referred by doctor" only with a Referral Doctor (SQLScripts/2569)
+                    referralDoctorId: $('#ddlReferralDoctor').val() || null,
+                    referralDoctorName: $('#ddlReferralDoctor').val() ? $('#ddlReferralDoctor option:selected').text().trim() : '',
                     patientName: fullName,
                     patientCode: pCode,
                     patientPhone: phone,
@@ -1992,7 +1995,7 @@
                     }
 
                     // Store labOrderId for print button
-                    var printUrl = '@Url.Action("PrintBill", "LabOrderBooking")' + '?labOrderId=' + result.labOrderId;
+                    var printUrl = result.printBillUrl;   // encrypted ?q= link made by the server
                     $('#btnPrintBill').attr('href', printUrl);
                     // 2554: FORM F link (encrypted, from the server) only for a female consent test
                     if (result.formFUrl) $('#btnPrintFormF').removeClass('d-none').attr('href', result.formFUrl);
