@@ -43,6 +43,7 @@ builder.Services.AddScoped<IDoctorRosterNotificationService, DoctorRosterNotific
 builder.Services.AddScoped<IDueAlertNotificationService, DueAlertNotificationService>();          // Due Alert - OPD / LAB B2C dues (SQLScripts/2531)
 builder.Services.AddHostedService<NotificationScheduleWorker>();                                      // Notification Setup: every daily alert at its send time, all areas (SQLScripts/2531)
 builder.Services.AddScoped<IPasswordResetService, PasswordResetService>();
+builder.Services.AddScoped<ISuperAdminOtpService, SuperAdminOtpService>();   // Super Admin sign-in code on WhatsApp + e-mail (SQLScripts/2579)
 builder.Services.AddScoped<EMR.Web.Services.Reports.ILabTestWorkloadService, EMR.Web.Services.Reports.LabTestWorkloadService>();
 // Utility > Campaigns (SQLScripts/2299): EMR.Api api/campaigns, and the background sender (also started at once on "Send now")
 builder.Services.AddScoped<EMR.Web.ApiClients.ICampaignApiClient, EMR.Web.ApiClients.CampaignApiClient>();

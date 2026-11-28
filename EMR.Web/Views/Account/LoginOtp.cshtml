@@ -1,0 +1,85 @@
+@{
+    Layout = "_AuthLayout";
+    ViewData["Title"] = "Sign-in Code";
+    var sentTo = ViewData["SentTo"] as string;
+}
+
+<div class="auth-card auth-login">
+    <div class="row g-0 h-100">
+        <partial name="_AuthBrandPanel" />
+
+        <div class="col-12 col-lg-6 auth-right">
+            <div class="auth-right-inner">
+                <partial name="_AuthMobileBrand" />
+
+                <div class="ar-step-ico"><i class="bi bi-shield-lock"></i></div>
+                <div class="auth-welcome">
+                    <h2 class="auth-right-title">Enter your sign-in code</h2>
+                    <p class="auth-right-sub">
+                        Super Admin sign-in needs a second step. We sent a 6-digit code
+                        @if (!string.IsNullOrEmpty(sentTo)) { <text>on <strong>@sentTo</strong></text> }.
+                    </p>
+                </div>
+
+                @if (TempData["OtpResent"] is bool)
+                {
+                    <div class="alert alert-success ar-alert">A new code has been sent. The earlier code no longer works.</div>
+                }
+
+                <form asp-action="LoginOtp" method="post" novalidate id="otpForm">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger ar-alert ar-summary"></div>
+
+                    <div class="ar-field">
+                        <label for="code" class="ar-label">Sign-in code</label>
+                        <div class="ar-control">
+                            <i class="bi bi-123 ar-lead-ico"></i>
+                            <input id="code" name="code" class="form-control ar-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                                   autocomplete="one-time-code" placeholder="6-digit code" required autofocus style="letter-spacing:.35em;" />
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn auth-signin-btn w-100 mt-2" id="submitBtn">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Verify and Sign In
+                    </button>
+                </form>
+
+                <form asp-action="LoginOtpResend" method="post" class="text-center mt-3">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-link ar-link-strong p-0" id="resendBtn" disabled>Send a new code</button>
+                    <span class="text-muted small" id="resendWait"></span>
+                </form>
+
+                <div class="ar-back">
+                    <a asp-action="Login" class="ar-link-strong"><i class="bi bi-arrow-left me-1"></i>Back to sign in</a>
+                </div>
+
+                <div class="ar-secure">
+                    <i class="bi bi-shield-lock-fill"></i>
+                    <span>The code works once and expires in 5 minutes</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_AuthFormScripts" />
+    <script>
+        (function () {
+            const code = document.getElementById('code');
+            code.addEventListener('input', () => {
+                code.value = code.value.replace(/\D/g, '').slice(0, 6);
+                if (code.value.length === 6) document.getElementById('otpForm').requestSubmit();
+            });
+            // "Send a new code" after 30 seconds
+            const btn = document.getElementById('resendBtn'), wait = document.getElementById('resendWait');
+            let left = 30;
+            const tick = () => {
+                if (left <= 0) { btn.disabled = false; wait.textContent = ''; return; }
+                wait.textContent = `(in ${left}s)`; left--; setTimeout(tick, 1000);
+            };
+            tick();
+        })();
+    </script>
+}

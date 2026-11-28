@@ -8,6 +8,7 @@ using EMR.Shared.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -183,16 +184,151 @@ public class AccountController(
             }
         }
 
-        await SignInUserAsync(user, null, isSuperAdmin, model.RememberMe);
+        // SQLScripts/2579: a Super Admin also types a one-time code sent on WhatsApp and by e-mail before the session starts
+        if (isSuperAdmin)
+        {
+            var otp = HttpContext.RequestServices.GetRequiredService<ISuperAdminOtpService>();
+            var sent = await otp.SendAsync(user, HttpContext.Connection.RemoteIpAddress?.ToString());
+            if (sent.Error is not null)
+            {
+                ModelState.AddModelError(string.Empty, sent.Error);
+                return View(model);
+            }
+            WriteOtpPending(new OtpPending(user.Id, sent.OtpId, model.RememberMe, sent.SentTo ?? ""));
+            await auditLogService.LogAsync("AuthSuccess", "Login", "Super Admin password verified; awaiting the sign-in code.", user.Id);
+            return RedirectToAction(nameof(LoginOtp));
+        }
+
+        return await StartSessionAsync(user, activeBranches, isSuperAdmin, model.RememberMe);
+    }
+
+    /// <summary>Password (and for a Super Admin the sign-in code) accepted: start the session and choose the branch.</summary>
+    private async Task<IActionResult> StartSessionAsync(User user, List<BranchMaster> activeBranches, bool isSuperAdmin, bool rememberMe)
+    {
+        await SignInUserAsync(user, null, isSuperAdmin, rememberMe);
 
         if (activeBranches.Count == 1)
         {
-            return await CompleteBranchSelection(user.Id, activeBranches[0].BranchId, model.RememberMe);
+            return await CompleteBranchSelection(user.Id, activeBranches[0].BranchId, rememberMe);
         }
 
         await auditLogService.LogAsync("AuthSuccess", "Login", "Credentials verified; awaiting branch selection.", user.Id);
 
         return RedirectToAction(nameof(SelectBranch));
+    }
+
+    // ---- Super Admin sign-in code (SQLScripts/2579) ---------------------------------------------------------------------
+    // Between the password and the code the browser holds only a short-lived, encrypted cookie naming the account and the
+    // code sent; nothing is signed in until the code is right.
+
+    private const string OtpCookie = ".EMR.SaOtp";
+    private sealed record OtpPending(int UserId, int OtpId, bool RememberMe, string SentTo);
+
+    private ITimeLimitedDataProtector OtpProtector() =>
+        HttpContext.RequestServices.GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector("EMR.Web.SuperAdminLoginOtp.v1").ToTimeLimitedDataProtector();
+
+    private void WriteOtpPending(OtpPending p)
+    {
+        var protectedValue = OtpProtector().Protect(System.Text.Json.JsonSerializer.Serialize(p),
+            TimeSpan.FromMinutes(SuperAdminOtpService.CodeMinutes + 5));
+        Response.Cookies.Append(OtpCookie, protectedValue, new CookieOptions
+        {
+            HttpOnly = true, Secure = Request.IsHttps, SameSite = SameSiteMode.Strict, IsEssential = true,
+            Path = "/Account", MaxAge = TimeSpan.FromMinutes(SuperAdminOtpService.CodeMinutes + 5)
+        });
+    }
+
+    private OtpPending? ReadOtpPending()
+    {
+        if (Request.Cookies[OtpCookie] is not { Length: > 0 } raw) return null;
+        try { return System.Text.Json.JsonSerializer.Deserialize<OtpPending>(OtpProtector().Unprotect(raw)); }
+        catch { return null; }
+    }
+
+    private void ClearOtpPending() => Response.Cookies.Delete(OtpCookie, new CookieOptions { Path = "/Account" });
+
+    [HttpGet]
+    [AllowAnonymous]
+    public IActionResult LoginOtp()
+    {
+        if (User.Identity?.IsAuthenticated == true) return RedirectToAction("Index", "Dashboard");
+        if (ReadOtpPending() is not { } p) return RedirectToAction(nameof(Login));
+        ViewData["SentTo"] = p.SentTo;
+        return View();
+    }
+
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(SignInRateLimit)]
+    public async Task<IActionResult> LoginOtp(string? code, [FromServices] ISuperAdminOtpService otp)
+    {
+        if (ReadOtpPending() is not { } p)
+        {
+            TempData["AuthMessage"] = "Your sign-in code has expired. Sign in again.";
+            return RedirectToAction(nameof(Login));
+        }
+        ViewData["SentTo"] = p.SentTo;
+
+        var check = await otp.VerifyAsync(p.OtpId, p.UserId, code ?? "");
+        if (check != OtpCheck.Ok)
+        {
+            await auditLogService.LogAsync("AuthFailure", "LoginOtp", $"Wrong / expired Super Admin sign-in code ({check}).", p.UserId);
+            if (check == OtpCheck.Wrong)
+            {
+                ModelState.AddModelError(string.Empty, "That code is not right. Check the latest WhatsApp / e-mail and try again.");
+                return View();
+            }
+            ClearOtpPending();
+            TempData["AuthMessage"] = check == OtpCheck.TooManyTries
+                ? "Too many wrong codes. Sign in again to get a new code."
+                : "Your sign-in code has expired. Sign in again to get a new code.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        ClearOtpPending();
+        // the account may have changed while the code was being typed
+        var user = await dbContext.Users
+            .Include(x => x.UserBranches.Where(b => b.IsActive)).ThenInclude(x => x.Branch)
+            .FirstOrDefaultAsync(x => x.Id == p.UserId);
+        if (user is null || !user.IsActive || user.IsLockedOut || !IsSuperAdminUser(user))
+        {
+            TempData["AuthMessage"] = "This account can no longer sign in. Contact your system administrator.";
+            return RedirectToAction(nameof(Login));
+        }
+        var activeBranches = user.UserBranches.Where(x => x.Branch.IsActive).Select(x => x.Branch).DistinctBy(x => x.BranchId).ToList();
+        if (activeBranches.Count == 0)
+        {
+            TempData["AuthMessage"] = "No active branch mapping found for this user.";
+            return RedirectToAction(nameof(Login));
+        }
+
+        await auditLogService.LogAsync("AuthSuccess", "LoginOtp", "Super Admin sign-in code accepted.", user.Id);
+        return await StartSessionAsync(user, activeBranches, true, p.RememberMe);
+    }
+
+    /// <summary>"Send a new code" on the code page.</summary>
+    [HttpPost]
+    [AllowAnonymous]
+    [ValidateAntiForgeryToken]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(PasswordResetRateLimit)]
+    public async Task<IActionResult> LoginOtpResend([FromServices] ISuperAdminOtpService otp)
+    {
+        if (ReadOtpPending() is not { } p) return RedirectToAction(nameof(Login));
+        var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Id == p.UserId);
+        if (user is null || !user.IsActive || user.IsLockedOut || !IsSuperAdminUser(user)) { ClearOtpPending(); return RedirectToAction(nameof(Login)); }
+
+        var sent = await otp.SendAsync(user, HttpContext.Connection.RemoteIpAddress?.ToString());
+        if (sent.Error is not null)
+        {
+            ViewData["SentTo"] = p.SentTo;
+            ModelState.AddModelError(string.Empty, sent.Error);
+            return View(nameof(LoginOtp));
+        }
+        WriteOtpPending(p with { OtpId = sent.OtpId, SentTo = sent.SentTo ?? "" });
+        TempData["OtpResent"] = true;
+        return RedirectToAction(nameof(LoginOtp));
     }
 
     [HttpGet]
