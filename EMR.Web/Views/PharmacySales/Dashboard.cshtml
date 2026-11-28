@@ -1,0 +1,270 @@
+@using EMR.Web.Extensions
+@using EMR.Web.Services
+@using System.Text.Json
+@model PhSalesDashboard
+@{
+    // Pharmacy > Sales > Sales Dashboard (PHARMACY.SALESDASHBOARD, SQLScripts/2568): POS / Direct / IPD sales of a period.
+    // Styles: css/pharmacy-sales-dashboard.css · charts and row clicks: js/pharmacy/sales-dashboard.js
+    ViewData["Title"] = "Pharmacy Sales Dashboard";
+    var d = Model;
+    var inr = System.Globalization.CultureInfo.GetCultureInfo("en-IN");
+    string N(decimal v) => "₹ " + v.ToString("N0", inr);
+    string N2(decimal v) => "₹ " + v.ToString("N2", inr);
+    string Css(string ch) => ch switch { "DIRECT" => "c-direct", "IPD" => "c-ipd", _ => "c-pos" };
+    string ChName(string ch) => ch switch { "DIRECT" => "Direct", "IPD" => "IPD", _ => "POS" };
+    string Delta(decimal? v) => v is null ? "" : $"<span class=\"{(v >= 0 ? "up" : "down")}\"><i class=\"bi {(v >= 0 ? "bi-arrow-up-right" : "bi-arrow-down-right")}\"></i> {Math.Abs(v.Value):0}%</span>";
+    // every link keeps the period and goes through the encrypted query string (CLAUDE.md)
+    string Link(string? channel = null, int page = 1, string? range = null) => Url.ActionEncrypted("Index", "PhSalesDashboard", new
+    {
+        range = range ?? d.Range, from = (range ?? d.Range) == "custom" ? d.From.ToString("yyyy-MM-dd") : null,
+        to = (range ?? d.Range) == "custom" ? d.To.ToString("yyyy-MM-dd") : null, channel, search = d.Search, page, pageSize = d.PageSize
+    })!;
+    string DocUrl(PhSalesDoc x) => x.Channel == "IPD"
+        ? Url.ActionEncrypted("Patient", "IpdAdmission", new { id = x.RefId, tab = "indent" })!
+        : Url.ActionEncrypted("Bill", "PhSales", new { id = x.DocId })!;
+    var totalNet = d.TotalNet;
+    decimal? totalDelta = d.TotalPrevNet == 0 ? null : (totalNet - d.TotalPrevNet) * 100 / Math.Abs(d.TotalPrevNet);
+    var marginPct = totalNet == 0 ? 0 : d.TotalMargin * 100 / totalNet;
+    var period = d.From == d.To ? d.From.ToString("dd MMM yyyy") : $"{d.From:dd MMM yyyy} – {d.To:dd MMM yyyy}";
+    var ranges = new (string Key, string Text)[] { ("today", "Today"), ("yesterday", "Yesterday"), ("7d", "Last 7 days"), ("30d", "Last 30 days"), ("month", "This month"), ("lastmonth", "Last month") };
+    var topMax = d.TopItems.Count == 0 ? 1 : Math.Max(1, d.TopItems.Max(t => t.Value));
+    var modeTotal = d.Modes.Sum(m => m.Pos + m.Direct);
+    var chartData = JsonSerializer.Serialize(new
+    {
+        days = d.Days.Select(x => new { d = x.Day.ToString("dd MMM"), pos = x.Pos, direct = x.Direct, ipd = x.Ipd }),
+        modes = d.Modes.Select(x => new { m = x.Mode, a = x.Pos + x.Direct })
+    });
+}
+<link rel="stylesheet" href="~/css/pharmacy-sales-dashboard.css" asp-append-version="true" />
+
+<div class="psd">
+    @* ── hero: title and the period ── *@
+    <div class="hero mb-3">
+        <div class="d-flex flex-wrap align-items-end gap-3 position-relative" style="z-index:1">
+            <div class="me-auto">
+                <div class="sub">Pharmacy · Sales</div>
+                <h1><i class="bi bi-bar-chart-line me-2"></i>Sales Dashboard</h1>
+                <div class="sub">@period · POS, Direct and IPD sales</div>
+            </div>
+            <form method="get" asp-action="Index" class="d-flex flex-wrap gap-2 align-items-end">
+                <select name="range" id="psdRange" class="form-select form-select-sm" style="width:auto" aria-label="Period">
+                    @foreach (var (key, text) in ranges)
+                    {
+                        <option value="@key" selected="@(d.Range == key)">@text</option>
+                    }
+                    <option value="custom" selected="@(d.Range == "custom")">Custom dates</option>
+                </select>
+                <input type="date" name="from" value="@d.From.ToString("yyyy-MM-dd")" class="form-control form-control-sm psd-custom" style="width:auto" aria-label="From" />
+                <input type="date" name="to" value="@d.To.ToString("yyyy-MM-dd")" class="form-control form-control-sm psd-custom" style="width:auto" aria-label="To" />
+                @if (!string.IsNullOrEmpty(d.Channel)) { <input type="hidden" name="channel" value="@d.Channel" /> }
+                <button type="submit" class="btn btn-light btn-sm fw-semibold psd-custom"><i class="bi bi-funnel me-1"></i>Show</button>
+            </form>
+        </div>
+        <div class="ranges mt-3 position-relative" style="z-index:1">
+            @foreach (var (key, text) in ranges)
+            {
+                <a href="@Link(d.Channel, 1, key)" class="@(d.Range == key ? "on" : "")">@text</a>
+            }
+            <a asp-controller="PhSales" asp-action="Pos" asp-permission="PHARMACY.POS:VIEW" class="ms-auto"><i class="bi bi-cart-plus me-1"></i>New sale</a>
+        </div>
+    </div>
+
+    @if (ViewBag.Error is string err)
+    {
+        <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>@err</div>
+    }
+
+    @* ── total and the three channels ── *@
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-3">
+            <div class="card-x total">
+                <div class="l">Net sales</div>
+                <div class="v">@N(totalNet)</div>
+                <div class="small">@Html.Raw(Delta(totalDelta)) @(totalDelta is null ? "" : "vs the previous " + ((d.To - d.From).Days + 1) + " day(s)")</div>
+                <div class="share" title="Share of POS / Direct / IPD">
+                    @foreach (var c in new[] { "POS", "DIRECT", "IPD" })
+                    {
+                        var pct = totalNet <= 0 ? 0 : Math.Max(0, d.Of(c).Net) * 100 / totalNet;
+                        <span class="@Css(c)" style="width:@pct.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)%;background:var(--c)" title="@ChName(c) @pct.ToString("0")%"></span>
+                    }
+                </div>
+                <div class="mini">
+                    <span>Bills <b>@d.TotalBills</b></span>
+                    <span>Returns <b>@N(d.TotalReturns)</b></span>
+                    <span>Margin <b>@N(d.TotalMargin)</b> (@marginPct.ToString("0.0")%)</span>
+                    <span>Due <b class="@(d.TotalDue > 0 ? "text-danger" : "")">@N(d.TotalDue)</b></span>
+                </div>
+            </div>
+        </div>
+        @foreach (var c in new[] { "POS", "DIRECT", "IPD" })
+        {
+            var ch = d.Of(c);
+            <div class="col-12 col-md-4 col-xl-3">
+                <a href="@Link(d.Channel == c ? null : c)" class="card-x ch @Css(c) @(d.Channel == c ? "on" : "")" title="@(d.Channel == c ? "Show all channels" : "Show only " + ChName(c) + " in the list")">
+                    <div class="d-flex align-items-start gap-2">
+                        <div class="me-auto">
+                            <div class="l">@ch.Label</div>
+                            <div class="v">@N(ch.Net)</div>
+                            <div class="small">@Html.Raw(Delta(ch.Delta))</div>
+                        </div>
+                        <div class="ic"><i class="bi @(c == "IPD" ? "bi-hospital" : c == "DIRECT" ? "bi-person-vcard" : "bi-shop")"></i></div>
+                    </div>
+                    <dl>
+                        <dt>@(c == "IPD" ? "Issues" : "Bills")</dt><dd>@ch.Bills</dd>
+                        <dt>@(c == "IPD" ? "Patients" : "Buyers")</dt><dd>@ch.Buyers</dd>
+                        <dt>Avg @(c == "IPD" ? "issue" : "bill")</dt><dd>@N(ch.AvgBill)</dd>
+                        <dt>Returns</dt><dd>@N(ch.Returns)</dd>
+                        <dt>Margin</dt><dd>@N(ch.Margin) <span class="text-muted fw-normal">(@ch.MarginPct.ToString("0")%)</span></dd>
+                        @if (c != "IPD")
+                        {
+                            <dt>Discount</dt><dd>@N(ch.Discount)</dd>
+                            <dt>Due</dt><dd class="@(ch.Due > 0 ? "text-danger" : "")">@N(ch.Due)</dd>
+                        }
+                        else
+                        {
+                            <dt>Billed to</dt><dd class="fw-normal text-muted">IP bill</dd>
+                        }
+                    </dl>
+                </a>
+            </div>
+        }
+    </div>
+
+    @* ── trend and payment modes ── *@
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-8">
+            <div class="card-x">
+                <div class="hd"><i class="bi bi-bar-chart"></i>Net sales per day<span class="ms-auto small">@period</span></div>
+                <div class="bd" style="height:280px">
+                    @if (d.Days.Any(x => x.Pos + x.Direct + x.Ipd != 0)) { <canvas id="psdTrend" aria-label="Net sales per day by channel"></canvas> }
+                    else { <div class="empty">No sales in this period.</div> }
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-4">
+            <div class="card-x">
+                <div class="hd"><i class="bi bi-pie-chart"></i>Money received by mode<span class="ms-auto small">@N(modeTotal)</span></div>
+                <div class="bd">
+                    @if (d.Modes.Count == 0) { <div class="empty">No money received in this period.</div> }
+                    else
+                    {
+                        <div style="height:170px"><canvas id="psdModes" aria-label="Money received by payment mode"></canvas></div>
+                        @foreach (var m in d.Modes)
+                        {
+                            <div class="rowline"><span class="me-auto">@m.Mode</span><span class="text-muted small">POS @N(m.Pos) · Direct @N(m.Direct)</span><b class="num ms-2">@N(m.Pos + m.Direct)</b></div>
+                        }
+                        <div class="small text-muted mt-1">IPD issues are paid on the IP bill.</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── top items ── *@
+    <div class="card-x mb-3">
+        <div class="hd"><i class="bi bi-trophy"></i>Top 10 items by net value<span class="ms-auto small"><span class="chan c-pos">POS</span> <span class="chan c-direct">Direct</span> <span class="chan c-ipd">IPD</span></span></div>
+        <div class="bd">
+            @if (d.TopItems.Count == 0) { <div class="empty">Nothing sold in this period.</div> }
+            <div class="row g-x-4">
+                @foreach (var t in d.TopItems)
+                {
+                    <div class="col-12 col-lg-6">
+                        <div class="rowline">
+                            <span class="me-auto text-truncate" title="@t.ItemName">@t.ItemName</span>
+                            <span class="text-muted small num">@t.Qty.ToString("0.##") qty</span>
+                            <b class="num" style="min-width:90px;text-align:right">@N(t.Value)</b>
+                        </div>
+                        <div class="meter mb-1" title="POS @N(t.Pos) · Direct @N(t.Direct) · IPD @N(t.Ipd)">
+                            <span class="c-pos" style="width:@((t.Pos * 100 / topMax).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%;background:var(--c)"></span>
+                            <span class="c-direct" style="width:@((t.Direct * 100 / topMax).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%;background:var(--c)"></span>
+                            <span class="c-ipd" style="width:@((t.Ipd * 100 / topMax).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture))%;background:var(--c)"></span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* ── documents ── *@
+    <div class="card-x">
+        <div class="hd flex-wrap"><i class="bi bi-receipt"></i>Bills and IPD issues
+            <div class="tabs ms-3">
+                <a href="@Link(null)" class="@(d.Channel is null ? "on" : "")">All</a>
+                @foreach (var c in new[] { "POS", "DIRECT", "IPD" })
+                {
+                    <a href="@Link(c)" class="@(d.Channel == c ? "on" : "")">@ChName(c)</a>
+                }
+            </div>
+            <form method="get" asp-action="Index" class="ms-auto d-flex gap-2">
+                <input type="hidden" name="range" value="@d.Range" />
+                <input type="hidden" name="from" value="@d.From.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="to" value="@d.To.ToString("yyyy-MM-dd")" />
+                @if (!string.IsNullOrEmpty(d.Channel)) { <input type="hidden" name="channel" value="@d.Channel" /> }
+                <input type="search" name="search" value="@d.Search" class="form-control form-control-sm" placeholder="Bill no., patient, mobile, doctor…" style="min-width:230px" aria-label="Search" />
+                <select name="pageSize" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()" aria-label="Rows per page">
+                    @foreach (var ps in new[] { 10, 25, 50, 100 }) { <option value="@ps" selected="@(d.PageSize == ps)">@ps</option> }
+                </select>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 docs">
+                <thead>
+                    <tr><th>Channel</th><th>Bill / issue</th><th>Date</th><th>Patient / buyer</th><th>Doctor</th><th class="text-end">Items</th>
+                        <th class="text-end">Amount</th><th class="text-end">Returned</th><th class="text-end">Net</th><th class="text-end">Paid</th><th class="text-end">Due</th><th>Status</th><th>By</th></tr>
+                </thead>
+                <tbody>
+                    @if (d.Docs.Count == 0)
+                    {
+                        <tr><td colspan="13" class="empty">No bill or issue@(string.IsNullOrEmpty(d.Search) ? "" : " matches \"" + d.Search + "\"") in this period.</td></tr>
+                    }
+                    @foreach (var x in d.Docs)
+                    {
+                        <tr data-href="@DocUrl(x)" class="@(x.Status == "CANCELLED" ? "cancelled" : "")">
+                            <td><span class="chan @Css(x.Channel)">@ChName(x.Channel)</span></td>
+                            <td class="fw-semibold num">@x.DocNo</td>
+                            <td class="num">@x.DocAt.ToString("dd MMM yy HH:mm")</td>
+                            <td>@x.Party @if (!string.IsNullOrEmpty(x.PartyRef)) { <div class="small text-muted">@x.PartyRef@(string.IsNullOrEmpty(x.Mobile) ? "" : " · " + x.Mobile)</div> } else if (!string.IsNullOrEmpty(x.Mobile)) { <div class="small text-muted">@x.Mobile</div> }</td>
+                            <td class="small">@x.Doctor</td>
+                            <td class="text-end num">@x.Items</td>
+                            <td class="text-end num">@N2(x.Amount)</td>
+                            <td class="text-end num">@(x.Returned == 0 ? "—" : N2(x.Returned))</td>
+                            <td class="text-end num fw-semibold">@N2(x.Net)</td>
+                            <td class="text-end num">@(x.Channel == "IPD" ? "—" : N2(x.Paid))</td>
+                            <td class="text-end num @(x.Due > 0 ? "text-danger" : "")">@(x.Channel == "IPD" ? "—" : N2(x.Due))</td>
+                            <td><span class="st @x.Status">@x.Status.Replace("_", " ").ToLowerInvariant()</span></td>
+                            <td class="small text-muted">@x.CreatedBy</td>
+                        </tr>
+                    }
+                </tbody>
+                @if (d.Totals.TotalRows > 0)
+                {
+                    <tfoot>
+                        <tr><td colspan="6">@d.Totals.TotalRows document(s)@(d.Totals.Cancelled > 0 ? $" · {d.Totals.Cancelled} cancelled" : "")</td>
+                            <td class="text-end num">@N2(d.Totals.Amount)</td><td class="text-end num">@N2(d.Totals.Returned)</td><td class="text-end num">@N2(d.Totals.Net)</td>
+                            <td class="text-end num">@N2(d.Totals.Paid)</td><td class="text-end num">@N2(d.Totals.Due)</td><td colspan="2"></td></tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+        @if (d.Pages > 1)
+        {
+            <nav class="pager d-flex justify-content-between align-items-center px-3 py-2 border-top" aria-label="Pages">
+                <span class="small text-muted">Page @d.Page of @d.Pages</span>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(d.Page <= 1 ? "disabled" : "")"><a class="page-link" href="@Link(d.Channel, d.Page - 1)"><i class="bi bi-chevron-left"></i></a></li>
+                    @for (var pg = Math.Max(1, d.Page - 2); pg <= Math.Min(d.Pages, d.Page + 2); pg++)
+                    {
+                        <li class="page-item @(pg == d.Page ? "active" : "")"><a class="page-link" href="@Link(d.Channel, pg)">@pg</a></li>
+                    }
+                    <li class="page-item @(d.Page >= d.Pages ? "disabled" : "")"><a class="page-link" href="@Link(d.Channel, d.Page + 1)"><i class="bi bi-chevron-right"></i></a></li>
+                </ul>
+            </nav>
+        }
+    </div>
+</div>
+
+<script type="application/json" id="psdData">@Html.Raw(chartData)</script>
+@section Scripts {
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script src="~/js/pharmacy/sales-dashboard.js" asp-append-version="true"></script>
+}

@@ -59,7 +59,7 @@
         {
             <div id="renewKeyPanel">
                 <label class="lic-label" for="licKey">Licence key</label>
-                <input class="form-control font-monospace" id="licKey" maxlength="36" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" autocomplete="off" />
+                <input class="form-control font-monospace" id="licKey" maxlength="100" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" autocomplete="off" />
                 <div class="form-text">From the welcome e-mail sent when the licence was registered.</div>
                 <button type="button" class="btn lic-btn w-100 mt-3" id="btnRenewSend"><i class="bi bi-arrow-left-right me-1"></i>Re-new licence for this server</button>
             </div>
@@ -90,8 +90,9 @@
         .then(r => r.status === 429 ? { success: false, message: 'Too many OTP requests from this network. Wait 15 minutes and try again.' } : r.json());
     const showOtp = on => { document.getElementById('renewKeyPanel').classList.toggle('d-none', on); document.getElementById('renewOtpPanel').classList.toggle('d-none', !on); if (on) document.getElementById('otp').focus(); };
     send.addEventListener('click', async function () {
-        const key = document.getElementById('licKey').value.trim();
-        if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(key)) { msg('Enter the licence key exactly as in the welcome e-mail.', 'warning'); return; }
+        // the server matches the key exactly and the vendor OTP approves the move, so only the characters are checked here
+        const key = document.getElementById('licKey').value.replace(/[\u2013\u2014\u2212]/g, '-').replace(/\s+/g, '').toUpperCase();
+        if (!/^[A-Z0-9-]{8,100}$/.test(key)) { msg('Enter the licence key exactly as in the welcome e-mail (letters, digits and hyphens).', 'warning'); return; }
         this.disabled = true;
         try { const r = await post('@Url.Action("StartRenewalOtp")', { licenseKey: key }); msg(r.message, r.success ? 'success' : 'danger'); if (r.success) showOtp(true); }
         catch { msg('The server could not be reached. Try again.', 'danger'); }

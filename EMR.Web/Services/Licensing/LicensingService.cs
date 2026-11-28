@@ -463,8 +463,11 @@ public sealed class LicensingService(
         if (!_o.Enabled) return (false, "Licensing is not enabled on this server.");
         var gate = await EvaluateAccessAsync(http, force: true);
         if (gate.Status != LicenseGateStatus.HardwareMismatch) return (false, "Renewal is only needed when the server hardware has changed.");
-        var keyText = (licenseKey ?? string.Empty).Trim().ToUpperInvariant();
-        if (!Guid.TryParse(keyText, out _)) return (false, "Enter the licence key from the welcome e-mail (format XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX).");
+        // The key is matched exactly in ClientAppLicense and the move still needs the vendor OTP, so only its characters are
+        // checked here: keys entered by hand at the licence server are not always GUIDs (e.g. ...1AA5B5C11A4H).
+        var keyText = NormalizeLicenseKey(licenseKey);
+        if (!System.Text.RegularExpressions.Regex.IsMatch(keyText, "^[A-Z0-9-]{8,100}$"))
+            return (false, "Enter the licence key exactly as in the welcome e-mail (letters, digits and hyphens).");
         if (OtpSendRefusal(http) is { } tooMany) return (false, tooMany);
 
         var fp = fingerprints.Current;
@@ -496,6 +499,11 @@ public sealed class LicensingService(
             return (false, "The licence server could not be reached. Check the connection and try again.");
         }
     }
+
+    /// <summary>Licence key as typed or pasted from the e-mail: no spaces, en/em dashes as hyphens, upper case.</summary>
+    internal static string NormalizeLicenseKey(string? key) =>
+        new string((key ?? string.Empty).Replace('\u2013', '-').Replace('\u2014', '-').Replace('\u2212', '-')
+            .Where(c => !char.IsWhiteSpace(c)).ToArray()).ToUpperInvariant();
 
     public async Task<(bool Ok, string Message)> VerifyRenewalOtpAsync(HttpContext http, string otp)
     {
