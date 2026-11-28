@@ -245,13 +245,14 @@ public class LabReportPdfDocument : IDocument
     {
         container.Column(col =>
         {
-            // Department > Category banner
-            col.Item().PaddingTop(6).PaddingBottom(1).Text(t =>
+            // Department > Category banner: drawn with the first group (never alone on a page), or alone when there is no group
+            void Banner(IContainer c) => c.PaddingTop(6).PaddingBottom(1).Text(t =>
             {
                 t.Span(section.DepartmentName.ToUpperInvariant()).Bold().FontSize(8).FontColor(Navy).LetterSpacing(0.06f);
                 t.Span("  ›  ").FontSize(8).FontColor("#94a3b8");
                 t.Span(section.CategoryName.ToUpperInvariant()).Bold().FontSize(8).FontColor(Navy).LetterSpacing(0.06f);
             });
+            if (section.Groups.Count == 0) col.Item().Element(Banner);
 
             // SQLScripts/2391: when the report ends with an external document, its last page also carries the sign-off
             // (End Of Report), so no page is left holding only that line
@@ -260,11 +261,22 @@ public class LabReportPdfDocument : IDocument
 
             foreach (var group in section.Groups)
             {
-                // Small groups are kept together on one page; long ones (e.g. a big CBC profile) may flow across pages.
-                if (group.Rows.Count <= 14)
-                    col.Item().ShowEntire().Element(c => ComposeGroup(c, group));
+                // the last group of the report carries the sign-off with its last rows, so "End Of Report" never stands on a
+                // page of its own (a blank-looking last page) when the page before is full
+                var carriesSignOff = isLast && !endsWithDocument && ReferenceEquals(group, lastGroup) && group.ExternalDocuments.Count == 0;
+                var first = ReferenceEquals(group, section.Groups[0]);
+                void Body(IContainer c) => c.Column(g =>
+                {
+                    if (first) g.Item().Element(Banner);
+                    g.Item().Element(x => ComposeGroup(x, group, carriesSignOff));
+                });
+                // Small groups are kept together on one page; long ones (e.g. a big CBC profile) may flow across pages. The group
+                // carrying the sign-off flows too (its last rows are already kept with the sign-off), so a group with long notes is
+                // never pushed whole to the next page, leaving the page before blank.
+                if (group.Rows.Count <= 14 && !carriesSignOff)
+                    col.Item().ShowEntire().Element(Body);
                 else
-                    col.Item().Element(c => ComposeGroup(c, group));
+                    col.Item().Element(Body);
 
                 // SQLScripts/2391: the external documents of this group's approved tests, right below it - each page on a
                 // page of its own, under this report's header / footer
@@ -272,7 +284,7 @@ public class LabReportPdfDocument : IDocument
                     ComposeExternalDocument(col, ext, endsWithDocument && ReferenceEquals(ext, lastGroup!.ExternalDocuments[^1]) ? ComposeSignOff : null);
             }
 
-            if (isLast && !endsWithDocument)
+            if (isLast && !endsWithDocument && (lastGroup is null || lastGroup.ExternalDocuments.Count > 0))
                 col.Item().PaddingTop(10).Element(ComposeSignOff);
         });
     }
@@ -313,7 +325,12 @@ public class LabReportPdfDocument : IDocument
         }
     }
 
-    private void ComposeGroup(IContainer container, LabReportGroup group)
+    /// <summary>How many last rows of the report's last group are kept on the page of the sign-off.</summary>
+    private const int SignOffRows = 3;
+    /// <summary>Interpretation notes longer than this flow on their own; shorter ones stay with the sign-off.</summary>
+    private const int SignOffMaxNotes = 12;
+
+    private void ComposeGroup(IContainer container, LabReportGroup group, bool withSignOff = false)
     {
         container.Column(col =>
         {
@@ -333,30 +350,57 @@ public class LabReportPdfDocument : IDocument
                 });
             }
 
-            col.Item().BorderTop(Line).BorderLeft(Line).BorderColor(Ink).Table(table =>
-            {
-                Columns(table);
-                foreach (var row in group.Rows)
-                    AddRow(table, row);
-            });
+            // the report's last group: its last rows (and its notes, when short) are kept with the sign-off on one page, so
+            // "End Of Report" never stands alone on a new page; very long notes flow first and the sign-off follows them
+            var keepNotes = !withSignOff || group.Notes.Count <= SignOffMaxNotes;
+            var tail = withSignOff && keepNotes ? Math.Min(SignOffRows, group.Rows.Count) : 0;
+            var head = group.Rows.Count - tail;
 
-            if (group.Notes.Count > 0)
+            if (head > 0)
+                col.Item().BorderTop(Line).BorderLeft(Line).BorderColor(Ink).Table(table =>
+                {
+                    Columns(table);
+                    for (var i = 0; i < head; i++)
+                        AddRow(table, group.Rows[i]);
+                });
+
+            if (!withSignOff)
             {
-                col.Item().BorderLeft(Line).BorderRight(Line).BorderBottom(Line).BorderColor(Ink)
-                    .PaddingHorizontal(6).PaddingVertical(4).Column(n =>
-                    {
-                        n.Item().Text("Interpretation:").Bold().FontSize(8.5f);
-                        foreach (var note in group.Notes)
-                        {
-                            n.Item().PaddingTop(1).Row(r =>
-                            {
-                                r.ConstantItem(9).Text("•");
-                                r.RelativeItem().Text(note).FontSize(8.5f);
-                            });
-                        }
-                    });
+                if (group.Notes.Count > 0) col.Item().Element(c => ComposeNotes(c, group));
+                return;
             }
+            if (!keepNotes) col.Item().Element(c => ComposeNotes(c, group));
+
+            col.Item().ShowEntire().Column(t =>
+            {
+                if (tail > 0)
+                    t.Item().Element(c => head == 0 ? c.BorderTop(Line).BorderColor(Ink) : c).BorderLeft(Line).BorderColor(Ink).Table(table =>
+                    {
+                        Columns(table);
+                        for (var i = head; i < group.Rows.Count; i++)
+                            AddRow(table, group.Rows[i]);
+                    });
+                if (keepNotes && group.Notes.Count > 0) t.Item().Element(c => ComposeNotes(c, group));
+                t.Item().PaddingTop(10).Element(ComposeSignOff);
+            });
         });
+    }
+
+    private static void ComposeNotes(IContainer container, LabReportGroup group)
+    {
+        container.BorderLeft(Line).BorderRight(Line).BorderBottom(Line).BorderColor(Ink)
+            .PaddingHorizontal(6).PaddingVertical(4).Column(n =>
+            {
+                n.Item().Text("Interpretation:").Bold().FontSize(8.5f);
+                foreach (var note in group.Notes)
+                {
+                    n.Item().PaddingTop(1).Row(r =>
+                    {
+                        r.ConstantItem(9).Text("•");
+                        r.RelativeItem().Text(note).FontSize(8.5f);
+                    });
+                }
+            });
     }
 
     private void AddRow(TableDescriptor table, LabReportRow row)

@@ -606,6 +606,57 @@
                 toastr.info('Row unlocked for editing. Modify value and click Submit to save.');
             });
 
+            // ── A profile is reported complete: every test of a profile in entry gets a value (submit / validate) ──
+            function missingProfileTests() {
+                const missing = [];
+                $('.test-item-row').removeClass('profile-missing').find('.txt-test-val').removeClass('is-invalid');
+                $('.group-header-profile').each(function () {
+                    const gid = (this.id || '').replace('header_', '');
+                    if (!gid) return;
+                    const $rows = $('.test-item-row.group-child-' + gid).filter(function () {
+                        const $i = $(this).find('.txt-test-val').first();
+                        return $i.length && !$i.prop('disabled') && !$i.prop('readonly');
+                    });
+                    if (!$rows.length) return;
+                    // a profile is checked only once its entry is started (a value typed or saved in any of its tests);
+                    // a profile left untouched is not reported now and is not asked for
+                    const $all = $('.test-item-row.group-child-' + gid);
+                    const started = $all.toArray().some(r => {
+                        const $i = $(r).find('.txt-test-val').first();
+                        return (($i.val() || '').toString().trim()) || ((($(r).attr('data-initial-val') || '').trim()) && !$i.prop('disabled'));
+                    });
+                    if (!started) return;
+                    const names = [], $empty = [];
+                    $rows.each(function () {
+                        const $i = $(this).find('.txt-test-val').first();
+                        if (!(($i.val() || '').toString().trim())) {
+                            const name = $(this).find('td .fw-bold').first().text().trim();
+                            names.push(name || $i.attr('aria-label') || $(this).data('test-code') || 'test');
+                            $empty.push(this);
+                        }
+                    });
+                    $empty.forEach(r => { $(r).addClass('profile-missing'); $(r).find('.txt-test-val').first().addClass('is-invalid'); });
+                    if (names.length) {
+                        const pname = $(this).find('[data-target-name]').first().attr('data-target-name') || $(this).find('.fw-bold').first().text().trim() || 'Profile';
+                        missing.push({ profile: pname, tests: names, total: $rows.length });
+                    }
+                });
+                return missing;
+            }
+            function warnMissingProfileTests(missing, action) {
+                const html = missing.map(m => `<div class="text-start mb-2"><b>${$('<div>').text(m.profile).html()}</b> <span class="text-muted">(${m.tests.length} of ${m.total} not entered)</span>`
+                    + `<ul class="mb-0 small">${m.tests.map(t => `<li>${$('<div>').text(t).html()}</li>`).join('')}</ul></div>`).join('');
+                Swal.fire({ title: 'Profile tests without a value', icon: 'warning', width: 640,
+                    html: `<div class="small text-start mb-2">A profile once started is reported complete. Enter the missing values of these profiles before you ${action} (profiles not started are left for later):</div>${html}`,
+                    confirmButtonText: 'Enter the values' }).then(() => {
+                    const $first = $('.test-item-row.profile-missing').first();
+                    if ($first.length) { $first[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); $first.find('.txt-test-val').first().trigger('focus'); }
+                });
+            }
+            $(document).on('input change', '.txt-test-val.is-invalid', function () {
+                if ((($(this).val() || '').toString().trim())) { $(this).removeClass('is-invalid'); $(this).closest('.test-item-row').removeClass('profile-missing'); }
+            });
+
             // ── Action Buttons Click Handlers ────────────────────────────────
             $('.btn-action-save').on('click', function () {
                 let filledCount = 0;
@@ -618,6 +669,8 @@
                     toastr.warning('Please enter at least one test result value before submitting.');
                     return;
                 }
+                const missingP = missingProfileTests();
+                if (missingP.length) { warnMissingProfileTests(missingP, 'submit'); return; }
 
                 saveReporting(2, 'Report Entry');
             });
@@ -641,6 +694,8 @@
                     toastr.warning('No submitted test records found to validate. Please enter and submit test results first.');
                     return;
                 }
+                const missingV = missingProfileTests();
+                if (missingV.length) { warnMissingProfileTests(missingV, 'validate'); return; }
 
                 const isPartial = submittedRecords < totalActive;
                 const confirmTitle = isPartial ? 'Partially Validate Report?' : 'Validate Report?';
