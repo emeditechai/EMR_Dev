@@ -499,5 +499,13 @@
   ],
   "date": "28 Nov 2026",
   "version": "1.42"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "HospitalSettings: new column(s) IpdFinalBillNeedsAdvice, IpdDiscountLimitPercent, IpdPreAuthAlertPercent, IpdReopenHours, IpdAllergyStatusRequired, IpdMarNeedsVerify, IpdMarScanRequired, IpdReadmitDays, IpdDaycareMaxHours"
+  ],
+  "date": "28 Nov 2026",
+  "version": "1.43"
  }
 ]
