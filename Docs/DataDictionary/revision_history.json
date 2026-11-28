@@ -490,5 +490,14 @@
   ],
   "date": "27 Nov 2026",
   "version": "1.41"
+ },
+ {
+  "by": "abhikporel",
+  "changes": [
+   "LabOrder: new column(s) DiscDeductedFromDoctor",
+   "PaymentHeader: new column(s) ReasonDesc"
+  ],
+  "date": "28 Nov 2026",
+  "version": "1.42"
  }
 ]

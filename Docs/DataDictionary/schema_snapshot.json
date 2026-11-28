@@ -30070,6 +30070,19 @@
    "type": "nvarchar"
   },
   {
+   "col": "DiscDeductedFromDoctor",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 1,
+   "nullable": true,
+   "ord": 41,
+   "prec": 1,
+   "scale": 0,
+   "tbl": "LabOrder",
+   "type": "bit"
+  },
+  {
    "col": "LabOrderItemId",
    "def": null,
    "descr": null,
@@ -40741,6 +40754,19 @@
    "scale": 2,
    "tbl": "PaymentHeader",
    "type": "decimal"
+  },
+  {
+   "col": "ReasonDesc",
+   "def": null,
+   "descr": null,
+   "ident": false,
+   "len": 1000,
+   "nullable": true,
+   "ord": 37,
+   "prec": 0,
+   "scale": 0,
+   "tbl": "PaymentHeader",
+   "type": "nvarchar"
   },
   {
    "col": "PaymentLineItemId",
@@ -61726,7 +61752,7 @@
   }
  ],
  "database": "Dev_EMR",
- "extracted_on": "2026-11-27T17:47:34",
+ "extracted_on": "2026-11-28T12:48:16",
  "fk": [
   {
    "col": "LedgerId",
