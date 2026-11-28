@@ -65,6 +65,8 @@ public class WardsController(
 
         if (model.WardCode.Length > 5)
             ModelState.AddModelError(nameof(model.WardCode), "Ward Code cannot exceed 5 characters.");
+        if (model.MinAgeDays is int mn && model.MaxAgeDays is int mx && mn > mx)
+            ModelState.AddModelError(nameof(model.MaxAgeDays), "The maximum age must be at least the minimum age.");
 
         if (await wardService.CodeExistsAsync(model.WardCode, companyId: companyId))
             ModelState.AddModelError(nameof(model.WardCode), "This Ward Code already exists.");
@@ -90,6 +92,8 @@ public class WardsController(
             Gender = model.Gender,
             Capacity = model.Capacity,
             IsIsolationWard = model.IsIsolationWard,
+            MinAgeDays = model.MinAgeDays,
+            MaxAgeDays = model.MaxAgeDays,
             Description = model.Description?.Trim(),
             IsActive = model.IsActive
         }, User.GetUserId());
@@ -121,6 +125,8 @@ public class WardsController(
             Gender = entity.Gender,
             Capacity = entity.Capacity,
             IsIsolationWard = entity.IsIsolationWard,
+            MinAgeDays = entity.MinAgeDays,
+            MaxAgeDays = entity.MaxAgeDays,
             Description = entity.Description,
             IsActive = entity.IsActive,
             FloorOptions = await wardService.GetFloorOptionsAsync(entity.FloorId),
@@ -140,6 +146,8 @@ public class WardsController(
 
         if (model.WardCode.Length > 5)
             ModelState.AddModelError(nameof(model.WardCode), "Ward Code cannot exceed 5 characters.");
+        if (model.MinAgeDays is int mn && model.MaxAgeDays is int mx && mn > mx)
+            ModelState.AddModelError(nameof(model.MaxAgeDays), "The maximum age must be at least the minimum age.");
 
         if (await wardService.CodeExistsAsync(model.WardCode, excludeId: model.WardId, companyId: companyId))
             ModelState.AddModelError(nameof(model.WardCode), "This Ward Code already exists.");
@@ -164,6 +172,8 @@ public class WardsController(
             Gender = model.Gender,
             Capacity = model.Capacity,
             IsIsolationWard = model.IsIsolationWard,
+            MinAgeDays = model.MinAgeDays,
+            MaxAgeDays = model.MaxAgeDays,
             Description = model.Description?.Trim(),
             IsActive = model.IsActive
         }, User.GetUserId());

@@ -138,21 +138,38 @@
             x += card('bi-door-open', 'Gate pass', 'The patient has left; the bed went to housekeeping',
                 `<div class="small"><b class="font-monospace">${E(d.GatePassNo)}</b> on ${Ipd.dt(d.GatePassAt)} by ${E(d.GatePassByName)} · handed over to ${E(d.HandedOverTo) || '—'}${d.HandedOverRelation ? ' (' + E(d.HandedOverRelation) + ')' : ''}
                  ${d.TransportMode ? ' · ' + E(d.TransportMode) : ''}${d.IsCreditDischarge ? ` · <span class="text-danger">credit discharge ${Ipd.money(d.CreditAmount)}: ${E(d.CreditReason)}</span>` : ''}</div>
-                 <a class="btn btn-sm btn-light border mt-2" target="_blank" href="${E(D.prints.gatePass)}"><i class="bi bi-printer me-1"></i>Print gate pass</a>`);
+                 <a class="btn btn-sm btn-light border mt-2" target="_blank" href="${E(D.prints.gatePass)}"><i class="bi bi-printer me-1"></i>Print gate pass</a>
+                 ${C.can.reopen && d.DischargeType !== 'DEATH' ? '<button type="button" class="btn btn-sm btn-outline-danger mt-2 ms-1" data-act="reopen" title="Patient did not leave / discharged by mistake"><i class="bi bi-arrow-counterclockwise me-1"></i>Reopen discharge</button>' : ''}`);
         } else {
             const req = [
                 ['Clearances done', h.ClearancesPending === 0], ['Final bill made', !!h.BillId], ['No OT scheduled or in progress', h.OpenOt === 0],
                 ['Patient share settled' + (bal > 0.5 ? ` (due ${Ipd.money(bal)}${C.can.credit ? ', or credit discharge' : ''})` : bal < -0.5 ? ` (refund ${Ipd.money(-bal)} first)` : ''), settled],
                 ...(needSummary ? [['Summary signed by the consultant', !!signed]] : []),
                 ...(['LAMA', 'DAMA'].includes(d.DischargeType) ? [['LAMA / DAMA form recorded', !!h.LamaId]] : []),
-                ...(isDeath ? [['Death recorded', !!h.DeathId]] : [])
+                ...(isDeath ? [['Death recorded', !!h.DeathId]] : []),
+                // 2575 (A2): bed days that ran after the bill time
+                ...(h.BillId ? [['Bill covers the stay' + (h.StaleBillDays > 0 ? ` (${h.StaleBillDays} bed day(s) after the bill time: cancel and bill again${C.can.staleBill ? ', or give a reason' : ''})` : ''), !(h.StaleBillDays > 0)]] : [])
             ];
-            const ready = req.every(r => r[1]) || (C.can.credit && req.filter(r => !r[1]).length === 1 && bal > 0.5);
+            const missing = req.filter(r => !r[1]).map(r => r[0]);
+            const waivable = t => (C.can.credit && bal > 0.5 && t.startsWith('Patient share settled')) || (C.can.staleBill && t.startsWith('Bill covers the stay'));
+            const ready = missing.every(waivable);
             x += card('bi-door-open', 'Gate pass', 'Closes the admission and releases the bed to housekeeping',
                 `<ul class="dis-req">${req.map(([t, ok]) => `<li class="${ok ? 'ok' : ''}"><i class="bi ${ok ? 'bi-check-circle-fill' : 'bi-circle'}"></i>${t}</li>`).join('')}</ul>
                  ${C.can.gatePass ? `<button type="button" class="btn btn-sm btn-success" data-act="gatePass" ${ready ? '' : 'disabled'}><i class="bi bi-door-open me-1"></i>Issue gate pass</button>` : ''}`);
         }
-        $('disBody').innerHTML = x + followCard(h);
+        $('disBody').innerHTML = x + followCard(h) + (C.gapsBase ? card('bi-clipboard2-check', 'Record completeness', 'Checked when the summary is signed (doctor) and at the nursing clearance (nursing)', '<div id="disGaps" class="small text-muted">Checking…</div>') : '');
+        loadGaps();
+    }
+
+    // 2573 (B8): what is missing in the record of the stay
+    async function loadGaps() {
+        const el = $('disGaps'); if (!el) return;
+        try {
+            const g = await Ipd.get(`${C.gapsBase}RecordGaps?id=${C.id}`);
+            const rows = (g.gaps || []);
+            el.innerHTML = rows.length ? '<ul class="mb-0 ps-3">' + rows.map(r => `<li class="${r.Owner === 'DOCTOR' ? 'text-danger' : 'text-warning-emphasis'}"><b>${r.Owner === 'DOCTOR' ? 'Doctor' : 'Nursing'}:</b> ${E(r.Message)}</li>`).join('') + '</ul>'
+                : '<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>The record of the stay is complete.</span>';
+        } catch (e) { el.textContent = e.message; }
     }
 
     function card(icon, title, sub, body) {
@@ -430,12 +447,14 @@
             ${field('gpTr', 'Transport', sel('gpTr', [['Own vehicle', 'Own vehicle'], ['Hospital ambulance', 'Hospital ambulance'], ['Private ambulance', 'Private ambulance'], ['Hearse van', 'Hearse van'], ['Walking', 'Walking'], ['Wheelchair to vehicle', 'Wheelchair to vehicle']], d.DischargeType === 'TRANSFER' ? 'Hospital ambulance' : 'Own vehicle', ''), 'col-md-4')}
             ${field('gpRem', 'Remarks', txt('gpRem', '', 500), 'col-md-8')}
             ${bal > 0.5 && C.can.credit ? `<div class="col-12"><div class="alert alert-warning py-2 small mb-1">Balance due ${Ipd.money(bal)}. A credit discharge lets the patient leave with it due.</div>
-               <div class="form-check"><input class="form-check-input" type="checkbox" id="gpCr"><label class="form-check-label small" for="gpCr">Credit discharge</label></div>${txt('gpCrR', '', 300, 'Reason (e.g. corporate employee, approved by MS)')}</div>` : ''}</div>`,
+               <div class="form-check"><input class="form-check-input" type="checkbox" id="gpCr"><label class="form-check-label small" for="gpCr">Credit discharge</label></div>${txt('gpCrR', '', 300, 'Reason (e.g. corporate employee, approved by MS)')}</div>` : ''}
+            ${h.StaleBillDays > 0 ? `<div class="col-12"><div class="alert alert-danger py-2 small mb-1">The final bill is up to ${Ipd.dt(h.BillUpToAt)}: ${h.StaleBillDays} more bed day(s) have run since. Cancel the bill (Billing tab) and bill up to now${C.can.staleBill ? ', or give the reason to discharge without charging them.' : '.'}</div>
+               ${C.can.staleBill ? txt('gpStale', '', 300, 'Reason (e.g. stayed for transport only, approved by MS)') : ''}</div>` : ''}</div>`,
             '<button type="button" class="btn btn-success" id="gpSave"><i class="bi bi-door-open me-1"></i>Issue gate pass</button>', 'modal-lg');
         $('gpSave').onclick = async () => {
             if (!(await Ipd.confirm('Issue the gate pass?', 'The admission is closed and the bed is released to housekeeping. This cannot be undone.', 'Issue'))) return;
             const r = await post('GatePass', { handedOverTo: v('gpTo') || null, handedOverRelation: v('gpRel') || null, handedOverPhone: v('gpPh') || null, transportMode: v('gpTr') || null,
-                remarks: v('gpRem') || null, credit: chk('gpCr'), creditReason: v('gpCrR') || null }, 'Patient discharged');
+                remarks: v('gpRem') || null, credit: chk('gpCr'), creditReason: v('gpCrR') || null, staleBillReason: v('gpStale') || null }, 'Patient discharged');
             if (r) { hide('disGpM'); window.open(D.prints.gatePass, '_blank'); setTimeout(() => location.reload(), 800); }
         };
     }
@@ -483,6 +502,12 @@
         else if (act === 'death') deathDialog();
         else if (act === 'deathVoid') { const r = await Ipd.reason('Void the death record?'); if (r) post('Death', { voidReason: r }, 'Death record voided'); }
         else if (act === 'gatePass') gatePassDialog();
+        else if (act === 'reopen') {
+            const reason = await Ipd.reason('Reopen the discharge?', 'Why (the patient is back in the bed; the final bill stays)'); if (!reason) return;
+            const r = await Ipd.post(`${C.gapsBase}ReopenDischarge?id=${C.id}`, { reason });
+            if (!r.success) { Ipd.error(r.error); return; }
+            Ipd.toast('Discharge reopened'); setTimeout(() => location.reload(), 700);
+        }
         else if (act === 'followUp') followUpDialog();
         else if (act === 'fuCancel') { const r = await Ipd.reason('Cancel the follow-up?'); if (r) post('FollowUp', { followUpId: Number(b.dataset.fid), cancelReason: r }, 'Follow-up cancelled'); }
     });

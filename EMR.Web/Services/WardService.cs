@@ -64,6 +64,8 @@ public class WardService(IDbConnectionFactory db) : IWardService
                 w.Gender,
                 w.Capacity,
                 w.IsIsolationWard,
+                w.MinAgeDays,
+                w.MaxAgeDays,
                 w.Description,
                 w.IsActive,
                 w.CreatedBy,
@@ -100,6 +102,8 @@ public class WardService(IDbConnectionFactory db) : IWardService
                 w.Gender,
                 w.Capacity,
                 w.IsIsolationWard,
+                w.MinAgeDays,
+                w.MaxAgeDays,
                 w.Description,
                 w.IsActive,
                 w.CreatedDate,
@@ -159,10 +163,10 @@ public class WardService(IDbConnectionFactory db) : IWardService
         var sql = @"
             INSERT INTO WardMaster (
                 CompanyId, BranchId, FloorId, DepartmentId, WardCode, WardName,
-                WardType, Gender, Capacity, IsIsolationWard, Description, IsActive, CreatedBy, CreatedDate
+                WardType, Gender, Capacity, IsIsolationWard, MinAgeDays, MaxAgeDays, Description, IsActive, CreatedBy, CreatedDate
             ) VALUES (
                 @CompanyId, @BranchId, @FloorId, @DepartmentId, @WardCode, @WardName,
-                @WardType, @Gender, @Capacity, @IsIsolationWard, @Description, @IsActive, @userId, GETDATE()
+                @WardType, @Gender, @Capacity, @IsIsolationWard, @MinAgeDays, @MaxAgeDays, @Description, @IsActive, @userId, GETDATE()
             );
             SELECT SCOPE_IDENTITY();";
 
@@ -178,6 +182,8 @@ public class WardService(IDbConnectionFactory db) : IWardService
             model.Gender,
             model.Capacity,
             model.IsIsolationWard,
+            model.MinAgeDays,
+            model.MaxAgeDays,
             model.Description,
             model.IsActive,
             userId
@@ -197,6 +203,8 @@ public class WardService(IDbConnectionFactory db) : IWardService
                 Gender          = @Gender,
                 Capacity        = @Capacity,
                 IsIsolationWard = @IsIsolationWard,
+                MinAgeDays      = @MinAgeDays,
+                MaxAgeDays      = @MaxAgeDays,
                 Description     = @Description,
                 IsActive        = @IsActive,
                 ModifiedBy      = @userId,
@@ -213,6 +221,8 @@ public class WardService(IDbConnectionFactory db) : IWardService
             model.Gender,
             model.Capacity,
             model.IsIsolationWard,
+            model.MinAgeDays,
+            model.MaxAgeDays,
             model.Description,
             model.IsActive,
             userId,

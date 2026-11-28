@@ -89,12 +89,14 @@
             <div class="row g-2">${U.field('dAt', 'Time', U.when('dAt'), 'col-6 col-md-4')}${U.field('dDose', 'Dose given', U.text('dDose', o.Dose), 'col-6 col-md-4')}
             ${U.field('dSite', 'Site (injection)', U.text('dSite', '', 'placeholder="e.g. left deltoid"'), 'col-12 col-md-4')}
             ${U.field('dWhy', sos ? 'Indication (why given)' : 'Reason (held / refused / late)', U.text('dWhy', '', 'maxlength="300"'), 'col-12', !!sos)}
-            ${o.IsHighAlert ? U.field('dWit', 'Second nurse (double-check)', U.text('dWit'), 'col-12 col-md-6', true) : ''}</div>`,
+            ${o.IsHighAlert ? U.field('dWit', 'Second nurse (double-check)', U.text('dWit'), 'col-12 col-md-6', true) : ''}
+            ${U.field('dScan', 'Scan the wristband (UHID / IP no.)' + (C.scanRequired ? '' : ' - recommended'), U.text('dScan', '', 'autocomplete="off" placeholder="scan or type"'), 'col-12 col-md-6', !!C.scanRequired)}</div>
+            ${o.VerifyStatus !== 'VERIFIED' && o.Priority !== 'STAT' && o.FrequencyCode !== 'STAT' && C.verifyRequired ? `<div class="alert alert-warning py-1 px-2 small mt-2 mb-0"><i class="bi bi-patch-exclamation me-1"></i>${o.VerifyStatus === 'QUERY' ? 'The pharmacist has a query on this order: ' + E(o.VerifyNote || '') : 'The pharmacist has not verified this order yet: a routine dose cannot be charted as given.'}</div>` : ''}`,
             '<button type="button" class="btn btn-primary" id="dSave">Save</button>', '');
         $('dSave').addEventListener('click', async () => {
             const out = document.querySelector('input[name="dOut"]:checked').value;
             const r = await U.save(`${base}Mar?orderId=${orderId}`, { dueAt: dueAt || null, outcome: out, givenAt: U.v('dAt') || null, doseGiven: U.v('dDose'), site: U.v('dSite') || null,
-                reason: U.v('dWhy') || null, witnessName: o.IsHighAlert ? U.v('dWit') || null : null }, 'Dose ' + out.toLowerCase());
+                reason: U.v('dWhy') || null, witnessName: o.IsHighAlert ? U.v('dWit') || null : null, scanValue: U.v('dScan') || null }, 'Dose ' + out.toLowerCase());
             if (r) { U.hide('nurDoseModal'); load(); }
         });
     }
@@ -233,38 +235,46 @@
         ['mobility', 'Mobility', [[1, 'Completely immobile'], [2, 'Very limited'], [3, 'Slightly limited'], [4, 'No limitation']]],
         ['nutrition', 'Nutrition', [[1, 'Very poor'], [2, 'Probably inadequate'], [3, 'Adequate'], [4, 'Excellent']]],
         ['friction', 'Friction and shear', [[1, 'Problem'], [2, 'Potential problem'], [3, 'No apparent problem']]]];
+    // Padua prediction score (VTE): yes = the weight; 4+ = high risk
+    const PADUA = [['cancer', 'Active cancer', 3], ['previousVte', 'Previous VTE (not superficial)', 3], ['mobility', 'Reduced mobility (bed rest 3+ days)', 3],
+        ['thrombophilia', 'Known thrombophilic condition', 3], ['trauma', 'Recent trauma or surgery (1 month)', 2], ['age70', 'Age 70 or more', 1],
+        ['failure', 'Heart and / or respiratory failure', 1], ['miStroke', 'Acute MI or ischaemic stroke', 1], ['infection', 'Acute infection and / or rheumatic disorder', 1],
+        ['obesity', 'Obesity (BMI 30+)', 1], ['hormonal', 'Ongoing hormonal treatment', 1]].map(([k, t, w]) => [k, t, [[0, 'No'], [1, 'Yes']], w]);
+    const RISK_NAME = { MORSE: 'Morse', BRADEN: 'Braden', PADUA: 'Padua (VTE)' };
     function renderRisk() {
         const rs = D.risks || [], s = st(), w = C.can.chart && canWrite();
         const card = (kind, title, score, level, at, hint) => `<div class="col-12 col-md-6"><div class="ipdx-card h-100"><div class="d-flex justify-content-between"><b>${title}</b>
             ${w ? `<button type="button" class="btn btn-sm btn-primary" data-risk="${kind}">Assess</button>` : ''}</div>
             <div class="mt-2">${score != null ? `<span class="fs-4 fw-bold me-2">${score}</span>${U.riskBadge(kind, level)} <span class="small text-muted">${U.ago(at)}</span>` : '<span class="text-muted">Not assessed yet</span>'}</div><div class="small text-muted mt-1">${hint}</div></div></div>`;
         let h = `<div class="row g-2 mb-3">${card('MORSE', 'Morse fall scale', s.MorseScore, s.MorseRisk, s.MorseAt, '0-24 low · 25-44 moderate · 45+ high. Reassess daily and after a fall or a change.')}
-            ${card('BRADEN', 'Braden scale (pressure ulcer)', s.BradenScore, s.BradenRisk, s.BradenAt, '19+ no risk · 15-18 mild · 13-14 moderate · 10-12 high · 9 or less very high.')}</div>`;
+            ${card('BRADEN', 'Braden scale (pressure ulcer)', s.BradenScore, s.BradenRisk, s.BradenAt, '19+ no risk · 15-18 mild · 13-14 moderate · 10-12 high · 9 or less very high.')}
+            ${(() => { const p = rs.find(r => r.Kind === 'PADUA' && r.Status !== 'STRUCK'); return card('PADUA', 'Padua score (VTE risk)', p ? p.Score : null, p ? p.RiskLevel : null, p ? p.AssessedAt : null, '4 or more = high risk of venous thromboembolism: consider prophylaxis.'); })()}</div>`;
         if (rs.length) h += `<div class="ipdx-card"><table class="table table-sm mb-0"><thead><tr><th>Time</th><th>Scale</th><th>Score</th><th>Risk</th><th>Interventions</th><th>By</th><th></th></tr></thead><tbody>${rs.map(r => {
             const x = r.Status === 'STRUCK';
-            return `<tr class="${x ? 'clin-struck' : ''}"><td class="small">${Ipd.dt(r.AssessedAt)}</td><td>${r.Kind === 'MORSE' ? 'Morse' : 'Braden'}</td><td>${r.Score}</td><td>${U.riskBadge(r.Kind, r.RiskLevel)}</td>
+            return `<tr class="${x ? 'clin-struck' : ''}"><td class="small">${Ipd.dt(r.AssessedAt)}</td><td>${RISK_NAME[r.Kind] || r.Kind}</td><td>${r.Score}</td><td>${U.riskBadge(r.Kind, r.RiskLevel)}</td>
                 <td class="small">${E(r.Interventions || '')}</td><td class="small">${E(r.RecordedByName)}</td><td>${!x && C.can.correct && canWrite() ? `<button type="button" class="btn btn-sm btn-link text-danger p-0" data-strike="RISK:${r.RiskId}">×</button>` : ''}</td></tr>`;
         }).join('')}</tbody></table></div>`;
         $('nurPane').innerHTML = h;
     }
     function riskModal(kind) {
-        const items = kind === 'MORSE' ? MORSE : BRADEN;
-        U.modal('nurRiskModal', kind === 'MORSE' ? 'Morse fall scale' : 'Braden scale', items.map(([k, t, opts]) => `<div class="mb-2"><div class="small fw-semibold">${t}</div>
+        const items = kind === 'MORSE' ? MORSE : kind === 'PADUA' ? PADUA : BRADEN;
+        const wt = k => (items.find(x => x[0] === k) || [])[3] || 1;
+        U.modal('nurRiskModal', kind === 'MORSE' ? 'Morse fall scale' : kind === 'PADUA' ? 'Padua prediction score (VTE)' : 'Braden scale', items.map(([k, t, opts]) => `<div class="mb-2"><div class="small fw-semibold">${t}</div>
             <div class="d-flex flex-wrap gap-1">${opts.map(([p, l]) => `<input type="radio" class="btn-check" name="rk_${k}" id="rk_${k}_${p}" value="${p}"><label class="btn btn-sm btn-outline-secondary" for="rk_${k}_${p}">${l} <span class="badge text-bg-light">${p}</span></label>`).join('')}</div></div>`).join('')
             + `<div class="mt-2">Score: <b id="rkScore">—</b> <span id="rkLevel"></span></div>${U.field('rkInt', 'Interventions in place', U.text('rkInt', '', 'placeholder="e.g. bed rails up, call bell, non-slip footwear / 2-hourly turning, air mattress"'), 'col-12')}`,
             '<button type="button" class="btn btn-primary" id="rkSave">Save</button>');
         const read = () => { const a = {}; let all = true; items.forEach(([k]) => { const c = document.querySelector(`input[name="rk_${k}"]:checked`); if (c) a[k] = Number(c.value); else all = false; }); return { a, all }; };
         $('nurRiskModal').addEventListener('change', () => {
-            const { a, all } = read(), sc = Object.values(a).reduce((x, y) => x + y, 0);
+            const { a, all } = read(), sc = kind === 'PADUA' ? Object.entries(a).reduce((x, [k, y]) => x + y * wt(k), 0) : Object.values(a).reduce((x, y) => x + y, 0);
             $('rkScore').textContent = all ? sc : '—';
-            $('rkLevel').innerHTML = !all ? '' : kind === 'MORSE' ? U.riskBadge(kind, sc >= 45 ? 'HIGH' : sc >= 25 ? 'MODERATE' : 'LOW')
+            $('rkLevel').innerHTML = !all ? '' : kind === 'PADUA' ? U.riskBadge(kind, sc >= 4 ? 'HIGH' : 'LOW') : kind === 'MORSE' ? U.riskBadge(kind, sc >= 45 ? 'HIGH' : sc >= 25 ? 'MODERATE' : 'LOW')
                 : U.riskBadge(kind, sc <= 9 ? 'VERY_HIGH' : sc <= 12 ? 'HIGH' : sc <= 14 ? 'MODERATE' : sc <= 18 ? 'MILD' : 'NONE');
         });
         $('rkSave').addEventListener('click', async () => {
             const { a, all } = read();
             if (!all) { Ipd.error('Answer every item.'); return; }
             const r = await U.save(`${base}Risk?id=${C.id}`, { kind, answers: JSON.stringify(a), interventions: U.v('rkInt') || null });
-            if (r) { U.hide('nurRiskModal'); Ipd.toast(`${kind === 'MORSE' ? 'Morse' : 'Braden'} ${r.Score} · ${String(r.RiskLevel).replace('_', ' ').toLowerCase()} risk`); load(); }
+            if (r) { U.hide('nurRiskModal'); Ipd.toast(`${RISK_NAME[kind]} ${r.Score} · ${String(r.RiskLevel).replace('_', ' ').toLowerCase()} risk`); load(); }
         });
     }
 

@@ -235,7 +235,7 @@ document.getElementById('btnCancelAdm')?.addEventListener('click', async () => {
         document.getElementById('eAdm').innerHTML = opt((L.doctors || []).filter(r => r.IsIpd || r.DoctorId === H.AdmittingDoctorId), 'DoctorId', r => r.DoctorName + (r.IpdDeptNames ? ' · ' + r.IpdDeptNames : ''), '-- Select --');
         document.getElementById('eCon').innerHTML = opt((L.doctors || []).filter(r => r.IsIpd || r.DoctorId === H.ConsultantDoctorId), 'DoctorId', r => r.DoctorName + (r.IpdDeptNames ? ' · ' + r.IpdDeptNames : ''), '-- Select --');
         document.getElementById('eDept').innerHTML = opt(L.departments, 'DeptId', 'DeptName', '-- Select --');
-        document.getElementById('eRef').innerHTML = opt(L.referralDoctors, 'DoctorId', r => r.DoctorName + (r.IsReferralDoctor ? ' (referral)' : ''), '-- None --');
+        document.getElementById('eRef').innerHTML = opt(L.referralDoctors, 'DoctorId', r => [r.DoctorName, r.DeptTypes, r.IsReferralDoctor ? 'Referral' : ''].filter(Boolean).join(' · '), '-- None --');
         document.getElementById('ePkg').innerHTML = opt(L.packages, 'Id', r => r.Name + ' · ' + Ipd.money(r.Amount), '-- No package --');
         const payerCat = { CASH: /cash|self|staff|employee/i, CORPORATE: /corporate/i, INSURANCE: /insurance|tpa/i, SCHEME: /government|scheme/i };
         window.__ipdTariffFill = () => {   // only the tariff categories of the chosen payer

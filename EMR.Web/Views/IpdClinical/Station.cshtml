@@ -16,10 +16,12 @@
     </div>
 </div>
 <div id="nsKpi" class="clin-strip"></div>
+@* open escalations of the branch (SQLScripts/2573) *@
+<div id="nsEsc" class="mb-2"></div>
 <div id="nsBody" class="row g-2"><div class="text-muted small p-3">Loading…</div></div>
 @section Scripts {
     <script src="~/js/ipd.js" asp-append-version="true"></script>
     <script src="~/js/ipd/clin-common.js" asp-append-version="true"></script>
-    <script>window.IpdStation = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdClinical/"), canPatient = ViewData["CanPatient"] as bool? ?? false }));</script>
+    <script>window.IpdStation = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdClinical/"), gapsBase = Url.Content("~/IpdGaps/"), canPatient = ViewData["CanPatient"] as bool? ?? false }));</script>
     <script src="~/js/ipd/station.js" asp-append-version="true"></script>
 }

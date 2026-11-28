@@ -128,6 +128,19 @@
                             </div>
                         </div>
 
+                        <!-- Age range (SQLScripts/2570): admission / transfer / swap refuse a patient outside it -->
+                        <div class="col-md-3">
+                            <label asp-for="MinAgeDays" class="form-label fw-semibold">Minimum age (days)</label>
+                            <input asp-for="MinAgeDays" type="number" min="0" class="form-control" placeholder="no limit" />
+                            <span asp-validation-for="MinAgeDays" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="MaxAgeDays" class="form-label fw-semibold">Maximum age (days)</label>
+                            <input asp-for="MaxAgeDays" type="number" min="0" class="form-control" placeholder="no limit" />
+                            <span asp-validation-for="MaxAgeDays" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6 d-flex align-items-end"><div class="form-text">e.g. NICU 0 to 28; paediatric ward 0 to 4380 (12 years); adult ward from 4380. Leave empty for no limit.</div></div>
+
                         <!-- Description -->
                         <div class="col-12">
                             <label asp-for="Description" class="form-label fw-semibold">Description / Notes</label>

@@ -1,0 +1,31 @@
+@using EMR.Web.ApiClients
+@model EMR.Web.Models.ViewModels.IpdPrintView
+@{
+    Layout = "_IpdPrintLayout";
+    var d = Model.Doc; var h = Model.Header;
+    ViewData["DocTitle"] = Model.Title;
+    var credit = d.S("Kind") == "CRED";
+}
+<table class="info">
+    <tr><td class="k">@(credit ? "Credit note No." : "Supplementary bill No.")</td><td class="mono b">@d.S("DocNo")</td><td class="k">Date</td><td>@d.Dt("DocAt")</td><td class="k">Against bill</td><td class="mono">@d.S("BillNo") (@d.Dt("BillAt", "dd-MMM-yyyy"))</td></tr>
+    <tr><td class="k">Patient</td><td class="b">@h.S("PatientName")</td><td class="k">UHID / IP No.</td><td class="mono">@h.S("PatientCode") / @h.S("IpNo")</td><td class="k">Age / Sex</td><td>@h.S("AgeText") / @h.S("Gender")</td></tr>
+    <tr><td class="k">Admitted</td><td>@h.Dt("AdmissionAt")</td><td class="k">Discharged</td><td>@h.Dt("DischargeAt")</td><td class="k">Consultant</td><td>@h.S("ConsultantDoctorName")</td></tr>
+    <tr><td class="k">Reason</td><td colspan="5">@d.S("Reason")</td></tr>
+</table>
+<table class="grid" style="margin-top:8px"><thead><tr><th>#</th><th>Head</th><th>Particulars</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amount</th><th class="r">GST</th><th class="r">Net</th></tr></thead><tbody>
+@{ var n = 0; }
+@foreach (var r in Model.Rows)
+{
+    n++;
+    <tr><td>@n</td><td>@r.S("HeadName")</td><td>@r.S("ItemName")</td><td class="r">@r.M("Qty").ToString("0.##")</td><td class="r">@r.M("Rate").ToString("N2")</td>
+        <td class="r">@r.M("Gross").ToString("N2")</td><td class="r">@r.M("GstAmount").ToString("N2") (@r.M("GstPercent").ToString("0.##")%)</td><td class="r b">@r.M("Net").ToString("N2")</td></tr>
+}
+</tbody></table>
+<table class="grid" style="margin-top:8px;width:55%;margin-left:auto"><tbody>
+    <tr><td>Amount</td><td class="r">@d.M("Gross").Rs()</td></tr>
+    @if (d.M("Gst") > 0) { <tr><td>GST</td><td class="r">@d.M("Gst").Rs()</td></tr> }
+    <tr><td class="b">@(credit ? "Credited to the patient" : "Payable by the patient")</td><td class="r b">@d.M("Net").Rs()</td></tr>
+    <tr><td>Balance on the bill now</td><td class="r">@(d.M("BalanceNow") >= 0 ? d.M("BalanceNow").Rs() + " due" : (-d.M("BalanceNow")).Rs() + " refundable")</td></tr>
+</tbody></table>
+@if (d.S("Status") == "CANCELLED") { <div class="note"><b>Cancelled on @d.Dt("CancelledAt") by @d.S("CancelledByName"): @d.S("CancelReason")</b></div> }
+<div class="sign"><div>Patient / attendant</div><div>Billing (@d.S("CreatedByName"))</div><div>Authorised signatory</div></div>

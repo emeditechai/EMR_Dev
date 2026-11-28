@@ -195,8 +195,9 @@ public class IpdDischargeController(IpdApiClient api, IDoctorScheduleApiClient s
     {
         if (!await Can(PatientPage, "GATEPASS")) return Fail(PermissionFilter.DeniedMessage);
         var canCredit = await Can(PatientPage, "GATEPASS_CREDIT");
-        return await Write(() => api.PostAsync($"/admissions/{id}/discharge/gatepass", Body(b, ("CanCredit", canCredit))), "IPD.GatePass",
-            $"Admission {id}: gate pass, patient discharged" + (b.B("credit") ? " (credit discharge)" : ""), id);
+        var canStale = await Can(PatientPage, "GATEPASS_STALE_BILL");   // 2575: bed days after the bill time not charged
+        return await Write(() => api.PostAsync($"/admissions/{id}/discharge/gatepass", Body(b, ("CanCredit", canCredit), ("CanStaleBill", canStale))), "IPD.GatePass",
+            $"Admission {id}: gate pass, patient discharged" + (b.B("credit") ? " (credit discharge)" : "") + (b.S("staleBillReason") is { Length: > 0 } sr ? $" (older bill: {sr})" : ""), id);
     }
 
     [HttpPost, ValidateAntiForgeryToken]

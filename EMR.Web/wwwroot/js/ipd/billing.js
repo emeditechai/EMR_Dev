@@ -200,11 +200,14 @@
             ${t.Gst > 0 ? `<tr><td colspan="5" class="text-end">GST</td><td class="text-end">${Ipd.num(t.Gst)}</td></tr>` : ''}
             ${t.RoundOff ? `<tr><td colspan="5" class="text-end">Round off</td><td class="text-end">${Ipd.num(t.RoundOff)}</td></tr>` : ''}
             <tr><td colspan="5" class="text-end fw-bold">Bill amount</td><td class="text-end fw-bold">${Ipd.money(t.Net)}</td></tr>
+            ${t.OutsidePackageAmount > 0 ? `<tr class="table-warning"><td colspan="5" class="text-end small"><i class="bi bi-box-arrow-up-right me-1"></i>Of which outside the package (package ${Ipd.money(t.PackageAmount)})</td><td class="text-end small fw-semibold">${Ipd.money(t.OutsidePackageAmount)}</td></tr>` : ''}
             ${t.PayerShare > 0 ? `<tr><td colspan="5" class="text-end">Less: TPA / insurance share${t.PayerName ? ' (' + Ipd.esc(t.PayerName) + ')' : ''}${t.CoPayAmount > 0 ? ` · co-pay ${Ipd.money(t.CoPayAmount)}` : ''}</td><td class="text-end">- ${Ipd.num(t.PayerShare)}</td></tr>
                 <tr><td colspan="5" class="text-end fw-bold">Patient's share</td><td class="text-end fw-bold">${Ipd.money(t.PatientShare)}</td></tr>` : ''}`;
         const prints = [];
-        if (billed) prints.push(`<a class="btn btn-sm btn-light border" target="_blank" href="${url}PrintBill/${t.BillId}"><i class="bi bi-printer me-1"></i>Bill</a>`, `<a class="btn btn-sm btn-light border" target="_blank" href="${url}PrintBill/${t.BillId}?format=detail"><i class="bi bi-list-ul me-1"></i>Detailed</a>`);
-        else if (can.estimate) prints.push(`<a class="btn btn-sm btn-light border" target="_blank" href="${B.estBase}Print/${B.id}?format=head"><i class="bi bi-printer me-1"></i>Interim bill</a>`);
+        // print links come from the server, encrypted (SQLScripts/2571: interim bill in the bill layout, marked INTERIM)
+        const pr = preview.prints || {};
+        if (billed && pr.bill) prints.push(`<a class="btn btn-sm btn-light border" target="_blank" href="${Ipd.esc(pr.bill)}"><i class="bi bi-printer me-1"></i>Bill</a>`, `<a class="btn btn-sm btn-light border" target="_blank" href="${Ipd.esc(pr.billDetail)}"><i class="bi bi-list-ul me-1"></i>Detailed</a>`);
+        else if (!billed && can.interim && pr.interim) prints.push(`<a class="btn btn-sm btn-light border" target="_blank" href="${Ipd.esc(pr.interim)}"><i class="bi bi-printer me-1"></i>Interim bill</a>`, `<a class="btn btn-sm btn-light border" target="_blank" href="${Ipd.esc(pr.interimDetail)}" title="Interim bill, every line"><i class="bi bi-list-ul"></i></a>`);
         $('billPrints').innerHTML = prints.join('');
         $('finalBox').classList.toggle('d-none', billed);
         $('billedBox').classList.toggle('d-none', !billed);
@@ -217,20 +220,25 @@
                 <tr><td>Advance adjusted</td><td class="text-end">${Ipd.money(t.AdvanceAdjusted)}</td></tr>
                 ${t.SettleTotal > 0 ? `<tr><td>Paid against the bill</td><td class="text-end">${Ipd.money(t.SettleTotal)}</td></tr>` : ''}
                 <tr><td class="fw-bold">${t.RefundDue > 0 ? 'Refundable' : 'Balance due'}</td><td class="text-end fw-bold ${t.BalanceDue > 0 ? 'text-danger' : 'text-success'}">${Ipd.money(t.RefundDue > 0 ? t.RefundDue : t.BalanceDue)}</td></tr></tbody></table>`;
-            $('bbCollect').classList.toggle('d-none', !(t.BalanceDue > 0 && can.advance && B.open));
+            // 2571 (A1): a discharged patient's balance (credit discharge, TPA disallowance, supplementary bill) is collected here too
+            $('bbCollect').classList.toggle('d-none', !(t.BalanceDue > 0 && can.advance && (B.open || B.status === 'DISCHARGED')));
             $('bbRefund').classList.toggle('d-none', !(t.RefundDue > 0 && can.refund));
             $('bbCancel').classList.toggle('d-none', !can.billCancel || B.status === 'DISCHARGED');
         } else {
-            const ok = can.finalBill && chargeable();
+            const blockers = preview.blockers || [];
+            const ok = can.finalBill && chargeable() && !t.NeedsAdvice && !blockers.length;
             ['fbUpTo', 'fbDiscType', 'fbDiscVal', 'fbDiscReason', 'fbRemarks', 'fbSave'].forEach(i => $(i).disabled = !ok);
             if (!can.discount) { $('fbDiscType').disabled = $('fbDiscVal').disabled = $('fbDiscReason').disabled = true; }
             if (!can.backdate) $('fbUpTo').readOnly = true;
             $('fbMsg').innerHTML = t.Error ? `<span class="text-danger">${Ipd.esc(t.Error)}</span>`
+                : t.NeedsAdvice && chargeable() ? '<span class="text-warning"><i class="bi bi-info-circle me-1"></i>The final bill is made after the discharge advice (Discharge tab). During the stay, print an interim bill.</span>'
+                : blockers.length ? '<div class="text-danger fw-semibold mb-1">Before the final bill:</div><ul class="small text-danger mb-0 ps-3">' + blockers.map(x => `<li>${Ipd.esc(x.Message)}</li>`).join('') + '</ul>'
                 : t.NoTariff ? '<span class="text-danger">A bed day has no tariff: add the rate (Master › IPD › Bed / Room Tariff) before the final bill.</span>'
                 : !can.finalBill ? '<span class="text-muted">Making the final bill needs the IPD Patient › Final bill permission.</span>'
                 : !chargeable() ? '<span class="text-muted">The stay is closed.</span>'
                 : ['REQUESTED', 'QUERY', 'ENHANCE_REQUESTED', 'FINAL_REQUESTED'].includes(t.PreAuthStatus) ? '<span class="text-warning">The pre-authorisation waits for the TPA: record its answer on the Insurance / TPA tab before the final bill.</span>'
-                : t.PayerShare > 0 ? `<span class="text-muted">The TPA / insurance pays ${Ipd.money(t.PayerShare)} of this bill (a claim is made with the final bill).</span>` : '';
+                : t.PayerShare > 0 ? `<span class="text-muted">The TPA / insurance pays ${Ipd.money(t.PayerShare)} of this bill (a claim is made with the final bill)${t.ProportionateDeduction > 0 ? `; room rent above the approved limit: ${Ipd.money(t.ProportionateDeduction)} is not payable by the insurer (proportionate deduction)` : ''}.</span>`
+                : t.DiscountLimitPercent != null && can.discount ? `<span class="text-muted">A discount above ${Ipd.num(t.DiscountLimitPercent).replace('.00', '')}% needs the High discount permission.</span>` : '';
         }
     }
     function billQuery() {
@@ -264,7 +272,8 @@
                 });
                 if (!r.success) return Ipd.error(r.error);
                 Ipd.toast('Final bill ' + r.data.BillNo + ' made');
-                window.open(url + 'PrintBill/' + r.data.BillId, '_blank');
+                await loadBill();
+                if (preview.prints && preview.prints.bill) window.open(preview.prints.bill, '_blank');
                 setTimeout(() => location.reload(), 800);
             } finally { b.disabled = false; }
         });

@@ -68,6 +68,14 @@ public class WardFormViewModel
     [Display(Name = "Isolation Ward")]
     public bool IsIsolationWard { get; set; } = false;
 
+    [Range(0, 54750, ErrorMessage = "The age is 0 to 54,750 days.")]
+    [Display(Name = "Minimum age (days)")]
+    public int? MinAgeDays { get; set; }
+
+    [Range(0, 54750, ErrorMessage = "The age is 0 to 54,750 days.")]
+    [Display(Name = "Maximum age (days)")]
+    public int? MaxAgeDays { get; set; }
+
     [MaxLength(500, ErrorMessage = "Maximum 500 characters allowed.")]
     [Display(Name = "Description / Location Notes")]
     public string? Description { get; set; }

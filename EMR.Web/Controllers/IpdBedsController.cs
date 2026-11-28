@@ -72,7 +72,7 @@ public class IpdBedsController(IpdApiClient api, IActionPermissionGuard permissi
     [HttpGet]
     public Task<IActionResult> TransferBeds(int admissionId) => Read(async () => await api.GetAsync($"/beds/for-transfer/{admissionId}"));
 
-    public sealed class TransferBody { public int ToBedId { get; set; } public DateTime? TransferAt { get; set; } public string? Reason { get; set; } public bool UpdateDepartment { get; set; } }
+    public sealed class TransferBody { public int ToBedId { get; set; } public DateTime? TransferAt { get; set; } public string? Reason { get; set; } public bool UpdateDepartment { get; set; } public int? OrderedByDoctorId { get; set; } }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -82,7 +82,7 @@ public class IpdBedsController(IpdApiClient api, IActionPermissionGuard permissi
         if (!await permissionGuard.AllowsAnyAsync(HttpContext, [BoardPage, IpdAdmissionController.PatientPage], "TRANSFER"))
             return Fail(PermissionFilter.DeniedMessage);
         var backdate = await permissionGuard.AllowsAsync(HttpContext, BoardPage, "BACKDATE");
-        return await Write(() => api.PostAsync($"/admissions/{admissionId}/transfer", new { b.ToBedId, b.TransferAt, b.Reason, b.UpdateDepartment, CanBackdate = backdate }),
+        return await Write(() => api.PostAsync($"/admissions/{admissionId}/transfer", new { b.ToBedId, b.TransferAt, b.Reason, b.UpdateDepartment, CanBackdate = backdate, b.OrderedByDoctorId }),
             "IPD.Transfer", $"Admission {admissionId} transferred to bed {b.ToBedId}: {b.Reason}", admissionId);
     }
 
