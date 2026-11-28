@@ -7,7 +7,7 @@ namespace EMR.Api.Controllers;
 
 public record IpdPreAuthSaveRequest(int? PreAuthId, string? TpaRefNo, string? Diagnosis, string? TreatmentPlan, int? ExpectedDays, decimal EstimatedAmount, string? Remarks);
 public record IpdPreAuthEventRequest(string EventType, DateTime? EventAt, decimal? Amount, string? RefNo, string? Remarks, int? DocumentId);
-public record IpdPreAuthSplitRequest(decimal CoPayPercent, decimal Deductible, decimal NonPayable, string? Remarks);
+public record IpdPreAuthSplitRequest(decimal CoPayPercent, decimal Deductible, decimal NonPayable, string? Remarks, decimal? RoomRentLimit = null, decimal? IcuRentLimit = null);
 public record IpdTpaChecklistRequest(int? PreAuthId, int? ClaimId, int DocTypeId, bool IsDone, string? Remarks);
 public record IpdTpaDocumentRequest(int? PreAuthId, int? ClaimId, int? DocTypeId, string? Title, string FilePath, string? Remarks);
 public record IpdClaimUpdateRequest(string? TpaClaimRef, string? Remarks);
@@ -63,7 +63,7 @@ public class IpdInsuranceController(IIpdProcService ipd) : ControllerBase
 
     [HttpPost("preauth/{id:int}/split")]
     public Task<IActionResult> SaveSplit(int id, [FromBody] IpdPreAuthSplitRequest r) => Run(async c =>
-        Row(await ipd.RowAsync("dbo.usp_Api_IpdPreAuth_SetSplit", new { c.CompanyId, c.BranchId, c.UserId, PreAuthId = id, r.CoPayPercent, r.Deductible, r.NonPayable, r.Remarks })));
+        Row(await ipd.RowAsync("dbo.usp_Api_IpdPreAuth_SetSplit", new { c.CompanyId, c.BranchId, c.UserId, PreAuthId = id, r.CoPayPercent, r.Deductible, r.NonPayable, r.Remarks, r.RoomRentLimit, r.IcuRentLimit })));
 
     [HttpGet("preauth")]
     public Task<IActionResult> PreAuthList([FromQuery] string? view, [FromQuery] int? insuranceTpaId, [FromQuery] string? search, [FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate) =>

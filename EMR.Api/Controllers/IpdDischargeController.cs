@@ -18,7 +18,7 @@ public record IpdDischargeDeathRequest(DateTime? DeathAt, string? FormType, stri
     string? PregnancyStatus, bool DeliveryInvolved, bool PoliceIntimated, string? PoliceStation, bool PostMortem, int? CertifiedByDoctorId,
     string? BodyHandedTo, string? BodyHandedRelation, DateTime? BodyHandedAt, string? Remarks, string? VoidReason);
 public record IpdGatePassRequest(string? HandedOverTo, string? HandedOverRelation, string? HandedOverPhone, string? TransportMode, string? Remarks,
-    bool Credit, string? CreditReason, bool CanCredit);
+    bool Credit, string? CreditReason, bool CanCredit, bool CanStaleBill = false, string? StaleBillReason = null);
 public record IpdFollowUpLinkRequest(int OpdServiceId, int? FollowUpId);
 public record IpdFollowUpRequest(int? FollowUpId, int? DoctorId, DateTime? FollowUpDate, int? ScheduleId, string? SlotTime, string? Notes, string? CancelReason);
 
@@ -107,7 +107,7 @@ public class IpdDischargeController(IIpdProcService ipd) : ControllerBase
         Row(await ipd.RowAsync("dbo.usp_Api_IpdDischarge_GatePass", new
         {
             c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.HandedOverTo, r.HandedOverRelation, r.HandedOverPhone, r.TransportMode, r.Remarks,
-            r.Credit, r.CreditReason, r.CanCredit
+            r.Credit, r.CreditReason, r.CanCredit, r.CanStaleBill, r.StaleBillReason
         })));
 
     /// <summary>Booked IPD follow-ups of a patient (OPD New Service Booking shows them; SQLScripts/2560).</summary>

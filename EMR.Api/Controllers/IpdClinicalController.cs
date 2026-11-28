@@ -9,10 +9,11 @@ public record IpdAssessmentRequest(string Kind, string Data, bool Sign, string? 
 public record IpdNoteRequest(int? NoteId, string NoteType, int? DoctorId, DateTime? NoteAt, string? Subjective, string? Objective, string? Assessment,
     string? PlanText, bool Sign, int? CrossConsultId);
 public record IpdOrderRequest(string OrderType, string? Priority, int? DoctorId, string? Source, bool ReadBack, int? ItemId, string? DrugName, string? Dose,
-    string? Route, string? FrequencyCode, DateTime? StartAt, int? DurationDays, string? ServiceKind, int? RefId, decimal? Qty, string? DietType, string? Details);
+    string? Route, string? FrequencyCode, DateTime? StartAt, int? DurationDays, string? ServiceKind, int? RefId, decimal? Qty, string? DietType, string? Details,
+    string? AllergyOverride = null, string? InteractionOverride = null);
 public record IpdOrderActionRequest(string Action, string? Reason, DateTime? At, int? IndentId);
 public record IpdCrossConsultRequest(int? ConsultId, int? ToDoctorId, string? Urgency, string? Reason, bool Cancel, string? CancelReason);
-public record IpdMarRequest(DateTime? DueAt, string Outcome, DateTime? GivenAt, string? DoseGiven, string? Site, string? Reason, string? WitnessName);
+public record IpdMarRequest(DateTime? DueAt, string Outcome, DateTime? GivenAt, string? DoseGiven, string? Site, string? Reason, string? WitnessName, string? ScanValue = null);
 public record IpdVitalRequest(DateTime? ObservedAt, short? Rr, decimal? SpO2, bool? OnOxygen, string? O2Device, decimal? O2FlowLpm, short? Sbp, short? Dbp,
     short? Pulse, string? Consciousness, decimal? TempC, byte? PainScore, decimal? Glucose, decimal? WeightKg, string? Notes);
 public record IpdIoRequest(DateTime? At, string Direction, string Category, int VolumeMl, string? Notes);
@@ -84,7 +85,7 @@ public class IpdClinicalController(IIpdProcService ipd) : ControllerBase
         Row(await ipd.RowAsync("dbo.usp_Api_IpdOrder_Save", new
         {
             c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.OrderType, r.Priority, r.DoctorId, r.Source, r.ReadBack, r.ItemId, r.DrugName, r.Dose,
-            r.Route, r.FrequencyCode, r.StartAt, r.DurationDays, r.ServiceKind, r.RefId, r.Qty, r.DietType, r.Details
+            r.Route, r.FrequencyCode, r.StartAt, r.DurationDays, r.ServiceKind, r.RefId, r.Qty, r.DietType, r.Details, r.AllergyOverride, r.InteractionOverride
         })));
 
     [HttpPost("orders/{orderId:int}/action")]
@@ -103,7 +104,7 @@ public class IpdClinicalController(IIpdProcService ipd) : ControllerBase
     public Task<IActionResult> Mar(int orderId, [FromBody] IpdMarRequest r) => Run(async c =>
         Row(await ipd.RowAsync("dbo.usp_Api_IpdMar_Record", new
         {
-            c.CompanyId, c.BranchId, c.UserId, OrderId = orderId, r.DueAt, r.Outcome, r.GivenAt, r.DoseGiven, r.Site, r.Reason, r.WitnessName
+            c.CompanyId, c.BranchId, c.UserId, OrderId = orderId, r.DueAt, r.Outcome, r.GivenAt, r.DoseGiven, r.Site, r.Reason, r.WitnessName, r.ScanValue
         })));
 
     [HttpPost("admissions/{id:int}/vitals")]

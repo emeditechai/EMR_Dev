@@ -64,6 +64,16 @@
     $('nsRefresh').addEventListener('click', load);
     $('nsBody').addEventListener('click', e => { const c = e.target.closest('[data-url]'); if (c) location.href = c.dataset.url; });
     $('nsBody').addEventListener('keydown', e => { const c = e.target.closest('[data-url]'); if (c && e.key === 'Enter') location.href = c.dataset.url; });
-    load();
-    setInterval(() => { if (!document.hidden) load(); }, 60000);
+    // escalations waiting for / answered by the doctor (SQLScripts/2573); the patient link comes from the server, encrypted
+    async function loadEsc() {
+        const box = $('nsEsc'); if (!box || !C.gapsBase) return;
+        try {
+            const list = await Ipd.get(`${C.gapsBase}OpenEscalations`) || [];
+            box.innerHTML = !list.length ? '' : `<div class="alert alert-danger py-2 mb-0"><div class="fw-semibold mb-1"><i class="bi bi-telephone-outbound me-1"></i>Escalations (${list.length})</div>
+                ${list.map(({ row: r, open }) => `<div class="small"><a href="${E(open)}" class="fw-semibold">${E(r.BedNumber || '')} ${E(r.PatientName)}</a> · ${E(r.Source)}${r.Score != null ? ' ' + r.Score : ''} · ${E(r.Details || '')}
+                    · <b>${r.Status === 'OPEN' ? `waiting ${r.MinutesToAck} min` : 'acknowledged: ' + E(r.Response || '')}</b></div>`).join('')}</div>`;
+        } catch { box.innerHTML = ''; }
+    }
+    load(); loadEsc();
+    setInterval(() => { if (!document.hidden) { load(); loadEsc(); } }, 60000);
 })();

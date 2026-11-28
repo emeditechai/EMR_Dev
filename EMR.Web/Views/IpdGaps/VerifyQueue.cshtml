@@ -1,0 +1,19 @@
+@{
+    ViewData["Title"] = "Medicine Verification";
+}
+@section HeadStyles { <link rel="stylesheet" href="~/css/ipd.css" asp-append-version="true" /> }
+@Html.AntiForgeryToken()
+<div class="ipdx-section-head mb-3">
+    <div><h2 class="fs-4"><i class="bi bi-patch-check me-2 text-primary"></i>Medicine Verification</h2>
+        <p>Running medicine orders of admitted patients not yet verified by the pharmacist (STAT and urgent first). Routine doses are charted on the MAR only after the verification.</p></div>
+    <button type="button" class="btn btn-sm btn-light border" id="fLoad"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+</div>
+<div class="ipdx-card"><div class="table-responsive"><table class="table ipdx-table mb-0">
+    <thead><tr><th>Patient / bed</th><th>Medicine</th><th>Dose · route · frequency</th><th>Ordered</th><th>Alerts</th><th>Status</th><th></th></tr></thead>
+    <tbody id="rows"><tr><td colspan="7" class="text-muted small">Loading…</td></tr></tbody>
+</table></div></div>
+@section Scripts {
+    <script src="~/js/ipd.js" asp-append-version="true"></script>
+    <script>window.IpdPage = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new { @base = Url.Content("~/IpdGaps/"), canVerify = ViewData["CanVerify"] as bool? ?? false }));</script>
+    <script src="~/js/ipd/verify-queue.js" asp-append-version="true"></script>
+}

@@ -25,7 +25,7 @@
 --                                       (2026-10-13: also misc charges, critical value calls, BOM consumption, doctor IP
 --                                       commission, membership points of the bills, and every LAB / OPD ledger kind:
 --                                       GST, discount, membership discount, round-off, receipt, refund; doctor settlements)
---   cleanup.usp_ClearIpdTransactions   (2026-11-12, extended 2026-11-27) IPD admissions with logs, attendants, consents, payers,
+--   cleanup.usp_ClearIpdTransactions   (2026-11-12, extended 2026-11-27, 2026-11-28 flow-gap tables) IPD admissions with logs, attendants, consents, payers,
 --                                       MLC, documents, charges, bills, advances / refunds (module IPD payments), ward pharmacy
 --                                       issues (stock given back to the store) and indents, OT / ICU, TPA pre-auths / claims,
 --                                       discharge (summaries, LAMA, death, gate pass, follow-ups), clinical / nursing (Phase 3),
@@ -1009,6 +1009,20 @@ BEGIN
         DELETE x FROM dbo.IpdIncident x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;             SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdIncident', 'DELETE', @n, 'incident reports';
     END
 
+    -- ── flow-gap fixes (SQLScripts/2570-2576) ──
+    IF OBJECT_ID('dbo.IpdEscalation') IS NOT NULL
+    BEGIN
+        DELETE x FROM dbo.IpdEscalation x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdEscalation', 'DELETE', @n, 'escalations to the doctor';
+        DELETE x FROM dbo.IpdMedRecon x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdMedRecon', 'DELETE', @n, 'medication reconciliation';
+        DELETE x FROM dbo.IpdRestraintCheck x INNER JOIN dbo.IpdRestraint r ON r.RestraintId = x.RestraintId INNER JOIN #Ad a ON a.AdmissionId = r.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdRestraintCheck', 'DELETE', @n, 'restraint checks';
+        DELETE x FROM dbo.IpdRestraint x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdRestraint', 'DELETE', @n, 'restraints';
+        DELETE x FROM dbo.IpdTransfusion x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdTransfusion', 'DELETE', @n, 'blood transfusions';
+        DELETE x FROM dbo.IpdCodeStatusLog x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdCodeStatusLog', 'DELETE', @n, 'code status history';
+        DELETE x FROM dbo.IpdNewborn x WHERE x.AdmissionId IN (SELECT AdmissionId FROM #Ad) OR x.MotherAdmissionId IN (SELECT AdmissionId FROM #Ad);  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdNewborn', 'DELETE', @n, 'newborn links';
+        DELETE x FROM dbo.IpdDischargeReopen x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdDischargeReopen', 'DELETE', @n, 'reopened gate passes';
+        DELETE x FROM dbo.PatientDeceased x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'PatientDeceased', 'DELETE', @n, 'deceased flags set by these admissions';
+    END
+
     -- ── discharge (Phase 7, SQLScripts/2557, 2560) ──
     IF OBJECT_ID('dbo.IpdDischarge') IS NOT NULL
     BEGIN
@@ -1133,6 +1147,11 @@ BEGIN
     INSERT INTO #L SELECT DISTINCT v.TxnId FROM dbo.IpdBill b CROSS APPLY (VALUES (b.SalesTxnId), (b.AdjustTxnId)) v(TxnId)
     WHERE b.AdmissionId IN (SELECT AdmissionId FROM #Ad) AND v.TxnId IS NOT NULL
       AND v.TxnId IN (SELECT TransactionId FROM dbo.Acc_LedgerTransaction) AND v.TxnId NOT IN (SELECT TransactionId FROM #L);
+    IF OBJECT_ID('dbo.IpdBillAdjustment') IS NOT NULL
+    BEGIN
+        DELETE x FROM dbo.IpdBillAdjustmentLine x INNER JOIN dbo.IpdBillAdjustment j ON j.AdjId = x.AdjId INNER JOIN #Ad a ON a.AdmissionId = j.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBillAdjustmentLine', 'DELETE', @n, 'supplementary bill / credit note lines';
+        DELETE x FROM dbo.IpdBillAdjustment x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId;  SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBillAdjustment', 'DELETE', @n, 'supplementary bills / credit notes';
+    END
     DELETE x FROM dbo.IpdBillLine x WHERE x.BillId IN (SELECT b.BillId FROM dbo.IpdBill b INNER JOIN #Ad a ON a.AdmissionId = b.AdmissionId);
                                                                                                        SET @n = @@ROWCOUNT; EXEC cleanup.usp_Report @A, 'IpdBillLine', 'DELETE', @n, 'final bill lines';
     UPDATE x SET x.BillId = NULL FROM dbo.IpdAdmission x INNER JOIN #Ad a ON a.AdmissionId = x.AdmissionId WHERE x.BillId IS NOT NULL;

@@ -35,6 +35,10 @@ public class WardMaster
 
     public bool IsIsolationWard { get; set; } = false;
 
+    // age range of the ward in days (SQLScripts/2570, C3): e.g. NICU 0-28, paediatric 0-4380; NULL = no limit
+    public int? MinAgeDays { get; set; }
+    public int? MaxAgeDays { get; set; }
+
     [MaxLength(500)]
     public string? Description { get; set; }
 

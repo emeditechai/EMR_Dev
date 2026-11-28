@@ -457,7 +457,9 @@ public class IpdAdmissionController(
             foreach (var c in new[] { "EDIT", "CHANGE_TARIFF", "ADVANCE", "REFUND", "CONSENT", "DOCUMENT", "DOCUMENT_DELETE", "CANCEL", "TRANSFER", "CHARGE", "CHARGE_CANCEL", "RATE_EDIT", "DISCOUNT", "PACKAGE", "FINAL_BILL", "BILL_BACKDATE", "BILL_CANCEL", "LAB_ORDER", "LAB_CANCEL", "PH_ISSUE", "PH_RETURN", "PH_INDENT", "PH_RECEIVE",
                                        "OT_BOOK", "OT_CHECKLIST", "OT_PROGRESS", "OT_ANAESTHESIA", "OT_NOTE", "OT_NOTE_SIGN", "OT_IMPLANT", "OT_CHARGE", "ICU_CHART", "ICU_CORRECT", "PREAUTH",
                                        "DISCHARGE_ADVISE", "CLEAR_PHARMACY", "CLEAR_LAB", "CLEAR_NURSING", "CLEAR_TPA", "DISCHARGE_SUMMARY", "DISCHARGE_SUMMARY_SIGN", "DISCHARGE_SUMMARY_ONBEHALF", "DISCHARGE_LAMA", "DEATH_RECORD", "GATEPASS", "GATEPASS_CREDIT", "FOLLOWUP",
-                                       "CLIN_ASSESS", "CLIN_NOTE", "CLIN_ORDER", "CLIN_COUNTERSIGN", "CLIN_CONSULT", "CLIN_CORRECT", "NURS_ASSESS", "NURS_CHART", "NURS_MAR", "NURS_HANDOVER", "NURS_INCIDENT", "ORDER_DONE" })   // Clinical / Nursing tabs (SQLScripts/2565)   // Discharge tab (SQLScripts/2558)   // PREAUTH: Insurance / TPA tab (SQLScripts/2542)
+                                       "CLIN_ASSESS", "CLIN_NOTE", "CLIN_ORDER", "CLIN_COUNTERSIGN", "CLIN_CONSULT", "CLIN_CORRECT", "NURS_ASSESS", "NURS_CHART", "NURS_MAR", "NURS_HANDOVER", "NURS_INCIDENT", "ORDER_DONE",
+                                       "DISCOUNT_HIGH", "INTERIM_BILL", "BILL_ADJUST", "BILL_ADJUST_CANCEL", "GATEPASS_STALE_BILL", "DISCHARGE_REOPEN", "ALLERGY", "CODE_STATUS", "ISOLATION",
+                                       "ORDER_VERIFY", "ESCALATE", "ESCALATION_ACK", "MED_RECON", "TRANSFUSION", "RESTRAINT", "NEWBORN" })   // flow-gap fixes (SQLScripts/2576)   // Clinical / Nursing tabs (SQLScripts/2565)   // Discharge tab (SQLScripts/2558)   // PREAUTH: Insurance / TPA tab (SQLScripts/2542)
                 ViewData["Can" + c] = await permissionGuard.AllowsAsync(HttpContext, PatientPage, c);
             ViewData["CanEstimate"] = await permissionGuard.AllowsAsync(HttpContext, IpdEstimationController.EstimationPage, "VIEW");
             return View(model);
@@ -530,7 +532,8 @@ public class IpdAdmissionController(
     {
         // a discount on settlement needs the Discount control of the IPD Patient page (checked again by the procedure)
         var canDiscount = await permissionGuard.AllowsAsync(HttpContext, PatientPage, "DISCOUNT");
-        return await WriteJson(() => api.PostAsync($"/admissions/{id}/advance", new { Payments = b.Payments ?? "[]", b.Remarks, b.DiscType, b.DiscValue, b.DiscReason, b.RoundOff, CanDiscount = canDiscount }),
+        var canHigh = await permissionGuard.AllowsAsync(HttpContext, PatientPage, "DISCOUNT_HIGH");   // above the branch's discount limit (2571)
+        return await WriteJson(() => api.PostAsync($"/admissions/{id}/advance", new { Payments = b.Payments ?? "[]", b.Remarks, b.DiscType, b.DiscValue, b.DiscReason, b.RoundOff, CanDiscount = canDiscount, CanDiscountHigh = canHigh }),
             r => auditLogService.LogActivityAsync(eventType: "IPD Billing", actionName: "IPD.Advance",
                 description: $"Receipt {r.S("ReceiptNo")} on admission {id}." + (r.M("Adjusted") > 0 ? $" Discount / round off {r.M("Adjusted").Rs()}" + (string.IsNullOrWhiteSpace(b.DiscReason) ? "" : $" ({b.DiscReason})") : ""),
                 userId: User.GetUserId(), branchId: User.GetCurrentBranchId(), moduleCode: "IPD", referenceNo: r.S("ReceiptNo"), referenceId: id));

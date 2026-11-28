@@ -58,7 +58,11 @@
         else if (b.Status === 'Available') body = `<div class="text-success fw-semibold">Ready</div><div class="text-muted">${E(b.BedCategoryName)}</div>`;
         else body = `<div class="text-muted text-truncate">${E(b.StatusReason || b.Status)}</div>`;
         const flags = (b.IsIcu ? '<span class="ipd-pill alert">ICU</span>' : '') + (b.IsIsolation ? '<span class="ipd-pill warn">ISO</span>' : '') + (b.IsMlc ? '<span class="ipd-pill alert">MLC</span>' : '')
-            + (b.KnownAllergies ? '<span class="ipd-pill alert" title="' + E(b.KnownAllergies) + '">ALG</span>' : '');
+            + (b.KnownAllergies ? '<span class="ipd-pill alert" title="' + E(b.KnownAllergies) + '">ALG</span>' : '')
+            // SQLScripts/2575: isolation of the patient, code status, escalation waiting for the doctor
+            + (b.IsolationType ? '<span class="ipd-pill warn" title="' + E(b.IsolationType.toLowerCase()) + ' isolation">' + E(b.IsolationType.slice(0, 3)) + '</span>' : '')
+            + (b.CodeStatus && b.CodeStatus !== 'FULL' ? '<span class="ipd-pill alert" title="Code status">' + E(b.CodeStatus.replace('_', '+')) + '</span>' : '')
+            + (b.OpenEscalations > 0 ? '<span class="ipd-pill alert" title="Escalation waiting for the doctor"><i class="bi bi-telephone-outbound"></i></span>' : '');
         return `<button type="button" class="bed-tile ${E(b.Status)}" data-bed="${b.BedId}" style="border-left-color:${statusColor[b.Status] || '#94a3b8'};cursor:pointer;min-height:96px">
             <div class="d-flex justify-content-between align-items-start gap-1"><span class="bn">${E(b.BedNumber)}</span><span class="d-flex gap-1">${flags}</span></div>
             <div class="small text-muted mb-1">${E(b.RoomNumber)} · ${E(b.BedCategoryName)}</div>${body}</button>`;

@@ -1,5 +1,5 @@
 /* IPD bed transfer dialog (Phase 2, SQLScripts/2431), shared by the Bed Board and the IPD Patient screen.
-   Ipd.transferDialog({ admissionId, who, transferUrl, bedsUrl, onDone }) */
+   Ipd.transferDialog({ admissionId, who, transferUrl, bedsUrl, lookupsUrl, onDone }). An ICU shift needs the doctor who ordered it (SQLScripts/2572). */
 (function () {
     'use strict';
     const E = s => Ipd.esc(s);
@@ -20,6 +20,8 @@
                 <div class="d-flex gap-2 align-items-center mb-2 flex-wrap"><input id="ipdTrFind" class="form-control form-control-sm" style="max-width:220px" placeholder="Find bed / ward" />
                     <div class="form-check form-switch small mb-0"><input class="form-check-input" type="checkbox" id="ipdTrFree" checked /><label class="form-check-label" for="ipdTrFree">Free beds only</label></div>
                     <span class="small text-muted ms-auto">Bed charges follow the bed held at the end of each day.</span></div>
+                <div class="row g-2 mb-2 d-none" data-x="icuDoc"><div class="col-md-6"><label class="form-label small fw-semibold" for="ipdTrDoc">ICU shift ordered by <span class="text-danger">*</span></label>
+                    <select id="ipdTrDoc" class="form-select form-select-sm"><option value="">-- choose the doctor --</option></select></div></div>
                 <div data-x="beds"></div>
             </div>
             <div class="modal-footer"><span class="me-auto small" data-x="sel"></span><button type="button" class="btn btn-light border" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" data-x="save" disabled>Transfer</button></div>
@@ -49,15 +51,20 @@
                     <div class="text-muted">${E(b.BedCategoryName)} · ${E(b.RoomNumber)}</div>
                     <div>${b.Selectable ? (b.NoTariff ? '<span class="text-danger">No rate · not allowed</span>' : Ipd.money(b.DailyRate) + '/day') : E(b.Status)}</div></button>`;
             }).join('')}</div></div>`).join('') || '<div class="text-muted small">No free bed matches.</div>';
+        const cur = (state.beds || []).find(b => b.Status === 'Current');
+        state.icuIn = !!(state.bed && state.bed.IsIcu && !(cur && cur.IsIcu));
+        q('icuDoc').classList.toggle('d-none', !state.icuIn);
         q('sel').innerHTML = state.bed ? `To <b>${E(state.bed.BedNumber)}</b> · ${E(state.bed.WardName)} · ${E(state.bed.BedCategoryName)}${state.bed.NoTariff ? '' : ' · ' + Ipd.money(state.bed.DailyRate) + '/day'}` : 'Choose the new bed';
         q('save').disabled = !state.bed;
     }
     async function save() {
         const reason = document.getElementById('ipdTrReason').value.trim();
         if (!reason) { Ipd.error('Enter the reason for the transfer.'); return; }
+        const doc = Number(document.getElementById('ipdTrDoc').value) || null;
+        if (state.icuIn && !doc) { Ipd.error('An ICU shift needs the doctor who ordered it.'); return; }
         const btn = modal.querySelector('[data-x="save"]'); btn.disabled = true;
         const r = await Ipd.post(state.transferUrl + '?admissionId=' + state.admissionId, {
-            ToBedId: state.bed.BedId, TransferAt: document.getElementById('ipdTrAt').value || null, Reason: reason, UpdateDepartment: document.getElementById('ipdTrDept').checked });
+            ToBedId: state.bed.BedId, TransferAt: document.getElementById('ipdTrAt').value || null, Reason: reason, UpdateDepartment: document.getElementById('ipdTrDept').checked, OrderedByDoctorId: state.icuIn ? doc : null });
         btn.disabled = false;
         if (!r.success) { Ipd.error(r.error); return; }
         bootstrap.Modal.getInstance(modal).hide();
@@ -73,6 +80,12 @@
         bootstrap.Modal.getOrCreateInstance(modal).show();
         modal.querySelector('[data-x="beds"]').innerHTML = '<div class="text-muted small">Loading beds…</div>';
         try { state.beds = await Ipd.get(opt.bedsUrl + '?admissionId=' + opt.admissionId) || []; render(); }
-        catch (e) { modal.querySelector('[data-x="beds"]').innerHTML = `<div class="text-danger small">${E(e.message)}</div>`; }
+        catch (e) { modal.querySelector('[data-x="beds"]').innerHTML = `<div class="text-danger small">${E(e.message)}</div>`; return; }
+        // doctors for an ICU shift order (IPD Patient lookups)
+        try {
+            const lk = await Ipd.get(opt.lookupsUrl || opt.transferUrl.replace(/IpdBeds\/Transfer$/i, 'IpdAdmission/PatientLookups'));
+            const docs = (lk && lk.doctors) || [];
+            document.getElementById('ipdTrDoc').innerHTML = '<option value="">-- choose the doctor --</option>' + docs.map(d => `<option value="${d.DoctorId}">${E(d.FullName || d.DoctorName)}</option>`).join('');
+        } catch { /* the save asks for the doctor */ }
     };
 })();

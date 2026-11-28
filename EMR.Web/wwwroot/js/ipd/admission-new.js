@@ -30,7 +30,7 @@ const doc = r => r.DoctorName + (r.SpecialityName ? ' · ' + r.SpecialityName : 
         fill('AdmittingDoctorId', ipdDocs, 'DoctorId', r => r.DoctorName + ' · ' + r.IpdDeptNames, ipdDocs.length ? '-- Select --' : '-- No doctor with an IPD department --');
 if (!ipdDocs.length) Ipd.toast('No doctor belongs to an IPD department. Map one in Master > Doctor.', 'warning');
         fill('ConsultantDoctorId', ipdDocs, 'DoctorId', r => r.DoctorName + ' · ' + r.IpdDeptNames, ipdDocs.length ? '-- Select --' : '-- No doctor with an IPD department --');
-        fill('ReferralDoctorId', L.referralDoctors, 'DoctorId', r => r.DoctorName + (r.IsReferralDoctor ? ' (referral)' : ''), '-- None --');
+        fill('ReferralDoctorId', L.referralDoctors, 'DoctorId', r => [r.DoctorName, r.DeptTypes, r.IsReferralDoctor ? 'Referral' : ''].filter(Boolean).join(' · '), '-- None --');
         fill('DepartmentId', L.departments, 'DeptId', 'DeptName', '-- Select --');
         fill('TariffCategoryId', L.tariffCategories, 'TariffCategoryId', r => r.Name + ' (' + r.PatientCategory + ') · ' + (r.BedRates ? r.BedRates + ' bed rate' + (r.BedRates > 1 ? 's' : '') : 'no bed rates: cannot be used'), '-- Select --');
         // a tariff category without bed rates cannot be used for an admission (no bed could be given)

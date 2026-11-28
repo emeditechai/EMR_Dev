@@ -79,7 +79,7 @@
             <div><small>Co-pay</small><b>${money(a.LiveCoPayAmount)}</b></div>
             <div class="hl"><small>TPA pays (now)</small><b>${money(a.LivePayerShare)}</b><div class="small text-muted">of ${money(a.LiveAuthorised)} approved</div></div>
             <div class="pt"><small>Patient pays</small><b>${money(a.LivePatientShare)}</b><div class="small text-muted">advance held ${money(a.NetAdvance)}</div></div></div>
-            <div class="form-text">The final bill splits the same way: (bill − non-payables − deductible) less co-pay, up to the approved / final authorised amount.</div>`;
+            <div class="form-text">The final bill splits the same way: (bill − non-payables − deductible) less co-pay, up to the approved / final authorised amount. With a room-rent limit, the rent above it and the associated charges (doctor, procedures, OT, services) in the same proportion are not payable by the insurer; medicines, consumables, implants and investigations are never cut.</div>`;
     }
 
     function billSplit(a, inner) {
@@ -98,6 +98,8 @@
             <div class="col-auto"><label class="form-label small fw-semibold">Co-pay %</label><input id="spCo" type="number" min="0" max="100" step="0.01" class="form-control form-control-sm" value="${p.CoPayPercent}" ${ro ? 'disabled' : ''}></div>
             <div class="col-auto"><label class="form-label small fw-semibold">Deductible ₹</label><input id="spDed" type="number" min="0" step="0.01" class="form-control form-control-sm" value="${p.Deductible}" ${ro ? 'disabled' : ''}></div>
             <div class="col-auto"><label class="form-label small fw-semibold">Non-payables ₹</label><input id="spNp" type="number" min="0" step="0.01" class="form-control form-control-sm" value="${p.NonPayable}" ${ro ? 'disabled' : ''}></div>
+            <div class="col-auto"><label class="form-label small fw-semibold" title="Room-rent eligibility per day (IRDAI proportionate deduction)">Room rent limit ₹/day</label><input id="spRr" type="number" min="0" step="1" class="form-control form-control-sm" value="${p.RoomRentLimit ?? ''}" placeholder="no limit" ${ro ? 'disabled' : ''}></div>
+            <div class="col-auto"><label class="form-label small fw-semibold">ICU limit ₹/day</label><input id="spIr" type="number" min="0" step="1" class="form-control form-control-sm" value="${p.IcuRentLimit ?? ''}" placeholder="no limit" ${ro ? 'disabled' : ''}></div>
             <div class="col"><label class="form-label small fw-semibold">Remarks</label><input id="spRem" class="form-control form-control-sm" maxlength="300" value="${esc(p.SplitRemarks || '')}" placeholder="e.g. 10 % co-pay as per policy, room rent difference" ${ro ? 'disabled' : ''}></div>
             ${ro ? '' : '<div class="col-auto"><button type="button" class="btn btn-sm btn-primary" id="spSave"><i class="bi bi-save me-1"></i>Save</button></div>'}
         </div>${splitPreview(a)}`;
@@ -179,7 +181,8 @@
             Tpa.stepDialog(b.dataset.step, live, { url, admissionId: C.id, amountHint: hint(b.dataset.step, live, a), onDone: refresh })));
         $('spSave')?.addEventListener('click', async () => {
             const res = await Ipd.post(url + 'SaveSplit?preAuthId=' + live.PreAuthId, {
-                coPayPercent: Number($('spCo').value) || 0, deductible: Number($('spDed').value) || 0, nonPayable: Number($('spNp').value) || 0, remarks: $('spRem').value.trim() || null });
+                coPayPercent: Number($('spCo').value) || 0, deductible: Number($('spDed').value) || 0, nonPayable: Number($('spNp').value) || 0, remarks: $('spRem').value.trim() || null,
+                roomRentLimit: Number($('spRr').value) || null, icuRentLimit: Number($('spIr').value) || null });
             if (!res.success) return Ipd.error(res.error);
             Ipd.toast("Patient's share saved"); refresh();
         });

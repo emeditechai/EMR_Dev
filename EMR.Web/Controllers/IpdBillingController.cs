@@ -62,7 +62,16 @@ public class IpdBillingController(IpdApiClient api, IActionPermissionGuard permi
     public Task<IActionResult> Preview(int id, DateTime? upTo, string? discountType, decimal discountValue = 0) => Read(async () =>
     {
         var s = await api.SetsAsync($"/admissions/{id}/bill-preview" + IpdApiClient.Q(("upTo", upTo?.ToString("yyyy-MM-ddTHH:mm:ss")), ("discountType", discountType), ("discountValue", discountValue)));
-        return new { totals = s.ElementAtOrDefault(0), heads = s.ElementAtOrDefault(1) };
+        // print links are built here, encrypted (CLAUDE.md): the final bill once made, else the interim bill (SQLScripts/2571)
+        var billId = s.First(0).NI("BillId");
+        var prints = new
+        {
+            bill = billId is > 0 ? Url.ActionEncrypted("PrintBill", "IpdBilling", new { id = billId }) : null,
+            billDetail = billId is > 0 ? Url.ActionEncrypted("PrintBill", "IpdBilling", new { id = billId, format = "detail" }) : null,
+            interim = billId is > 0 ? null : Url.ActionEncrypted("InterimBill", "IpdGaps", new { id }),
+            interimDetail = billId is > 0 ? null : Url.ActionEncrypted("InterimBill", "IpdGaps", new { id, format = "detail" })
+        };
+        return new { totals = s.ElementAtOrDefault(0), heads = s.ElementAtOrDefault(1), blockers = s.ElementAtOrDefault(2), prints };
     });
 
     // ── writes ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -128,7 +137,8 @@ public class IpdBillingController(IpdApiClient api, IActionPermissionGuard permi
         if (!await Can("FINAL_BILL")) return Fail(PermissionFilter.DeniedMessage);
         var canDisc = await Can("DISCOUNT");
         var canBack = await Can("BILL_BACKDATE");
-        return await Write(() => api.PostAsync($"/admissions/{id}/final-bill", new { b.UpTo, b.DiscountType, b.DiscountValue, b.DiscountReason, b.Remarks, CanDiscount = canDisc, CanBackdate = canBack }),
+        var canHigh = await Can("DISCOUNT_HIGH");
+        return await Write(() => api.PostAsync($"/admissions/{id}/final-bill", new { b.UpTo, b.DiscountType, b.DiscountValue, b.DiscountReason, b.Remarks, CanDiscount = canDisc, CanBackdate = canBack, CanDiscountHigh = canHigh }),
             "IPD.FinalBill", $"Admission {id}: final bill made" + (b.DiscountValue > 0 ? $", discount {b.DiscountValue}{(b.DiscountType == "P" ? "%" : "")} ({b.DiscountReason})" : ""), id);
     }
 

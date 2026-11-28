@@ -77,10 +77,11 @@
             const acts = [];
             if (verbal && !o.CountersignedAt && o.Status !== 'CANCELLED' && C.can.countersign && my && my === o.DoctorId) acts.push(`<button type="button" class="btn btn-sm btn-success" data-act="Countersign" data-id="${o.OrderId}">Countersign</button>`);
             if (active && o.OrderType === 'MED' && o.ItemId && !o.IndentId && C.can.indent && C.can.order && st().BillOpen) acts.push(`<button type="button" class="btn btn-sm btn-outline-primary" data-indent="${o.OrderId}">To pharmacy</button>`);
+            if (active && o.OrderType === 'MED' && o.VerifyStatus !== 'VERIFIED' && C.can.verify) acts.push(`<button type="button" class="btn btn-sm btn-outline-success" data-verify="${o.OrderId}" title="Pharmacist verification">Verify</button>`);
             if (active && C.can.order && canWrite()) acts.push(`<button type="button" class="btn btn-sm btn-outline-secondary" data-act="StopOrder" data-id="${o.OrderId}">Stop</button>`,
                 `<button type="button" class="btn btn-sm btn-link text-danger p-0 ms-1" data-act="CancelOrder" data-id="${o.OrderId}" title="Cancel an order entered in error">Cancel</button>`);
             h += `<tr class="${active ? '' : 'text-muted'}"><td><span class="clin-type t-${o.OrderType}">${TYPE[o.OrderType]}</span>${o.Priority !== 'ROUTINE' ? ` <span class="badge ${o.Priority === 'STAT' ? 'text-bg-danger' : 'text-bg-warning'}">${o.Priority}</span>` : ''}<div>${orderText(o)}</div></td>
-                <td class="small">${E(o.DoctorName)}</td>
+                <td class="small">${E(o.DoctorName)}${o.OrderType === 'MED' && active ? (o.VerifyStatus === 'VERIFIED' ? '<div class="text-success"><i class="bi bi-patch-check me-1"></i>pharmacist verified</div>' : o.VerifyStatus === 'QUERY' ? `<div class="text-danger"><i class="bi bi-question-circle me-1"></i>pharmacist query: ${E(o.VerifyNote || '')}</div>` : '<div class="text-warning-emphasis">not yet verified by the pharmacist</div>') : ''}${o.AllergyOverride ? `<div class="text-danger">allergy overridden: ${E(o.AllergyOverride)}</div>` : ''}${o.InteractionOverride ? `<div class="text-danger">interaction / duplicate overridden: ${E(o.InteractionOverride)}</div>` : ''}</td>
                 <td class="small text-nowrap">${Ipd.dt(o.OrderedAt)}<div class="text-muted">${E(o.OrderedByName)}</div>
                     ${verbal ? `<span class="badge ${o.CountersignedAt ? 'text-bg-success' : o.CountersignOverdue ? 'text-bg-danger' : 'text-bg-warning'}">${o.Source.toLowerCase()}${o.CountersignedAt ? ' · countersigned' : o.CountersignOverdue ? ' · countersign overdue' : ' · ' + U.dueText(o.CountersignDueAt).replace('due in', 'countersign in')}</span>` : ''}</td>
                 <td class="small">${{ ACTIVE: '<span class="badge text-bg-primary">active</span>', COMPLETED: '<span class="badge text-bg-success">completed</span>', STOPPED: '<span class="badge text-bg-secondary">stopped</span>', CANCELLED: '<span class="badge text-bg-light border">cancelled</span>' }[o.Status]}
@@ -108,7 +109,7 @@
             body = `<div class="row g-2">
                 <div class="col-12 position-relative"><label class="form-label small fw-semibold mb-1" for="oDrug">Medicine <span class="text-danger">*</span></label>
                     <input id="oDrug" class="form-control form-control-sm" placeholder="Type to search the pharmacy item list, or type the name" autocomplete="off" />
-                    <div id="oDrugSug" class="sug-list list-group" style="display:none"></div><div id="oDrugInfo" class="small mt-1"></div></div>
+                    <div id="oDrugSug" class="sug-list list-group" style="display:none"></div><div id="oDrugInfo" class="small mt-1"></div><div id="oAlerts"></div></div>
                 ${U.field('oDose', 'Dose', U.text('oDose', '', 'placeholder="e.g. 500 mg, 1 tab, 10 units"'), 'col-6 col-md-3', true)}
                 ${U.field('oRoute', 'Route', U.sel('oRoute', ROUTES, 'PO'), 'col-6 col-md-3', true)}
                 ${U.field('oFreq', 'Frequency', U.sel('oFreq', fr, 'BD'), 'col-6 col-md-3', true)}
@@ -142,8 +143,9 @@
         let pick = null;
         if (type === 'MED') suggest('oDrug', 'oDrugSug', async q => (await Ipd.get(`${C.phBase}IndentItems?id=${C.id}&q=${encodeURIComponent(q)}`)).items || [],
             x => `${E(x.ItemName)}${x.IsHighAlert ? ' <span class="badge text-bg-danger">high alert</span>' : ''} <span class="small text-muted">· stock ${Number(x.Stock || 0)} ${E(x.SaleUom || '')}</span>`,
-            x => { pick = x; $('oDrug').value = x.ItemName; $('oDrugInfo').innerHTML = x.IsHighAlert ? '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>High-alert medicine: the nurse needs a second check to give it.</span>' : ''; $('oUom').textContent = x.SaleUom || ''; },
-            () => { pick = null; $('oDrugInfo').innerHTML = ''; });
+            x => { pick = x; $('oDrug').value = x.ItemName; medAlerts(x.ItemId, null); $('oDrugInfo').innerHTML = x.IsHighAlert ? '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>High-alert medicine: the nurse needs a second check to give it.</span>' : ''; $('oUom').textContent = x.SaleUom || ''; },
+            () => { pick = null; $('oDrugInfo').innerHTML = ''; $('oAlerts').innerHTML = ''; });
+        if (type === 'MED') $('oDrug').addEventListener('change', () => { if (!pick && U.v('oDrug')) medAlerts(null, U.v('oDrug')); });
         if (type === 'MED') {
             // quantity for the pharmacy = doses a day x days (STAT = 1); the user can change it
             const fq = () => {
@@ -161,7 +163,7 @@
         $('oSave').addEventListener('click', async () => {
             const b = Object.assign({ orderType: type, priority: U.v('oPri') || 'ROUTINE', details: U.v('oNote') || null }, who());
             if (type === 'MED') Object.assign(b, { itemId: pick ? pick.ItemId : null, drugName: pick ? null : (U.v('oDrug') || null), dose: U.v('oDose'), route: U.v('oRoute'),
-                frequencyCode: U.v('oFreq'), startAt: U.v('oStart') || null, durationDays: U.n('oDays') });
+                frequencyCode: U.v('oFreq'), startAt: U.v('oStart') || null, durationDays: U.n('oDays'), allergyOverride: U.v('oAlgWhy') || null, interactionOverride: U.v('oIntWhy') || null });
             if (type === 'SERVICE') { if (!pick) { Ipd.error('Choose the service or procedure from the list.'); return; } Object.assign(b, { serviceKind: pick.Kind, refId: pick.RefId, qty: U.n('oQty') }); }
             if (type === 'DIET') b.dietType = U.v('oDiet');
             const sendIndent = type === 'MED' && pick && C.can.indent && st().BillOpen && U.chk('oIndent');
@@ -176,6 +178,23 @@
                 document.dispatchEvent(new CustomEvent('ipd:indent-changed'));
             } finally { const s = $('oSave'); if (s) s.disabled = false; }
         });
+    }
+
+    // allergy / interaction / duplicate alerts of the medicine (SQLScripts/2572); a reason is asked where the save needs one
+    async function medAlerts(itemId, drugName) {
+        const box = $('oAlerts'); if (!box || !C.gapsBase) return;
+        box.innerHTML = '';
+        try {
+            const q = new URLSearchParams({ id: C.id }); if (itemId) q.set('itemId', itemId); if (drugName) q.set('drugName', drugName);
+            const r = await Ipd.get(`${C.gapsBase}MedCheck?${q}`);
+            const a = r.allergy || {}, al = r.alerts || [];
+            let h = '';
+            if (!a.AllergyRecorded) h += `<div class="alert alert-warning py-1 px-2 small mt-2 mb-1"><i class="bi bi-exclamation-triangle me-1"></i>The allergy status is not recorded${a.AllergyStatusRequired ? ': record it first (banner &rsaquo; Allergies)' : ''}.</div>`;
+            al.forEach(x => { h += `<div class="alert ${x.Severity === 'MAJOR' ? 'alert-danger' : 'alert-warning'} py-1 px-2 small mt-2 mb-1"><i class="bi bi-shield-exclamation me-1"></i>${E(x.Message)}</div>`; });
+            if (al.some(x => x.NeedsReason === 'ALLERGY')) h += U.field('oAlgWhy', 'Reason to order despite the allergy', U.text('oAlgWhy', '', 'maxlength="300" placeholder="e.g. mild rash only, benefit outweighs risk, premedicated"'), 'col-12', true);
+            if (al.some(x => x.NeedsReason === 'INTERACTION')) h += U.field('oIntWhy', 'Reason to order despite the interaction / duplicate', U.text('oIntWhy', '', 'maxlength="300" placeholder="e.g. intended combination, monitor INR"'), 'col-12', true);
+            box.innerHTML = h;
+        } catch { /* the save checks again */ }
     }
 
     async function sendToPharmacy(orderId, itemId, qty, priority, doctorId) {
@@ -328,6 +347,14 @@
             const r = await Swal.fire({ title: 'Send to the pharmacy', html: `${E(o.DrugName)} ${E(o.Dose)}`, input: 'number', inputLabel: 'Quantity', inputAttributes: { min: 1, step: 1 },
                 showCancelButton: true, confirmButtonText: 'Send', inputValidator: v => (!v || Number(v) <= 0) ? 'Enter the quantity.' : undefined });
             if (r.isConfirmed) { await sendToPharmacy(o.OrderId, o.ItemId, Number(r.value), o.Priority, o.DoctorId); load(); }
+            return;
+        }
+        if (t.dataset.verify) {
+            const r = await Swal.fire({ title: 'Pharmacist verification', input: 'text', inputLabel: 'Note (required for a query to the doctor)', showDenyButton: true, showCancelButton: true,
+                confirmButtonText: 'Verify', denyButtonText: 'Query to the doctor', cancelButtonText: 'Close' });
+            if (r.isDismissed) return;
+            const action = r.isDenied ? 'QUERY' : 'VERIFY';
+            if (await U.save(`${C.gapsBase}VerifyOrder?orderId=${t.dataset.verify}`, { action, note: (r.value || '').trim() || null }, action === 'VERIFY' ? 'Order verified' : 'Query sent')) load();
             return;
         }
         if (t.dataset.note) { noteModal(t.dataset.note); return; }

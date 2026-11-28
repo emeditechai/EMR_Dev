@@ -28,9 +28,9 @@ public record IpdPhIndentProcessRequest(string? Issue, string? NotIssue, int? St
 public record IpdPhTakeBackRequest(string? Remarks);
 public record IpdAdviceRequest(int OpdServiceId, string? Reason, string? Diagnosis, string? DiagnosisCode, string? Urgency, DateTime? ExpectedAt, int? DepartmentId, string? Remarks);
 public record IpdPackageRequest(int? PackageId, string? Reason);
-public record IpdFinaliseRequest(DateTime? UpTo, string? DiscountType, decimal DiscountValue, string? DiscountReason, string? Remarks, bool CanDiscount, bool CanBackdate);
+public record IpdFinaliseRequest(DateTime? UpTo, string? DiscountType, decimal DiscountValue, string? DiscountReason, string? Remarks, bool CanDiscount, bool CanBackdate, bool CanDiscountHigh = false);
 public record IpdCancelRequest(string? Reason, string? RefundMethod, string? RefundRefNo);
-public record IpdAdvanceRequest(string Payments, string? Remarks, string? DiscType = null, decimal DiscValue = 0, string? DiscReason = null, bool RoundOff = false, bool CanDiscount = false);
+public record IpdAdvanceRequest(string Payments, string? Remarks, string? DiscType = null, decimal DiscValue = 0, string? DiscReason = null, bool RoundOff = false, bool CanDiscount = false, bool CanDiscountHigh = false);
 public record IpdRefundRequest(decimal Amount, string Method, string? RefNo, string? Reason);
 public record IpdConsentRequest(int ConsentId, string? SignedByName, string? SignedByRelation, string? WitnessName, string? SignaturePath, string? WitnessSignaturePath,
     int? OtBookingId = null);   // 2492: consent for an OT booking
@@ -39,7 +39,7 @@ public record IpdPreEstimateRequest(int? EstimateId, int? PatientId, string? Pat
     int TariffCategoryId, int? BedCategoryId, int WardDays, int? IcuBedCategoryId, int IcuDays, int? PackageId, int? DoctorId, string? ProcedureNote,
     string? Remarks, string Lines);
 
-public record IpdTransferRequest(int ToBedId, DateTime? TransferAt, string? Reason, bool UpdateDepartment, bool CanBackdate);
+public record IpdTransferRequest(int ToBedId, DateTime? TransferAt, string? Reason, bool UpdateDepartment, bool CanBackdate, int? OrderedByDoctorId = null);
 public record IpdSwapRequest(int OtherAdmissionId, string? Reason);
 public record IpdBedStatusRequest(string Status, string? Reason);
 public record IpdReserveRequest(int? PatientId, string? PatientName, string? Phone, DateTime ExpectedAdmitAt, int? HoldHours, int? DoctorId, int? EstimateId, string? Remarks);
@@ -135,7 +135,7 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     [HttpPost("admissions/{id:int}/advance")]
     public Task<IActionResult> Advance(int id, [FromBody] IpdAdvanceRequest r) => Run(async c =>
         Row(await ipd.RowAsync("dbo.usp_Api_IpdAdvance_Add", new { c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.Payments, r.Remarks,
-            r.DiscType, r.DiscValue, r.DiscReason, r.RoundOff, r.CanDiscount })));
+            r.DiscType, r.DiscValue, r.DiscReason, r.RoundOff, r.CanDiscount, r.CanDiscountHigh })));
 
     // settlement figures for the Collect payment modal (SQLScripts/2479)
     [HttpGet("admissions/{id:int}/advance-preview")]
@@ -241,7 +241,7 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
     public Task<IActionResult> Transfer(int id, [FromBody] IpdTransferRequest r) => Run(async c =>
         Row(await ipd.RowAsync("dbo.usp_Api_IpdBed_Transfer", new
         {
-            c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.ToBedId, r.TransferAt, r.Reason, r.UpdateDepartment, r.CanBackdate
+            c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.ToBedId, r.TransferAt, r.Reason, r.UpdateDepartment, r.CanBackdate, r.OrderedByDoctorId
         })));
 
     [HttpPost("admissions/{id:int}/swap")]
@@ -293,13 +293,13 @@ public class IpdController(IIpdProcService ipd) : ControllerBase
 
     [HttpGet("admissions/{id:int}/bill-preview")]
     public Task<IActionResult> BillPreview(int id, [FromQuery] DateTime? upTo, [FromQuery] string? discountType, [FromQuery] decimal discountValue = 0) => Run(async c =>
-        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdBill_Preview", new { c.CompanyId, AdmissionId = id, UpTo = upTo, DiscountType = discountType, DiscountValue = discountValue }, 2)));
+        Sets(await ipd.SetsAsync("dbo.usp_Api_IpdBill_Preview", new { c.CompanyId, AdmissionId = id, UpTo = upTo, DiscountType = discountType, DiscountValue = discountValue }, 3)));
 
     [HttpPost("admissions/{id:int}/final-bill")]
     public Task<IActionResult> Finalise(int id, [FromBody] IpdFinaliseRequest r) => Run(async c =>
         Row(await ipd.RowAsync("dbo.usp_Api_IpdBill_Finalise", new
         {
-            c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.UpTo, r.DiscountType, r.DiscountValue, r.DiscountReason, r.Remarks, r.CanDiscount, r.CanBackdate
+            c.CompanyId, c.BranchId, c.UserId, AdmissionId = id, r.UpTo, r.DiscountType, r.DiscountValue, r.DiscountReason, r.Remarks, r.CanDiscount, r.CanBackdate, r.CanDiscountHigh
         })));
 
     [HttpPost("bills/{id:int}/cancel")]
